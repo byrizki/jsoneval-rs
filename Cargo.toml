@@ -1,0 +1,52 @@
+[package]
+name = "json-eval-rs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+datalogic-rs = { version = "4" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["arbitrary_precision", "preserve_order"] }
+indexmap = { version = "2.1", features = ["serde"] }
+chrono = "0.4"
+hashbrown = "0.14"
+rustc-hash = "1.1"
+smallvec = "1.13"
+string-interner = "0.17"
+bumpalo = { version = "3.16", features = ["collections"] }
+rayon = "1.10"
+rust_decimal = { version = "1.33", features = ["serde-float"] }
+
+[lib]
+name = "json_eval_rs"
+crate-type = ["rlib", "cdylib"]
+
+[[bin]]
+name = "json-eval-cli"
+path = "src/main.rs"
+
+[features]
+default = []
+wasm = ["wasm-bindgen"]
+ffi = []
+
+[dependencies.wasm-bindgen]
+version = "0.2"
+optional = true
+features = ["serde-serialize"]
+
+[dependencies.once_cell]
+version = "1.19"
+
+[[bench]]
+name = "rlogic_bench"
+harness = false
+
+[profile.release]
+lto = "fat"              # Full Link Time Optimization for maximum performance
+codegen-units = 1        # Single codegen unit for best optimization
+opt-level = 3            # Maximum optimizations
+strip = true             # Strip symbols for smaller binary
+panic = "abort"          # Smaller binary, faster unwinding

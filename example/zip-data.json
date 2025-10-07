@@ -1,0 +1,89 @@
+{
+    "illustration": {
+        "header": {
+            "ill_date": "2025-09-18T06:28:09.798Z",
+            "ill_version": "1.0"
+        },
+        "ill_signature": {
+            "agent": {
+                "agent_name": "Agent Dummy",
+                "agent_sign": null
+            },
+            "policyholder": {
+                "ph_corrname": "AAA",
+                "ph_sign": null
+            }
+        },
+        "insured": {
+            "ins_corrname": "AAA",
+            "ins_dob": "1990-09-10T17:00:00.000Z",
+            "insage": 35,
+            "ins_gender": "L",
+            "ins_occ": "PAWN",
+            "ins_occclass": 1,
+            "phins_relation": "1"
+        },
+        "policyholder": {
+            "ph_type": "Individu",
+            "ph_comname": null,
+            "phins": "Y",
+            "ph_corrname": "AAA",
+            "ph_dob": "1990-09-10T17:00:00.000Z",
+            "phage": 35,
+            "ph_gender": "L",
+            "ph_lead_id": null,
+            "jobinfo": {
+                "ph_occupation": "PAWN",
+                "ph_occclass": 1
+            }
+        },
+        "product_benefit": {
+            "product": {
+                "prod_name": "Zurich Income Assurance Plan Pro",
+                "advance_prem_flag": false,
+                "prod_package": "ZIAP Pro Solusi",
+                "field_note": "d",
+                "ill_sign": false,
+                "advance_prem_note": "d"
+            },
+            "benefit_type": {
+                "currency": "IDR",
+                "pol_duration": 65,
+                "prem_pay_period": "3",
+                "prem_freq": "12",
+                "tf": 100000000,
+                "sa": 100000000,
+                "start_annben_sched": "10",
+                "anticipated_annben_sched": [
+                    "6"
+                ]
+            },
+            "loading_benefit": {
+                "em_permill": 0,
+                "em_permilldur": "3",
+                "em": 100,
+                "em_dur": "3",
+                "basic_premi": 4256534,
+                "total_premi": 4425887,
+                "total_prem_advance": null
+            },
+            "riders": [
+                {
+                    "loading_benefit": {
+                        "em_permill": 0,
+                        "em": 100,
+                        "first_prem": 169353,
+                        "em_permilldur": "3",
+                        "em_dur": "3"
+                    },
+                    "name": "Zurich Life Optima Pro",
+                    "group": "LIFE3",
+                    "code": "ZLOS",
+                    "prem_pay_period": "3",
+                    "sa": 100000000
+                }
+            ]
+        },
+        "signature": null
+    }
+}

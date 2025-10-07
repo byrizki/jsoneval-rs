@@ -1,0 +1,20 @@
+
+≡ƒÜÇ JSON Evaluation Benchmark
+
+Loading files...
+Running evaluation...
+
+  Schema parsing & compilation: 10.4169ms
+  Evaluation: 1.1197246s
+ΓÅ▒∩╕Å  Execution time: 1.1301957s
+
+Γ£à Results saved to example/evaluated-schema.json
+ΓÜá∩╕Å  Comparison: differences found vs `example/evaluated-schema-comp.json` (showing up to 5):
+  - /constants/POL_DURATION differs: actual=65.0 expected=65
+  - /constants/POST_AD_SA differs: actual=10000000.0 expected=10000000
+  - /others/BASE_PREM differs: actual=51078413.69247408 expected=51078413.692474075
+  - /others/BASE_PREM_PER_PAY differs: actual=4256534.4743728405 expected=4256534.47437284
+  - /others/CURRENT_RIDER_FIRST_PREM_PER_PAY present in actual but missing in expected
+
+≡ƒôè Cache Stats: CacheStats { hits: 0, misses: 12, hit_rate: 0.0, size: 12 }
+
