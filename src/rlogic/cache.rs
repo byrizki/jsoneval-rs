@@ -1,13 +1,11 @@
-use hashbrown::HashMap;
-use rustc_hash::FxHasher;
 use serde_json::Value;
-use std::hash::{BuildHasherDefault, Hash, Hasher};
+use rustc_hash::FxHashMap;
+use std::hash::{Hash, Hasher};
+use rustc_hash::FxHasher;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::compiled::LogicId;
-
-type FxBuildHasher = BuildHasherDefault<FxHasher>;
 
 /// Cache key combining logic ID, data version, and dependency fingerprint
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -49,7 +47,7 @@ struct CacheNode {
 
 /// High-performance evaluation result cache with optional LRU eviction
 pub struct EvalCache {
-    entries: HashMap<CacheKey, CacheNode, FxBuildHasher>,
+    entries: FxHashMap<CacheKey, CacheNode>,
     head: Option<CacheKey>,
     tail: Option<CacheKey>,
     capacity: Option<usize>,
@@ -64,7 +62,7 @@ impl EvalCache {
 
     pub fn with_capacity(capacity: Option<usize>) -> Self {
         Self {
-            entries: HashMap::with_hasher(FxBuildHasher::default()),
+            entries: FxHashMap::default(),
             head: None,
             tail: None,
             capacity,

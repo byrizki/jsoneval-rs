@@ -1,13 +1,9 @@
 use serde_json::{Map, Value};
 use std::borrow::Cow;
-use std::hash::BuildHasherDefault;
 use std::sync::{atomic::{AtomicU64, Ordering}, RwLock};
-use hashbrown::HashMap;
-use rustc_hash::FxHasher;
+use rustc_hash::FxHashMap;
 
 use super::path::{parse_path, traverse, traverse_mut, PathSegment, PathVec};
-
-type FxBuildHasher = BuildHasherDefault<FxHasher>;
 
 static NEXT_INSTANCE_ID: AtomicU64 = AtomicU64::new(0);
 
@@ -20,8 +16,8 @@ pub struct TrackedData {
     instance_id: u64,
     data: Value,
     version: AtomicU64,
-    field_versions: HashMap<String, u64, FxBuildHasher>,
-    path_cache: RwLock<HashMap<String, PathVec, FxBuildHasher>>,
+    field_versions: FxHashMap<String, u64>,
+    path_cache: RwLock<FxHashMap<String, PathVec>>,
 }
 
 impl TrackedData {
@@ -31,8 +27,8 @@ impl TrackedData {
             instance_id: NEXT_INSTANCE_ID.fetch_add(1, Ordering::Relaxed),
             data,
             version: AtomicU64::new(0),
-            field_versions: HashMap::with_hasher(FxBuildHasher::default()),
-            path_cache: RwLock::new(HashMap::with_hasher(FxBuildHasher::default())),
+            field_versions: FxHashMap::default(),
+            path_cache: RwLock::new(FxHashMap::default()),
         }
     }
     
@@ -140,7 +136,7 @@ impl TrackedData {
         source: &Value,
         path: &str,
         changes: &mut usize,
-        field_versions: &mut HashMap<String, u64, FxBuildHasher>,
+        field_versions: &mut FxHashMap<String, u64>,
         version: &mut AtomicU64,
     ) {
         match (target, source) {
@@ -255,7 +251,7 @@ impl Clone for TrackedData {
             data: self.data.clone(),
             version: AtomicU64::new(self.version.load(Ordering::Acquire)),
             field_versions: self.field_versions.clone(),
-            path_cache: RwLock::new(HashMap::with_hasher(FxBuildHasher::default())),
+            path_cache: RwLock::new(FxHashMap::default()),
         }
     }
 }

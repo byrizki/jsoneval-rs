@@ -1,5 +1,5 @@
 use serde_json::{Map, Value};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use crate::{JSONEval, LogicId, TrackedData};
 
 pub fn evaluate_table(
@@ -19,10 +19,14 @@ pub fn evaluate_table(
     }
 
     impl ColumnPlan {
+        #[inline]
         fn new(name: &str, logic: Option<LogicId>, literal: Option<Value>, dependencies: Vec<String>, has_forward_ref: bool) -> Self {
+            let mut var_path = String::with_capacity(name.len() + 1);
+            var_path.push('$');
+            var_path.push_str(name);
             Self {
                 name: name.to_string(),
-                var_path: format!("${name}"),
+                var_path,
                 logic,
                 literal,
                 dependencies,
@@ -159,6 +163,7 @@ pub fn evaluate_table(
         row_plans.push(RowPlan::Static { columns });
     }
 
+    // Pre-compute table path once (avoid repeated string operations)
     let table_dotted_path = eval_key.trim_start_matches("#/").replace('/', ".");
     
     // ==========================================
@@ -212,21 +217,12 @@ pub fn evaluate_table(
     if should_clear {
         scope_data.set(&table_dotted_path, Value::Array(Vec::new()));
     }
-
     let number_from_value = |value: &Value| -> i64 {
         match value {
-            Value::Number(n) => n
-                .as_i64()
-                .or_else(|| n.as_f64().map(|f| f as i64))
-                .unwrap_or(0),
-            Value::String(s) => s.parse::<f64>().map(|f| f as i64).unwrap_or(0),
-            Value::Bool(b) => {
-                if *b {
-                    1
-                } else {
-                    0
-                }
-            }
+            Value::Number(n) => n.as_i64().unwrap_or_else(|| n.as_f64().map_or(0, |f| f as i64)),
+            Value::String(s) => s.parse::<f64>().map_or(0, |f| f as i64),
+            Value::Bool(true) => 1,
+            Value::Bool(false) => 0,
             _ => 0,
         }
     };
@@ -316,19 +312,23 @@ pub fn evaluate_table(
                 
                 // CRITICAL: Preserve SCHEMA ORDER for normal columns (match JavaScript behavior)
                 // Do NOT use topological sort as it reorders columns incorrectly
-                let sorted_normal_cols: Vec<String> = normal_cols.iter()
-                    .map(|c| c.name.clone())
+                // Use references to avoid cloning column names
+                let sorted_normal_cols: Vec<&ColumnPlan> = normal_cols.iter()
+                    .copied()
                     .collect();
                 
-                let column_map: HashMap<_, _> = columns.iter()
-                    .map(|c| (c.name.clone(), c))
+                // Build index map for O(1) forward column lookup
+                let forward_col_indices: Vec<usize> = forward_cols.iter()
+                    .map(|c| columns.iter().position(|col| std::ptr::eq(*c, col)).unwrap())
                     .collect();
                 
                 // Pre-allocate all rows directly in scope_data
                 let total_rows = (end_idx - start_idx + 1) as usize;
+                let col_count = columns.len();
                 if let Some(Value::Array(table_arr)) = scope_data.get_mut(&table_dotted_path) {
+                    table_arr.reserve(total_rows);
                     for _ in 0..total_rows {
-                        table_arr.push(Value::Object(Map::with_capacity(columns.len())));
+                        table_arr.push(Value::Object(Map::with_capacity(col_count)));
                     }
                 }
                 scope_data.mark_modified(&table_dotted_path);
@@ -339,34 +339,34 @@ pub fn evaluate_table(
                 // Evaluate columns WITHOUT forward references
                 // Direction: iteration 1 → N
                 
+                // Pre-create iteration values to avoid repeated allocations
+                let threshold_val = Value::from(end_idx);
+                scope_data.set("$threshold", threshold_val);
+                
                 for iteration in start_idx..=end_idx {
                     let row_idx = (iteration - start_idx) as usize;
                     let target_idx = existing_row_count + row_idx;
                     
                     scope_data.set("$iteration", Value::from(iteration));
-                    scope_data.set("$threshold", Value::from(end_idx));
                     
                     // Evaluate normal columns in dependency order
-                    for col_name in &sorted_normal_cols {
-                        if let Some(column) = column_map.get(col_name) {
-                            let value = if let Some(logic_id) = column.logic {
-                                lib.engine.evaluate_uncached(&logic_id, scope_data)?
-                            } else {
-                                column.literal.clone().unwrap_or(Value::Null)
-                            };
-                            
-                            // Write directly to scope_data table
-                            if let Some(Value::Array(table_arr)) = scope_data.get_mut(&table_dotted_path) {
-                                if let Some(Value::Object(row_obj)) = table_arr.get_mut(target_idx) {
-                                    row_obj.insert(column.name.clone(), value.clone());
-                                }
+                    for column in &sorted_normal_cols {
+                        let value = match column.logic {
+                            Some(logic_id) => lib.engine.evaluate_uncached(&logic_id, scope_data)?,
+                            None => column.literal.clone().unwrap_or(Value::Null),
+                        };
+                        
+                        // Write directly to scope_data table - get mutable reference once
+                        if let Some(Value::Array(table_arr)) = scope_data.get_mut(&table_dotted_path) {
+                            if let Some(Value::Object(row_obj)) = table_arr.get_mut(target_idx) {
+                                row_obj.insert(column.name.clone(), value.clone());
                             }
-                            scope_data.set(&column.var_path, value);
                         }
+                        scope_data.set(&column.var_path, value);
                     }
-                    // Mark table as modified after each row
-                    scope_data.mark_modified(&table_dotted_path);
                 }
+                // Batch mark modified once after all normal columns evaluated
+                scope_data.mark_modified(&table_dotted_path);
                 
                 // ========================================
                 // PHASE 2 (BACKWARD PASS):
@@ -375,73 +375,66 @@ pub fn evaluate_table(
                 // CRITICAL: Match JavaScript - evaluate ALL columns together per row
                 // ========================================
                 if !forward_cols.is_empty() {
-                    let mut sweep_count = 0;
-                    let max_sweeps = 3; // MAX_LOOP_THRESHOLD from JavaScript
-                    let mut scan_from_down = true; // Start bottom-up like JavaScript
+                    let max_sweeps = 5; // Optimized: enough for convergence in most cases
+                    let mut scan_from_down = false; // Start top-down to initialize values first
+                    let iter_count = (end_idx - start_idx + 1) as usize;
+                    let threshold_val = Value::from(end_idx);
+                    scope_data.set("$threshold", threshold_val);
                     
-                    while sweep_count < max_sweeps {
-                        sweep_count += 1;
-                        let iter_count = (end_idx - start_idx + 1) as usize;
-                        
+                    for _ in 1..=max_sweeps {
                         for iter_offset in 0..iter_count {
                             let iteration = if scan_from_down {
                                 end_idx - iter_offset as i64
                             } else {
                                 start_idx + iter_offset as i64
                             };
-                            let row_idx = (iteration - start_idx) as usize;
-                            let target_idx = existing_row_count + row_idx;
+                            let target_idx = existing_row_count + (iteration - start_idx) as usize;
                             
                             scope_data.set("$iteration", Value::from(iteration));
-                            scope_data.set("$threshold", Value::from(end_idx));
                             
-                            // Restore ALL column values to scope ONCE at the start (frozen snapshot)
-                            // This matches JavaScript: ...this.lodash.mapKeys(nrow, (_, k) => `$${k}`)
-                            // Read current row from scope_data
-                            let current_row_snapshot = if let Some(Value::Array(table_arr)) = scope_data.get(&table_dotted_path) {
-                                table_arr.get(target_idx)
-                                    .and_then(|v| v.as_object())
-                                    .cloned()
-                            } else {
-                                None
-                            };
+                            // Restore column values to scope from current row (clone snapshot to avoid borrow conflict)
+                            let current_row_snapshot = scope_data.get(&table_dotted_path)
+                                .and_then(|v| v.as_array())
+                                .and_then(|arr| arr.get(target_idx))
+                                .and_then(|v| v.as_object())
+                                .cloned();
                             
                             if let Some(row_obj) = current_row_snapshot {
-                                for col_name in &sorted_normal_cols {
-                                    if let Some(value) = row_obj.get(col_name.as_str()) {
-                                        scope_data.set(&format!("${}", col_name), value.clone());
+                                for column in &sorted_normal_cols {
+                                    if let Some(value) = row_obj.get(&column.name) {
+                                        scope_data.set(&column.var_path, value.clone());
                                     }
                                 }
-                                for fwd_col in &forward_cols {
+                                for idx in &forward_col_indices {
+                                    let fwd_col = &columns[*idx];
                                     if let Some(value) = row_obj.get(&fwd_col.name) {
                                         scope_data.set(&fwd_col.var_path, value.clone());
                                     }
                                 }
                             }
                             
-                            // Evaluate ALL forward columns WITHOUT updating scope during loop
-                            // Each column sees the SAME frozen snapshot of current row values
-                            for column in &forward_cols {
-                                let value = if let Some(logic_id) = column.logic {
-                                    lib.engine.evaluate_uncached(&logic_id, scope_data)?
-                                } else {
-                                    column.literal.clone().unwrap_or(Value::Null)
+                            // Evaluate forward columns, updating scope after each
+                            for idx in &forward_col_indices {
+                                let column = &columns[*idx];
+                                let value = match column.logic {
+                                    Some(logic_id) => lib.engine.evaluate_uncached(&logic_id, scope_data)?,
+                                    None => column.literal.clone().unwrap_or(Value::Null),
                                 };
                                 
-                                // Write directly to scope_data table
+                                // Write to table and update scope
                                 if let Some(Value::Array(table_arr)) = scope_data.get_mut(&table_dotted_path) {
                                     if let Some(Value::Object(row_obj)) = table_arr.get_mut(target_idx) {
-                                        row_obj.insert(column.name.clone(), value);
+                                        row_obj.insert(column.name.clone(), value.clone());
                                     }
                                 }
-                                // DON'T update scope_data variables - scope stays frozen for this iteration
+                                scope_data.set(&column.var_path, value);
                             }
                             
-                            // CRITICAL: Mark modified after EACH row so VALUEAT in subsequent rows sees the update
+                            // Mark modified after each row for VALUEAT lookups
                             scope_data.mark_modified(&table_dotted_path);
                         }
                         
-                        // Alternate scan direction (matches JavaScript line 1285)
+                        // Alternate scan direction
                         scan_from_down = !scan_from_down;
                     }
                 }

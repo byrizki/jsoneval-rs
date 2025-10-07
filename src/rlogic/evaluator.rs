@@ -1,17 +1,9 @@
-use hashbrown::HashSet;
+use rustc_hash::FxHashSet as HashSet;
 use serde_json::{Value, Number};
 use super::compiled::CompiledLogic;
 use super::config::RLogicConfig;
 use chrono::Datelike;
 use serde_json::map::Map as JsonMap;
-use std::hash::BuildHasherDefault;
-use std::str::FromStr;
-
-use rustc_hash::FxHasher;
-use rust_decimal::Decimal;
-use rust_decimal::prelude::*;
-
-type FxBuildHasher = BuildHasherDefault<FxHasher>;
 
 const HASH_SET_THRESHOLD: usize = 32;
 
@@ -36,7 +28,7 @@ impl Evaluator {
         self
     }
     
-    /// Fast path for simple arithmetic without recursion (using Decimal for precision)
+    /// Fast path for simple arithmetic without recursion (using f64)
     #[inline]
     fn eval_arithmetic_fast(&self, op: ArithOp, items: &[CompiledLogic], data: &Value) -> Option<Value> {
         // Only use fast path for simple cases (all literals or vars)
@@ -44,18 +36,15 @@ impl Evaluator {
             return None;
         }
         
-        let mut result = Decimal::ZERO;
+        let mut result = 0.0_f64;
         for (idx, item) in items.iter().enumerate() {
             let val = match item {
-                CompiledLogic::Number(n) => {
-                    // Parse from string representation to preserve precision
-                    Decimal::from_str(n).unwrap_or(Decimal::ZERO)
-                },
+                CompiledLogic::Number(n) => n.parse::<f64>().unwrap_or(0.0),
                 CompiledLogic::Var(name, _) => {
                     if let Some(v) = self.get_var(data, name) {
-                        self.to_decimal(v)
+                        self.to_f64(v)
                     } else {
-                        Decimal::ZERO
+                        0.0
                     }
                 },
                 _ => return None,
@@ -68,11 +57,11 @@ impl Evaluator {
                     ArithOp::Add => result + val,
                     ArithOp::Sub => result - val,
                     ArithOp::Mul => result * val,
-                    ArithOp::Div => if !val.is_zero() { result / val } else { return Some(Value::Null); },
+                    ArithOp::Div => if val != 0.0 { result / val } else { return Some(Value::Null); },
                 };
             }
         }
-        Some(self.decimal_to_json(result))
+        Some(Number::from_f64(result).map(Value::Number).unwrap_or(Value::Null))
     }
     
     pub fn with_recursion_limit(mut self, limit: usize) -> Self {
@@ -87,7 +76,8 @@ impl Evaluator {
             CompiledLogic::Null => return Ok(Value::Null),
             CompiledLogic::Bool(b) => return Ok(Value::Bool(*b)),
             CompiledLogic::Number(n) => {
-                return Ok(self.decimal_to_json(Decimal::from_str(n).unwrap_or(Decimal::ZERO)));
+                let f = n.parse::<f64>().unwrap_or(0.0);
+                return Ok(Number::from_f64(f).map(Value::Number).unwrap_or(Value::Null));
             },
             CompiledLogic::String(s) => return Ok(Value::String(s.clone())),
             CompiledLogic::Var(name, None) => {
@@ -118,59 +108,28 @@ impl Evaluator {
         }
     }
     
-    /// Convert Decimal to JSON number (high precision)
-    /// With arbitrary_precision, this preserves exact decimal representation
+    /// Convert f64 to JSON number
     #[inline]
-    fn decimal_to_json(&self, d: Decimal) -> Value {
-        // With arbitrary_precision enabled, we can use the string representation
-        // to preserve exact decimal values without f64 conversion
-        let s = d.to_string();
-        
-        // Use from_string_unchecked for arbitrary_precision support
-        // This maintains exact precision in the JSON output
-        match serde_json::Number::from_str(&s) {
-            Ok(num) => Value::Number(num),
-            Err(_) => {
-                // Fallback: try to convert to f64 if string parsing fails
-                if let Some(f) = d.to_f64() {
-                    Value::Number(Number::from_f64(f).unwrap_or_else(|| Number::from(0)))
-                } else {
-                    Value::Number(Number::from(0))
-                }
-            }
-        }
+    fn f64_to_json(&self, f: f64) -> Value {
+        Number::from_f64(f).map(Value::Number).unwrap_or(Value::Null)
     }
     
-    /// Convert JSON value to Decimal (high precision)
-    /// With arbitrary_precision enabled, this preserves full numeric precision
+    /// Convert JSON value to f64
     #[inline]
-    fn to_decimal(&self, value: &Value) -> Decimal {
+    fn to_f64(&self, value: &Value) -> f64 {
         match value {
-            Value::Number(n) => {
-                // With arbitrary_precision, parse from string to preserve precision
-                // This avoids f64 conversion and maintains exact decimal values
-                let s = n.to_string();
-                Decimal::from_str(&s).unwrap_or_else(|_| {
-                    // Fallback to integer parsing if string parse fails
-                    if let Some(i) = n.as_i64() {
-                        Decimal::from(i)
-                    } else if let Some(u) = n.as_u64() {
-                        Decimal::from(u)
-                    } else {
-                        Decimal::ZERO
-                    }
-                })
-            }
-            Value::Bool(b) => if *b { Decimal::ONE } else { Decimal::ZERO },
-            Value::String(s) => Decimal::from_str(s).unwrap_or(Decimal::ZERO),
+            Value::Number(n) => n.as_f64().unwrap_or(0.0),
+            Value::Bool(true) => 1.0,
+            Value::Bool(false) => 0.0,
+            Value::String(s) => s.parse::<f64>().unwrap_or(0.0),
             Value::Array(arr) => {
                 if arr.len() == 1 {
-                    self.to_decimal(&arr[0])
+                    self.to_f64(&arr[0])
                 } else {
-                    Decimal::ZERO
+                    0.0
                 }
             }
-            _ => Decimal::ZERO,
+            _ => 0.0,
         }
     }
     
@@ -183,7 +142,10 @@ impl Evaluator {
             // Literals
             CompiledLogic::Null => Ok(Value::Null),
             CompiledLogic::Bool(b) => Ok(Value::Bool(*b)),
-            CompiledLogic::Number(n) => Ok(self.decimal_to_json(Decimal::from_str(n).unwrap_or(Decimal::ZERO))),
+            CompiledLogic::Number(n) => {
+                let f = n.parse::<f64>().unwrap_or(0.0);
+                Ok(self.f64_to_json(f))
+            },
             CompiledLogic::String(s) => Ok(Value::String(s.clone())),
             CompiledLogic::Array(arr) => {
                 let results: Result<Vec<_>, _> = arr.iter()
@@ -309,73 +271,73 @@ impl Evaluator {
                 if let Some(result) = self.eval_arithmetic_fast(ArithOp::Add, items, data) {
                     return Ok(result);
                 }
-                let mut sum = Decimal::ZERO;
+                let mut sum = 0.0_f64;
                 for item in items {
                     let val = self.eval_with_depth(item, data, depth + 1)?;
-                    sum += self.to_decimal(&val);
+                    sum += self.to_f64(&val);
                 }
-                Ok(self.decimal_to_json(sum))
+                Ok(self.f64_to_json(sum))
             }
             CompiledLogic::Subtract(items) => {
                 if let Some(result) = self.eval_arithmetic_fast(ArithOp::Sub, items, data) {
                     return Ok(result);
                 }
                 if items.is_empty() {
-                    return Ok(self.decimal_to_json(Decimal::ZERO));
+                    return Ok(self.f64_to_json(0.0));
                 }
                 let first = self.eval_with_depth(&items[0], data, depth + 1)?;
-                let mut result = self.to_decimal(&first);
+                let mut result = self.to_f64(&first);
                 
                 if items.len() == 1 {
-                    return Ok(self.decimal_to_json(-result));
+                    return Ok(self.f64_to_json(-result));
                 }
                 
                 for item in &items[1..] {
                     let val = self.eval_with_depth(item, data, depth + 1)?;
-                    result -= self.to_decimal(&val);
+                    result -= self.to_f64(&val);
                 }
-                Ok(self.decimal_to_json(result))
+                Ok(self.f64_to_json(result))
             }
             CompiledLogic::Multiply(items) => {
                 if let Some(result) = self.eval_arithmetic_fast(ArithOp::Mul, items, data) {
                     return Ok(result);
                 }
-                let mut product = Decimal::ONE;
+                let mut product = 1.0_f64;
                 for item in items {
                     let val = self.eval_with_depth(item, data, depth + 1)?;
-                    product *= self.to_decimal(&val);
+                    product *= self.to_f64(&val);
                 }
-                Ok(self.decimal_to_json(product))
+                Ok(self.f64_to_json(product))
             }
             CompiledLogic::Divide(items) => {
                 if let Some(result) = self.eval_arithmetic_fast(ArithOp::Div, items, data) {
                     return Ok(result);
                 }
                 if items.is_empty() {
-                    return Ok(self.decimal_to_json(Decimal::ZERO));
+                    return Ok(self.f64_to_json(0.0_f64));
                 }
                 let first = self.eval_with_depth(&items[0], data, depth + 1)?;
-                let mut result = self.to_decimal(&first);
+                let mut result = self.to_f64(&first);
                 
                 for item in &items[1..] {
                     let val = self.eval_with_depth(item, data, depth + 1)?;
-                    let divisor = self.to_decimal(&val);
-                    if divisor.is_zero() {
+                    let divisor = self.to_f64(&val);
+                    if divisor == 0.0 {
                         return Ok(Value::Null);
                     }
                     result /= divisor;
                 }
-                Ok(self.decimal_to_json(result))
+                Ok(self.f64_to_json(result))
             }
             CompiledLogic::Modulo(a, b) => {
                 let val_a = self.eval_with_depth(a, data, depth + 1)?;
                 let val_b = self.eval_with_depth(b, data, depth + 1)?;
-                let num_a = self.to_decimal(&val_a);
-                let num_b = self.to_decimal(&val_b);
-                if num_b.is_zero() {
+                let num_a = self.to_f64(&val_a);
+                let num_b = self.to_f64(&val_b);
+                if num_b == 0.0 {
                     Ok(Value::Null)
                 } else {
-                    Ok(self.decimal_to_json(num_a % num_b))
+                    Ok(self.f64_to_json(num_a % num_b))
                 }
             }
             CompiledLogic::Power(a, b) => {
@@ -491,7 +453,7 @@ impl Evaluator {
                 if let Value::Array(arr) = array_val {
                     if arr.len() > HASH_SET_THRESHOLD {
                         if let Some(key) = Self::scalar_hash_key(&value) {
-                            let mut set = HashSet::with_capacity_and_hasher(arr.len(), FxBuildHasher::default());
+                            let mut set = HashSet::with_capacity_and_hasher(arr.len(), Default::default());
                             let mut all_scalar = true;
                             for item in &arr {
                                 if let Some(item_key) = Self::scalar_hash_key(item) {
@@ -600,38 +562,38 @@ impl Evaluator {
             // Custom operators - Math
             CompiledLogic::Abs(expr) => {
                 let val = self.eval_with_depth(expr, data, depth + 1)?;
-                let num = self.to_decimal(&val);
-                Ok(self.decimal_to_json(num.abs()))
+                let num = self.to_f64(&val);
+                Ok(self.f64_to_json(num.abs()))
             }
             CompiledLogic::Max(items) => {
                 if items.is_empty() {
                     return Ok(Value::Null);
                 }
                 let first_val = self.eval_with_depth(&items[0], data, depth + 1)?;
-                let mut max = self.to_decimal(&first_val);
+                let mut max = self.to_f64(&first_val);
                 for item in &items[1..] {
                     let val = self.eval_with_depth(item, data, depth + 1)?;
-                    let num = self.to_decimal(&val);
+                    let num = self.to_f64(&val);
                     if num > max {
                         max = num;
                     }
                 }
-                Ok(self.decimal_to_json(max))
+                Ok(self.f64_to_json(max))
             }
             CompiledLogic::Min(items) => {
                 if items.is_empty() {
                     return Ok(Value::Null);
                 }
                 let first_val = self.eval_with_depth(&items[0], data, depth + 1)?;
-                let mut min = self.to_decimal(&first_val);
+                let mut min = self.to_f64(&first_val);
                 for item in &items[1..] {
                     let val = self.eval_with_depth(item, data, depth + 1)?;
-                    let num = self.to_decimal(&val);
+                    let num = self.to_f64(&val);
                     if num < min {
                         min = num;
                     }
                 }
-                Ok(self.decimal_to_json(min))
+                Ok(self.f64_to_json(min))
             }
             CompiledLogic::Pow(base_expr, exp_expr) => {
                 let base_val = self.eval_with_depth(base_expr, data, depth + 1)?;
@@ -642,18 +604,18 @@ impl Evaluator {
             }
             CompiledLogic::Round(expr) => {
                 let val = self.eval_with_depth(expr, data, depth + 1)?;
-                let num = self.to_decimal(&val);
-                Ok(self.decimal_to_json(num.round()))
+                let num = self.to_f64(&val);
+                Ok(self.f64_to_json(num.round()))
             }
             CompiledLogic::RoundUp(expr) => {
                 let val = self.eval_with_depth(expr, data, depth + 1)?;
-                let num = self.to_decimal(&val);
-                Ok(self.decimal_to_json(num.ceil()))
+                let num = self.to_f64(&val);
+                Ok(self.f64_to_json(num.ceil()))
             }
             CompiledLogic::RoundDown(expr) => {
                 let val = self.eval_with_depth(expr, data, depth + 1)?;
-                let num = self.to_decimal(&val);
-                Ok(self.decimal_to_json(num.floor()))
+                let num = self.to_f64(&val);
+                Ok(self.f64_to_json(num.floor()))
             }
             
             // Custom operators - String
@@ -665,12 +627,12 @@ impl Evaluator {
                     Value::Object(obj) => obj.len(),
                     _ => 0,
                 };
-                Ok(self.decimal_to_json(Decimal::from(len)))
+                Ok(self.f64_to_json(len as f64))
             }
             CompiledLogic::Len(expr) => {
                 let val = self.eval_with_depth(expr, data, depth + 1)?;
                 let s = self.to_string(&val);
-                Ok(self.decimal_to_json(Decimal::from(s.len())))
+                Ok(self.f64_to_json(s.len() as f64))
             }
             CompiledLogic::Search(find_expr, within_expr, start_expr) => {
                 let find_val = self.eval_with_depth(find_expr, data, depth + 1)?;
@@ -685,7 +647,7 @@ impl Evaluator {
                     };
                     
                     if let Some(pos) = within.to_lowercase()[start..].find(&find.to_lowercase()) {
-                        Ok(self.decimal_to_json(Decimal::from(pos + start + 1)))
+                        Ok(self.f64_to_json((pos + start + 1) as f64))
                     } else {
                         Ok(Value::Null)
                     }
@@ -824,7 +786,7 @@ impl Evaluator {
                         .or_else(|| NaiveDate::parse_from_str(start, "%Y-%m-%d").ok());
                     
                     if let (Some(e), Some(s)) = (end_date, start_date) {
-                        Ok(self.decimal_to_json(Decimal::from((e - s).num_days())))
+                        Ok(self.f64_to_json((e - s).num_days() as f64))
                     } else {
                         Ok(Value::Null)
                     }
@@ -840,7 +802,7 @@ impl Evaluator {
                         .ok()
                         .or_else(|| NaiveDate::parse_from_str(date_str, "%Y-%m-%d").ok());
                     if let Some(d) = date {
-                        Ok(self.decimal_to_json(Decimal::from(d.year())))
+                        Ok(self.f64_to_json(d.year() as f64))
                     } else {
                         Ok(Value::Null)
                     }
@@ -856,7 +818,7 @@ impl Evaluator {
                         .ok()
                         .or_else(|| NaiveDate::parse_from_str(date_str, "%Y-%m-%d").ok());
                     if let Some(d) = date {
-                        Ok(self.decimal_to_json(Decimal::from(d.month())))
+                        Ok(self.f64_to_json(d.month() as f64))
                     } else {
                         Ok(Value::Null)
                     }
@@ -872,7 +834,7 @@ impl Evaluator {
                         .ok()
                         .or_else(|| NaiveDate::parse_from_str(date_str, "%Y-%m-%d").ok());
                     if let Some(d) = date {
-                        Ok(self.decimal_to_json(Decimal::from(d.day())))
+                        Ok(self.f64_to_json(d.day() as f64))
                     } else {
                         Ok(Value::Null)
                     }
@@ -904,7 +866,7 @@ impl Evaluator {
             // Custom operators - Array/Table
             CompiledLogic::Sum(array_expr, field_expr) => {
                 let array_val = self.eval_with_depth(array_expr, data, depth + 1)?;
-                let mut sum = Decimal::ZERO;
+                let mut sum = 0.0_f64;
                 
                 match &array_val {
                     Value::Array(arr) => {
@@ -914,23 +876,23 @@ impl Evaluator {
                                 for item in arr {
                                     if let Value::Object(obj) = item {
                                         if let Some(val) = obj.get(&field_name) {
-                                            sum += self.to_decimal(val);
+                                            sum += self.to_f64(val);
                                         }
                                     }
                                 }
                             }
                         } else {
                             for item in arr {
-                                sum += self.to_decimal(item);
+                                sum += self.to_f64(item);
                             }
                         }
                     }
                     _ => {
-                        sum = self.to_decimal(&array_val);
+                        sum = self.to_f64(&array_val);
                     }
                 }
                 
-                Ok(self.decimal_to_json(sum))
+                Ok(self.f64_to_json(sum))
             }
             CompiledLogic::For(start_expr, end_expr, logic_expr) => {
                 let next_depth = depth + 1;
@@ -976,6 +938,7 @@ impl Evaluator {
                 
                 let row_idx_val = self.eval_with_depth(row_idx_expr, data, depth + 1)?;
                 let row_idx_num = self.to_number(&row_idx_val) as i64;
+                
                 
                 // CRITICAL: Return Null for negative indices (out of bounds)
                 // This handles cases like VALUEAT(table, $iteration - 1, col) when iteration=0
@@ -1087,15 +1050,15 @@ impl Evaluator {
                                     }
                                 } else {
                                     if self.loose_equal(&lookup_val, cell_val) {
-                                        return Ok(self.decimal_to_json(Decimal::from(idx)));
+                                        return Ok(self.f64_to_json(idx as f64));
                                     }
                                 }
                             }
                         }
                     }
-                    Ok(self.decimal_to_json(Decimal::from(found_idx)))
+                    Ok(self.f64_to_json(found_idx as f64))
                 } else {
-                    Ok(self.decimal_to_json(Decimal::from(-1)))
+                    Ok(self.f64_to_json(-1.0))
                 }
             }
             CompiledLogic::Match(table_expr, conditions) => {
@@ -1127,11 +1090,11 @@ impl Evaluator {
                             }
                             
                             if all_match {
-                                return Ok(self.decimal_to_json(Decimal::from(idx)));
+                                return Ok(self.f64_to_json(idx as f64));
                             }
                         }
                     }
-                    Ok(self.decimal_to_json(Decimal::from(-1)))
+                    Ok(self.f64_to_json(-1.0))
                 } else {
                     Ok(Value::Null)
                 }
@@ -1165,11 +1128,11 @@ impl Evaluator {
                             }
                             
                             if all_match {
-                                return Ok(self.decimal_to_json(Decimal::from(idx)));
+                                return Ok(self.f64_to_json(idx as f64));
                             }
                         }
                     }
-                    Ok(self.decimal_to_json(Decimal::from(-1)))
+                    Ok(self.f64_to_json(-1.0))
                 } else {
                     Ok(Value::Null)
                 }
@@ -1200,11 +1163,11 @@ impl Evaluator {
                             }
                             
                             if any_match {
-                                return Ok(self.decimal_to_json(Decimal::from(idx)));
+                                return Ok(self.f64_to_json(idx as f64));
                             }
                         }
                     }
-                    Ok(self.decimal_to_json(Decimal::from(-1)))
+                    Ok(self.f64_to_json(-1.0))
                 } else {
                     Ok(Value::Null)
                 }
@@ -1226,10 +1189,10 @@ impl Evaluator {
                         }
                         
                         if all_match {
-                            return Ok(self.decimal_to_json(Decimal::from(idx)));
+                            return Ok(self.f64_to_json(idx as f64));
                         }
                     }
-                    Ok(self.decimal_to_json(Decimal::from(-1)))
+                    Ok(self.f64_to_json(-1.0))
                 } else {
                     Ok(Value::Null)
                 }
@@ -1243,10 +1206,10 @@ impl Evaluator {
                     let val = self.eval_with_depth(item, data, depth + 1)?;
                     if let Value::Array(arr) = val {
                         for elem in arr {
-                            values.push(self.to_decimal(&elem));
+                            values.push(self.to_f64(&elem));
                         }
                     } else {
-                        values.push(self.to_decimal(&val));
+                        values.push(self.to_f64(&val));
                     }
                 }
                 
@@ -1255,11 +1218,11 @@ impl Evaluator {
                 }
                 
                 if values.len() == 1 {
-                    return Ok(self.decimal_to_json(values[0]));
+                    return Ok(self.f64_to_json(values[0]));
                 }
                 
                 let result = values.iter().skip(1).fold(values[0], |acc, n| acc * n);
-                Ok(self.decimal_to_json(result))
+                Ok(self.f64_to_json(result))
             }
             CompiledLogic::Divides(items) => {
                 let mut values = Vec::new();
@@ -1268,10 +1231,10 @@ impl Evaluator {
                     let val = self.eval_with_depth(item, data, depth + 1)?;
                     if let Value::Array(arr) = val {
                         for elem in arr {
-                            values.push(self.to_decimal(&elem));
+                            values.push(self.to_f64(&elem));
                         }
                     } else {
-                        values.push(self.to_decimal(&val));
+                        values.push(self.to_f64(&val));
                     }
                 }
                 
@@ -1280,17 +1243,17 @@ impl Evaluator {
                 }
                 
                 if values.len() == 1 {
-                    return Ok(self.decimal_to_json(values[0]));
+                    return Ok(self.f64_to_json(values[0]));
                 }
                 
                 let result = values.iter().skip(1).fold(values[0], |acc, n| {
-                    if n.is_zero() {
+                    if *n == 0.0 {
                         acc
                     } else {
                         acc / n
                     }
                 });
-                Ok(self.decimal_to_json(result))
+                Ok(self.f64_to_json(result))
             }
             
             // Advanced date functions
@@ -1315,18 +1278,18 @@ impl Evaluator {
                         .or_else(|| NaiveDate::parse_from_str(end_str, "%Y-%m-%d").ok());
                     
                     if let (Some(start), Some(end)) = (start_date, end_date) {
-                        let days = Decimal::from((end - start).num_days());
+                        let days = (end - start).num_days() as f64;
                         
                         let result = match basis {
-                            0 => days / Decimal::from(360), // 30/360 (simplified)
-                            1 => days / Decimal::from_str("365.25").unwrap(), // Actual/actual (simplified)
-                            2 => days / Decimal::from(360), // Actual/360
-                            3 => days / Decimal::from(365), // Actual/365
-                            4 => days / Decimal::from(360), // European 30/360
-                            _ => days / Decimal::from(365),
+                            0 => days / 360.0, // 30/360 (simplified)
+                            1 => days / 365.25, // Actual/actual (simplified)
+                            2 => days / 360.0, // Actual/360
+                            3 => days / 365.0, // Actual/365
+                            4 => days / 360.0, // European 30/360
+                            _ => days / 365.0,
                         };
                         
-                        Ok(self.decimal_to_json(result))
+                        Ok(self.f64_to_json(result))
                     } else {
                         Ok(Value::Null)
                     }
@@ -1352,7 +1315,7 @@ impl Evaluator {
                     
                     if let (Some(start), Some(end)) = (start_date, end_date) {
                         let result = match unit.to_uppercase().as_str() {
-                            "D" => Decimal::from((end - start).num_days()),
+                            "D" => (end - start).num_days() as f64,
                             "M" => {
                                 let years = end.year() - start.year();
                                 let months = end.month() as i32 - start.month() as i32;
@@ -1360,7 +1323,7 @@ impl Evaluator {
                                 if end.day() < start.day() {
                                     total_months -= 1;
                                 }
-                                Decimal::from(total_months)
+                                total_months as f64
                             }
                             "Y" => {
                                 let mut years = end.year() - start.year();
@@ -1368,14 +1331,14 @@ impl Evaluator {
                                    (end.month() == start.month() && end.day() < start.day()) {
                                     years -= 1;
                                 }
-                                Decimal::from(years)
+                                years as f64
                             }
                             "MD" => {
                                 if start.day() <= end.day() {
-                                    Decimal::from(end.day() - start.day())
+                                    (end.day() - start.day()) as f64
                                 } else {
-                                    let days_in_month = Decimal::from(30); // Simplified
-                                    days_in_month - Decimal::from(start.day()) + Decimal::from(end.day())
+                                    let days_in_month = 30u32; // Simplified
+                                    (days_in_month as i32 - (start.day() as i32 - end.day() as i32)) as f64
                                 }
                             }
                             "YM" => {
@@ -1387,19 +1350,19 @@ impl Evaluator {
                                         result += 12;
                                     }
                                 }
-                                Decimal::from(result)
+                                result as f64
                             }
                             "YD" => {
                                 let mut temp_start = start.with_year(end.year()).unwrap_or(start);
                                 if temp_start > end {
                                     temp_start = start.with_year(end.year() - 1).unwrap_or(start);
                                 }
-                                Decimal::from((end - temp_start).num_days())
+                                (end - temp_start).num_days() as f64
                             }
                             _ => return Ok(Value::Null),
                         };
                         
-                        Ok(self.decimal_to_json(result))
+                        Ok(self.f64_to_json(result))
                     } else {
                         Ok(Value::Null)
                     }
@@ -1604,7 +1567,7 @@ impl Evaluator {
     /// Legacy to_number for f64 (only used for Power operations)
     #[inline]
     fn to_number(&self, value: &Value) -> f64 {
-        self.to_decimal(value).to_f64().unwrap_or(0.0)
+        self.to_f64(value)
     }
     
     #[inline]
@@ -1689,9 +1652,9 @@ impl Evaluator {
     
     #[inline]
     fn compare(&self, a: &Value, b: &Value) -> f64 {
-        let num_a = self.to_decimal(a);
-        let num_b = self.to_decimal(b);
-        (num_a - num_b).to_f64().unwrap_or(0.0)
+        let num_a = self.to_f64(a);
+        let num_b = self.to_f64(b);
+        num_a - num_b
     }
     
     #[inline]

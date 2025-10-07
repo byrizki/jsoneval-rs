@@ -1,4 +1,4 @@
-use hashbrown::HashMap;
+use rustc_hash::FxHashMap;
 use serde_json::Value;
 
 /// Unique identifier for compiled logic expressions
@@ -751,9 +751,7 @@ impl CompiledLogic {
 
                 let has_positive = items.iter().any(|item| match item {
                     CompiledLogic::Number(n) => {
-                        use std::str::FromStr;
-                        use rust_decimal::Decimal;
-                        Decimal::from_str(n).map(|d| d > Decimal::ZERO).unwrap_or(false)
+                        n.parse::<f64>().unwrap_or(0.0) > 0.0
                     },
                     _ => false,
                 });
@@ -914,16 +912,16 @@ impl CompiledLogic {
 /// Storage for compiled logic expressions with dependency tracking
 pub struct CompiledLogicStore {
     next_id: u64,
-    store: HashMap<LogicId, CompiledLogic>,
-    dependencies: HashMap<LogicId, Vec<String>>,
+    store: FxHashMap<LogicId, CompiledLogic>,
+    dependencies: FxHashMap<LogicId, Vec<String>>,
 }
 
 impl CompiledLogicStore {
     pub fn new() -> Self {
         Self {
             next_id: 0,
-            store: HashMap::new(),
-            dependencies: HashMap::new(),
+            store: FxHashMap::default(),
+            dependencies: FxHashMap::default(),
         }
     }
     
