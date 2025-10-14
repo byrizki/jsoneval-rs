@@ -1,0 +1,64 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    
+    <!-- Package Information -->
+    <PackageId>JsonEvalRs</PackageId>
+    <Version>0.0.1</Version>
+    <Authors>Muhamad Rizki</Authors>
+    <Company>Quadrant Synergy International</Company>
+    <Description>High-performance JSON Logic evaluator with schema validation and dependency tracking. Built on blazing-fast Rust engine.</Description>
+    <PackageTags>json;json-logic;schema;validation;evaluation;rust;performance</PackageTags>
+    <PackageProjectUrl>https://github.com/yourusername/json-eval-rs</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/yourusername/json-eval-rs</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    
+    <!-- Include native libraries in package -->
+    <IncludeContentInPack>true</IncludeContentInPack>
+    <ContentTargetFolders>contentFiles;content</ContentTargetFolders>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="icon.png" Pack="true" PackagePath="/" Condition="Exists('icon.png')" />
+    <None Include="JsonEvalRs.targets" Pack="true" PackagePath="build/" />
+    
+    <!-- Native libraries for different platforms -->
+    <!-- Linux x64 -->
+    <None Include="../../target/x86_64-unknown-linux-gnu/release/libjson_eval_rs.so" Pack="true" PackagePath="runtimes/linux-x64/native/" Condition="Exists('../../target/x86_64-unknown-linux-gnu/release/libjson_eval_rs.so')" />
+    <None Include="../../target/release/libjson_eval_rs.so" Pack="true" PackagePath="runtimes/linux-x64/native/" Condition="Exists('../../target/release/libjson_eval_rs.so')" />
+    
+    <!-- Windows x64 -->
+    <None Include="../../target/x86_64-pc-windows-gnu/release/json_eval_rs.dll" Pack="true" PackagePath="runtimes/win-x64/native/" Condition="Exists('../../target/x86_64-pc-windows-gnu/release/json_eval_rs.dll')" />
+    <None Include="../../target/release/json_eval_rs.dll" Pack="true" PackagePath="runtimes/win-x64/native/" Condition="Exists('../../target/release/json_eval_rs.dll')" />
+    
+    <!-- macOS x64 -->
+    <None Include="../../target/x86_64-apple-darwin/release/libjson_eval_rs.dylib" Pack="true" PackagePath="runtimes/osx-x64/native/" Condition="Exists('../../target/x86_64-apple-darwin/release/libjson_eval_rs.dylib')" />
+    <None Include="../../target/release/libjson_eval_rs.dylib" Pack="true" PackagePath="runtimes/osx-x64/native/" Condition="Exists('../../target/release/libjson_eval_rs.dylib')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Copy to output directory for local development -->
+    <Content Include="../../target/x86_64-unknown-linux-gnu/release/libjson_eval_rs.so" Link="libjson_eval_rs.so" CopyToOutputDirectory="PreserveNewest" Condition="Exists('../../target/x86_64-unknown-linux-gnu/release/libjson_eval_rs.so')" />
+    <Content Include="../../target/release/libjson_eval_rs.so" Link="libjson_eval_rs.so" CopyToOutputDirectory="PreserveNewest" Condition="Exists('../../target/release/libjson_eval_rs.so')" />
+    
+    <Content Include="../../target/x86_64-pc-windows-gnu/release/json_eval_rs.dll" Link="json_eval_rs.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('../../target/x86_64-pc-windows-gnu/release/json_eval_rs.dll')" />
+    <Content Include="../../target/release/json_eval_rs.dll" Link="json_eval_rs.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('../../target/release/json_eval_rs.dll')" />
+    
+    <Content Include="../../target/x86_64-apple-darwin/release/libjson_eval_rs.dylib" Link="libjson_eval_rs.dylib" CopyToOutputDirectory="PreserveNewest" Condition="Exists('../../target/x86_64-apple-darwin/release/libjson_eval_rs.dylib')" />
+    <Content Include="../../target/release/libjson_eval_rs.dylib" Link="libjson_eval_rs.dylib" CopyToOutputDirectory="PreserveNewest" Condition="Exists('../../target/release/libjson_eval_rs.dylib')" />
+  </ItemGroup>
+
+</Project>

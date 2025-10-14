@@ -1,8 +1,10 @@
-use rustc_hash::FxHashMap;
+use ahash::AHashMap;
+use serde::Serialize;
 use serde_json::Value;
+use crate::path_utils;
 
 /// Unique identifier for compiled logic expressions
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 pub struct LogicId(pub(crate) u64);
 
 /// Compiled JSON Logic expression optimized for fast evaluation
@@ -157,40 +159,46 @@ impl CompiledLogic {
             // Variable access
             "var" => {
                 if let Value::String(name) = args {
-                    Ok(CompiledLogic::Var(name.clone(), None))
+                    // OPTIMIZED: Pre-normalize path during compilation
+                    let normalized = path_utils::normalize_to_json_pointer(name);
+                    Ok(CompiledLogic::Var(normalized, None))
                 } else if let Value::Array(arr) = args {
                     if arr.is_empty() {
                         return Err("var requires at least one argument".to_string());
                     }
                     let name = arr[0].as_str()
-                        .ok_or("var name must be a string")?
-                        .to_string();
+                        .ok_or("var name must be a string")?;
+                    // OPTIMIZED: Pre-normalize path during compilation
+                    let normalized = path_utils::normalize_to_json_pointer(name);
                     let default = if arr.len() > 1 {
                         Some(Box::new(Self::compile(&arr[1])?))
                     } else {
                         None
                     };
-                    Ok(CompiledLogic::Var(name, default))
+                    Ok(CompiledLogic::Var(normalized, default))
                 } else {
                     Err("var requires string or array".to_string())
                 }
             }
             "$ref" | "ref" => {
                 if let Value::String(path) = args {
-                    Ok(CompiledLogic::Ref(path.clone(), None))
+                    // OPTIMIZED: Pre-normalize path during compilation
+                    let normalized = path_utils::normalize_to_json_pointer(path);
+                    Ok(CompiledLogic::Ref(normalized, None))
                 } else if let Value::Array(arr) = args {
                     if arr.is_empty() {
                         return Err("$ref requires at least one argument".to_string());
                     }
                     let path = arr[0].as_str()
-                        .ok_or("$ref path must be a string")?
-                        .to_string();
+                        .ok_or("$ref path must be a string")?;
+                    // OPTIMIZED: Pre-normalize path during compilation
+                    let normalized = path_utils::normalize_to_json_pointer(path);
                     let default = if arr.len() > 1 {
                         Some(Box::new(Self::compile(&arr[1])?))
                     } else {
                         None
                     };
-                    Ok(CompiledLogic::Ref(path, default))
+                    Ok(CompiledLogic::Ref(normalized, default))
                 } else {
                     Err("$ref requires string or array".to_string())
                 }
@@ -200,15 +208,35 @@ impl CompiledLogic {
             "and" => {
                 let arr = args.as_array().ok_or("and requires array")?;
                 let compiled: Result<Vec<_>, _> = arr.iter().map(Self::compile).collect();
-                Ok(CompiledLogic::And(compiled?))
+                let items = compiled?;
+                // OPTIMIZATION: Flatten nested and operations (And(And(a,b),c) -> And(a,b,c))
+                Ok(CompiledLogic::And(Self::flatten_and(items)))
             }
             "or" => {
                 let arr = args.as_array().ok_or("or requires array")?;
                 let compiled: Result<Vec<_>, _> = arr.iter().map(Self::compile).collect();
-                Ok(CompiledLogic::Or(compiled?))
+                let items = compiled?;
+                // OPTIMIZATION: Flatten nested or operations (Or(Or(a,b),c) -> Or(a,b,c))
+                Ok(CompiledLogic::Or(Self::flatten_or(items)))
             }
             "!" | "not" => {
-                Ok(CompiledLogic::Not(Box::new(Self::compile(args)?)))
+                // Handle both array format [value] and direct value format
+                let value_to_negate = if let Value::Array(arr) = args {
+                    if arr.is_empty() {
+                        return Err("! requires an argument".to_string());
+                    }
+                    &arr[0]
+                } else {
+                    args
+                };
+                
+                let inner = Self::compile(value_to_negate)?;
+                // OPTIMIZATION: Eliminate double negation (!(!x) -> x)
+                if let CompiledLogic::Not(inner_expr) = inner {
+                    Ok(*inner_expr)
+                } else {
+                    Ok(CompiledLogic::Not(Box::new(inner)))
+                }
             }
             "if" => {
                 let arr = args.as_array().ok_or("if requires array")?;
@@ -236,7 +264,9 @@ impl CompiledLogic {
             "+" => {
                 let arr = args.as_array().ok_or("+ requires array")?;
                 let compiled: Result<Vec<_>, _> = arr.iter().map(Self::compile).collect();
-                Ok(CompiledLogic::Add(compiled?))
+                let items = compiled?;
+                // OPTIMIZATION: Flatten nested additions (Add(Add(a,b),c) -> Add(a,b,c))
+                Ok(CompiledLogic::Add(Self::flatten_add(items)))
             }
             "-" => {
                 let arr = args.as_array().ok_or("- requires array")?;
@@ -246,7 +276,9 @@ impl CompiledLogic {
             "*" => {
                 let arr = args.as_array().ok_or("* requires array")?;
                 let compiled: Result<Vec<_>, _> = arr.iter().map(Self::compile).collect();
-                Ok(CompiledLogic::Multiply(compiled?))
+                let items = compiled?;
+                // OPTIMIZATION: Flatten nested multiplications
+                Ok(CompiledLogic::Multiply(Self::flatten_multiply(items)))
             }
             "/" => {
                 let arr = args.as_array().ok_or("/ requires array")?;
@@ -284,7 +316,9 @@ impl CompiledLogic {
             "cat" => {
                 let arr = args.as_array().ok_or("cat requires array")?;
                 let compiled: Result<Vec<_>, _> = arr.iter().map(Self::compile).collect();
-                Ok(CompiledLogic::Cat(compiled?))
+                let items = compiled?;
+                // OPTIMIZATION: Flatten nested concatenations (Cat(Cat(a,b),c) -> Cat(a,b,c))
+                Ok(CompiledLogic::Cat(Self::flatten_cat(items)))
             }
             "substr" => {
                 let arr = args.as_array().ok_or("substr requires array")?;
@@ -547,7 +581,12 @@ impl CompiledLogic {
                     return Err("FINDINDEX requires at least 2 arguments".to_string());
                 }
                 let table = Box::new(Self::compile(&arr[0])?);
-                let conditions: Result<Vec<_>, _> = arr[1..].iter().map(Self::compile).collect();
+                // CRITICAL: Convert string literals to var references in conditions
+                // This allows ergonomic syntax: "INSAGE" instead of {"var": "INSAGE"}
+                let conditions: Result<Vec<_>, _> = arr[1..]
+                    .iter()
+                    .map(|cond| Self::compile(&Self::preprocess_table_condition(cond)))
+                    .collect();
                 Ok(CompiledLogic::FindIndex(table, conditions?))
             }
             
@@ -613,8 +652,42 @@ impl CompiledLogic {
                 let table = Box::new(Self::compile(&arr[0])?);
                 let field_label = Box::new(Self::compile(&arr[1])?);
                 let field_value = Box::new(Self::compile(&arr[2])?);
-                let conditions: Result<Vec<_>, _> = arr[3..].iter().map(Self::compile).collect();
-                Ok(CompiledLogic::MapOptionsIf(table, field_label, field_value, conditions?))
+                
+                // Handle triplet syntax: value, operator, field -> {operator: [value, {var: field}]}
+                let condition_args = &arr[3..];
+                let mut conditions = Vec::new();
+                
+                let mut i = 0;
+                while i + 2 < condition_args.len() {
+                    let value = &condition_args[i];
+                    let operator = &condition_args[i + 1];
+                    let field = &condition_args[i + 2];
+                    
+                    if let Value::String(op) = operator {
+                        // Create comparison: {op: [value, {var: field}]}
+                        let field_var = if let Value::String(f) = field {
+                            serde_json::json!({"var": f})
+                        } else {
+                            field.clone()
+                        };
+                        
+                        let comparison = serde_json::json!({
+                            op: [value.clone(), field_var]
+                        });
+                        
+                        conditions.push(Self::compile(&comparison)?);
+                    }
+                    
+                    i += 3;
+                }
+                
+                // Handle any remaining individual conditions
+                while i < condition_args.len() {
+                    conditions.push(Self::compile(&Self::preprocess_table_condition(&condition_args[i]))?);
+                    i += 1;
+                }
+                
+                Ok(CompiledLogic::MapOptionsIf(table, field_label, field_value, conditions))
             }
             "return" => Ok(CompiledLogic::Return(Box::new(Self::compile(args)?))),
             
@@ -636,6 +709,86 @@ impl CompiledLogic {
         ))
     }
     
+    /// Preprocess table condition to convert string literals to var references
+    /// This allows ergonomic syntax in FINDINDEX/MATCH/CHOOSE conditions
+    /// 
+    /// Handles formats:
+    /// - Comparison triplets: ["==", value, "col"] -> {"==": [value, {"var": "col"}]}
+    /// - Logical operators: ["&&", cond1, cond2] -> {"and": [cond1, cond2]}
+    /// - String field names: "col" -> {"var": "col"}
+    fn preprocess_table_condition(value: &Value) -> Value {
+        match value {
+            Value::String(s) => {
+                // Convert standalone strings to var references
+                serde_json::json!({"var": s})
+            }
+            Value::Array(arr) => {
+                // Check if this is an operator in array shorthand format
+                if !arr.is_empty() {
+                    if let Some(op_str) = arr[0].as_str() {
+                        // Check for comparison operators: [op, value, col]
+                        let is_comparison = matches!(op_str, "==" | "!=" | "===" | "!==" | "<" | ">" | "<=" | ">=");
+                        
+                        if is_comparison && arr.len() >= 3 {
+                            // Comparison triplet: [op, value, col] -> {op: [col_var, value]}
+                            // Evaluates as: row[col] op value
+                            // DON'T preprocess the value (2nd arg) - keep it as-is
+                            let value_arg = arr[1].clone();
+                            
+                            // Only convert the column name (3rd arg) to var reference if it's a string
+                            let col_arg = if let Value::String(col) = &arr[2] {
+                                // Convert column name string to var reference
+                                serde_json::json!({"var": col})
+                            } else {
+                                // If it's not a string, preprocess it (could be nested expression)
+                                Self::preprocess_table_condition(&arr[2])
+                            };
+                            
+                            // Order matters: {op: [col_var, value]} means row[col] op value
+                            let mut obj = serde_json::Map::new();
+                            obj.insert(op_str.to_string(), Value::Array(vec![col_arg, value_arg]));
+                            return Value::Object(obj);
+                        }
+                        
+                        // Check for logical operators: [op, arg1, arg2, ...]
+                        let canonical_op = match op_str {
+                            "&&" => Some("and"),
+                            "||" => Some("or"),
+                            "and" | "or" | "!" | "not" | "if" => Some(op_str),
+                            _ => None,
+                        };
+                        
+                        if let Some(op_name) = canonical_op {
+                            // Convert ["op", arg1, arg2, ...] to {"op": [arg1, arg2, ...]}
+                            let args: Vec<Value> = arr[1..].iter()
+                                .map(Self::preprocess_table_condition)
+                                .collect();
+                            let mut obj = serde_json::Map::new();
+                            obj.insert(op_name.to_string(), Value::Array(args));
+                            return Value::Object(obj);
+                        }
+                    }
+                }
+                // Regular array - recursively process elements
+                Value::Array(arr.iter().map(Self::preprocess_table_condition).collect())
+            }
+            Value::Object(obj) => {
+                // Recursively process object values, but preserve operators
+                let mut new_obj = serde_json::Map::new();
+                for (key, val) in obj {
+                    // Don't convert strings inside $ref, var, or other special operators
+                    if key == "$ref" || key == "ref" || key == "var" {
+                        new_obj.insert(key.clone(), val.clone());
+                    } else {
+                        new_obj.insert(key.clone(), Self::preprocess_table_condition(val));
+                    }
+                }
+                Value::Object(new_obj)
+            }
+            _ => value.clone(),
+        }
+    }
+    
     /// Check if this is a simple reference that doesn't need caching
     pub fn is_simple_ref(&self) -> bool {
         matches!(self, CompiledLogic::Ref(_, None) | CompiledLogic::Var(_, None))
@@ -648,6 +801,82 @@ impl CompiledLogic {
         vars.sort();
         vars.dedup();
         vars
+    }
+    
+    /// Flatten nested And operations only
+    fn flatten_and(items: Vec<CompiledLogic>) -> Vec<CompiledLogic> {
+        let mut flattened = Vec::new();
+        for item in items {
+            match item {
+                CompiledLogic::And(nested) => {
+                    // Recursively flatten nested And operations
+                    flattened.extend(Self::flatten_and(nested));
+                }
+                _ => flattened.push(item),
+            }
+        }
+        flattened
+    }
+    
+    /// Flatten nested Or operations only
+    fn flatten_or(items: Vec<CompiledLogic>) -> Vec<CompiledLogic> {
+        let mut flattened = Vec::new();
+        for item in items {
+            match item {
+                CompiledLogic::Or(nested) => {
+                    // Recursively flatten nested Or operations
+                    flattened.extend(Self::flatten_or(nested));
+                }
+                _ => flattened.push(item),
+            }
+        }
+        flattened
+    }
+    
+    /// Flatten nested Add operations only
+    fn flatten_add(items: Vec<CompiledLogic>) -> Vec<CompiledLogic> {
+        let mut flattened = Vec::new();
+        for item in items {
+            match item {
+                CompiledLogic::Add(nested) => {
+                    // Recursively flatten nested Adds
+                    flattened.extend(Self::flatten_add(nested));
+                }
+                _ => flattened.push(item),
+            }
+        }
+        flattened
+    }
+    
+    /// Flatten nested Multiply operations only
+    fn flatten_multiply(items: Vec<CompiledLogic>) -> Vec<CompiledLogic> {
+        let mut flattened = Vec::new();
+        for item in items {
+            match item {
+                CompiledLogic::Multiply(nested) => {
+                    // Recursively flatten nested Multiplies
+                    flattened.extend(Self::flatten_multiply(nested));
+                }
+                _ => flattened.push(item),
+            }
+        }
+        flattened
+    }
+    
+    /// Flatten nested Cat (concatenation) operations
+    /// Combines nested Cat operations into a single flat operation
+    fn flatten_cat(items: Vec<CompiledLogic>) -> Vec<CompiledLogic> {
+        let mut flattened = Vec::new();
+        for item in items {
+            match &item {
+                CompiledLogic::Cat(nested) => {
+                    // Recursively flatten nested Cat operations
+                    flattened.extend(Self::flatten_cat(nested.clone()));
+                }
+                _ => flattened.push(item),
+            }
+        }
+        flattened
     }
     
     /// Check if this logic contains forward references (e.g., VALUEAT with $iteration + N where N > 0)
@@ -912,16 +1141,16 @@ impl CompiledLogic {
 /// Storage for compiled logic expressions with dependency tracking
 pub struct CompiledLogicStore {
     next_id: u64,
-    store: FxHashMap<LogicId, CompiledLogic>,
-    dependencies: FxHashMap<LogicId, Vec<String>>,
+    store: AHashMap<LogicId, CompiledLogic>,
+    dependencies: AHashMap<LogicId, Vec<String>>,
 }
 
 impl CompiledLogicStore {
     pub fn new() -> Self {
         Self {
             next_id: 0,
-            store: FxHashMap::default(),
-            dependencies: FxHashMap::default(),
+            store: AHashMap::default(),
+            dependencies: AHashMap::default(),
         }
     }
     

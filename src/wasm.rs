@@ -1,0 +1,323 @@
+//! WebAssembly bindings for browser and Node.js
+//! 
+//! This module provides JavaScript/TypeScript compatible bindings
+
+use wasm_bindgen::prelude::*;
+use serde::{Serialize, Deserialize};
+use crate::{JSONEval, ValidationError as RustValidationError, ValidationResult as RustValidationResult};
+
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+}
+
+/// Validation error for JavaScript
+#[wasm_bindgen]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct ValidationError {
+    path: String,
+    rule_type: String,
+    message: String,
+}
+
+#[wasm_bindgen]
+impl ValidationError {
+    #[wasm_bindgen(getter)]
+    pub fn path(&self) -> String {
+        self.path.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn rule_type(&self) -> String {
+        self.rule_type.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn message(&self) -> String {
+        self.message.clone()
+    }
+}
+
+/// Validation result for JavaScript
+#[wasm_bindgen]
+pub struct ValidationResult {
+    has_error: bool,
+    errors: Vec<ValidationError>,
+}
+
+#[wasm_bindgen]
+impl ValidationResult {
+    #[wasm_bindgen(getter)]
+    pub fn has_error(&self) -> bool {
+        self.has_error
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn errors(&self) -> Vec<ValidationError> {
+        self.errors.clone()
+    }
+
+    #[wasm_bindgen(js_name = toJSON)]
+    pub fn to_json(&self) -> Result<JsValue, JsValue> {
+        serde_wasm_bindgen::to_value(&self).map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+}
+
+/// WebAssembly wrapper for JSONEval
+#[wasm_bindgen]
+pub struct JSONEvalWasm {
+    inner: JSONEval,
+}
+
+#[wasm_bindgen]
+impl JSONEvalWasm {
+    /// Create a new JSONEval instance
+    /// 
+    /// @param schema - JSON schema string
+    /// @param context - Optional context data JSON string
+    /// @param data - Optional initial data JSON string
+    #[wasm_bindgen(constructor)]
+    pub fn new(schema: &str, context: Option<String>, data: Option<String>) -> Result<JSONEvalWasm, JsValue> {
+        console_error_panic_hook::set_once();
+        
+        let ctx = context.as_deref();
+        let dt = data.as_deref();
+        
+        match JSONEval::new(schema, ctx, dt) {
+            Ok(eval) => Ok(JSONEvalWasm { inner: eval }),
+            Err(e) => Err(JsValue::from_str(&e)),
+        }
+    }
+
+    /// Evaluate schema with provided data
+    /// 
+    /// @param data - JSON data string
+    /// @param context - Optional context data JSON string
+    /// @returns Evaluated schema as JSON string
+    #[wasm_bindgen]
+    pub fn evaluate(&mut self, data: &str, context: Option<String>) -> Result<String, JsValue> {
+        let ctx = context.as_deref();
+        
+        match self.inner.evaluate(data, ctx) {
+            Ok(_) => {
+                let result = self.inner.get_evaluated_schema(false);
+                serde_json::to_string(&result)
+                    .map_err(|e| JsValue::from_str(&e.to_string()))
+            },
+            Err(e) => Err(JsValue::from_str(&e)),
+        }
+    }
+
+    /// Evaluate and return as JsValue for direct JavaScript object access
+    /// 
+    /// @param data - JSON data string
+    /// @param context - Optional context data JSON string
+    /// @returns Evaluated schema as JavaScript object
+    #[wasm_bindgen(js_name = evaluateJS)]
+    pub fn evaluate_js(&mut self, data: &str, context: Option<String>) -> Result<JsValue, JsValue> {
+        let ctx = context.as_deref();
+        
+        match self.inner.evaluate(data, ctx) {
+            Ok(_) => {
+                let result = self.inner.get_evaluated_schema(false);
+                serde_wasm_bindgen::to_value(&result)
+                    .map_err(|e| JsValue::from_str(&e.to_string()))
+            },
+            Err(e) => Err(JsValue::from_str(&e)),
+        }
+    }
+
+    /// Validate data against schema rules
+    /// 
+    /// @param data - JSON data string
+    /// @param context - Optional context data JSON string
+    /// @returns ValidationResult
+    #[wasm_bindgen]
+    pub fn validate(&self, data: &str, context: Option<String>) -> Result<ValidationResult, JsValue> {
+        let ctx = context.as_deref();
+        
+        match self.inner.validate(data, ctx, None) {
+            Ok(result) => {
+                let errors: Vec<ValidationError> = result.errors.iter().map(|(path, error)| {
+                    ValidationError {
+                        path: path.clone(),
+                        rule_type: error.rule_type.clone(),
+                        message: error.message.clone(),
+                    }
+                }).collect();
+
+                Ok(ValidationResult {
+                    has_error: result.has_error,
+                    errors,
+                })
+            }
+            Err(e) => Err(JsValue::from_str(&e)),
+        }
+    }
+
+    /// Re-evaluate fields that depend on changed paths
+    /// 
+    /// @param changedPaths - Array of field paths that changed
+    /// @param data - Updated JSON data string
+    /// @param context - Optional context data JSON string
+    /// @param nested - Whether to recursively follow dependency chains
+    /// @returns Updated evaluated schema as JSON string
+    #[wasm_bindgen(js_name = evaluateDependents)]
+    pub fn evaluate_dependents(
+        &mut self,
+        changed_paths: Vec<String>,
+        data: &str,
+        context: Option<String>,
+        nested: bool,
+    ) -> Result<String, JsValue> {
+        let ctx = context.as_deref();
+        
+        match self.inner.evaluate_dependents(&changed_paths, data, ctx, nested) {
+            Ok(result) => serde_json::to_string(&result)
+                .map_err(|e| JsValue::from_str(&e.to_string())),
+            Err(e) => Err(JsValue::from_str(&e)),
+        }
+    }
+
+    /// Re-evaluate dependents and return as JsValue
+    /// 
+    /// @param changedPaths - Array of field paths that changed
+    /// @param data - Updated JSON data string
+    /// @param context - Optional context data JSON string
+    /// @param nested - Whether to recursively follow dependency chains
+    /// @returns Updated evaluated schema as JavaScript object
+    #[wasm_bindgen(js_name = evaluateDependentsJS)]
+    pub fn evaluate_dependents_js(
+        &mut self,
+        changed_paths: Vec<String>,
+        data: &str,
+        context: Option<String>,
+        nested: bool,
+    ) -> Result<JsValue, JsValue> {
+        let ctx = context.as_deref();
+        
+        match self.inner.evaluate_dependents(&changed_paths, data, ctx, nested) {
+            Ok(result) => serde_wasm_bindgen::to_value(&result)
+                .map_err(|e| JsValue::from_str(&e.to_string())),
+            Err(e) => Err(JsValue::from_str(&e)),
+        }
+    }
+
+    /// Get the evaluated schema with optional layout resolution
+    /// 
+    /// @param skipLayout - Whether to skip layout resolution
+    /// @returns Evaluated schema as JSON string
+    #[wasm_bindgen(js_name = getEvaluatedSchema)]
+    pub fn get_evaluated_schema(&mut self, skip_layout: bool) -> String {
+        let result = self.inner.get_evaluated_schema(skip_layout);
+        serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    /// Get the evaluated schema as JavaScript object
+    /// 
+    /// @param skipLayout - Whether to skip layout resolution
+    /// @returns Evaluated schema as JavaScript object
+    #[wasm_bindgen(js_name = getEvaluatedSchemaJS)]
+    pub fn get_evaluated_schema_js(&mut self, skip_layout: bool) -> Result<JsValue, JsValue> {
+        let result = self.inner.get_evaluated_schema(skip_layout);
+        serde_wasm_bindgen::to_value(&result)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Get all schema values (evaluations ending with .value)
+    /// Mutates internal data by overriding with values from value evaluations
+    /// 
+    /// @returns Modified data as JavaScript object
+    #[wasm_bindgen(js_name = getSchemaValue)]
+    pub fn get_schema_value(&mut self) -> Result<JsValue, JsValue> {
+        let result = self.inner.get_schema_value();
+        serde_wasm_bindgen::to_value(&result)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Reload schema with new data
+    /// 
+    /// @param schema - New JSON schema string
+    /// @param context - Optional context data JSON string
+    /// @param data - Optional initial data JSON string
+    #[wasm_bindgen(js_name = reloadSchema)]
+    pub fn reload_schema(&mut self, schema: &str, context: Option<String>, data: Option<String>) -> Result<(), JsValue> {
+        let ctx = context.as_deref();
+        let dt = data.as_deref();
+        
+        self.inner.reload_schema(schema, ctx, dt)
+            .map_err(|e| JsValue::from_str(&e))
+    }
+
+    /// Get cache statistics
+    /// 
+    /// @returns Cache statistics as JavaScript object with hits, misses, and entries
+    #[wasm_bindgen(js_name = cacheStats)]
+    pub fn cache_stats(&self) -> Result<JsValue, JsValue> {
+        let stats = self.inner.cache_stats();
+        let stats_obj = serde_json::json!({
+            "hits": stats.hits,
+            "misses": stats.misses,
+            "entries": stats.entries,
+        });
+        serde_wasm_bindgen::to_value(&stats_obj)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Clear the evaluation cache
+    #[wasm_bindgen(js_name = clearCache)]
+    pub fn clear_cache(&mut self) {
+        self.inner.clear_cache();
+    }
+
+    /// Get the number of cached entries
+    /// 
+    /// @returns Number of cached entries
+    #[wasm_bindgen(js_name = cacheLen)]
+    pub fn cache_len(&self) -> usize {
+        self.inner.cache_len()
+    }
+
+    /// Validate data against schema rules with optional path filtering
+    /// 
+    /// @param data - JSON data string
+    /// @param context - Optional context data JSON string
+    /// @param paths - Optional array of paths to validate (null for all)
+    /// @returns ValidationResult
+    #[wasm_bindgen(js_name = validatePaths)]
+    pub fn validate_paths(&self, data: &str, context: Option<String>, paths: Option<Vec<String>>) -> Result<ValidationResult, JsValue> {
+        let ctx = context.as_deref();
+        let paths_ref = paths.as_ref().map(|v| v.as_slice());
+        
+        match self.inner.validate(data, ctx, paths_ref) {
+            Ok(result) => {
+                let errors: Vec<ValidationError> = result.errors.iter().map(|(path, error)| {
+                    ValidationError {
+                        path: path.clone(),
+                        rule_type: error.rule_type.clone(),
+                        message: error.message.clone(),
+                    }
+                }).collect();
+
+                Ok(ValidationResult {
+                    has_error: result.has_error,
+                    errors,
+                })
+            }
+            Err(e) => Err(JsValue::from_str(&e)),
+        }
+    }
+}
+
+/// Get library version
+#[wasm_bindgen]
+pub fn version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+/// Initialize the library (sets up panic hook)
+#[wasm_bindgen(start)]
+pub fn init() {
+    console_error_panic_hook::set_once();
+}

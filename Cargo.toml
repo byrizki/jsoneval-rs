@@ -8,12 +8,16 @@ edition = "2021"
 [dependencies]
 datalogic-rs = { version = "4" }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0", features = ["arbitrary_precision", "preserve_order"] }
+serde_json = { version = "1.0", features = ["preserve_order"] }
+simd-json = "0.13"
 indexmap = { version = "2.1", features = ["serde"] }
 chrono = "0.4"
-rustc-hash = "2.0"
+ahash = { version = "0.8", features = ["serde"] }
 smallvec = "1.13"
 rayon = "1.10"
+criterion = "0.7"
+dashmap = "6.0"
+regex = "1.10"
 
 [lib]
 name = "json_eval_rs"
@@ -25,7 +29,7 @@ path = "src/main.rs"
 
 [features]
 default = []
-wasm = ["wasm-bindgen"]
+wasm = ["wasm-bindgen", "serde-wasm-bindgen", "console_error_panic_hook"]
 ffi = []
 
 [dependencies.wasm-bindgen]
@@ -33,12 +37,16 @@ version = "0.2"
 optional = true
 features = ["serde-serialize"]
 
+[dependencies.serde-wasm-bindgen]
+version = "0.6"
+optional = true
+
+[dependencies.console_error_panic_hook]
+version = "0.1"
+optional = true
+
 [dependencies.once_cell]
 version = "1.19"
-
-[[bench]]
-name = "rlogic_bench"
-harness = false
 
 [profile.release]
 lto = "fat"              # Full Link Time Optimization for maximum performance

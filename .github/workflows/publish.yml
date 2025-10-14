@@ -1,0 +1,348 @@
+name: Publish Packages
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      publish_csharp:
+        description: 'Publish C# NuGet package'
+        required: false
+        type: boolean
+        default: false
+      publish_web:
+        description: 'Publish Web npm package'
+        required: false
+        type: boolean
+        default: false
+      publish_react_native:
+        description: 'Publish React Native npm package'
+        required: false
+        type: boolean
+        default: false
+      publish_crates_io:
+        description: 'Publish Rust crate to crates.io'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Build native libraries for all platforms
+  build-native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: libjson_eval_rs.so
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: json_eval_rs.dll
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: libjson_eval_rs.dylib
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: libjson_eval_rs.dylib
+
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+        target: ${{ matrix.target }}
+    
+    - name: Build native library
+      run: cargo build --release --target ${{ matrix.target }} --features ffi
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: native-${{ matrix.target }}
+        path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+
+  # Publish C# NuGet package
+  publish-csharp:
+    if: |
+      github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') ||
+      github.event.inputs.publish_csharp == 'true'
+    needs: build-native
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '6.0.x'
+    
+    - name: Download all native libraries
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts/
+    
+    - name: Organize native libraries
+      run: |
+        mkdir -p target/x86_64-unknown-linux-gnu/release
+        mkdir -p target/x86_64-pc-windows-msvc/release
+        mkdir -p target/x86_64-apple-darwin/release
+        mkdir -p target/aarch64-apple-darwin/release
+        
+        cp artifacts/native-x86_64-unknown-linux-gnu/* target/x86_64-unknown-linux-gnu/release/ || true
+        cp artifacts/native-x86_64-pc-windows-msvc/* target/x86_64-pc-windows-msvc/release/ || true
+        cp artifacts/native-x86_64-apple-darwin/* target/x86_64-apple-darwin/release/ || true
+        cp artifacts/native-aarch64-apple-darwin/* target/aarch64-apple-darwin/release/ || true
+    
+    - name: Build NuGet package
+      run: |
+        cd bindings/csharp
+        dotnet pack -c Release
+    
+    - name: Publish to NuGet
+      run: |
+        cd bindings/csharp
+        dotnet nuget push bin/Release/*.nupkg \
+          --api-key ${{ secrets.NUGET_API_KEY }} \
+          --source https://api.nuget.org/v3/index.json \
+          --skip-duplicate
+      env:
+        NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+    
+    - name: Upload NuGet package artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: nuget-package
+        path: bindings/csharp/bin/Release/*.nupkg
+
+  # Publish Web npm package
+  publish-web:
+    if: |
+      github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') ||
+      github.event.inputs.publish_web == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+        target: wasm32-unknown-unknown
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        registry-url: 'https://registry.npmjs.org'
+    
+    - name: Install wasm-pack
+      run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+    
+    - name: Build WASM packages
+      run: |
+        wasm-pack build --target web --out-dir bindings/web/pkg --features wasm
+        wasm-pack build --target bundler --out-dir bindings/web/pkg-bundler --features wasm
+        wasm-pack build --target nodejs --out-dir bindings/web/pkg-node --features wasm
+    
+    - name: Install dependencies
+      run: |
+        cd bindings/web
+        npm install
+    
+    - name: Publish to npm
+      run: |
+        cd bindings/web
+        echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
+        npm publish --access public
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    
+    - name: Create package artifact
+      run: |
+        cd bindings/web
+        npm pack
+    
+    - name: Upload web package artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: web-package
+        path: bindings/web/*.tgz
+
+  # Publish React Native npm package
+  publish-react-native:
+    if: |
+      github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') ||
+      github.event.inputs.publish_react_native == 'true'
+    needs: build-native
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        registry-url: 'https://registry.npmjs.org'
+    
+    - name: Download native libraries
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts/
+    
+    - name: Install dependencies
+      run: |
+        cd bindings/react-native
+        npm install
+    
+    - name: Build TypeScript
+      run: |
+        cd bindings/react-native
+        npm run prepare || echo "No prepare script"
+    
+    - name: Publish to npm
+      run: |
+        cd bindings/react-native
+        echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
+        npm publish --access public
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    
+    - name: Create package artifact
+      run: |
+        cd bindings/react-native
+        npm pack
+    
+    - name: Upload React Native package artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: react-native-package
+        path: bindings/react-native/*.tgz
+
+  # Publish Rust crate to crates.io
+  publish-crates-io:
+    if: |
+      github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') ||
+      github.event.inputs.publish_crates_io == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+    
+    - name: Run tests
+      run: cargo test --all-features
+    
+    - name: Check package
+      run: cargo publish --dry-run
+    
+    - name: Publish to crates.io
+      run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      env:
+        CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  # Create GitHub Release
+  create-github-release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [publish-csharp, publish-web, publish-react-native, publish-crates-io]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: release-artifacts/
+    
+    - name: Extract version from tag
+      id: version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+    
+    - name: Create release notes
+      run: |
+        cat > release-notes.md << 'EOF'
+        ## 🚀 Release ${{ steps.version.outputs.VERSION }}
+        
+        ### 📦 Published Packages
+        
+        - **Rust Crate**: [crates.io/crates/json-eval-rs](https://crates.io/crates/json-eval-rs)
+        - **C# NuGet**: [nuget.org/packages/JsonEvalRs](https://www.nuget.org/packages/JsonEvalRs)
+        - **Web (npm)**: [npmjs.com/package/@json-eval-rs/web](https://www.npmjs.com/package/@json-eval-rs/web)
+        - **React Native (npm)**: [npmjs.com/package/@json-eval-rs/react-native](https://www.npmjs.com/package/@json-eval-rs/react-native)
+        
+        ### 📥 Installation
+        
+        **Rust:**
+        ```bash
+        cargo add json-eval-rs
+        ```
+        
+        **C#:**
+        ```bash
+        dotnet add package JsonEvalRs
+        ```
+        
+        **Web:**
+        ```bash
+        npm install @json-eval-rs/web
+        ```
+        
+        **React Native:**
+        ```bash
+        npm install @json-eval-rs/react-native
+        ```
+        
+        ### 📝 Changes
+        
+        See [CHANGELOG.md](CHANGELOG.md) for detailed changes.
+        
+        ### 🔧 Native Libraries
+        
+        Pre-built native libraries for all platforms are attached to this release.
+        EOF
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        body_path: release-notes.md
+        files: |
+          release-artifacts/nuget-package/*.nupkg
+          release-artifacts/web-package/*.tgz
+          release-artifacts/react-native-package/*.tgz
+          release-artifacts/native-*/*
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Summary
+  publish-summary:
+    if: always()
+    needs: [publish-csharp, publish-web, publish-react-native, publish-crates-io]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Publish Summary
+      run: |
+        echo "## 📦 Publish Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Package | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| C# NuGet | ${{ needs.publish-csharp.result == 'success' && '✅' || needs.publish-csharp.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Web npm | ${{ needs.publish-web.result == 'success' && '✅' || needs.publish-web.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| React Native npm | ${{ needs.publish-react-native.result == 'success' && '✅' || needs.publish-react-native.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Rust crates.io | ${{ needs.publish-crates-io.result == 'success' && '✅' || needs.publish-crates-io.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY

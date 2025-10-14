@@ -1,0 +1,53 @@
+{
+  "name": "@json-eval-rs/web",
+  "version": "0.1.0",
+  "description": "High-performance JSON Logic evaluator with schema validation - WebAssembly bindings",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "json_eval_rs_bg.wasm",
+    "json_eval_rs.js",
+    "json_eval_rs.d.ts",
+    "README.md"
+  ],
+  "keywords": [
+    "json",
+    "json-logic",
+    "schema",
+    "validation",
+    "evaluation",
+    "wasm",
+    "webassembly",
+    "rust",
+    "performance"
+  ],
+  "author": "Your Name <your.email@example.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/json-eval-rs.git",
+    "directory": "bindings/web"
+  },
+  "homepage": "https://github.com/yourusername/json-eval-rs#readme",
+  "bugs": {
+    "url": "https://github.com/yourusername/json-eval-rs/issues"
+  },
+  "sideEffects": [
+    "./index.js",
+    "./json_eval_rs.js"
+  ],
+  "scripts": {
+    "build": "wasm-pack build --target web --out-dir bindings/web ../../ --features wasm",
+    "build:node": "wasm-pack build --target nodejs --out-dir bindings/web-node ../../ --features wasm",
+    "build:bundler": "wasm-pack build --target bundler --out-dir bindings/web-bundler ../../ --features wasm",
+    "test": "node test.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
