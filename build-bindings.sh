@@ -155,9 +155,35 @@ build_react_native() {
     
     # Build for iOS
     if [[ "$OSTYPE" == "darwin"* ]]; then
+        print_info "Building iOS libraries for device and simulator..."
+        
+        # Device (arm64)
         cargo build --release --features ffi --target aarch64-apple-ios
+        print_success "Built iOS arm64 (device) library"
+        
+        # Simulator (arm64 - Apple Silicon)
+        cargo build --release --features ffi --target aarch64-apple-ios-sim
+        print_success "Built iOS arm64 (simulator) library"
+        
+        # Simulator (x86_64 - Intel)
         cargo build --release --features ffi --target x86_64-apple-ios
-        print_success "Built iOS libraries"
+        print_success "Built iOS x86_64 (simulator) library"
+        
+        # Copy to React Native package in subdirectories
+        mkdir -p bindings/react-native/packages/react-native/ios/libs/aarch64-apple-ios
+        mkdir -p bindings/react-native/packages/react-native/ios/libs/aarch64-apple-ios-sim
+        mkdir -p bindings/react-native/packages/react-native/ios/libs/x86_64-apple-ios
+        
+        cp target/aarch64-apple-ios/release/libjson_eval_rs.a \
+           bindings/react-native/packages/react-native/ios/libs/aarch64-apple-ios/
+        
+        cp target/aarch64-apple-ios-sim/release/libjson_eval_rs.a \
+           bindings/react-native/packages/react-native/ios/libs/aarch64-apple-ios-sim/
+        
+        cp target/x86_64-apple-ios/release/libjson_eval_rs.a \
+           bindings/react-native/packages/react-native/ios/libs/x86_64-apple-ios/
+        
+        print_success "Copied iOS libraries to React Native package"
     else
         print_warning "iOS builds require macOS. Skipping"
     fi

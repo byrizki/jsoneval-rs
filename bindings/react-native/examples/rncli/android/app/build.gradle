@@ -8,14 +8,14 @@ apply plugin: "com.facebook.react"
  */
 react {
     /* Folders */
-    //   The root of your project, i.e. where "package.json" lives. Default is '../..'
-    // root = file("../../")
-    //   The folder where the react-native NPM package is. Default is ../../node_modules/react-native
-    // reactNativeDir = file("../../node_modules/react-native")
-    //   The folder where the react-native Codegen package is. Default is ../../node_modules/@react-native/codegen
-    // codegenDir = file("../../node_modules/@react-native/codegen")
-    //   The cli.js file which is the React Native CLI entrypoint. Default is ../../node_modules/react-native/cli.js
-    // cliFile = file("../../node_modules/react-native/cli.js")
+    // The root of your project, i.e. where "package.json" lives
+    root = file("../../")
+    // The folder where the react-native NPM package is (in monorepo root)
+    reactNativeDir = file("../../../../node_modules/react-native")
+    // The folder where the react-native Codegen package is
+    codegenDir = file("../../../../node_modules/@react-native/codegen")
+    // The cli.js file which is the React Native CLI entrypoint
+    cliFile = file("../../../../node_modules/react-native/cli.js")
 
     /* Variants */
     //   The list of variants to that are debuggable. For those we're going to
@@ -104,6 +104,22 @@ android {
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
+    }
+    
+    packagingOptions {
+        // Handle duplicate libraries from native modules
+        pickFirst 'lib/arm64-v8a/libjsi.so'
+        pickFirst 'lib/armeabi-v7a/libjsi.so'
+        pickFirst 'lib/x86/libjsi.so'
+        pickFirst 'lib/x86_64/libjsi.so'
+        pickFirst 'lib/arm64-v8a/libc++_shared.so'
+        pickFirst 'lib/armeabi-v7a/libc++_shared.so'
+        pickFirst 'lib/x86/libc++_shared.so'
+        pickFirst 'lib/x86_64/libc++_shared.so'
+        pickFirst 'lib/arm64-v8a/libreactnativejni.so'
+        pickFirst 'lib/armeabi-v7a/libreactnativejni.so'
+        pickFirst 'lib/x86/libreactnativejni.so'
+        pickFirst 'lib/x86_64/libreactnativejni.so'
     }
 }
 

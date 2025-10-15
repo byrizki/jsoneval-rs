@@ -81,22 +81,30 @@ namespace JsonEvalRs
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern IntPtr json_eval_new(
             [MarshalAs(UnmanagedType.LPUTF8Str)] string schema,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string context,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string data
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? data
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern IntPtr json_eval_new_with_error(
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string schema,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? data,
+            out IntPtr errorOut
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_evaluate(
             IntPtr handle,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string data,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string context
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_validate(
             IntPtr handle,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string data,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string context
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
@@ -104,48 +112,56 @@ namespace JsonEvalRs
             IntPtr handle,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string changedPathsJson,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string data,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string context,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
             [MarshalAs(UnmanagedType.I1)] bool nested
         );
 #else
         // .NET Standard 2.0/2.1 - Use byte array marshalling
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern IntPtr json_eval_new(
-            byte[] schema,
-            byte[] context,
-            byte[] data
+            byte[]? schema,
+            byte[]? context,
+            byte[]? data
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern IntPtr json_eval_new_with_error(
+            byte[]? schema,
+            byte[]? context,
+            byte[]? data,
+            out IntPtr errorOut
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_evaluate(
             IntPtr handle,
-            byte[] data,
-            byte[] context
+            byte[]? data,
+            byte[]? context
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_validate(
             IntPtr handle,
-            byte[] data,
-            byte[] context
+            byte[]? data,
+            byte[]? context
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_evaluate_dependents(
             IntPtr handle,
-            byte[] changedPathsJson,
-            byte[] data,
-            byte[] context,
+            byte[]? changedPathsJson,
+            byte[]? data,
+            byte[]? context,
             [MarshalAs(UnmanagedType.I1)] bool nested
         );
 
-        internal static byte[] ToUTF8Bytes(string str)
+        internal static byte[]? ToUTF8Bytes(string? str)
         {
             if (str == null) return null;
             return Encoding.UTF8.GetBytes(str + "\0"); // Null-terminated
         }
 
-        internal static string PtrToStringUTF8(IntPtr ptr)
+        internal static string? PtrToStringUTF8(IntPtr ptr)
         {
             if (ptr == IntPtr.Zero)
                 return null;
@@ -183,32 +199,32 @@ namespace JsonEvalRs
         internal static extern FFIResult json_eval_reload_schema(
             IntPtr handle,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string schema,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string context,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string data
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? data
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_validate_paths(
             IntPtr handle,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string data,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string context,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string pathsJson
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? pathsJson
         );
 #else
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_reload_schema(
             IntPtr handle,
-            byte[] schema,
-            byte[] context,
-            byte[] data
+            byte[]? schema,
+            byte[]? context,
+            byte[]? data
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_validate_paths(
             IntPtr handle,
-            byte[] data,
-            byte[] context,
-            byte[] pathsJson
+            byte[]? data,
+            byte[]? context,
+            byte[]? pathsJson
         );
 #endif
 
@@ -231,13 +247,13 @@ namespace JsonEvalRs
     public class ValidationError
     {
         [JsonProperty("path")]
-        public string Path { get; set; }
+        public string Path { get; set; } = string.Empty;
 
         [JsonProperty("ruleType")]
-        public string RuleType { get; set; }
+        public string RuleType { get; set; } = string.Empty;
 
         [JsonProperty("message")]
-        public string Message { get; set; }
+        public string Message { get; set; } = string.Empty;
     }
 
     /// <summary>
@@ -317,17 +333,53 @@ namespace JsonEvalRs
             if (string.IsNullOrEmpty(schema))
                 throw new ArgumentNullException(nameof(schema));
 
+            // Test if library can be loaded
+            try
+            {
+                var version = Version;
+            }
+            catch (Exception ex)
+            {
+                throw new JsonEvalException(
+                    $"Failed to load native library 'json_eval_rs'. Make sure the native library is in the correct location. " +
+                    $"Platform: {RuntimeInformation.OSDescription}, " +
+                    $"Architecture: {RuntimeInformation.ProcessArchitecture}. " +
+                    $"Error: {ex.Message}", ex);
+            }
+
+            // Use the new error-reporting function
+            IntPtr errorPtr;
 #if NETCOREAPP || NET5_0_OR_GREATER
-            _handle = Native.json_eval_new(schema, context, data);
+            _handle = Native.json_eval_new_with_error(schema, context, data, out errorPtr);
 #else
-            _handle = Native.json_eval_new(
+            _handle = Native.json_eval_new_with_error(
                 Native.ToUTF8Bytes(schema),
                 Native.ToUTF8Bytes(context),
-                Native.ToUTF8Bytes(data)
+                Native.ToUTF8Bytes(data),
+                out errorPtr
             );
 #endif
+            
             if (_handle == IntPtr.Zero)
-                throw new JsonEvalException("Failed to create JSONEval instance");
+            {
+                string errorMessage = "Failed to create JSONEval instance";
+                if (errorPtr != IntPtr.Zero)
+                {
+                    try
+                    {
+#if NETCOREAPP || NET5_0_OR_GREATER
+                        errorMessage = Marshal.PtrToStringUTF8(errorPtr) ?? errorMessage;
+#else
+                        errorMessage = Native.PtrToStringUTF8(errorPtr) ?? errorMessage;
+#endif
+                    }
+                    finally
+                    {
+                        Native.json_eval_free_string(errorPtr);
+                    }
+                }
+                throw new JsonEvalException(errorMessage);
+            }
         }
 
         /// <summary>

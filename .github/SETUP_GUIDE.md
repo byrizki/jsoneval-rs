@@ -88,7 +88,7 @@ What you expected to happen.
 
 **Environment:**
 - OS: [e.g., Ubuntu 22.04, Windows 11, macOS 13]
-- Version: [e.g., 0.1.0]
+- Version: [e.g., 0.0.2]
 - Binding: [e.g., Rust, C#, Web, React Native]
 ```
 
@@ -189,7 +189,7 @@ Before first release, update these files:
 ```toml
 [package]
 name = "json-eval-rs"
-version = "0.1.0"
+version = "0.0.2"
 authors = ["Your Name <your.email@example.com>"]
 edition = "2021"
 description = "High-performance JSON Logic evaluator with schema validation"
@@ -204,7 +204,7 @@ categories = ["parser-implementations", "data-structures"]
 **bindings/csharp/JsonEvalRs.csproj:**
 ```xml
 <PropertyGroup>
-  <Version>0.1.0</Version>
+  <Version>0.0.2</Version>
   <Authors>Your Name</Authors>
   <Company>Your Company</Company>
   <PackageProjectUrl>https://github.com/YOUR_USERNAME/json-eval-rs</PackageProjectUrl>
@@ -216,7 +216,7 @@ categories = ["parser-implementations", "data-structures"]
 ```json
 {
   "name": "@json-eval-rs/web",
-  "version": "0.1.0",
+  "version": "0.0.2",
   "author": "Your Name <your.email@example.com>",
   "repository": {
     "type": "git",
@@ -229,7 +229,7 @@ categories = ["parser-implementations", "data-structures"]
 ```json
 {
   "name": "@json-eval-rs/react-native",
-  "version": "0.1.0",
+  "version": "0.0.2",
   "author": "Your Name <your.email@example.com>",
   "repository": {
     "type": "git",
@@ -314,7 +314,7 @@ Create PR on GitHub.
 
 **1. Update version numbers:**
 ```bash
-# Update all these files to version 0.1.0
+# Update all these files to version 0.0.2
 vim Cargo.toml
 vim bindings/csharp/JsonEvalRs.csproj
 vim bindings/web/package.json
@@ -325,7 +325,7 @@ vim bindings/react-native/package.json
 ```markdown
 # Changelog
 
-## [0.1.0] - 2024-01-XX
+## [0.0.2] - 2024-01-XX
 
 ### Added
 - Initial release
@@ -340,14 +340,14 @@ vim bindings/react-native/package.json
 **3. Commit and push:**
 ```bash
 git add -A
-git commit -m "Release v0.1.0"
+git commit -m "Release v0.0.2"
 git push origin main
 ```
 
 **4. Create and push tag:**
 ```bash
-git tag -a v0.1.0 -m "Release version 0.1.0"
-git push origin v0.1.0
+git tag -a v0.0.2 -m "Release version 0.0.2"
+git push origin v0.0.2
 ```
 
 **5. Monitor workflow:**

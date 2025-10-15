@@ -58,13 +58,17 @@ export class JSONEvalCore {
       );
     }
 
-    const { JSONEvalWasm } = this._wasmModule;
-    this._instance = new JSONEvalWasm(
-      JSON.stringify(this._schema),
-      this._context ? JSON.stringify(this._context) : null,
-      this._data ? JSON.stringify(this._data) : null
-    );
-    this._ready = true;
+    try {
+      const { JSONEvalWasm } = this._wasmModule;
+      this._instance = new JSONEvalWasm(
+        JSON.stringify(this._schema),
+        this._context ? JSON.stringify(this._context) : null,
+        this._data ? JSON.stringify(this._data) : null
+      );
+      this._ready = true;
+    } catch (error) {
+      throw new Error(`Failed to create JSONEval instance: ${error.message || error}`);
+    }
   }
 
   /**
@@ -77,11 +81,15 @@ export class JSONEvalCore {
    */
   async validate({ data, context }) {
     await this.init();
-    // Use validateJS for proper serialization (Worker-safe)
-    return this._instance.validateJS(
-      JSON.stringify(data),
-      context ? JSON.stringify(context) : null
-    );
+    try {
+      // Use validateJS for proper serialization (Worker-safe)
+      return this._instance.validateJS(
+        JSON.stringify(data),
+        context ? JSON.stringify(context) : null
+      );
+    } catch (error) {
+      throw new Error(`Validation failed: ${error.message || error}`);
+    }
   }
 
   /**
@@ -93,10 +101,14 @@ export class JSONEvalCore {
    */
   async evaluate({ data, context }) {
     await this.init();
-    return this._instance.evaluateJS(
-      JSON.stringify(data),
-      context ? JSON.stringify(context) : null
-    );
+    try {
+      return this._instance.evaluateJS(
+        JSON.stringify(data),
+        context ? JSON.stringify(context) : null
+      );
+    } catch (error) {
+      throw new Error(`Evaluation failed: ${error.message || error}`);
+    }
   }
 
   /**
@@ -110,12 +122,16 @@ export class JSONEvalCore {
    */
   async evaluateDependents({ changedPaths, data, context, nested = true }) {
     await this.init();
-    return this._instance.evaluateDependentsJS(
-      changedPaths,
-      JSON.stringify(data),
-      context ? JSON.stringify(context) : null,
-      nested
-    );
+    try {
+      return this._instance.evaluateDependentsJS(
+        changedPaths,
+        JSON.stringify(data),
+        context ? JSON.stringify(context) : null,
+        nested
+      );
+    } catch (error) {
+      throw new Error(`Dependent evaluation failed: ${error.message || error}`);
+    }
   }
 
   /**
@@ -151,16 +167,20 @@ export class JSONEvalCore {
       throw new Error('Instance not initialized. Call init() first.');
     }
 
-    await this._instance.reloadSchema(
-      JSON.stringify(schema),
-      context ? JSON.stringify(context) : null,
-      data ? JSON.stringify(data) : null
-    );
+    try {
+      await this._instance.reloadSchema(
+        JSON.stringify(schema),
+        context ? JSON.stringify(context) : null,
+        data ? JSON.stringify(data) : null
+      );
 
-    // Update internal state
-    this._schema = schema;
-    this._context = context;
-    this._data = data;
+      // Update internal state
+      this._schema = schema;
+      this._context = context;
+      this._data = data;
+    } catch (error) {
+      throw new Error(`Failed to reload schema: ${error.message || error}`);
+    }
   }
 
   /**

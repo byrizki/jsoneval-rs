@@ -49,7 +49,13 @@ jobs:
             artifact_name: libjson_eval_rs.a
             build_features: ffi
           
-          # iOS x86_64 (simulator)
+          # iOS ARM64 (simulator - Apple Silicon Mac)
+          - os: macos-latest
+            target: aarch64-apple-ios-sim
+            artifact_name: libjson_eval_rs.a
+            build_features: ffi
+          
+          # iOS x86_64 (simulator - Intel Mac)
           - os: macos-latest
             target: x86_64-apple-ios
             artifact_name: libjson_eval_rs.a
@@ -233,9 +239,6 @@ jobs:
         ndk-version: r26c
         add-to-path: true
     
-    - name: Install cargo-ndk
-      run: cargo install cargo-ndk
-    
     - name: Cache cargo build
       uses: actions/cache@v4
       with:
@@ -245,15 +248,44 @@ jobs:
           target
         key: ${{ runner.os }}-cargo-android-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
     
-    - name: Build Android JNI library
+    - name: Map Android ABI to Rust target
+      id: rust-target
       run: |
-        cargo ndk -t ${{ matrix.target }} -o bindings/react-native/android/src/main/jniLibs build --release --features ffi
+        case "${{ matrix.target }}" in
+          arm64-v8a)
+            echo "target=aarch64-linux-android" >> $GITHUB_OUTPUT
+            ;;
+          armeabi-v7a)
+            echo "target=armv7-linux-androideabi" >> $GITHUB_OUTPUT
+            ;;
+          x86)
+            echo "target=i686-linux-android" >> $GITHUB_OUTPUT
+            ;;
+          x86_64)
+            echo "target=x86_64-linux-android" >> $GITHUB_OUTPUT
+            ;;
+        esac
     
-    - name: Upload Android JNI artifact
+    - name: Build Rust shared library
+      run: |
+        cargo build --release --target ${{ steps.rust-target.outputs.target }} --features ffi
+    
+    - name: Verify shared library
+      run: |
+        ls -lh target/${{ steps.rust-target.outputs.target }}/release/libjson_eval_rs.so
+    
+    - name: Copy to jniLibs directory
+      run: |
+        mkdir -p bindings/react-native/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}
+        cp target/${{ steps.rust-target.outputs.target }}/release/libjson_eval_rs.so \
+           bindings/react-native/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}/
+        ls -lh bindings/react-native/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}/
+    
+    - name: Upload Android JNI library artifact
       uses: actions/upload-artifact@v4
       with:
         name: android-jni-${{ matrix.target }}
-        path: bindings/react-native/android/src/main/jniLibs/${{ matrix.target }}/
+        path: bindings/react-native/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}/
         if-no-files-found: error
   
   # Build React Native package
@@ -269,34 +301,75 @@ jobs:
       with:
         node-version: '18'
     
-    - name: Download desktop native libraries
-      uses: actions/download-artifact@v4
-      with:
-        path: artifacts/
-    
     - name: Download Android JNI libraries
       uses: actions/download-artifact@v4
       with:
         pattern: android-jni-*
-        path: bindings/react-native/android/src/main/jniLibs/
+        path: android-jni-artifacts/
     
-    - name: Organize native libraries
+    - name: Organize Android JNI libraries
       run: |
-        # Create iOS framework directory
-        mkdir -p bindings/react-native/ios/libs
+        # Copy Android JNI artifacts to the package structure
+        mkdir -p bindings/react-native/packages/react-native/android/src/main/jniLibs
         
-        # Copy iOS libraries if they exist
-        if [ -d "artifacts/native-aarch64-apple-ios" ]; then
-          cp -r artifacts/native-aarch64-apple-ios/* bindings/react-native/ios/libs/ || true
+        # Copy each ABI's libraries (contents only, not the directory)
+        for abi_dir in android-jni-artifacts/android-jni-*/; do
+          if [ -d "$abi_dir" ]; then
+            abi=$(basename "$abi_dir" | sed 's/android-jni-//')
+            echo "Copying $abi libraries..."
+            mkdir -p bindings/react-native/packages/react-native/android/src/main/jniLibs/$abi
+            cp "$abi_dir"/*.so bindings/react-native/packages/react-native/android/src/main/jniLibs/$abi/ 2>/dev/null || true
+          fi
+        done
+        
+        # Verify libraries
+        echo "Android JNI libraries bundled in package:"
+        find bindings/react-native/packages/react-native/android/src/main/jniLibs -name "*.so" -exec ls -lh {} \;
+    
+    - name: Download and organize iOS libraries
+      uses: actions/download-artifact@v4
+      with:
+        pattern: native-*-apple-ios
+        path: ios-artifacts/
+    
+    - name: Organize iOS libraries
+      run: |
+        # Create iOS libs directory in the package
+        mkdir -p bindings/react-native/packages/react-native/ios/libs
+        
+        # Track which architectures we have
+        HAS_ARM64=false
+        HAS_X86_64=false
+        HAS_ARM64_SIM=false
+        
+        # Copy architecture-specific libraries
+        if [ -d "ios-artifacts/native-aarch64-apple-ios" ]; then
+          mkdir -p bindings/react-native/packages/react-native/ios/libs/aarch64-apple-ios
+          cp ios-artifacts/native-aarch64-apple-ios/libjson_eval_rs.a \
+             bindings/react-native/packages/react-native/ios/libs/aarch64-apple-ios/ 2>/dev/null || true
+          HAS_ARM64=true
+          echo "✓ Copied iOS arm64 (device) library"
         fi
         
-        if [ -d "artifacts/native-x86_64-apple-ios" ]; then
-          cp -r artifacts/native-x86_64-apple-ios/* bindings/react-native/ios/libs/ || true
+        if [ -d "ios-artifacts/native-x86_64-apple-ios" ]; then
+          mkdir -p bindings/react-native/packages/react-native/ios/libs/x86_64-apple-ios
+          cp ios-artifacts/native-x86_64-apple-ios/libjson_eval_rs.a \
+             bindings/react-native/packages/react-native/ios/libs/x86_64-apple-ios/ 2>/dev/null || true
+          HAS_X86_64=true
+          echo "✓ Copied iOS x86_64 (simulator) library"
         fi
         
-        echo "Native libraries organized"
-        ls -R bindings/react-native/android/src/main/jniLibs/ || true
-        ls -R bindings/react-native/ios/libs/ || true
+        if [ -d "ios-artifacts/native-aarch64-apple-ios-sim" ]; then
+          mkdir -p bindings/react-native/packages/react-native/ios/libs/aarch64-apple-ios-sim
+          cp ios-artifacts/native-aarch64-apple-ios-sim/libjson_eval_rs.a \
+             bindings/react-native/packages/react-native/ios/libs/aarch64-apple-ios-sim/ 2>/dev/null || true
+          HAS_ARM64_SIM=true
+          echo "✓ Copied iOS arm64 (simulator) library"
+        fi
+        
+        echo ""
+        echo "iOS static libraries bundled in package:"
+        find bindings/react-native/packages/react-native/ios/libs -name "*.a" -exec ls -lh {} \;
     
     - name: Install React Native dependencies
       run: |
@@ -354,7 +427,6 @@ jobs:
 
   # Create release with all artifacts
   create-release:
-    if: github.event_name == 'release'
     needs: [build-native, build-android-jni, build-csharp, build-web, build-react-native, test]
     runs-on: ubuntu-latest
     

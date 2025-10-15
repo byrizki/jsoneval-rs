@@ -87,7 +87,11 @@ impl JSONEvalWasm {
         
         match JSONEval::new(schema, ctx, dt) {
             Ok(eval) => Ok(JSONEvalWasm { inner: eval }),
-            Err(e) => Err(JsValue::from_str(&e.to_string())),
+            Err(e) => {
+                let error_msg = format!("Failed to create JSONEval instance: {}", e);
+                log(&format!("[WASM ERROR] {}", error_msg));
+                Err(JsValue::from_str(&error_msg))
+            }
         }
     }
 
@@ -104,9 +108,17 @@ impl JSONEvalWasm {
             Ok(_) => {
                 let result = self.inner.get_evaluated_schema(false);
                 serde_json::to_string(&result)
-                    .map_err(|e| JsValue::from_str(&e.to_string()))
+                    .map_err(|e| {
+                        let error_msg = format!("Failed to serialize evaluation result: {}", e);
+                        log(&format!("[WASM ERROR] {}", error_msg));
+                        JsValue::from_str(&error_msg)
+                    })
             },
-            Err(e) => Err(JsValue::from_str(&e)),
+            Err(e) => {
+                let error_msg = format!("Evaluation failed: {}", e);
+                log(&format!("[WASM ERROR] {}", error_msg));
+                Err(JsValue::from_str(&error_msg))
+            }
         }
     }
 
@@ -123,9 +135,17 @@ impl JSONEvalWasm {
             Ok(_) => {
                 let result = self.inner.get_evaluated_schema(false);
                 serde_wasm_bindgen::to_value(&result)
-                    .map_err(|e| JsValue::from_str(&e.to_string()))
+                    .map_err(|e| {
+                        let error_msg = format!("Failed to convert evaluation result to JsValue: {}", e);
+                        log(&format!("[WASM ERROR] {}", error_msg));
+                        JsValue::from_str(&error_msg)
+                    })
             },
-            Err(e) => Err(JsValue::from_str(&e)),
+            Err(e) => {
+                let error_msg = format!("Evaluation failed: {}", e);
+                log(&format!("[WASM ERROR] {}", error_msg));
+                Err(JsValue::from_str(&error_msg))
+            }
         }
     }
 
@@ -153,7 +173,11 @@ impl JSONEvalWasm {
                     errors,
                 })
             }
-            Err(e) => Err(JsValue::from_str(&e)),
+            Err(e) => {
+                let error_msg = format!("Validation failed: {}", e);
+                log(&format!("[WASM ERROR] {}", error_msg));
+                Err(JsValue::from_str(&error_msg))
+            }
         }
     }
 
@@ -283,7 +307,11 @@ impl JSONEvalWasm {
         let dt = data.as_deref();
         
         self.inner.reload_schema(schema, ctx, dt)
-            .map_err(|e| JsValue::from_str(&e))
+            .map_err(|e| {
+                let error_msg = format!("Failed to reload schema: {}", e);
+                log(&format!("[WASM ERROR] {}", error_msg));
+                JsValue::from_str(&error_msg)
+            })
     }
 
     /// Get cache statistics

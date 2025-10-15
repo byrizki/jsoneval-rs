@@ -34,7 +34,7 @@
 
 ```toml
 [dependencies]
-json-eval-rs = "0.1.0"
+json-eval-rs = "0.0.2"
 ```
 
 ### C# / .NET
@@ -422,7 +422,7 @@ match eval.validate(data, None, None) {
 
 ## 📈 Changelog
 
-### [0.1.0] - 2024-01-XX
+### [0.0.2] - 2024-01-XX
 
 **Added**
 - Initial release with core evaluation engine

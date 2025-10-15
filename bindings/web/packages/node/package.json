@@ -1,6 +1,6 @@
 {
   "name": "@json-eval-rs/node",
-  "version": "0.1.0",
+  "version": "0.0.2",
   "description": "JSON Eval RS for Node.js and Server-Side Rendering with ergonomic API",
   "main": "index.js",
   "types": "index.d.ts",
@@ -29,7 +29,7 @@
     "directory": "bindings/web/packages/node"
   },
   "dependencies": {
-    "@json-eval-rs/core": "^0.1.0"
+    "@json-eval-rs/core": "*"
   },
   "sideEffects": false
 }

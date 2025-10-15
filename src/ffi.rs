@@ -30,6 +30,24 @@ impl Default for FFIResult {
     }
 }
 
+impl FFIResult {
+    fn success(data: String) -> Self {
+        Self {
+            success: true,
+            data: CString::new(data).unwrap().into_raw(),
+            error: ptr::null_mut(),
+        }
+    }
+
+    fn error(msg: String) -> Self {
+        Self {
+            success: false,
+            data: ptr::null_mut(),
+            error: CString::new(msg).unwrap_or_else(|_| CString::new("Error message contains null byte").unwrap()).into_raw(),
+        }
+    }
+}
+
 /// Create a new JSONEval instance
 /// 
 /// # Safety
@@ -45,18 +63,25 @@ pub unsafe extern "C" fn json_eval_new(
     data: *const c_char,
 ) -> *mut JSONEvalHandle {
     if schema.is_null() {
+        eprintln!("[FFI ERROR] json_eval_new: schema pointer is null");
         return ptr::null_mut();
     }
 
     let schema_str = match CStr::from_ptr(schema).to_str() {
         Ok(s) => s,
-        Err(_) => return ptr::null_mut(),
+        Err(e) => {
+            eprintln!("[FFI ERROR] json_eval_new: invalid UTF-8 in schema: {}", e);
+            return ptr::null_mut();
+        }
     };
 
     let context_str = if !context.is_null() {
         match CStr::from_ptr(context).to_str() {
             Ok(s) => Some(s),
-            Err(_) => return ptr::null_mut(),
+            Err(e) => {
+                eprintln!("[FFI ERROR] json_eval_new: invalid UTF-8 in context: {}", e);
+                return ptr::null_mut();
+            }
         }
     } else {
         None
@@ -65,7 +90,10 @@ pub unsafe extern "C" fn json_eval_new(
     let data_str = if !data.is_null() {
         match CStr::from_ptr(data).to_str() {
             Ok(s) => Some(s),
-            Err(_) => return ptr::null_mut(),
+            Err(e) => {
+                eprintln!("[FFI ERROR] json_eval_new: invalid UTF-8 in data: {}", e);
+                return ptr::null_mut();
+            }
         }
     } else {
         None
@@ -78,7 +106,92 @@ pub unsafe extern "C" fn json_eval_new(
             });
             Box::into_raw(handle)
         }
-        Err(_) => ptr::null_mut(),
+        Err(e) => {
+            let error_msg = format!("Failed to create JSONEval instance: {}", e);
+            eprintln!("[FFI ERROR] json_eval_new: {}", error_msg);
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Create a new JSONEval instance with detailed error reporting
+/// 
+/// # Safety
+/// 
+/// - schema must be a valid null-terminated UTF-8 string
+/// - context can be NULL for no context
+/// - data can be NULL for no initial data
+/// - error_out must be a valid pointer to store error message (caller owns the string)
+/// - Returns non-null handle on success, null on failure (check error_out for details)
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_new_with_error(
+    schema: *const c_char,
+    context: *const c_char,
+    data: *const c_char,
+    error_out: *mut *mut c_char,
+) -> *mut JSONEvalHandle {
+    if schema.is_null() {
+        if !error_out.is_null() {
+            *error_out = CString::new("Schema pointer is null").unwrap().into_raw();
+        }
+        return ptr::null_mut();
+    }
+
+    let schema_str = match CStr::from_ptr(schema).to_str() {
+        Ok(s) => s,
+        Err(e) => {
+            if !error_out.is_null() {
+                let msg = format!("Invalid UTF-8 in schema: {}", e);
+                *error_out = CString::new(msg).unwrap().into_raw();
+            }
+            return ptr::null_mut();
+        }
+    };
+
+    let context_str = if !context.is_null() {
+        match CStr::from_ptr(context).to_str() {
+            Ok(s) => Some(s),
+            Err(e) => {
+                if !error_out.is_null() {
+                    let msg = format!("Invalid UTF-8 in context: {}", e);
+                    *error_out = CString::new(msg).unwrap().into_raw();
+                }
+                return ptr::null_mut();
+            }
+        }
+    } else {
+        None
+    };
+
+    let data_str = if !data.is_null() {
+        match CStr::from_ptr(data).to_str() {
+            Ok(s) => Some(s),
+            Err(e) => {
+                if !error_out.is_null() {
+                    let msg = format!("Invalid UTF-8 in data: {}", e);
+                    *error_out = CString::new(msg).unwrap().into_raw();
+                }
+                return ptr::null_mut();
+            }
+        }
+    } else {
+        None
+    };
+
+    match JSONEval::new(schema_str, context_str, data_str) {
+        Ok(eval) => {
+            let handle = Box::new(JSONEvalHandle {
+                inner: Box::new(eval),
+            });
+            Box::into_raw(handle)
+        }
+        Err(e) => {
+            if !error_out.is_null() {
+                let msg = format!("Failed to create JSONEval instance: {}", e);
+                *error_out = CString::new(msg).unwrap().into_raw();
+            }
+            ptr::null_mut()
+        }
     }
 }
 
