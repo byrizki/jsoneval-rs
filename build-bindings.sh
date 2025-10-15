@@ -93,6 +93,9 @@ build_web() {
         return 1
     fi
     
+    # Set RUSTFLAGS for getrandom wasm_js backend
+    export RUSTFLAGS="--cfg=getrandom_backend=\"wasm_js\""
+    
     # Build for bundler target (Webpack, Next.js, Vite, etc.)
     print_info "Building for bundlers (Webpack, Vite, Next.js, etc.)..."
     wasm-pack build --target bundler --out-dir bindings/web/packages/bundler/pkg --features wasm

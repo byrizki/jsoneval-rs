@@ -27,7 +27,7 @@ optional = true
 
 [lib]
 name = "json_eval_rs"
-crate-type = ["rlib", "cdylib"]
+crate-type = ["rlib", "cdylib", "staticlib"]
 
 [[bin]]
 name = "json-eval-cli"

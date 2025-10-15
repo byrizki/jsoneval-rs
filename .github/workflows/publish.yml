@@ -137,6 +137,9 @@ jobs:
       github.event.inputs.publish_web == 'true'
     runs-on: ubuntu-latest
     
+    env:
+      RUSTFLAGS: "--cfg=getrandom_backend=\"wasm_js\""
+    
     steps:
     - uses: actions/checkout@v4
     
