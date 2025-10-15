@@ -422,8 +422,9 @@ impl Evaluator {
                     Ok(Value::Array(vec![]))
                 }
             }
-            CompiledLogic::Return(expr) => {
-                self.evaluate_with_context(expr, user_data, internal_context, depth + 1)
+            CompiledLogic::Return(value) => {
+                // Return the raw value as-is without any evaluation
+                Ok(value.as_ref().clone())
             }
         }
     }

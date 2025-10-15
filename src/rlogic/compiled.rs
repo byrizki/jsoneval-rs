@@ -123,7 +123,7 @@ pub enum CompiledLogic {
     RangeOptions(Box<CompiledLogic>, Box<CompiledLogic>), // min, max
     MapOptions(Box<CompiledLogic>, Box<CompiledLogic>, Box<CompiledLogic>), // table, field_label, field_value
     MapOptionsIf(Box<CompiledLogic>, Box<CompiledLogic>, Box<CompiledLogic>, Vec<CompiledLogic>), // table, field_label, field_value, conditions
-    Return(Box<CompiledLogic>), // return value (no-op, just returns the value)
+    Return(Box<Value>), // return value as-is (no-op, just returns the raw value)
 }
 
 impl CompiledLogic {
@@ -689,7 +689,7 @@ impl CompiledLogic {
                 
                 Ok(CompiledLogic::MapOptionsIf(table, field_label, field_value, conditions))
             }
-            "return" => Ok(CompiledLogic::Return(Box::new(Self::compile(args)?))),
+            "return" => Ok(CompiledLogic::Return(Box::new(args.clone()))),
             
             _ => Err(format!("Unknown operator: {}", op)),
         }
@@ -917,8 +917,8 @@ impl CompiledLogic {
             CompiledLogic::Not(a) | CompiledLogic::Abs(a) | CompiledLogic::Round(a)
             | CompiledLogic::RoundUp(a) | CompiledLogic::RoundDown(a)
             | CompiledLogic::Length(a) | CompiledLogic::Len(a) | CompiledLogic::IsEmpty(a)
-            | CompiledLogic::Year(a) | CompiledLogic::Month(a) | CompiledLogic::Day(a)
-            | CompiledLogic::Return(a) => a.check_forward_reference(),
+            | CompiledLogic::Year(a) | CompiledLogic::Month(a) | CompiledLogic::Day(a) => a.check_forward_reference(),
+            CompiledLogic::Return(_) => false, // Raw values don't have forward references
             CompiledLogic::If(cond, then_val, else_val) => {
                 cond.check_forward_reference() || then_val.check_forward_reference() || else_val.check_forward_reference()
             }
@@ -1056,10 +1056,10 @@ impl CompiledLogic {
             CompiledLogic::Not(a) | CompiledLogic::Abs(a) | CompiledLogic::Round(a)
             | CompiledLogic::RoundUp(a) | CompiledLogic::RoundDown(a)
             | CompiledLogic::Length(a) | CompiledLogic::Len(a) | CompiledLogic::IsEmpty(a)
-            | CompiledLogic::Year(a) | CompiledLogic::Month(a) | CompiledLogic::Day(a)
-            | CompiledLogic::Return(a) => {
+            | CompiledLogic::Year(a) | CompiledLogic::Month(a) | CompiledLogic::Day(a) => {
                 a.collect_vars(vars);
             }
+            CompiledLogic::Return(_) => {} // Raw values don't contain vars
             CompiledLogic::If(cond, then_val, else_val) => {
                 cond.collect_vars(vars);
                 then_val.collect_vars(vars);
