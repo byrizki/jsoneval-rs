@@ -4,7 +4,7 @@
 
 use wasm_bindgen::prelude::*;
 use serde::{Serialize, Deserialize};
-use crate::{JSONEval, ValidationError as RustValidationError, ValidationResult as RustValidationResult};
+use crate::JSONEval;
 
 #[wasm_bindgen]
 extern "C" {
@@ -41,6 +41,7 @@ impl ValidationError {
 
 /// Validation result for JavaScript
 #[wasm_bindgen]
+#[derive(Serialize, Deserialize)]
 pub struct ValidationResult {
     has_error: bool,
     errors: Vec<ValidationError>,
@@ -86,7 +87,7 @@ impl JSONEvalWasm {
         
         match JSONEval::new(schema, ctx, dt) {
             Ok(eval) => Ok(JSONEvalWasm { inner: eval }),
-            Err(e) => Err(JsValue::from_str(&e)),
+            Err(e) => Err(JsValue::from_str(&e.to_string())),
         }
     }
 

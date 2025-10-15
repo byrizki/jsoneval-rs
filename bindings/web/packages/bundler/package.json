@@ -1,0 +1,31 @@
+{
+  "name": "@json-eval-rs/bundler",
+  "version": "0.1.0",
+  "description": "JSON Eval RS WASM bindings for bundlers (Webpack, Vite, Next.js, etc.)",
+  "main": "pkg/json_eval_rs.js",
+  "types": "pkg/json_eval_rs.d.ts",
+  "type": "module",
+  "files": [
+    "pkg/*.js",
+    "pkg/*.wasm",
+    "pkg/*.d.ts"
+  ],
+  "keywords": [
+    "json",
+    "json-logic",
+    "schema",
+    "validation",
+    "wasm",
+    "webpack",
+    "vite",
+    "bundler"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/json-eval-rs.git",
+    "directory": "bindings/web/packages/bundler"
+  },
+  "sideEffects": false
+}

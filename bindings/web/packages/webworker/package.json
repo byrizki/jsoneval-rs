@@ -1,0 +1,34 @@
+{
+  "name": "@json-eval-rs/webworker",
+  "version": "0.1.0",
+  "description": "JSON Eval RS WASM bindings for Web Workers (off main thread)",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "type": "module",
+  "files": [
+    "index.js",
+    "worker.js",
+    "index.d.ts"
+  ],
+  "keywords": [
+    "json",
+    "json-logic",
+    "schema",
+    "validation",
+    "wasm",
+    "webworker",
+    "worker",
+    "performance"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/json-eval-rs.git",
+    "directory": "bindings/web/packages/webworker"
+  },
+  "peerDependencies": {
+    "@json-eval-rs/bundler": "^0.1.0"
+  },
+  "sideEffects": false
+}

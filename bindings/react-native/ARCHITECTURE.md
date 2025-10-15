@@ -317,10 +317,6 @@ Rust Error → C++ Exception → Platform Callback → Promise Rejection → Jav
 - End-to-end via React Native test app
 - Platform-specific tests
 
-### Performance Tests
-- Benchmarks via Criterion (Rust)
-- React Native Performance Monitor
-
 ## Future Enhancements
 
 ### Short Term

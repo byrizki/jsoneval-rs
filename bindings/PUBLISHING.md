@@ -176,7 +176,7 @@ npm publish --access public
 
 #### 2.6. Verify Publication
 
-Visit https://www.npmjs.com/package/@json-eval-rs/web
+Visit https://www.npmjs.com/package/@json-eval-rs/vanilla
 
 ### Publishing Different Builds
 
@@ -189,7 +189,7 @@ npm publish --access public
 
 # Publish Node.js version
 cd ../pkg-node
-# Update package.json name to @json-eval-rs/web-node
+# Update package.json name to @json-eval-rs/vanilla-node
 npm publish --access public
 ```
 

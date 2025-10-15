@@ -2,10 +2,13 @@ use super::{Evaluator, types::*};
 use serde_json::Value;
 use super::super::compiled::CompiledLogic;
 use super::helpers;
+
+#[cfg(feature = "parallel")]
 use rayon::prelude::*;
 
 // Lower threshold for parallel processing - even smaller tables benefit from optimization
-const PARALLEL_THRESHOLD: usize = 10;
+#[cfg(feature = "parallel")]
+const PARALLEL_THRESHOLD: usize = 1000;
 
 impl Evaluator {
     /// Resolve table reference directly - ZERO-COPY with optimized lookup
@@ -195,6 +198,7 @@ impl Evaluator {
 
         let lookup_num = if is_range { helpers::to_number(&lookup_val) } else { 0.0 };
 
+        #[cfg(feature = "parallel")]
         if !is_range && arr.len() >= PARALLEL_THRESHOLD {
             let result = arr.par_iter()
                 .enumerate()
@@ -208,8 +212,10 @@ impl Evaluator {
                     }
                     None
                 });
-            Ok(self.f64_to_json(result.unwrap_or(-1.0)))
-        } else if is_range {
+            return Ok(self.f64_to_json(result.unwrap_or(-1.0)));
+        }
+        
+        if is_range {
             for (idx, row) in arr.iter().enumerate() {
                 if let Value::Object(obj) = row {
                     if let Some(cell_val) = obj.get(&field_name) {
@@ -252,6 +258,7 @@ impl Evaluator {
         }
 
         if let Some(arr) = table_ref.as_array() {
+            #[cfg(feature = "parallel")]
             if arr.len() >= PARALLEL_THRESHOLD {
                 let result = arr.par_iter()
                     .enumerate()
@@ -267,22 +274,22 @@ impl Evaluator {
                             None
                         }
                     });
-                Ok(self.f64_to_json(result.unwrap_or(-1.0)))
-            } else {
-                for (idx, row) in arr.iter().enumerate() {
-                    if let Value::Object(obj) = row {
-                        let all_match = evaluated_conditions.iter().all(|(value_val, field)| {
-                            obj.get(field)
-                                .map(|cell_val| helpers::loose_equal(value_val, cell_val))
-                                .unwrap_or(false)
-                        });
-                        if all_match {
-                            return Ok(self.f64_to_json(idx as f64));
-                        }
+                return Ok(self.f64_to_json(result.unwrap_or(-1.0)));
+            }
+            
+            for (idx, row) in arr.iter().enumerate() {
+                if let Value::Object(obj) = row {
+                    let all_match = evaluated_conditions.iter().all(|(value_val, field)| {
+                        obj.get(field)
+                            .map(|cell_val| helpers::loose_equal(value_val, cell_val))
+                            .unwrap_or(false)
+                    });
+                    if all_match {
+                        return Ok(self.f64_to_json(idx as f64));
                     }
                 }
-                Ok(self.f64_to_json(-1.0))
             }
+            Ok(self.f64_to_json(-1.0))
         } else {
             Ok(Value::Null)
         }
@@ -307,6 +314,7 @@ impl Evaluator {
         }
 
         if let Some(arr) = table_ref.as_array() {
+            #[cfg(feature = "parallel")]
             if arr.len() >= PARALLEL_THRESHOLD {
                 let result = arr.par_iter()
                     .enumerate()
@@ -322,22 +330,22 @@ impl Evaluator {
                             None
                         }
                     });
-                Ok(self.f64_to_json(result.unwrap_or(-1.0)))
-            } else {
-                for (idx, row) in arr.iter().enumerate() {
-                    if let Value::Object(obj) = row {
-                        let all_match = evaluated_conditions.iter().all(|(min_col, max_col, check_num)| {
-                            let min_num = obj.get(min_col).map(|v| helpers::to_number(v)).unwrap_or(0.0);
-                            let max_num = obj.get(max_col).map(|v| helpers::to_number(v)).unwrap_or(0.0);
-                            *check_num >= min_num && *check_num <= max_num
-                        });
-                        if all_match {
-                            return Ok(self.f64_to_json(idx as f64));
-                        }
+                return Ok(self.f64_to_json(result.unwrap_or(-1.0)));
+            }
+            
+            for (idx, row) in arr.iter().enumerate() {
+                if let Value::Object(obj) = row {
+                    let all_match = evaluated_conditions.iter().all(|(min_col, max_col, check_num)| {
+                        let min_num = obj.get(min_col).map(|v| helpers::to_number(v)).unwrap_or(0.0);
+                        let max_num = obj.get(max_col).map(|v| helpers::to_number(v)).unwrap_or(0.0);
+                        *check_num >= min_num && *check_num <= max_num
+                    });
+                    if all_match {
+                        return Ok(self.f64_to_json(idx as f64));
                     }
                 }
-                Ok(self.f64_to_json(-1.0))
             }
+            Ok(self.f64_to_json(-1.0))
         } else {
             Ok(Value::Null)
         }
@@ -359,6 +367,7 @@ impl Evaluator {
         }
 
         if let Some(arr) = table_ref.as_array() {
+            #[cfg(feature = "parallel")]
             if arr.len() >= PARALLEL_THRESHOLD {
                 let result = arr.par_iter()
                     .enumerate()
@@ -374,22 +383,22 @@ impl Evaluator {
                             None
                         }
                     });
-                Ok(self.f64_to_json(result.unwrap_or(-1.0)))
-            } else {
-                for (idx, row) in arr.iter().enumerate() {
-                    if let Value::Object(obj) = row {
-                        let any_match = evaluated_conditions.iter().any(|(value_val, field)| {
-                            obj.get(field)
-                                .map(|cell_val| helpers::loose_equal(value_val, cell_val))
-                                .unwrap_or(false)
-                        });
-                        if any_match {
-                            return Ok(self.f64_to_json(idx as f64));
-                        }
+                return Ok(self.f64_to_json(result.unwrap_or(-1.0)));
+            }
+            
+            for (idx, row) in arr.iter().enumerate() {
+                if let Value::Object(obj) = row {
+                    let any_match = evaluated_conditions.iter().any(|(value_val, field)| {
+                        obj.get(field)
+                            .map(|cell_val| helpers::loose_equal(value_val, cell_val))
+                            .unwrap_or(false)
+                    });
+                    if any_match {
+                        return Ok(self.f64_to_json(idx as f64));
                     }
                 }
-                Ok(self.f64_to_json(-1.0))
             }
+            Ok(self.f64_to_json(-1.0))
         } else {
             Ok(Value::Null)
         }
@@ -407,6 +416,7 @@ impl Evaluator {
             return Ok(self.f64_to_json(0.0));
         }
 
+        #[cfg(feature = "parallel")]
         if arr.len() >= PARALLEL_THRESHOLD {
             let result = arr.par_iter()
                 .enumerate()
@@ -420,25 +430,25 @@ impl Evaluator {
                     }
                     Some(idx as f64)
                 });
-            Ok(self.f64_to_json(result.unwrap_or(-1.0)))
-        } else {
-            for (idx, row) in arr.iter().enumerate() {
-                let mut all_match = true;
-                for condition in conditions {
-                    // Use row as primary context, user_data as fallback
-                    match self.evaluate_with_context(condition, row, user_data, depth + 1) {
-                        Ok(result) if helpers::is_truthy(&result) => continue,
-                        _ => {
-                            all_match = false;
-                            break;
-                        }
+            return Ok(self.f64_to_json(result.unwrap_or(-1.0)));
+        }
+        
+        for (idx, row) in arr.iter().enumerate() {
+            let mut all_match = true;
+            for condition in conditions {
+                // Use row as primary context, user_data as fallback
+                match self.evaluate_with_context(condition, row, user_data, depth + 1) {
+                    Ok(result) if helpers::is_truthy(&result) => continue,
+                    _ => {
+                        all_match = false;
+                        break;
                     }
                 }
-                if all_match {
-                    return Ok(self.f64_to_json(idx as f64));
-                }
             }
-            Ok(self.f64_to_json(-1.0))
+            if all_match {
+                return Ok(self.f64_to_json(idx as f64));
+            }
         }
+        Ok(self.f64_to_json(-1.0))
     }
 }

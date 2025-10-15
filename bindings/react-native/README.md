@@ -328,6 +328,16 @@ Typical performance on modern devices:
 
 Native performance beats JavaScript-only solutions by 10-50x.
 
+### Sequential Processing
+
+This library uses **sequential processing** by default, which is optimal for mobile devices. The Rust core supports an optional `parallel` feature using Rayon, but:
+- Mobile devices have limited cores and power constraints
+- Sequential processing is faster for typical mobile use cases (small to medium datasets)
+- Parallel overhead exceeds benefits for arrays < 1000 items
+- Battery life is better with sequential processing
+
+The default configuration is optimized for mobile performance and battery efficiency.
+
 ## Error Handling
 
 All async methods can throw errors:

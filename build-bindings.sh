@@ -29,6 +29,10 @@ print_warning() {
     echo -e "${YELLOW}⚠ $1${NC}"
 }
 
+print_info() {
+    echo -e "ℹ $1"
+}
+
 # Check if cargo is installed
 if ! command -v cargo &> /dev/null; then
     print_error "Cargo is not installed. Please install Rust from https://rustup.rs"
@@ -40,6 +44,9 @@ TARGET="${1:-all}"
 # Build C# bindings
 build_csharp() {
     print_header "Building C# Bindings (FFI)"
+    
+    print_warning "Building without parallel feature (optimized for sequential workloads)"
+    print_warning "To enable parallel processing: cargo build --release --features ffi,parallel"
     
     # Build for Linux
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
@@ -76,6 +83,9 @@ build_csharp() {
 build_web() {
     print_header "Building Web Bindings (WASM)"
     
+    print_warning "Building without parallel feature (WASM doesn't support rayon)"
+    print_warning "Sequential processing is optimal for web workloads"
+    
     # Check if wasm-pack is installed
     if ! command -v wasm-pack &> /dev/null; then
         print_error "wasm-pack is not installed"
@@ -83,28 +93,36 @@ build_web() {
         return 1
     fi
     
-    # Build for web target
-    wasm-pack build --target web --out-dir bindings/web/pkg --features wasm
-    print_success "Built WASM for web browsers"
+    # Build for bundler target (Webpack, Next.js, Vite, etc.)
+    print_info "Building for bundlers (recommended for most web apps)..."
+    wasm-pack build --no-pack --target bundler --out-dir bindings/web/packages/bundler/pkg --features wasm
+    print_success "Built WASM for bundlers → bindings/web/packages/bundler/pkg/"
+    
+    # Build for web target (direct browser usage with <script> tags)
+    print_info "Building for direct web usage..."
+    wasm-pack build --no-pack --target web --out-dir bindings/web/packages/vanilla/pkg --features wasm
+    print_success "Built WASM for direct web → bindings/web/packages/vanilla/pkg/"
     
     # Build for Node.js target
-    wasm-pack build --target nodejs --out-dir bindings/web/pkg-node --features wasm
-    print_success "Built WASM for Node.js"
+    print_info "Building for Node.js..."
+    wasm-pack build --no-pack --target nodejs --out-dir bindings/web/packages/node/pkg --features wasm
+    print_success "Built WASM for Node.js → bindings/web/packages/node/pkg/"
     
-    # Build for bundler target (Webpack, etc.)
-    wasm-pack build --target bundler --out-dir bindings/web/pkg-bundler --features wasm
-    print_success "Built WASM for bundlers"
-    
-    # Copy files to web binding directory
-    if [ -d "bindings/web/pkg" ]; then
-        cp bindings/web/pkg/json_eval_rs* bindings/web/ 2>/dev/null || true
-        print_success "Copied WASM files to bindings/web"
-    fi
+    print_success "Web bindings monorepo built successfully!"
+    print_info "Packages:"
+    print_info "  - @json-eval-rs/core (JavaScript API wrapper)"
+    print_info "  - @json-eval-rs/bundler (for Next.js, React, Vue, etc.)"
+    print_info "  - @json-eval-rs/vanilla (for vanilla HTML/JS projects)"
+    print_info "  - @json-eval-rs/node (for Node.js/SSR environments)"
+    print_info "  - @json-eval-rs/webworker (Web Worker for off-thread execution)"
 }
 
 # Build React Native bindings
 build_react_native() {
     print_header "Building React Native Bindings"
+    
+    print_warning "Building without parallel feature (optimized for mobile devices)"
+    print_warning "Sequential processing is optimal for React Native workloads"
     
     # Build Android JNI libraries
     print_warning "React Native bindings require additional setup:"

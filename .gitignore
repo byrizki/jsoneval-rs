@@ -4,3 +4,6 @@ target
 js-version
 dist
 samples
+pkg
+node_modules
+!bindings/web/packages/bundler/*

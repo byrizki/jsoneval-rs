@@ -5,6 +5,9 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O3", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
+
 [dependencies]
 datalogic-rs = { version = "4" }
 serde = { version = "1.0", features = ["derive"] }
@@ -14,10 +17,13 @@ indexmap = { version = "2.1", features = ["serde"] }
 chrono = "0.4"
 ahash = { version = "0.8", features = ["serde"] }
 smallvec = "1.13"
-rayon = "1.10"
-criterion = "0.7"
 dashmap = "6.0"
 regex = "1.10"
+
+# Optional rayon for parallel processing (configurable via feature flag)
+[dependencies.rayon]
+version = "1.10"
+optional = true
 
 [lib]
 name = "json_eval_rs"
@@ -29,6 +35,7 @@ path = "src/main.rs"
 
 [features]
 default = []
+parallel = ["rayon"]
 wasm = ["wasm-bindgen", "serde-wasm-bindgen", "console_error_panic_hook"]
 ffi = []
 
@@ -48,9 +55,15 @@ optional = true
 [dependencies.once_cell]
 version = "1.19"
 
+# WebAssembly support for getrandom
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.3", features = ["wasm_js"] }
+
 [profile.release]
 lto = "fat"              # Full Link Time Optimization for maximum performance
 codegen-units = 1        # Single codegen unit for best optimization
 opt-level = 3            # Maximum optimizations
 strip = true             # Strip symbols for smaller binary
-panic = "abort"          # Smaller binary, faster unwinding
+
+[profile.release.package."*"]
+opt-level = 3

@@ -169,6 +169,27 @@ Typical performance characteristics:
 - Evaluation: < 10ms for complex schemas
 - Validation: < 5ms
 
+### Sequential vs Parallel Processing
+
+By default, this library uses **sequential processing**, which is optimal for most workloads. The Rust core supports an optional `parallel` feature using Rayon for multi-threaded processing.
+
+**When to use sequential (default):**
+- Arrays with < 1000 items
+- Most business applications
+- Better performance for typical workloads
+
+**When to use parallel:**
+- Arrays with 1000+ items
+- Batch processing of large datasets
+- Server applications with heavy computational loads
+
+To build with parallel support:
+```bash
+cargo build --release --features ffi,parallel
+```
+
+Note: Parallel processing adds overhead that only pays off with very large datasets.
+
 ## Error Handling
 
 All methods throw `JsonEvalException` on errors:

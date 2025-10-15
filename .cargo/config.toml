@@ -1,0 +1,11 @@
+[target.wasm32-unknown-unknown]
+rustflags = [
+  "-C", "link-arg=--no-entry",
+]
+
+[build]
+target-dir = "target"
+
+# Enable getrandom's wasm_js feature for wasm32 targets
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))']
+rustflags = ["--cfg=getrandom_backend=\"wasm_js\""]
