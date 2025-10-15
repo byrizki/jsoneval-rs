@@ -111,10 +111,15 @@ jobs:
         cp artifacts/native-x86_64-apple-darwin/* target/x86_64-apple-darwin/release/ || true
         cp artifacts/native-aarch64-apple-darwin/* target/aarch64-apple-darwin/release/ || true
     
-    - name: Build NuGet package
+    - name: Build C# project
       run: |
         cd bindings/csharp
-        dotnet pack -c Release
+        dotnet build -c Release
+    
+    - name: Pack NuGet package
+      run: |
+        cd bindings/csharp
+        dotnet pack -c Release --no-build
     
     - name: Publish to NuGet
       run: |

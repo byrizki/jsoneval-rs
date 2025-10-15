@@ -77,6 +77,7 @@ namespace JsonEvalRs
             public IntPtr Error;
         }
 
+#if NETCOREAPP || NET5_0_OR_GREATER
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern IntPtr json_eval_new(
             [MarshalAs(UnmanagedType.LPUTF8Str)] string schema,
@@ -106,6 +107,58 @@ namespace JsonEvalRs
             [MarshalAs(UnmanagedType.LPUTF8Str)] string context,
             [MarshalAs(UnmanagedType.I1)] bool nested
         );
+#else
+        // .NET Standard 2.0/2.1 - Use byte array marshalling
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern IntPtr json_eval_new(
+            byte[] schema,
+            byte[] context,
+            byte[] data
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_evaluate(
+            IntPtr handle,
+            byte[] data,
+            byte[] context
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_validate(
+            IntPtr handle,
+            byte[] data,
+            byte[] context
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_evaluate_dependents(
+            IntPtr handle,
+            byte[] changedPathsJson,
+            byte[] data,
+            byte[] context,
+            [MarshalAs(UnmanagedType.I1)] bool nested
+        );
+
+        internal static byte[] ToUTF8Bytes(string str)
+        {
+            if (str == null) return null;
+            return Encoding.UTF8.GetBytes(str + "\0"); // Null-terminated
+        }
+
+        internal static string PtrToStringUTF8(IntPtr ptr)
+        {
+            if (ptr == IntPtr.Zero)
+                return null;
+
+            int length = 0;
+            while (Marshal.ReadByte(ptr, length) != 0)
+                length++;
+
+            byte[] buffer = new byte[length];
+            Marshal.Copy(ptr, buffer, 0, length);
+            return Encoding.UTF8.GetString(buffer);
+        }
+#endif
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern void json_eval_free_result(FFIResult result);
@@ -125,6 +178,7 @@ namespace JsonEvalRs
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_get_schema_value(IntPtr handle);
 
+#if NETCOREAPP || NET5_0_OR_GREATER
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_reload_schema(
             IntPtr handle,
@@ -134,6 +188,31 @@ namespace JsonEvalRs
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_validate_paths(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string data,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string context,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string pathsJson
+        );
+#else
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_reload_schema(
+            IntPtr handle,
+            byte[] schema,
+            byte[] context,
+            byte[] data
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_validate_paths(
+            IntPtr handle,
+            byte[] data,
+            byte[] context,
+            byte[] pathsJson
+        );
+#endif
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_cache_stats(IntPtr handle);
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
@@ -141,14 +220,6 @@ namespace JsonEvalRs
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_cache_len(IntPtr handle);
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_validate_paths(
-            IntPtr handle,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string data,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string context,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string pathsJson
-        );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern IntPtr json_eval_version();
@@ -222,7 +293,11 @@ namespace JsonEvalRs
                 IntPtr ptr = Native.json_eval_version();
                 try
                 {
+#if NETCOREAPP || NET5_0_OR_GREATER
                     return Marshal.PtrToStringUTF8(ptr);
+#else
+                    return Native.PtrToStringUTF8(ptr);
+#endif
                 }
                 finally
                 {
@@ -242,7 +317,15 @@ namespace JsonEvalRs
             if (string.IsNullOrEmpty(schema))
                 throw new ArgumentNullException(nameof(schema));
 
+#if NETCOREAPP || NET5_0_OR_GREATER
             _handle = Native.json_eval_new(schema, context, data);
+#else
+            _handle = Native.json_eval_new(
+                Native.ToUTF8Bytes(schema),
+                Native.ToUTF8Bytes(context),
+                Native.ToUTF8Bytes(data)
+            );
+#endif
             if (_handle == IntPtr.Zero)
                 throw new JsonEvalException("Failed to create JSONEval instance");
         }
@@ -260,7 +343,11 @@ namespace JsonEvalRs
             if (string.IsNullOrEmpty(data))
                 throw new ArgumentNullException(nameof(data));
 
+#if NETCOREAPP || NET5_0_OR_GREATER
             var result = Native.json_eval_evaluate(_handle, data, context);
+#else
+            var result = Native.json_eval_evaluate(_handle, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context));
+#endif
             return ProcessResult(result);
         }
 
@@ -277,7 +364,11 @@ namespace JsonEvalRs
             if (string.IsNullOrEmpty(data))
                 throw new ArgumentNullException(nameof(data));
 
+#if NETCOREAPP || NET5_0_OR_GREATER
             var result = Native.json_eval_validate(_handle, data, context);
+#else
+            var result = Native.json_eval_validate(_handle, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context));
+#endif
             var jsonResult = ProcessResult(result);
             return jsonResult.ToObject<ValidationResult>();
         }
@@ -302,7 +393,11 @@ namespace JsonEvalRs
                 throw new ArgumentNullException(nameof(data));
 
             string pathsJson = JsonConvert.SerializeObject(changedPaths);
+#if NETCOREAPP || NET5_0_OR_GREATER
             var result = Native.json_eval_evaluate_dependents(_handle, pathsJson, data, context, nested);
+#else
+            var result = Native.json_eval_evaluate_dependents(_handle, Native.ToUTF8Bytes(pathsJson), Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), nested);
+#endif
             return ProcessResult(result);
         }
 
@@ -342,12 +437,22 @@ namespace JsonEvalRs
             if (string.IsNullOrEmpty(schema))
                 throw new ArgumentNullException(nameof(schema));
 
+#if NETCOREAPP || NET5_0_OR_GREATER
             var result = Native.json_eval_reload_schema(_handle, schema, context, data);
+#else
+            var result = Native.json_eval_reload_schema(_handle, Native.ToUTF8Bytes(schema), Native.ToUTF8Bytes(context), Native.ToUTF8Bytes(data));
+#endif
             if (!result.Success)
             {
+#if NETCOREAPP || NET5_0_OR_GREATER
                 string error = result.Error != IntPtr.Zero
                     ? Marshal.PtrToStringUTF8(result.Error)
                     : "Unknown error";
+#else
+                string error = result.Error != IntPtr.Zero
+                    ? Native.PtrToStringUTF8(result.Error)
+                    : "Unknown error";
+#endif
                 Native.json_eval_free_result(result);
                 throw new JsonEvalException(error);
             }
@@ -375,9 +480,15 @@ namespace JsonEvalRs
             var result = Native.json_eval_clear_cache(_handle);
             if (!result.Success)
             {
+#if NETCOREAPP || NET5_0_OR_GREATER
                 string error = result.Error != IntPtr.Zero
                     ? Marshal.PtrToStringUTF8(result.Error)
                     : "Unknown error";
+#else
+                string error = result.Error != IntPtr.Zero
+                    ? Native.PtrToStringUTF8(result.Error)
+                    : "Unknown error";
+#endif
                 Native.json_eval_free_result(result);
                 throw new JsonEvalException(error);
             }
@@ -396,16 +507,26 @@ namespace JsonEvalRs
             {
                 if (!result.Success)
                 {
+#if NETCOREAPP || NET5_0_OR_GREATER
                     string error = result.Error != IntPtr.Zero
                         ? Marshal.PtrToStringUTF8(result.Error)
                         : "Unknown error";
+#else
+                    string error = result.Error != IntPtr.Zero
+                        ? Native.PtrToStringUTF8(result.Error)
+                        : "Unknown error";
+#endif
                     throw new JsonEvalException(error);
                 }
 
                 if (result.Data == IntPtr.Zero)
                     throw new JsonEvalException("No data returned from native function");
 
+#if NETCOREAPP || NET5_0_OR_GREATER
                 string lenStr = Marshal.PtrToStringUTF8(result.Data);
+#else
+                string lenStr = Native.PtrToStringUTF8(result.Data);
+#endif
                 return int.Parse(lenStr);
             }
             finally
@@ -429,7 +550,11 @@ namespace JsonEvalRs
                 throw new ArgumentNullException(nameof(data));
 
             string pathsJson = paths != null ? JsonConvert.SerializeObject(paths) : null;
+#if NETCOREAPP || NET5_0_OR_GREATER
             var result = Native.json_eval_validate_paths(_handle, data, context, pathsJson);
+#else
+            var result = Native.json_eval_validate_paths(_handle, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), Native.ToUTF8Bytes(pathsJson));
+#endif
             var jsonResult = ProcessResult(result);
             return jsonResult.ToObject<ValidationResult>();
         }
@@ -440,16 +565,26 @@ namespace JsonEvalRs
             {
                 if (!result.Success)
                 {
+#if NETCOREAPP || NET5_0_OR_GREATER
                     string error = result.Error != IntPtr.Zero
                         ? Marshal.PtrToStringUTF8(result.Error)
                         : "Unknown error";
+#else
+                    string error = result.Error != IntPtr.Zero
+                        ? Native.PtrToStringUTF8(result.Error)
+                        : "Unknown error";
+#endif
                     throw new JsonEvalException(error);
                 }
 
                 if (result.Data == IntPtr.Zero)
                     throw new JsonEvalException("No data returned from native function");
 
+#if NETCOREAPP || NET5_0_OR_GREATER
                 string json = Marshal.PtrToStringUTF8(result.Data);
+#else
+                string json = Native.PtrToStringUTF8(result.Data);
+#endif
                 
                 if (string.IsNullOrWhiteSpace(json))
                     throw new JsonEvalException("Empty JSON returned from native function");
