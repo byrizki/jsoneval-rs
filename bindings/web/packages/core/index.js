@@ -3,39 +3,41 @@
  * High-level JavaScript API for JSON Eval RS WASM bindings
  * 
  * This package provides a clean, ergonomic API that works with any WASM target:
- * - @json-eval-rs/bundler (for webpack, vite, etc)
- * - @json-eval-rs/vanilla (for direct browser use)
- * - @json-eval-rs/node (for Node.js)
  */
 
 /**
- * JSONEval - High-level wrapper for better JavaScript ergonomics
+ * JSONEval - High-level JavaScript API for JSON Eval RS
+ * 
+ * This is an internal abstraction layer. Use specific packages instead:
+ * - @json-eval-rs/bundler (for bundlers like Webpack, Vite, Next.js)
+ * - @json-eval-rs/vanilla (for direct browser usage)
+ * - @json-eval-rs/node (for Node.js/SSR)
  * 
  * @example
  * ```js
  * import { JSONEval } from '@json-eval-rs/core';
  * 
  * const evaluator = new JSONEval({
- *   schema: { type: 'object', properties: { ... } },
- *   data: { name: 'John' }
+ *   schema: { type: 'object', properties: { ... } }
  * });
  * 
- * const result = await evaluator.validate({ data: { name: '' } });
+ * await evaluator.init();
+ * const result = await evaluator.validate({ data: { name: 'John' } });
  * ```
  */
-export class JSONEval {
+export class JSONEvalCore {
   /**
+   * @param {any} wasmModule - WASM module (injected by wrapper package)
    * @param {object} options
    * @param {object} options.schema - JSON schema
    * @param {object} [options.context] - Optional context data
    * @param {object} [options.data] - Optional initial data
-   * @param {any} [options.wasmModule] - Optional pre-loaded WASM module
    */
-  constructor({ schema, context, data, wasmModule }) {
+  constructor(wasmModule, { schema, context, data }) {
     this._schema = schema;
+    this._wasmModule = wasmModule;
     this._context = context;
     this._data = data;
-    this._wasmModule = wasmModule;
     this._instance = null;
     this._ready = false;
   }
@@ -66,15 +68,17 @@ export class JSONEval {
   }
 
   /**
-   * Validate data against schema
+   * Validate data against schema (returns parsed JavaScript object)
+   * Uses validateJS for Worker-safe serialization
    * @param {object} options
    * @param {object} options.data - Data to validate
    * @param {object} [options.context] - Optional context
-   * @returns {Promise<{has_error: boolean, errors: Array}>}
+   * @returns {Promise<{has_error: boolean, errors: Array<{path: string, rule_type: string, message: string}>}>}
    */
   async validate({ data, context }) {
     await this.init();
-    return this._instance.validate(
+    // Use validateJS for proper serialization (Worker-safe)
+    return this._instance.validateJS(
       JSON.stringify(data),
       context ? JSON.stringify(context) : null
     );
@@ -199,25 +203,12 @@ export class JSONEval {
 }
 
 /**
- * Get library version
- * @param {any} wasmModule - WASM module (required)
- * @returns {Promise<string>}
- * 
- * @example
- * import { version } from '@json-eval-rs/core';
- * import * as wasmModule from '@json-eval-rs/bundler';
- * const v = await version(wasmModule);
+ * Get library version (internal - use from specific packages)
+ * @param {any} wasmModule - WASM module
+ * @returns {string}
  */
-export async function version(wasmModule) {
-  if (!wasmModule) {
-    throw new Error(
-      'WASM module is required. Usage:\n' +
-      'import { version } from "@json-eval-rs/core";\n' +
-      'import * as wasmModule from "@json-eval-rs/bundler";\n' +
-      'const v = await version(wasmModule);'
-    );
-  }
+export function getVersion(wasmModule) {
   return wasmModule.version();
 }
 
-export default JSONEval;
+export default JSONEvalCore;

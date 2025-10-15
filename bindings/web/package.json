@@ -1,13 +1,15 @@
 {
-  "name": "@json-eval-rs/vanilla",
+  "name": "json-eval-rs-web-monorepo",
   "version": "0.1.0",
   "private": true,
   "description": "JSON Eval RS Web Bindings - Monorepo",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "examples/*"
   ],
   "scripts": {
-    "build": "echo 'Run ./build-bindings.sh web from repo root'",
+    "nextjs": "yarn workspace nextjs dev",
+    "build": "../../build-bindings.sh web",
     "clean": "rm -rf packages/*/json_eval_rs* packages/*/*.wasm"
   },
   "repository": {

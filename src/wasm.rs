@@ -157,6 +157,41 @@ impl JSONEvalWasm {
         }
     }
 
+    /// Validate data and return as plain JavaScript object (Worker-safe)
+    /// 
+    /// @param data - JSON data string
+    /// @param context - Optional context data JSON string
+    /// @returns Plain JavaScript object with validation result
+    #[wasm_bindgen(js_name = validateJS)]
+    pub fn validate_js(&self, data: &str, context: Option<String>) -> Result<JsValue, JsValue> {
+        let ctx = context.as_deref();
+        
+        match self.inner.validate(data, ctx, None) {
+            Ok(result) => {
+                let errors: Vec<serde_json::Value> = result.errors.iter().map(|(path, error)| {
+                    serde_json::json!({
+                        "path": path,
+                        "rule_type": error.rule_type,
+                        "message": error.message,
+                    })
+                }).collect();
+
+                let validation_result = serde_json::json!({
+                    "has_error": result.has_error,
+                    "errors": errors,
+                });
+
+                // Use JSON.parse to ensure plain object (not Map)
+                let json_string = serde_json::to_string(&validation_result)
+                    .map_err(|e| JsValue::from_str(&e.to_string()))?;
+                
+                js_sys::JSON::parse(&json_string)
+                    .map_err(|e| JsValue::from_str(&format!("JSON parse error: {:?}", e)))
+            }
+            Err(e) => Err(JsValue::from_str(&e)),
+        }
+    }
+
     /// Re-evaluate fields that depend on changed paths
     /// 
     /// @param changedPaths - Array of field paths that changed
@@ -305,6 +340,43 @@ impl JSONEvalWasm {
                     has_error: result.has_error,
                     errors,
                 })
+            }
+            Err(e) => Err(JsValue::from_str(&e)),
+        }
+    }
+
+    /// Validate with path filtering and return as plain JavaScript object (Worker-safe)
+    /// 
+    /// @param data - JSON data string
+    /// @param context - Optional context data JSON string
+    /// @param paths - Optional array of paths to validate (null for all)
+    /// @returns Plain JavaScript object with validation result
+    #[wasm_bindgen(js_name = validatePathsJS)]
+    pub fn validate_paths_js(&self, data: &str, context: Option<String>, paths: Option<Vec<String>>) -> Result<JsValue, JsValue> {
+        let ctx = context.as_deref();
+        let paths_ref = paths.as_ref().map(|v| v.as_slice());
+        
+        match self.inner.validate(data, ctx, paths_ref) {
+            Ok(result) => {
+                let errors: Vec<serde_json::Value> = result.errors.iter().map(|(path, error)| {
+                    serde_json::json!({
+                        "path": path,
+                        "rule_type": error.rule_type,
+                        "message": error.message,
+                    })
+                }).collect();
+
+                let validation_result = serde_json::json!({
+                    "has_error": result.has_error,
+                    "errors": errors,
+                });
+
+                // Use JSON.parse to ensure plain object (not Map)
+                let json_string = serde_json::to_string(&validation_result)
+                    .map_err(|e| JsValue::from_str(&e.to_string()))?;
+                
+                js_sys::JSON::parse(&json_string)
+                    .map_err(|e| JsValue::from_str(&format!("JSON parse error: {:?}", e)))
             }
             Err(e) => Err(JsValue::from_str(&e)),
         }

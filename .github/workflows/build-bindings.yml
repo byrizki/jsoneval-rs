@@ -42,6 +42,18 @@ jobs:
             target: aarch64-apple-darwin
             artifact_name: libjson_eval_rs.dylib
             build_features: ffi
+          
+          # iOS ARM64 (device)
+          - os: macos-latest
+            target: aarch64-apple-ios
+            artifact_name: libjson_eval_rs.a
+            build_features: ffi
+          
+          # iOS x86_64 (simulator)
+          - os: macos-latest
+            target: x86_64-apple-ios
+            artifact_name: libjson_eval_rs.a
+            build_features: ffi
 
     runs-on: ${{ matrix.os }}
     
@@ -152,14 +164,11 @@ jobs:
           target
         key: ${{ runner.os }}-cargo-wasm-${{ hashFiles('**/Cargo.lock') }}
     
-    - name: Build WASM for web
-      run: wasm-pack build --target web --out-dir bindings/web/pkg --features wasm
-    
     - name: Build WASM for bundler
-      run: wasm-pack build --target bundler --out-dir bindings/web/pkg-bundler --features wasm
+      run: wasm-pack build --target bundler --out-dir bindings/web/packages/bundler/pkg --features wasm
     
     - name: Build WASM for Node.js
-      run: wasm-pack build --target nodejs --out-dir bindings/web/pkg-node --features wasm
+      run: wasm-pack build --target nodejs --out-dir bindings/web/packages/node/pkg --features wasm
     
     - name: Install web dependencies
       run: |
@@ -183,13 +192,60 @@ jobs:
       with:
         name: wasm-modules
         path: |
-          bindings/web/pkg/
-          bindings/web/pkg-bundler/
-          bindings/web/pkg-node/
+          bindings/web/packages/bundler/pkg/
+          bindings/web/packages/node/pkg/
 
+  # Build Android JNI libraries
+  build-android-jni:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - arm64-v8a
+          - armeabi-v7a
+          - x86
+          - x86_64
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+    
+    - name: Setup Android NDK
+      uses: nttld/setup-ndk@v1
+      with:
+        ndk-version: r26c
+        add-to-path: true
+    
+    - name: Install cargo-ndk
+      run: cargo install cargo-ndk
+    
+    - name: Cache cargo build
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-android-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Build Android JNI library
+      run: |
+        cargo ndk -t ${{ matrix.target }} -o bindings/react-native/android/src/main/jniLibs build --release --features ffi
+    
+    - name: Upload Android JNI artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-jni-${{ matrix.target }}
+        path: bindings/react-native/android/src/main/jniLibs/${{ matrix.target }}/
+        if-no-files-found: error
+  
   # Build React Native package
   build-react-native:
-    needs: build-native
+    needs: [build-native, build-android-jni]
     runs-on: ubuntu-latest
     
     steps:
@@ -200,20 +256,34 @@ jobs:
       with:
         node-version: '18'
     
-    - name: Download native libraries
+    - name: Download desktop native libraries
       uses: actions/download-artifact@v4
       with:
         path: artifacts/
     
-    - name: Organize native libraries for React Native
+    - name: Download Android JNI libraries
+      uses: actions/download-artifact@v4
+      with:
+        pattern: android-jni-*
+        path: bindings/react-native/android/src/main/jniLibs/
+    
+    - name: Organize native libraries
       run: |
-        mkdir -p bindings/react-native/android/src/main/jniLibs/arm64-v8a
-        mkdir -p bindings/react-native/android/src/main/jniLibs/armeabi-v7a
-        mkdir -p bindings/react-native/android/src/main/jniLibs/x86
-        mkdir -p bindings/react-native/android/src/main/jniLibs/x86_64
-        mkdir -p bindings/react-native/ios
-        # Copy available libraries (full Android/iOS build requires more setup)
+        # Create iOS framework directory
+        mkdir -p bindings/react-native/ios/libs
+        
+        # Copy iOS libraries if they exist
+        if [ -d "artifacts/native-aarch64-apple-ios" ]; then
+          cp -r artifacts/native-aarch64-apple-ios/* bindings/react-native/ios/libs/ || true
+        fi
+        
+        if [ -d "artifacts/native-x86_64-apple-ios" ]; then
+          cp -r artifacts/native-x86_64-apple-ios/* bindings/react-native/ios/libs/ || true
+        fi
+        
         echo "Native libraries organized"
+        ls -R bindings/react-native/android/src/main/jniLibs/ || true
+        ls -R bindings/react-native/ios/libs/ || true
     
     - name: Install React Native dependencies
       run: |
@@ -224,6 +294,11 @@ jobs:
       run: |
         cd bindings/react-native
         npm run prepare || echo "Prepare script not found, skipping"
+    
+    - name: Install example dependencies
+      run: |
+        cd bindings/react-native/examples/rncli
+        npm install || echo "Example dependencies installation skipped"
     
     - name: Package React Native binding
       run: |
@@ -267,7 +342,7 @@ jobs:
   # Create release with all artifacts
   create-release:
     if: github.event_name == 'release'
-    needs: [build-native, build-csharp, build-web, build-react-native, test]
+    needs: [build-native, build-android-jni, build-csharp, build-web, build-react-native, test]
     runs-on: ubuntu-latest
     
     steps:
@@ -305,7 +380,7 @@ jobs:
   # Summary job
   summary:
     if: always()
-    needs: [build-native, build-csharp, build-web, build-react-native, test]
+    needs: [build-native, build-android-jni, build-csharp, build-web, build-react-native, test]
     runs-on: ubuntu-latest
     
     steps:
@@ -313,10 +388,17 @@ jobs:
       run: |
         echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "✅ Native libraries built for all platforms" >> $GITHUB_STEP_SUMMARY
+        echo "### Native Libraries" >> $GITHUB_STEP_SUMMARY
+        echo "✅ Desktop platforms (Linux, Windows, macOS)" >> $GITHUB_STEP_SUMMARY
+        echo "✅ iOS (device & simulator)" >> $GITHUB_STEP_SUMMARY
+        echo "✅ Android (arm64-v8a, armeabi-v7a, x86, x86_64)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Bindings Packages" >> $GITHUB_STEP_SUMMARY
         echo "✅ C# NuGet package created" >> $GITHUB_STEP_SUMMARY
         echo "✅ Web/WASM package created" >> $GITHUB_STEP_SUMMARY
         echo "✅ React Native package created" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Tests" >> $GITHUB_STEP_SUMMARY
         echo "✅ All tests passed" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "All artifacts are available for download from this workflow run." >> $GITHUB_STEP_SUMMARY

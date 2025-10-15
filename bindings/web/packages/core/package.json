@@ -1,10 +1,15 @@
 {
   "name": "@json-eval-rs/core",
   "version": "0.1.0",
-  "description": "JavaScript core API for JSON Eval RS WASM bindings",
+  "description": "JSON Eval RS core JavaScript wrapper (internal package - not published)",
   "main": "index.js",
   "types": "index.d.ts",
   "type": "module",
+  "private": true,
+  "files": [
+    "index.js",
+    "index.d.ts"
+  ],
   "keywords": [
     "json",
     "json-logic",
@@ -14,20 +19,10 @@
   ],
   "author": "Your Name",
   "license": "MIT",
-  "peerDependencies": {
-    "@json-eval-rs/bundler": "^0.1.0",
-    "@json-eval-rs/vanilla": "^0.1.0",
-    "@json-eval-rs/node": "^0.1.0"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/json-eval-rs.git",
+    "directory": "bindings/web/packages/core"
   },
-  "peerDependenciesMeta": {
-    "@json-eval-rs/bundler": {
-      "optional": true
-    },
-    "@json-eval-rs/vanilla": {
-      "optional": true
-    },
-    "@json-eval-rs/node": {
-      "optional": true
-    }
-  }
+  "sideEffects": false
 }

@@ -13,23 +13,38 @@ This directory contains automated CI/CD workflows for building, testing, and pub
 - Manual dispatch
 
 **Jobs:**
-- ✅ **build-native**: Builds native libraries for Linux, Windows, macOS (x64 + ARM64)
+- ✅ **build-native**: Builds native libraries for Linux, Windows, macOS (x64 + ARM64), iOS (device + simulator)
+- ✅ **build-android-jni**: Builds Android JNI libraries for arm64-v8a, armeabi-v7a, x86, x86_64
 - ✅ **build-csharp**: Creates C# NuGet package with all native libraries
 - ✅ **build-web**: Builds WASM modules for web, bundler, and Node.js
-- ✅ **build-react-native**: Creates React Native npm package
+- ✅ **build-react-native**: Creates React Native npm package with Android & iOS libraries
 - ✅ **test**: Runs full test suite
 - ✅ **create-release**: Packages all artifacts for GitHub release (on release tags)
 - ✅ **summary**: Generates build summary
 
 **Artifacts Generated:**
+
+**Desktop:**
 - `native-x86_64-unknown-linux-gnu` - Linux x64 library (.so)
 - `native-x86_64-pc-windows-msvc` - Windows x64 library (.dll)
 - `native-x86_64-apple-darwin` - macOS x64 library (.dylib)
 - `native-aarch64-apple-darwin` - macOS ARM64 library (.dylib)
+
+**iOS:**
+- `native-aarch64-apple-ios` - iOS device library (.a)
+- `native-x86_64-apple-ios` - iOS simulator library (.a)
+
+**Android:**
+- `android-jni-arm64-v8a` - Android ARM64 library
+- `android-jni-armeabi-v7a` - Android ARMv7 library
+- `android-jni-x86` - Android x86 library
+- `android-jni-x86_64` - Android x86_64 library
+
+**Packages:**
 - `nuget-package` - C# NuGet package (.nupkg)
 - `web-package` - Web npm package (.tgz)
 - `wasm-modules` - WASM modules for all targets
-- `react-native-package` - React Native npm package (.tgz)
+- `react-native-package` - React Native npm package with all mobile libraries (.tgz)
 
 **Usage:**
 ```bash
@@ -49,9 +64,11 @@ git push origin main
 - Manual dispatch with selective publishing
 
 **Jobs:**
+- 🔧 **build-native**: Builds desktop and iOS libraries
+- 🤖 **build-android-jni**: Builds Android JNI libraries for all architectures
 - 📦 **publish-csharp**: Publishes to NuGet.org
 - 📦 **publish-web**: Publishes to npm registry
-- 📦 **publish-react-native**: Publishes to npm registry
+- 📦 **publish-react-native**: Publishes to npm registry (includes Android & iOS libraries)
 - 📦 **publish-crates-io**: Publishes to crates.io
 - 🎉 **create-github-release**: Creates GitHub release with all artifacts
 - 📊 **publish-summary**: Generates publish summary
@@ -299,10 +316,12 @@ Add these badges to your README.md:
 
 ### Build Times (Approximate)
 - Native libraries (per platform): 5-10 minutes
+- Android JNI (4 architectures, parallel): 8-12 minutes
+- iOS libraries: 6-8 minutes
 - WASM modules: 8-12 minutes
 - C# package: 2-3 minutes
 - npm packages: 1-2 minutes each
-- **Total pipeline**: 15-25 minutes
+- **Total pipeline**: 20-30 minutes
 
 ### Optimization Tips
 1. Use matrix builds for parallel platform builds

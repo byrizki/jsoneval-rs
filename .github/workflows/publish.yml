@@ -49,6 +49,12 @@ jobs:
           - os: macos-latest
             target: aarch64-apple-darwin
             artifact_name: libjson_eval_rs.dylib
+          - os: macos-latest
+            target: aarch64-apple-ios
+            artifact_name: libjson_eval_rs.a
+          - os: macos-latest
+            target: x86_64-apple-ios
+            artifact_name: libjson_eval_rs.a
 
     runs-on: ${{ matrix.os }}
     
@@ -151,9 +157,8 @@ jobs:
     
     - name: Build WASM packages
       run: |
-        wasm-pack build --target web --out-dir bindings/web/pkg --features wasm
-        wasm-pack build --target bundler --out-dir bindings/web/pkg-bundler --features wasm
-        wasm-pack build --target nodejs --out-dir bindings/web/pkg-node --features wasm
+        wasm-pack build --target bundler --out-dir bindings/web/packages/bundler/pkg --features wasm
+        wasm-pack build --target nodejs --out-dir bindings/web/packages/node/pkg --features wasm
     
     - name: Install dependencies
       run: |
@@ -179,12 +184,54 @@ jobs:
         name: web-package
         path: bindings/web/*.tgz
 
+  # Build Android JNI libraries for React Native
+  build-android-jni:
+    if: |
+      github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') ||
+      github.event.inputs.publish_react_native == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - arm64-v8a
+          - armeabi-v7a
+          - x86
+          - x86_64
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+    
+    - name: Setup Android NDK
+      uses: nttld/setup-ndk@v1
+      with:
+        ndk-version: r26c
+        add-to-path: true
+    
+    - name: Install cargo-ndk
+      run: cargo install cargo-ndk
+    
+    - name: Build Android JNI library
+      run: |
+        cargo ndk -t ${{ matrix.target }} -o bindings/react-native/android/src/main/jniLibs build --release --features ffi
+    
+    - name: Upload Android JNI artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-jni-${{ matrix.target }}
+        path: bindings/react-native/android/src/main/jniLibs/${{ matrix.target }}/
+        if-no-files-found: error
+  
   # Publish React Native npm package
   publish-react-native:
     if: |
       github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') ||
       github.event.inputs.publish_react_native == 'true'
-    needs: build-native
+    needs: [build-native, build-android-jni]
     runs-on: ubuntu-latest
     
     steps:
@@ -196,10 +243,34 @@ jobs:
         node-version: '18'
         registry-url: 'https://registry.npmjs.org'
     
-    - name: Download native libraries
+    - name: Download desktop native libraries
       uses: actions/download-artifact@v4
       with:
         path: artifacts/
+    
+    - name: Download Android JNI libraries
+      uses: actions/download-artifact@v4
+      with:
+        pattern: android-jni-*
+        path: bindings/react-native/android/src/main/jniLibs/
+    
+    - name: Organize native libraries
+      run: |
+        # Create iOS framework directory
+        mkdir -p bindings/react-native/ios/libs
+        
+        # Copy iOS libraries if they exist
+        if [ -d "artifacts/native-aarch64-apple-ios" ]; then
+          cp -r artifacts/native-aarch64-apple-ios/* bindings/react-native/ios/libs/ || true
+        fi
+        
+        if [ -d "artifacts/native-x86_64-apple-ios" ]; then
+          cp -r artifacts/native-x86_64-apple-ios/* bindings/react-native/ios/libs/ || true
+        fi
+        
+        echo "Native libraries organized for React Native"
+        ls -R bindings/react-native/android/src/main/jniLibs/ || true
+        ls -R bindings/react-native/ios/libs/ || true
     
     - name: Install dependencies
       run: |
@@ -259,7 +330,7 @@ jobs:
   # Create GitHub Release
   create-github-release:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [publish-csharp, publish-web, publish-react-native, publish-crates-io]
+    needs: [build-native, build-android-jni, publish-csharp, publish-web, publish-react-native, publish-crates-io]
     runs-on: ubuntu-latest
     
     steps:
@@ -314,7 +385,12 @@ jobs:
         
         ### 🔧 Native Libraries
         
-        Pre-built native libraries for all platforms are attached to this release.
+        Pre-built native libraries for all platforms:
+        - **Desktop**: Linux, Windows, macOS (x64 & ARM64)
+        - **iOS**: Device (ARM64) & Simulator (x64)
+        - **Android**: arm64-v8a, armeabi-v7a, x86, x86_64
+        
+        All native libraries are attached to this release.
         EOF
     
     - name: Create GitHub Release
@@ -326,13 +402,14 @@ jobs:
           release-artifacts/web-package/*.tgz
           release-artifacts/react-native-package/*.tgz
           release-artifacts/native-*/*
+          release-artifacts/android-jni-*/*
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Summary
   publish-summary:
     if: always()
-    needs: [publish-csharp, publish-web, publish-react-native, publish-crates-io]
+    needs: [build-native, build-android-jni, publish-csharp, publish-web, publish-react-native, publish-crates-io]
     runs-on: ubuntu-latest
     
     steps:
@@ -340,6 +417,13 @@ jobs:
       run: |
         echo "## 📦 Publish Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Native Libraries" >> $GITHUB_STEP_SUMMARY
+        echo "| Platform | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Desktop (Linux, Windows, macOS) | ${{ needs.build-native.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Android JNI | ${{ needs.build-android-jni.result == 'success' && '✅' || needs.build-android-jni.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Packages" >> $GITHUB_STEP_SUMMARY
         echo "| Package | Status |" >> $GITHUB_STEP_SUMMARY
         echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
         echo "| C# NuGet | ${{ needs.publish-csharp.result == 'success' && '✅' || needs.publish-csharp.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY

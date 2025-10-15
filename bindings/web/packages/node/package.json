@@ -1,11 +1,13 @@
 {
   "name": "@json-eval-rs/node",
   "version": "0.1.0",
-  "description": "JSON Eval RS WASM bindings for Node.js",
-  "main": "pkg/json_eval_rs.js",
-  "types": "pkg/json_eval_rs.d.ts",
+  "description": "JSON Eval RS for Node.js and Server-Side Rendering with ergonomic API",
+  "main": "index.js",
+  "types": "index.d.ts",
   "type": "module",
   "files": [
+    "index.js",
+    "index.d.ts",
     "pkg/*.js",
     "pkg/*.wasm",
     "pkg/*.d.ts"
@@ -25,6 +27,9 @@
     "type": "git",
     "url": "https://github.com/yourusername/json-eval-rs.git",
     "directory": "bindings/web/packages/node"
+  },
+  "dependencies": {
+    "@json-eval-rs/core": "^0.1.0"
   },
   "sideEffects": false
 }

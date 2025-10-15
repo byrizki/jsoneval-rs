@@ -1,11 +1,13 @@
 {
   "name": "@json-eval-rs/bundler",
   "version": "0.1.0",
-  "description": "JSON Eval RS WASM bindings for bundlers (Webpack, Vite, Next.js, etc.)",
-  "main": "pkg/json_eval_rs.js",
-  "types": "pkg/json_eval_rs.d.ts",
+  "description": "JSON Eval RS for bundlers (Webpack, Vite, Next.js, etc.) with ergonomic API",
+  "main": "index.js",
+  "types": "index.d.ts",
   "type": "module",
   "files": [
+    "index.js",
+    "index.d.ts",
     "pkg/*.js",
     "pkg/*.wasm",
     "pkg/*.d.ts"
@@ -26,6 +28,9 @@
     "type": "git",
     "url": "https://github.com/yourusername/json-eval-rs.git",
     "directory": "bindings/web/packages/bundler"
+  },
+  "dependencies": {
+    "@json-eval-rs/core": "^0.1.0"
   },
   "sideEffects": false
 }

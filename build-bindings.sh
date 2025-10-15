@@ -94,27 +94,28 @@ build_web() {
     fi
     
     # Build for bundler target (Webpack, Next.js, Vite, etc.)
-    print_info "Building for bundlers (recommended for most web apps)..."
-    wasm-pack build --no-pack --target bundler --out-dir bindings/web/packages/bundler/pkg --features wasm
+    print_info "Building for bundlers (Webpack, Vite, Next.js, etc.)..."
+    wasm-pack build --target bundler --out-dir bindings/web/packages/bundler/pkg --features wasm
     print_success "Built WASM for bundlers → bindings/web/packages/bundler/pkg/"
-    
-    # Build for web target (direct browser usage with <script> tags)
-    print_info "Building for direct web usage..."
-    wasm-pack build --no-pack --target web --out-dir bindings/web/packages/vanilla/pkg --features wasm
-    print_success "Built WASM for direct web → bindings/web/packages/vanilla/pkg/"
-    
+        
     # Build for Node.js target
-    print_info "Building for Node.js..."
-    wasm-pack build --no-pack --target nodejs --out-dir bindings/web/packages/node/pkg --features wasm
+    print_info "Building for Node.js/SSR..."
+    wasm-pack build --target nodejs --out-dir bindings/web/packages/node/pkg --features wasm
     print_success "Built WASM for Node.js → bindings/web/packages/node/pkg/"
     
-    print_success "Web bindings monorepo built successfully!"
+    # Install web dependencies
+    if command -v npm &> /dev/null; then
+        cd bindings/web
+        npm install
+        print_success "Installed web dependencies"
+        cd ../..
+    fi
+    
+    print_success "Web bindings built successfully!"
     print_info "Packages:"
-    print_info "  - @json-eval-rs/core (JavaScript API wrapper)"
-    print_info "  - @json-eval-rs/bundler (for Next.js, React, Vue, etc.)"
-    print_info "  - @json-eval-rs/vanilla (for vanilla HTML/JS projects)"
-    print_info "  - @json-eval-rs/node (for Node.js/SSR environments)"
-    print_info "  - @json-eval-rs/webworker (Web Worker for off-thread execution)"
+    print_info "  - @json-eval-rs/bundler: packages/bundler/ (for Webpack, Vite, Next.js, etc.)"
+    print_info "  - @json-eval-rs/node: packages/node/ (for Node.js/SSR)"
+    print_info "  - @json-eval-rs/core: packages/core/ (internal API wrapper)"
 }
 
 # Build React Native bindings
@@ -130,10 +131,20 @@ build_react_native() {
     print_warning "2. For iOS: Configure Rust bindings in ios/*.podspec"
     print_warning "3. See bindings/react-native/README.md for detailed instructions"
     
-    # Build for Android ARM64
+    # Build for Android (all architectures)
     if command -v cargo-ndk &> /dev/null; then
+        print_info "Building Android JNI libraries for all architectures..."
         cargo ndk -t arm64-v8a -o bindings/react-native/android/src/main/jniLibs build --release --features ffi
-        print_success "Built Android ARM64 library"
+        print_success "Built Android arm64-v8a library"
+        
+        cargo ndk -t armeabi-v7a -o bindings/react-native/android/src/main/jniLibs build --release --features ffi
+        print_success "Built Android armeabi-v7a library"
+        
+        cargo ndk -t x86 -o bindings/react-native/android/src/main/jniLibs build --release --features ffi
+        print_success "Built Android x86 library"
+        
+        cargo ndk -t x86_64 -o bindings/react-native/android/src/main/jniLibs build --release --features ffi
+        print_success "Built Android x86_64 library"
     else
         print_warning "cargo-ndk not installed. Skipping Android build"
         print_warning "Install with: cargo install cargo-ndk"
@@ -157,6 +168,15 @@ build_react_native() {
             print_success "Installed React Native dependencies"
         fi
         cd ../..
+        
+        # Install example dependencies
+        print_info "Installing example dependencies..."
+        cd bindings/react-native/examples/rncli
+        if [ -f "package.json" ]; then
+            npm install 2>/dev/null || true
+            print_success "Installed rncli example dependencies"
+        fi
+        cd ../../../..
     fi
 }
 

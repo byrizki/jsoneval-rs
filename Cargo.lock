@@ -299,6 +299,7 @@ dependencies = [
  "datalogic-rs",
  "getrandom 0.3.3",
  "indexmap",
+ "js-sys",
  "once_cell",
  "rayon",
  "regex",
