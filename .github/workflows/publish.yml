@@ -31,57 +31,60 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # Build native libraries for all platforms
-  build-native:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            artifact_name: libjson_eval_rs.so
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            artifact_name: json_eval_rs.dll
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            artifact_name: libjson_eval_rs.dylib
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            artifact_name: libjson_eval_rs.dylib
-          - os: macos-latest
-            target: aarch64-apple-ios
-            artifact_name: libjson_eval_rs.a
-          - os: macos-latest
-            target: x86_64-apple-ios
-            artifact_name: libjson_eval_rs.a
-
-    runs-on: ${{ matrix.os }}
+  # Download pre-built artifacts from build-bindings workflow
+  download-artifacts:
+    runs-on: ubuntu-latest
+    outputs:
+      run-id: ${{ steps.get-run.outputs.run-id }}
     
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Rust
-      uses: actions-rust-lang/setup-rust-toolchain@v1
+    - name: Get latest successful build-bindings workflow run
+      id: get-run
+      uses: actions/github-script@v7
       with:
-        toolchain: stable
-        target: ${{ matrix.target }}
+        script: |
+          const runs = await github.rest.actions.listWorkflowRuns({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            workflow_id: 'build-bindings.yml',
+            status: 'success',
+            branch: 'main',
+            per_page: 1
+          });
+          
+          if (runs.data.workflow_runs.length === 0) {
+            core.setFailed('No successful build-bindings workflow run found');
+            return;
+          }
+          
+          const runId = runs.data.workflow_runs[0].id;
+          core.setOutput('run-id', runId);
+          console.log(`Found workflow run: ${runId}`);
     
-    - name: Build native library
-      run: cargo build --release --target ${{ matrix.target }} --features ffi
+    - name: Download all artifacts from build-bindings
+      uses: actions/download-artifact@v4
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        run-id: ${{ steps.get-run.outputs.run-id }}
+        path: downloaded-artifacts/
     
-    - name: Upload artifact
+    - name: List downloaded artifacts
+      run: |
+        echo "Downloaded artifacts:"
+        ls -R downloaded-artifacts/
+    
+    - name: Re-upload native artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: native-${{ matrix.target }}
-        path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+        name: all-native-artifacts
+        path: downloaded-artifacts/
 
   # Publish C# NuGet package
   publish-csharp:
     if: |
       github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') ||
       github.event.inputs.publish_csharp == 'true'
-    needs: build-native
+    needs: download-artifacts
     runs-on: ubuntu-latest
     
     steps:
@@ -94,9 +97,10 @@ jobs:
           8.0.x
           6.0.x
     
-    - name: Download all native libraries
+    - name: Download artifacts from previous job
       uses: actions/download-artifact@v4
       with:
+        name: all-native-artifacts
         path: artifacts/
     
     - name: Organize native libraries
@@ -106,10 +110,11 @@ jobs:
         mkdir -p target/x86_64-apple-darwin/release
         mkdir -p target/aarch64-apple-darwin/release
         
-        cp artifacts/native-x86_64-unknown-linux-gnu/* target/x86_64-unknown-linux-gnu/release/ || true
-        cp artifacts/native-x86_64-pc-windows-msvc/* target/x86_64-pc-windows-msvc/release/ || true
-        cp artifacts/native-x86_64-apple-darwin/* target/x86_64-apple-darwin/release/ || true
-        cp artifacts/native-aarch64-apple-darwin/* target/aarch64-apple-darwin/release/ || true
+        # Extract from downloaded structure (artifacts contain subdirs from build-bindings)
+        find artifacts -name "libjson_eval_rs.so" -path "*/native-x86_64-unknown-linux-gnu/*" -exec cp {} target/x86_64-unknown-linux-gnu/release/ \; || true
+        find artifacts -name "json_eval_rs.dll" -path "*/native-x86_64-pc-windows-msvc/*" -exec cp {} target/x86_64-pc-windows-msvc/release/ \; || true
+        find artifacts -name "libjson_eval_rs.dylib" -path "*/native-x86_64-apple-darwin/*" -exec cp {} target/x86_64-apple-darwin/release/ \; || true
+        find artifacts -name "libjson_eval_rs.dylib" -path "*/native-aarch64-apple-darwin/*" -exec cp {} target/aarch64-apple-darwin/release/ \; || true
     
     - name: Build C# project
       run: |
@@ -194,70 +199,12 @@ jobs:
         name: web-package
         path: bindings/web/*.tgz
 
-  # Build Android JNI libraries for React Native
-  build-android-jni:
-    if: |
-      github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') ||
-      github.event.inputs.publish_react_native == 'true'
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        target:
-          - arm64-v8a
-          - armeabi-v7a
-          - x86
-          - x86_64
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Rust
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-      with:
-        toolchain: stable
-    
-    - name: Setup Android NDK
-      uses: nttld/setup-ndk@v1
-      with:
-        ndk-version: r26c
-        add-to-path: true
-      id: setup-ndk
-    
-    - name: Install Rust Android targets
-      run: |
-        rustup target add aarch64-linux-android
-        rustup target add armv7-linux-androideabi
-        rustup target add i686-linux-android
-        rustup target add x86_64-linux-android
-    
-    - name: Add NDK toolchain to PATH
-      run: |
-        NDK_HOME="${{ steps.setup-ndk.outputs.ndk-path }}"
-        echo "$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
-        echo "NDK toolchain added to PATH"
-    
-    - name: Install cargo-ndk
-      run: cargo install cargo-ndk
-    
-    - name: Build Android JNI library
-      env:
-        ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-      run: |
-        cargo ndk -t ${{ matrix.target }} -o bindings/react-native/packages/react-native/android/src/main/jniLibs build --release --features ffi
-    
-    - name: Upload Android JNI artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: android-jni-${{ matrix.target }}
-        path: bindings/react-native/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}/
-        if-no-files-found: error
-  
   # Publish React Native npm package
   publish-react-native:
     if: |
       github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') ||
       github.event.inputs.publish_react_native == 'true'
-    needs: [build-native, build-android-jni]
+    needs: download-artifacts
     runs-on: ubuntu-latest
     
     steps:
@@ -269,34 +216,41 @@ jobs:
         node-version: '18'
         registry-url: 'https://registry.npmjs.org'
     
-    - name: Download desktop native libraries
+    - name: Download artifacts from previous job
       uses: actions/download-artifact@v4
       with:
+        name: all-native-artifacts
         path: artifacts/
-    
-    - name: Download Android JNI libraries
-      uses: actions/download-artifact@v4
-      with:
-        pattern: android-jni-*
-        path: bindings/react-native/packages/react-native/android/src/main/jniLibs/
     
     - name: Organize native libraries
       run: |
         # Create iOS framework directory
         mkdir -p bindings/react-native/packages/react-native/ios/libs
         
-        # Copy iOS libraries if they exist
-        if [ -d "artifacts/native-aarch64-apple-ios" ]; then
-          cp -r artifacts/native-aarch64-apple-ios/* bindings/react-native/packages/react-native/ios/libs/ || true
-        fi
+        # Create Android JNI directory
+        mkdir -p bindings/react-native/packages/react-native/android/src/main/jniLibs
         
-        if [ -d "artifacts/native-x86_64-apple-ios" ]; then
-          cp -r artifacts/native-x86_64-apple-ios/* bindings/react-native/packages/react-native/ios/libs/ || true
-        fi
+        # Copy iOS libraries from downloaded artifacts
+        find artifacts -name "libjson_eval_rs.a" -path "*/native-aarch64-apple-ios/*" -exec mkdir -p bindings/react-native/packages/react-native/ios/libs/aarch64-apple-ios \; -exec cp {} bindings/react-native/packages/react-native/ios/libs/aarch64-apple-ios/ \; || true
+        find artifacts -name "libjson_eval_rs.a" -path "*/native-x86_64-apple-ios/*" -exec mkdir -p bindings/react-native/packages/react-native/ios/libs/x86_64-apple-ios \; -exec cp {} bindings/react-native/packages/react-native/ios/libs/x86_64-apple-ios/ \; || true
+        find artifacts -name "libjson_eval_rs.a" -path "*/native-aarch64-apple-ios-sim/*" -exec mkdir -p bindings/react-native/packages/react-native/ios/libs/aarch64-apple-ios-sim \; -exec cp {} bindings/react-native/packages/react-native/ios/libs/aarch64-apple-ios-sim/ \; || true
         
-        echo "Native libraries organized for React Native"
-        ls -R bindings/react-native/packages/react-native/android/src/main/jniLibs/ || true
-        ls -R bindings/react-native/packages/react-native/ios/libs/ || true
+        # Copy Android JNI libraries from downloaded artifacts (organized by ABI)
+        for abi in arm64-v8a armeabi-v7a x86 x86_64; do
+          if find artifacts -path "*/android-jni-${abi}/*" -name "*.so" 2>/dev/null | grep -q .; then
+            mkdir -p bindings/react-native/packages/react-native/android/src/main/jniLibs/${abi}
+            find artifacts -path "*/android-jni-${abi}/*" -name "*.so" -exec cp {} bindings/react-native/packages/react-native/android/src/main/jniLibs/${abi}/ \;
+            echo "✓ Copied Android ${abi} libraries"
+          fi
+        done
+        
+        echo ""
+        echo "Native libraries organized for React Native:"
+        echo "iOS libraries:"
+        find bindings/react-native/packages/react-native/ios/libs -name "*.a" -exec ls -lh {} \; || echo "No iOS libraries found"
+        echo ""
+        echo "Android JNI libraries:"
+        find bindings/react-native/packages/react-native/android/src/main/jniLibs -name "*.so" -exec ls -lh {} \; || echo "No Android libraries found"
     
     - name: Install dependencies
       run: |
@@ -356,7 +310,7 @@ jobs:
   # Create GitHub Release
   create-github-release:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [build-native, build-android-jni, publish-csharp, publish-web, publish-react-native, publish-crates-io]
+    needs: [download-artifacts, publish-csharp, publish-web, publish-react-native, publish-crates-io]
     runs-on: ubuntu-latest
     
     steps:
@@ -435,7 +389,7 @@ jobs:
   # Summary
   publish-summary:
     if: always()
-    needs: [build-native, build-android-jni, publish-csharp, publish-web, publish-react-native, publish-crates-io]
+    needs: [download-artifacts, publish-csharp, publish-web, publish-react-native, publish-crates-io]
     runs-on: ubuntu-latest
     
     steps:
@@ -443,16 +397,18 @@ jobs:
       run: |
         echo "## 📦 Publish Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### Native Libraries" >> $GITHUB_STEP_SUMMARY
-        echo "| Platform | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
+        echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
         echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
-        echo "| Desktop (Linux, Windows, macOS) | ${{ needs.build-native.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| Android JNI | ${{ needs.build-android-jni.result == 'success' && '✅' || needs.build-android-jni.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Download from build-bindings | ${{ needs.download-artifacts.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### Packages" >> $GITHUB_STEP_SUMMARY
+        echo "### Published Packages" >> $GITHUB_STEP_SUMMARY
         echo "| Package | Status |" >> $GITHUB_STEP_SUMMARY
         echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
         echo "| C# NuGet | ${{ needs.publish-csharp.result == 'success' && '✅' || needs.publish-csharp.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Web npm | ${{ needs.publish-web.result == 'success' && '✅' || needs.publish-web.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
         echo "| React Native npm | ${{ needs.publish-react-native.result == 'success' && '✅' || needs.publish-react-native.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Rust crates.io | ${{ needs.publish-crates-io.result == 'success' && '✅' || needs.publish-crates-io.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📝 Note" >> $GITHUB_STEP_SUMMARY
+        echo "Native libraries are reused from the latest successful build-bindings workflow run." >> $GITHUB_STEP_SUMMARY
