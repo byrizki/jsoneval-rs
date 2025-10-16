@@ -236,7 +236,7 @@ pub unsafe extern "C" fn json_eval_evaluate(
     match eval.evaluate(data_str, context_str) {
         Ok(_) => {
             let result = eval.get_evaluated_schema(false);
-            let result_str = serde_json::to_string_pretty(&result).unwrap_or_default();
+            let result_str = serde_json::to_string(&result).unwrap_or_default();
             FFIResult::success(result_str)
         }
         Err(e) => FFIResult::error(e),
@@ -293,7 +293,7 @@ pub unsafe extern "C" fn json_eval_validate(
                 }).collect::<Vec<_>>()
             });
             
-            let result_str = serde_json::to_string_pretty(&result_json).unwrap_or_default();
+            let result_str = serde_json::to_string(&result_json).unwrap_or_default();
             FFIResult::success(result_str)
         }
         Err(e) => FFIResult::error(e),
@@ -356,7 +356,7 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents(
 
     match eval.evaluate_dependents(&paths, data_str, context_str, nested) {
         Ok(result) => {
-            let result_str = serde_json::to_string_pretty(&result).unwrap_or_default();
+            let result_str = serde_json::to_string(&result).unwrap_or_default();
             FFIResult::success(result_str)
         }
         Err(e) => FFIResult::error(e),
@@ -380,7 +380,7 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema(
 
     let eval = &mut (*handle).inner;
     let result = eval.get_evaluated_schema(skip_layout);
-    let result_str = serde_json::to_string_pretty(&result).unwrap_or_default();
+    let result_str = serde_json::to_string(&result).unwrap_or_default();
     
     FFIResult::success(result_str)
 }
@@ -401,7 +401,7 @@ pub unsafe extern "C" fn json_eval_get_schema_value(
 
     let eval = &mut (*handle).inner;
     let result = eval.get_schema_value();
-    let result_str = serde_json::to_string_pretty(&result).unwrap_or_default();
+    let result_str = serde_json::to_string(&result).unwrap_or_default();
     
     FFIResult::success(result_str)
 }
@@ -525,7 +525,7 @@ pub unsafe extern "C" fn json_eval_cache_stats(
         "entries": stats.entries,
     });
     
-    let result_str = serde_json::to_string_pretty(&stats_json).unwrap_or_default();
+    let result_str = serde_json::to_string(&stats_json).unwrap_or_default();
     
     FFIResult::success(result_str)
 }
@@ -643,7 +643,7 @@ pub unsafe extern "C" fn json_eval_validate_paths(
                 }).collect::<Vec<_>>()
             });
             
-            let result_str = serde_json::to_string_pretty(&result_json).unwrap_or_default();
+            let result_str = serde_json::to_string(&result_json).unwrap_or_default();
             FFIResult::success(result_str)
         }
         Err(e) => FFIResult::error(e),
