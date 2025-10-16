@@ -1,7 +1,7 @@
 # json-eval-rs
 
-[![CI](https://github.com/yourusername/json-eval-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/json-eval-rs/actions/workflows/ci.yml)
-[![Build Bindings](https://github.com/yourusername/json-eval-rs/actions/workflows/build-bindings.yml/badge.svg)](https://github.com/yourusername/json-eval-rs/actions/workflows/build-bindings.yml)
+[![CI](https://github.com/byrizki/json-eval-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/byrizki/json-eval-rs/actions/workflows/ci.yml)
+[![Build Bindings](https://github.com/byrizki/json-eval-rs/actions/workflows/build-bindings.yml/badge.svg)](https://github.com/byrizki/json-eval-rs/actions/workflows/build-bindings.yml)
 [![Crates.io](https://img.shields.io/crates/v/json-eval-rs.svg)](https://crates.io/crates/json-eval-rs)
 [![NuGet](https://img.shields.io/nuget/v/JsonEvalRs.svg)](https://www.nuget.org/packages/JsonEvalRs)
 [![npm](https://img.shields.io/npm/v/@json-eval-rs/web.svg)](https://www.npmjs.com/package/@json-eval-rs/web)
@@ -304,7 +304,7 @@ Running evaluation...
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/json-eval-rs.git
+git clone https://github.com/byrizki/json-eval-rs.git
 cd json-eval-rs
 
 # Build the core library

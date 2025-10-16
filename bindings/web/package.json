@@ -14,7 +14,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/json-eval-rs.git",
+    "url": "https://github.com/byrizki/json-eval-rs.git",
     "directory": "bindings/web"
   },
   "keywords": [
@@ -25,6 +25,6 @@
     "wasm",
     "rust"
   ],
-  "author": "Your Name",
+  "author": "Muhamad Rizki",
   "license": "MIT"
 }

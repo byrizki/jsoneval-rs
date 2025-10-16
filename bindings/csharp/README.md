@@ -233,8 +233,8 @@ MIT License
 
 ## Support
 
-- GitHub Issues: https://github.com/yourusername/json-eval-rs/issues
-- Documentation: https://github.com/yourusername/json-eval-rs
+- GitHub Issues: https://github.com/byrizki/json-eval-rs/issues
+- Documentation: https://github.com/byrizki/json-eval-rs
 
 ## Version
 

@@ -14,8 +14,8 @@
     <Company>Quadrant Synergy International</Company>
     <Description>High-performance JSON Logic evaluator with schema validation and dependency tracking. Built on blazing-fast Rust engine.</Description>
     <PackageTags>json;json-logic;schema;validation;evaluation;rust;performance</PackageTags>
-    <PackageProjectUrl>https://github.com/yourusername/json-eval-rs</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/yourusername/json-eval-rs</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/byrizki/json-eval-rs</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/byrizki/json-eval-rs</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>

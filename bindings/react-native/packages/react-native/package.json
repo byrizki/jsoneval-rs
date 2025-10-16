@@ -45,15 +45,15 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yourusername/json-eval-rs.git",
+    "url": "git+https://github.com/byrizki/json-eval-rs.git",
     "directory": "bindings/react-native/packages/react-native"
   },
-  "author": "Your Name <your.email@example.com>",
+  "author": "Muhamad Rizki <hello@byrizki.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/yourusername/json-eval-rs/issues"
+    "url": "https://github.com/byrizki/json-eval-rs/issues"
   },
-  "homepage": "https://github.com/yourusername/json-eval-rs#readme",
+  "homepage": "https://github.com/byrizki/json-eval-rs#readme",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
     "access": "public"

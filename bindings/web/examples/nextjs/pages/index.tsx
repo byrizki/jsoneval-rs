@@ -80,7 +80,7 @@ export default function Home() {
             <p>
               Built with{' '}
               <a
-                href="https://github.com/yourusername/json-eval-rs"
+                href="https://github.com/byrizki/json-eval-rs"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:underline"

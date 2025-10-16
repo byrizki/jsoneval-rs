@@ -190,7 +190,7 @@ Before publishing, configure these secrets in your GitHub repository:
    - npm (web): https://www.npmjs.com/package/@json-eval-rs/web
    - npm (RN): https://www.npmjs.com/package/@json-eval-rs/react-native
    - crates.io: https://crates.io/crates/json-eval-rs
-   - GitHub: https://github.com/YOUR_USERNAME/json-eval-rs/releases
+   - GitHub: https://github.com/byrizki/json-eval-rs/releases
 
 6. **Test Installations**
    ```bash
@@ -277,9 +277,9 @@ Solution: Check workflow completed successfully
 Add these badges to your README.md:
 
 ```markdown
-[![Build Bindings](https://github.com/YOUR_USERNAME/json-eval-rs/actions/workflows/build-bindings.yml/badge.svg)](https://github.com/YOUR_USERNAME/json-eval-rs/actions/workflows/build-bindings.yml)
+[![Build Bindings](https://github.com/byrizki/json-eval-rs/actions/workflows/build-bindings.yml/badge.svg)](https://github.com/byrizki/json-eval-rs/actions/workflows/build-bindings.yml)
 
-[![Publish Packages](https://github.com/YOUR_USERNAME/json-eval-rs/actions/workflows/publish.yml/badge.svg)](https://github.com/YOUR_USERNAME/json-eval-rs/actions/workflows/publish.yml)
+[![Publish Packages](https://github.com/byrizki/json-eval-rs/actions/workflows/publish.yml/badge.svg)](https://github.com/byrizki/json-eval-rs/actions/workflows/publish.yml)
 ```
 
 ---
