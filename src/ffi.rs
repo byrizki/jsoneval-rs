@@ -210,13 +210,7 @@ pub unsafe extern "C" fn json_eval_evaluate(
     context: *const c_char,
 ) -> FFIResult {
     if handle.is_null() || data.is_null() {
-        return FFIResult {
-            success: false,
-            error: CString::new("Invalid handle or data pointer")
-                .unwrap()
-                .into_raw(),
-            ..Default::default()
-        };
+        return FFIResult::error("Invalid handle or data pointer".to_string());
     }
 
     let eval = &mut (*handle).inner;
@@ -224,11 +218,7 @@ pub unsafe extern "C" fn json_eval_evaluate(
     let data_str = match CStr::from_ptr(data).to_str() {
         Ok(s) => s,
         Err(_) => {
-            return FFIResult {
-                success: false,
-                error: CString::new("Invalid UTF-8 in data").unwrap().into_raw(),
-                ..Default::default()
-            }
+            return FFIResult::error("Invalid UTF-8 in data".to_string())
         }
     };
 
@@ -236,13 +226,7 @@ pub unsafe extern "C" fn json_eval_evaluate(
         match CStr::from_ptr(context).to_str() {
             Ok(s) => Some(s),
             Err(_) => {
-                return FFIResult {
-                    success: false,
-                    error: CString::new("Invalid UTF-8 in context")
-                        .unwrap()
-                        .into_raw(),
-                    ..Default::default()
-                }
+                return FFIResult::error("Invalid UTF-8 in context".to_string())
             }
         }
     } else {
@@ -253,17 +237,9 @@ pub unsafe extern "C" fn json_eval_evaluate(
         Ok(_) => {
             let result = eval.get_evaluated_schema(false);
             let result_str = serde_json::to_string_pretty(&result).unwrap_or_default();
-            FFIResult {
-                success: true,
-                data: CString::new(result_str).unwrap().into_raw(),
-                error: ptr::null_mut(),
-            }
+            FFIResult::success(result_str)
         }
-        Err(e) => FFIResult {
-            success: false,
-            data: ptr::null_mut(),
-            error: CString::new(e).unwrap().into_raw(),
-        },
+        Err(e) => FFIResult::error(e),
     }
 }
 
@@ -281,13 +257,7 @@ pub unsafe extern "C" fn json_eval_validate(
     context: *const c_char,
 ) -> FFIResult {
     if handle.is_null() || data.is_null() {
-        return FFIResult {
-            success: false,
-            error: CString::new("Invalid handle or data pointer")
-                .unwrap()
-                .into_raw(),
-            ..Default::default()
-        };
+        return FFIResult::error("Invalid handle or data pointer".to_string());
     }
 
     let eval = &(*handle).inner;
@@ -295,11 +265,7 @@ pub unsafe extern "C" fn json_eval_validate(
     let data_str = match CStr::from_ptr(data).to_str() {
         Ok(s) => s,
         Err(_) => {
-            return FFIResult {
-                success: false,
-                error: CString::new("Invalid UTF-8 in data").unwrap().into_raw(),
-                ..Default::default()
-            }
+            return FFIResult::error("Invalid UTF-8 in data".to_string())
         }
     };
 
@@ -307,13 +273,7 @@ pub unsafe extern "C" fn json_eval_validate(
         match CStr::from_ptr(context).to_str() {
             Ok(s) => Some(s),
             Err(_) => {
-                return FFIResult {
-                    success: false,
-                    error: CString::new("Invalid UTF-8 in context")
-                        .unwrap()
-                        .into_raw(),
-                    ..Default::default()
-                }
+                return FFIResult::error("Invalid UTF-8 in context".to_string())
             }
         }
     } else {
@@ -334,17 +294,9 @@ pub unsafe extern "C" fn json_eval_validate(
             });
             
             let result_str = serde_json::to_string_pretty(&result_json).unwrap_or_default();
-            FFIResult {
-                success: true,
-                data: CString::new(result_str).unwrap().into_raw(),
-                error: ptr::null_mut(),
-            }
+            FFIResult::success(result_str)
         }
-        Err(e) => FFIResult {
-            success: false,
-            data: ptr::null_mut(),
-            error: CString::new(e).unwrap().into_raw(),
-        },
+        Err(e) => FFIResult::error(e),
     }
 }
 
@@ -365,11 +317,7 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents(
     nested: bool,
 ) -> FFIResult {
     if handle.is_null() || changed_paths_json.is_null() || data.is_null() {
-        return FFIResult {
-            success: false,
-            error: CString::new("Invalid pointer").unwrap().into_raw(),
-            ..Default::default()
-        };
+        return FFIResult::error("Invalid pointer".to_string());
     }
 
     let eval = &mut (*handle).inner;
@@ -377,35 +325,21 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents(
     let paths_json = match CStr::from_ptr(changed_paths_json).to_str() {
         Ok(s) => s,
         Err(_) => {
-            return FFIResult {
-                success: false,
-                error: CString::new("Invalid UTF-8 in paths").unwrap().into_raw(),
-                ..Default::default()
-            }
+            return FFIResult::error("Invalid UTF-8 in paths".to_string())
         }
     };
 
     let paths: Vec<String> = match serde_json::from_str(paths_json) {
         Ok(p) => p,
         Err(_) => {
-            return FFIResult {
-                success: false,
-                error: CString::new("Invalid JSON array for paths")
-                    .unwrap()
-                    .into_raw(),
-                ..Default::default()
-            }
+            return FFIResult::error("Invalid JSON array for paths".to_string())
         }
     };
 
     let data_str = match CStr::from_ptr(data).to_str() {
         Ok(s) => s,
         Err(_) => {
-            return FFIResult {
-                success: false,
-                error: CString::new("Invalid UTF-8 in data").unwrap().into_raw(),
-                ..Default::default()
-            }
+            return FFIResult::error("Invalid UTF-8 in data".to_string())
         }
     };
 
@@ -413,13 +347,7 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents(
         match CStr::from_ptr(context).to_str() {
             Ok(s) => Some(s),
             Err(_) => {
-                return FFIResult {
-                    success: false,
-                    error: CString::new("Invalid UTF-8 in context")
-                        .unwrap()
-                        .into_raw(),
-                    ..Default::default()
-                }
+                return FFIResult::error("Invalid UTF-8 in context".to_string())
             }
         }
     } else {
@@ -429,17 +357,9 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents(
     match eval.evaluate_dependents(&paths, data_str, context_str, nested) {
         Ok(result) => {
             let result_str = serde_json::to_string_pretty(&result).unwrap_or_default();
-            FFIResult {
-                success: true,
-                data: CString::new(result_str).unwrap().into_raw(),
-                error: ptr::null_mut(),
-            }
+            FFIResult::success(result_str)
         }
-        Err(e) => FFIResult {
-            success: false,
-            data: ptr::null_mut(),
-            error: CString::new(e).unwrap().into_raw(),
-        },
+        Err(e) => FFIResult::error(e),
     }
 }
 
@@ -455,22 +375,14 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema(
     skip_layout: bool,
 ) -> FFIResult {
     if handle.is_null() {
-        return FFIResult {
-            success: false,
-            error: CString::new("Invalid handle pointer").unwrap().into_raw(),
-            ..Default::default()
-        };
+        return FFIResult::error("Invalid handle pointer".to_string());
     }
 
     let eval = &mut (*handle).inner;
     let result = eval.get_evaluated_schema(skip_layout);
     let result_str = serde_json::to_string_pretty(&result).unwrap_or_default();
     
-    FFIResult {
-        success: true,
-        data: CString::new(result_str).unwrap().into_raw(),
-        error: ptr::null_mut(),
-    }
+    FFIResult::success(result_str)
 }
 
 /// Get all schema values (evaluations ending with .value)
@@ -484,22 +396,14 @@ pub unsafe extern "C" fn json_eval_get_schema_value(
     handle: *mut JSONEvalHandle,
 ) -> FFIResult {
     if handle.is_null() {
-        return FFIResult {
-            success: false,
-            error: CString::new("Invalid handle pointer").unwrap().into_raw(),
-            ..Default::default()
-        };
+        return FFIResult::error("Invalid handle pointer".to_string());
     }
 
     let eval = &mut (*handle).inner;
     let result = eval.get_schema_value();
     let result_str = serde_json::to_string_pretty(&result).unwrap_or_default();
     
-    FFIResult {
-        success: true,
-        data: CString::new(result_str).unwrap().into_raw(),
-        error: ptr::null_mut(),
-    }
+    FFIResult::success(result_str)
 }
 
 /// Free an FFIResult
@@ -558,13 +462,7 @@ pub unsafe extern "C" fn json_eval_reload_schema(
     data: *const c_char,
 ) -> FFIResult {
     if handle.is_null() || schema.is_null() {
-        return FFIResult {
-            success: false,
-            error: CString::new("Invalid handle or schema pointer")
-                .unwrap()
-                .into_raw(),
-            ..Default::default()
-        };
+        return FFIResult::error("Invalid handle or schema pointer".to_string());
     }
 
     let eval = &mut (*handle).inner;
@@ -572,11 +470,7 @@ pub unsafe extern "C" fn json_eval_reload_schema(
     let schema_str = match CStr::from_ptr(schema).to_str() {
         Ok(s) => s,
         Err(_) => {
-            return FFIResult {
-                success: false,
-                error: CString::new("Invalid UTF-8 in schema").unwrap().into_raw(),
-                ..Default::default()
-            }
+            return FFIResult::error("Invalid UTF-8 in schema".to_string())
         }
     };
 
@@ -584,13 +478,7 @@ pub unsafe extern "C" fn json_eval_reload_schema(
         match CStr::from_ptr(context).to_str() {
             Ok(s) => Some(s),
             Err(_) => {
-                return FFIResult {
-                    success: false,
-                    error: CString::new("Invalid UTF-8 in context")
-                        .unwrap()
-                        .into_raw(),
-                    ..Default::default()
-                }
+                return FFIResult::error("Invalid UTF-8 in context".to_string())
             }
         }
     } else {
@@ -601,13 +489,7 @@ pub unsafe extern "C" fn json_eval_reload_schema(
         match CStr::from_ptr(data).to_str() {
             Ok(s) => Some(s),
             Err(_) => {
-                return FFIResult {
-                    success: false,
-                    error: CString::new("Invalid UTF-8 in data")
-                        .unwrap()
-                        .into_raw(),
-                    ..Default::default()
-                }
+                return FFIResult::error("Invalid UTF-8 in data".to_string())
             }
         }
     } else {
@@ -615,16 +497,8 @@ pub unsafe extern "C" fn json_eval_reload_schema(
     };
 
     match eval.reload_schema(schema_str, context_str, data_str) {
-        Ok(_) => FFIResult {
-            success: true,
-            data: ptr::null_mut(),
-            error: ptr::null_mut(),
-        },
-        Err(e) => FFIResult {
-            success: false,
-            data: ptr::null_mut(),
-            error: CString::new(e).unwrap().into_raw(),
-        },
+        Ok(_) => FFIResult::success(String::new()),
+        Err(e) => FFIResult::error(e),
     }
 }
 
@@ -639,11 +513,7 @@ pub unsafe extern "C" fn json_eval_cache_stats(
     handle: *mut JSONEvalHandle,
 ) -> FFIResult {
     if handle.is_null() {
-        return FFIResult {
-            success: false,
-            error: CString::new("Invalid handle pointer").unwrap().into_raw(),
-            ..Default::default()
-        };
+        return FFIResult::error("Invalid handle pointer".to_string());
     }
 
     let eval = &(*handle).inner;
@@ -657,11 +527,7 @@ pub unsafe extern "C" fn json_eval_cache_stats(
     
     let result_str = serde_json::to_string_pretty(&stats_json).unwrap_or_default();
     
-    FFIResult {
-        success: true,
-        data: CString::new(result_str).unwrap().into_raw(),
-        error: ptr::null_mut(),
-    }
+    FFIResult::success(result_str)
 }
 
 /// Clear the evaluation cache
@@ -674,21 +540,13 @@ pub unsafe extern "C" fn json_eval_clear_cache(
     handle: *mut JSONEvalHandle,
 ) -> FFIResult {
     if handle.is_null() {
-        return FFIResult {
-            success: false,
-            error: CString::new("Invalid handle pointer").unwrap().into_raw(),
-            ..Default::default()
-        };
+        return FFIResult::error("Invalid handle pointer".to_string());
     }
 
     let eval = &mut (*handle).inner;
     eval.clear_cache();
     
-    FFIResult {
-        success: true,
-        data: ptr::null_mut(),
-        error: ptr::null_mut(),
-    }
+    FFIResult::success(String::new())
 }
 
 /// Get the number of cached entries
@@ -702,11 +560,7 @@ pub unsafe extern "C" fn json_eval_cache_len(
     handle: *mut JSONEvalHandle,
 ) -> FFIResult {
     if handle.is_null() {
-        return FFIResult {
-            success: false,
-            error: CString::new("Invalid handle pointer").unwrap().into_raw(),
-            ..Default::default()
-        };
+        return FFIResult::error("Invalid handle pointer".to_string());
     }
 
     let eval = &(*handle).inner;
@@ -714,11 +568,7 @@ pub unsafe extern "C" fn json_eval_cache_len(
     
     let result_str = len.to_string();
     
-    FFIResult {
-        success: true,
-        data: CString::new(result_str).unwrap().into_raw(),
-        error: ptr::null_mut(),
-    }
+    FFIResult::success(result_str)
 }
 
 /// Validate data against schema rules with optional path filtering
@@ -737,13 +587,7 @@ pub unsafe extern "C" fn json_eval_validate_paths(
     paths_json: *const c_char,
 ) -> FFIResult {
     if handle.is_null() || data.is_null() {
-        return FFIResult {
-            success: false,
-            error: CString::new("Invalid handle or data pointer")
-                .unwrap()
-                .into_raw(),
-            ..Default::default()
-        };
+        return FFIResult::error("Invalid handle or data pointer".to_string());
     }
 
     let eval = &(*handle).inner;
@@ -751,11 +595,7 @@ pub unsafe extern "C" fn json_eval_validate_paths(
     let data_str = match CStr::from_ptr(data).to_str() {
         Ok(s) => s,
         Err(_) => {
-            return FFIResult {
-                success: false,
-                error: CString::new("Invalid UTF-8 in data").unwrap().into_raw(),
-                ..Default::default()
-            }
+            return FFIResult::error("Invalid UTF-8 in data".to_string())
         }
     };
 
@@ -763,13 +603,7 @@ pub unsafe extern "C" fn json_eval_validate_paths(
         match CStr::from_ptr(context).to_str() {
             Ok(s) => Some(s),
             Err(_) => {
-                return FFIResult {
-                    success: false,
-                    error: CString::new("Invalid UTF-8 in context")
-                        .unwrap()
-                        .into_raw(),
-                    ..Default::default()
-                }
+                return FFIResult::error("Invalid UTF-8 in context".to_string())
             }
         }
     } else {
@@ -780,24 +614,14 @@ pub unsafe extern "C" fn json_eval_validate_paths(
         let paths_str = match CStr::from_ptr(paths_json).to_str() {
             Ok(s) => s,
             Err(_) => {
-                return FFIResult {
-                    success: false,
-                    error: CString::new("Invalid UTF-8 in paths").unwrap().into_raw(),
-                    ..Default::default()
-                }
+                return FFIResult::error("Invalid UTF-8 in paths".to_string())
             }
         };
         
         match serde_json::from_str(paths_str) {
             Ok(p) => Some(p),
             Err(_) => {
-                return FFIResult {
-                    success: false,
-                    error: CString::new("Invalid JSON array for paths")
-                        .unwrap()
-                        .into_raw(),
-                    ..Default::default()
-                }
+                return FFIResult::error("Invalid JSON array for paths".to_string())
             }
         }
     } else {
@@ -820,17 +644,9 @@ pub unsafe extern "C" fn json_eval_validate_paths(
             });
             
             let result_str = serde_json::to_string_pretty(&result_json).unwrap_or_default();
-            FFIResult {
-                success: true,
-                data: CString::new(result_str).unwrap().into_raw(),
-                error: ptr::null_mut(),
-            }
+            FFIResult::success(result_str)
         }
-        Err(e) => FFIResult {
-            success: false,
-            data: ptr::null_mut(),
-            error: CString::new(e).unwrap().into_raw(),
-        },
+        Err(e) => FFIResult::error(e),
     }
 }
 
