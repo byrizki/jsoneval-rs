@@ -225,6 +225,13 @@ jobs:
       with:
         toolchain: stable
     
+    - name: Setup Android NDK
+      uses: nttld/setup-ndk@v1
+      with:
+        ndk-version: r26c
+        add-to-path: true
+      id: setup-ndk
+    
     - name: Install Android Rust targets
       run: |
         rustup target add \
@@ -232,12 +239,6 @@ jobs:
           armv7-linux-androideabi \
           i686-linux-android \
           x86_64-linux-android
-
-    - name: Setup Android NDK
-      uses: nttld/setup-ndk@v1
-      with:
-        ndk-version: r26c
-        add-to-path: true
     
     - name: Cache cargo build
       uses: actions/cache@v4
@@ -267,6 +268,8 @@ jobs:
         esac
     
     - name: Build Rust shared library
+      env:
+        ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
       run: |
         cargo build --release --target ${{ steps.rust-target.outputs.target }} --features ffi
     

@@ -137,20 +137,25 @@ build_react_native() {
     # Build for Android (all architectures)
     if command -v cargo-ndk &> /dev/null; then
         print_info "Building Android JNI libraries for all architectures..."
-        cargo ndk -t arm64-v8a -o bindings/react-native/android/src/main/jniLibs build --release --features ffi
+        
+        # Install Android targets if not already installed
+        rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android 2>/dev/null || true
+        
+        cargo ndk -t arm64-v8a -o bindings/react-native/packages/react-native/android/src/main/jniLibs build --release --features ffi
         print_success "Built Android arm64-v8a library"
         
-        cargo ndk -t armeabi-v7a -o bindings/react-native/android/src/main/jniLibs build --release --features ffi
+        cargo ndk -t armeabi-v7a -o bindings/react-native/packages/react-native/android/src/main/jniLibs build --release --features ffi
         print_success "Built Android armeabi-v7a library"
         
-        cargo ndk -t x86 -o bindings/react-native/android/src/main/jniLibs build --release --features ffi
+        cargo ndk -t x86 -o bindings/react-native/packages/react-native/android/src/main/jniLibs build --release --features ffi
         print_success "Built Android x86 library"
         
-        cargo ndk -t x86_64 -o bindings/react-native/android/src/main/jniLibs build --release --features ffi
+        cargo ndk -t x86_64 -o bindings/react-native/packages/react-native/android/src/main/jniLibs build --release --features ffi
         print_success "Built Android x86_64 library"
     else
         print_warning "cargo-ndk not installed. Skipping Android build"
         print_warning "Install with: cargo install cargo-ndk"
+        print_warning "Also ensure Android NDK is installed and ANDROID_NDK_HOME is set"
     fi
     
     # Build for iOS

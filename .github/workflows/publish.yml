@@ -221,19 +221,29 @@ jobs:
       with:
         ndk-version: r26c
         add-to-path: true
+      id: setup-ndk
+    
+    - name: Install Rust Android targets
+      run: |
+        rustup target add aarch64-linux-android
+        rustup target add armv7-linux-androideabi
+        rustup target add i686-linux-android
+        rustup target add x86_64-linux-android
     
     - name: Install cargo-ndk
       run: cargo install cargo-ndk
     
     - name: Build Android JNI library
+      env:
+        ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
       run: |
-        cargo ndk -t ${{ matrix.target }} -o bindings/react-native/android/src/main/jniLibs build --release --features ffi
+        cargo ndk -t ${{ matrix.target }} -o bindings/react-native/packages/react-native/android/src/main/jniLibs build --release --features ffi
     
     - name: Upload Android JNI artifact
       uses: actions/upload-artifact@v4
       with:
         name: android-jni-${{ matrix.target }}
-        path: bindings/react-native/android/src/main/jniLibs/${{ matrix.target }}/
+        path: bindings/react-native/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}/
         if-no-files-found: error
   
   # Publish React Native npm package
@@ -262,25 +272,25 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         pattern: android-jni-*
-        path: bindings/react-native/android/src/main/jniLibs/
+        path: bindings/react-native/packages/react-native/android/src/main/jniLibs/
     
     - name: Organize native libraries
       run: |
         # Create iOS framework directory
-        mkdir -p bindings/react-native/ios/libs
+        mkdir -p bindings/react-native/packages/react-native/ios/libs
         
         # Copy iOS libraries if they exist
         if [ -d "artifacts/native-aarch64-apple-ios" ]; then
-          cp -r artifacts/native-aarch64-apple-ios/* bindings/react-native/ios/libs/ || true
+          cp -r artifacts/native-aarch64-apple-ios/* bindings/react-native/packages/react-native/ios/libs/ || true
         fi
         
         if [ -d "artifacts/native-x86_64-apple-ios" ]; then
-          cp -r artifacts/native-x86_64-apple-ios/* bindings/react-native/ios/libs/ || true
+          cp -r artifacts/native-x86_64-apple-ios/* bindings/react-native/packages/react-native/ios/libs/ || true
         fi
         
         echo "Native libraries organized for React Native"
-        ls -R bindings/react-native/android/src/main/jniLibs/ || true
-        ls -R bindings/react-native/ios/libs/ || true
+        ls -R bindings/react-native/packages/react-native/android/src/main/jniLibs/ || true
+        ls -R bindings/react-native/packages/react-native/ios/libs/ || true
     
     - name: Install dependencies
       run: |
