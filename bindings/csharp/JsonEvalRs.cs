@@ -289,6 +289,7 @@ namespace JsonEvalRs
     public class JsonEvalException : Exception
     {
         public JsonEvalException(string message) : base(message) { }
+        public JsonEvalException(string message, Exception innerException) : base(message, innerException) { }
     }
 
     /// <summary>
