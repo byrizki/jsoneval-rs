@@ -112,22 +112,20 @@ export class JSONEvalCore {
   }
 
   /**
-   * Evaluate dependent fields (returns parsed JavaScript object)
+   * Evaluate dependent fields (returns parsed JavaScript object, processes transitively)
    * @param {object} options
-   * @param {string[]} options.changedPaths - Array of changed field paths
-   * @param {object} options.data - Current data
+   * @param {string} options.changedPath - Single changed field path (e.g., "#/illustration/properties/field")
+   * @param {object} [options.data] - Optional updated data (null to use existing)
    * @param {object} [options.context] - Optional context
-   * @param {boolean} [options.nested=true] - Follow dependency chains
-   * @returns {Promise<any>}
+   * @returns {Promise<Array>} Array of dependent change objects
    */
-  async evaluateDependents({ changedPaths, data, context, nested = true }) {
+  async evaluateDependents({ changedPath, data, context }) {
     await this.init();
     try {
       return this._instance.evaluateDependentsJS(
-        changedPaths,
-        JSON.stringify(data),
-        context ? JSON.stringify(context) : null,
-        nested
+        changedPath,
+        data ? JSON.stringify(data) : null,
+        context ? JSON.stringify(context) : null
       );
     } catch (error) {
       throw new Error(`Dependent evaluation failed: ${error.message || error}`);

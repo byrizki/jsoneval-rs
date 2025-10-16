@@ -30,6 +30,7 @@ pub use rlogic::{
     CompiledLogic, CompiledLogicStore, Evaluator,
     LogicId, RLogic, RLogicConfig,
 };
+use serde::{Deserialize, Serialize};
 pub use table_metadata::TableMetadata;
 pub use path_utils::ArrayMetadata;
 pub use eval_data::EvalData;
@@ -41,8 +42,6 @@ use serde_json::{Value};
 use rayon::prelude::*;
 
 use std::mem;
-
-#[cfg(feature = "parallel")]
 use std::sync::Mutex;
 
 /// Clean floating point noise from JSON values
@@ -76,6 +75,14 @@ fn clean_float_noise(value: Value) -> Value {
     }
 }
 
+/// Dependent item structure for transitive dependency tracking
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DependentItem {
+    pub ref_path: String,
+    pub clear: Option<Value>,  // Can be $evaluation or boolean
+    pub value: Option<Value>,  // Can be $evaluation or primitive value
+}
+
 pub struct JSONEval {
     pub schema: Value,
     pub engine: RLogic,
@@ -88,8 +95,8 @@ pub struct JSONEval {
     /// Each inner Vec contains evaluations that can run concurrently
     pub sorted_evaluations: Vec<Vec<String>>,
     /// Evaluations categorized for result handling
-    /// Dependents: evaluations with "dependents" in path
-    pub dependents_evaluations: Vec<String>,
+    /// Dependents: map from source field to list of dependent items
+    pub dependents_evaluations: IndexMap<String, Vec<DependentItem>>,
     /// Rules: evaluations with "/rules/" in path
     pub rules_evaluations: Vec<String>,
     /// Others: all other evaluations not in sorted_evaluations (for evaluated_schema output)
@@ -104,6 +111,8 @@ pub struct JSONEval {
     pub eval_data: EvalData,
     /// Evaluation cache with content-based hashing and zero-copy storage
     pub eval_cache: EvalCache,
+    /// Mutex for synchronous execution of evaluate and evaluate_dependents
+    eval_lock: Mutex<()>,
 }
 
 impl JSONEval {
@@ -127,7 +136,7 @@ impl JSONEval {
             table_metadata: IndexMap::new(),
             dependencies: IndexMap::new(),
             sorted_evaluations: Vec::new(),
-            dependents_evaluations: Vec::new(),
+            dependents_evaluations: IndexMap::new(),
             rules_evaluations: Vec::new(),
             others_evaluations: Vec::new(),
             value_evaluations: Vec::new(),
@@ -138,6 +147,7 @@ impl JSONEval {
             evaluated_schema: evaluated_schema.clone(),
             eval_data: EvalData::with_schema_data_context(&evaluated_schema, &data, &context),
             eval_cache: EvalCache::new(),
+            eval_lock: Mutex::new(()),
         };
         parse_schema::parse_schema(&mut instance).map_err(serde_json::Error::custom)?;
         Ok(instance)
@@ -185,6 +195,9 @@ impl JSONEval {
     ///
     /// A `Result` indicating success or an error message.
     pub fn evaluate(&mut self, data: &str, context: Option<&str>) -> Result<(), String> {
+        // Acquire lock for synchronous execution
+        let _lock = self.eval_lock.lock().unwrap();
+        
         // Use SIMD-accelerated JSON parsing
         let data: Value = json_parser::parse_json_str(data)?;
         let context: Value = json_parser::parse_json_str(context.unwrap_or("{}"))?;
@@ -308,6 +321,9 @@ impl JSONEval {
             }
         }
 
+        // Drop lock before calling evaluate_others
+        drop(_lock);
+        
         self.evaluate_others();
 
         Ok(())
@@ -810,77 +826,157 @@ impl JSONEval {
         }
     }
 
-    /// Evaluate fields that depend on changed paths
-    /// This re-evaluates dependent fields when source fields change
+    /// Evaluate fields that depend on a changed path
+    /// This processes all dependent fields transitively when a source field changes
     pub fn evaluate_dependents(
-        &mut self, 
-        changed_paths: &[String],
-        data: &str,
+        &mut self,
+        changed_path: &str,
+        data: Option<&str>,
         context: Option<&str>,
-        nested: bool
     ) -> Result<Value, String> {
-        // Parse data and context
-        let data_value = json_parser::parse_json_str(data)?;
-        let context_value = if let Some(ctx) = context {
-            json_parser::parse_json_str(ctx)?
-        } else {
-            Value::Object(serde_json::Map::new())
-        };
+        // Acquire lock for synchronous execution
+        let _lock = self.eval_lock.lock().unwrap();
         
-        // Update eval_data with new values
-        self.eval_data.replace_data_and_context(data_value.clone(), context_value.clone());
+        // Normalize changed_path to support dot notation (e.g., "illustration.insured.name")
+        // Converts: "illustration.insured.name" -> "#/illustration/properties/insured/properties/name"
+        let normalized_path = path_utils::dot_notation_to_schema_pointer(changed_path);
         
-        // Collect all paths to re-evaluate
-        let mut paths_to_eval: IndexSet<String> = changed_paths.iter().cloned().collect();
+        // Update data if provided
+        if let Some(data_str) = data {
+            let data_value = json_parser::parse_json_str(data_str)?;
+            let context_value = if let Some(ctx) = context {
+                json_parser::parse_json_str(ctx)?
+            } else {
+                Value::Object(serde_json::Map::new())
+            };
+            self.eval_data.replace_data_and_context(data_value, context_value);
+        }
         
-        if nested {
-            // Recursively collect dependent paths
-            let mut to_process: Vec<String> = changed_paths.to_vec();
-            let mut processed: IndexSet<String> = IndexSet::new();
+        let mut result = Vec::new();
+        let mut processed = IndexSet::new();
+        let mut to_process: Vec<(String, bool)> = vec![(normalized_path, false)]; // (path, is_transitive)
+        
+        // Process dependents recursively (always nested/transitive)
+        while let Some((current_path, is_transitive)) = to_process.pop() {
+            if processed.contains(&current_path) {
+                continue;
+            }
+            processed.insert(current_path.clone());
             
-            while let Some(path) = to_process.pop() {
-                if processed.contains(&path) {
-                    continue;
-                }
-                processed.insert(path.clone());
-                
-                // Find all fields that depend on this path
-                for (eval_key, deps) in &self.dependencies {
-                    if deps.contains(&path) || deps.iter().any(|d| d.starts_with(&path)) {
-                        if !paths_to_eval.contains(eval_key) && !eval_key.starts_with("$params") {
-                            paths_to_eval.insert(eval_key.clone());
-                            to_process.push(eval_key.clone());
+            // Find dependents for this path
+            if let Some(dependent_items) = self.dependents_evaluations.get(&current_path) {
+                for dep_item in dependent_items {
+                    let ref_path = &dep_item.ref_path;
+                    let pointer_path = path_utils::normalize_to_json_pointer(ref_path);
+                    // Data paths don't include /properties/, strip it for data access
+                    let data_path = pointer_path.replace("/properties/", "/");
+                    
+                    // Get field and parent field from schema
+                    let field = self.evaluated_schema.pointer(&pointer_path).cloned();
+                    
+                    // Get parent field - skip /properties/ to get actual parent object
+                    let parent_path_data = if let Some(last_slash) = data_path.rfind('/') {
+                        &data_path[..last_slash]
+                    } else {
+                        "/"
+                    };
+                    let parent_field = if parent_path_data.is_empty() || parent_path_data == "/" {
+                        self.eval_data.data().clone()
+                    } else {
+                        self.eval_data.data().pointer(parent_path_data).cloned()
+                            .unwrap_or_else(|| Value::Object(serde_json::Map::new()))
+                    };
+                    
+                    let mut change_obj = serde_json::Map::new();
+                    change_obj.insert("$ref".to_string(), Value::String(ref_path.clone()));
+                    if let Some(f) = field {
+                        change_obj.insert("$field".to_string(), f);
+                    }
+                    change_obj.insert("$parentField".to_string(), parent_field);
+                    change_obj.insert("transitive".to_string(), Value::Bool(is_transitive));
+                    
+                    let mut add_transitive = false;
+                    // Process clear
+                    if let Some(clear_val) = &dep_item.clear {
+                        let clear_val_clone = clear_val.clone();
+                        let should_clear = Self::evaluate_dependent_value_static(&mut self.engine, &self.evaluations, &self.eval_data, &clear_val_clone)?;
+                        let clear_bool = match should_clear {
+                            Value::Bool(b) => b,
+                            _ => false,
+                        };
+                        
+                        if clear_bool {
+                            // Clear the field
+                            self.eval_data.set(&data_path, Value::Null);
+                            if let Some(schema_value) = self.evaluated_schema.pointer_mut(&pointer_path) {
+                                *schema_value = Value::Null;
+                            }
+                            change_obj.insert("clear".to_string(), Value::Bool(true));
+                            add_transitive = true;
                         }
                     }
+                    
+                    // Process value
+                    if let Some(value_val) = &dep_item.value {
+                        let value_val_clone = value_val.clone();
+                        let computed_value = Self::evaluate_dependent_value_static(&mut self.engine, &self.evaluations, &self.eval_data, &value_val_clone)?;
+                        let cleaned_val = clean_float_noise(computed_value.clone());
+                        
+                        // Set the value
+                        self.eval_data.set(&data_path, cleaned_val.clone());
+                        if let Some(schema_value) = self.evaluated_schema.pointer_mut(&pointer_path) {
+                            *schema_value = cleaned_val.clone();
+                        }
+                        change_obj.insert("value".to_string(), cleaned_val);
+                        add_transitive = true;
+                    }
+                    
+                    result.push(Value::Object(change_obj));
+                    
+                    // Add this dependent to queue for transitive processing
+                    if add_transitive {
+                        to_process.push((ref_path.clone(), true));
+                    }
                 }
             }
         }
         
-        // Re-evaluate collected paths
-        for eval_key in &paths_to_eval {
-            let pointer_path = path_utils::normalize_to_json_pointer(eval_key);
-            
-            // Check if this is a table
-            if self.table_metadata.contains_key(eval_key) {
-                if let Ok(rows) = table_evaluate::evaluate_table(self, eval_key, &self.eval_data) {
-                    let value = Value::Array(rows);
-                    self.eval_data.set(&pointer_path, value.clone());
-                    if let Some(schema_value) = self.evaluated_schema.pointer_mut(&pointer_path) {
-                        *schema_value = value;
-                    }
-                }
-            } else if let Some(logic_id) = self.evaluations.get(eval_key) {
-                if let Ok(val) = self.engine.run(logic_id, self.eval_data.data()) {
-                    let cleaned_val = clean_float_noise(val);
-                    self.eval_data.set(&pointer_path, cleaned_val.clone());
-                    if let Some(schema_value) = self.evaluated_schema.pointer_mut(&pointer_path) {
-                        *schema_value = cleaned_val;
-                    }
+        Ok(Value::Array(result))
+    }
+    
+    /// Helper to evaluate a dependent value - uses pre-compiled eval keys for fast lookup
+    fn evaluate_dependent_value_static(
+        engine: &mut RLogic,
+        evaluations: &IndexMap<String, LogicId>,
+        eval_data: &EvalData,
+        value: &Value
+    ) -> Result<Value, String> {
+        match value {
+            // If it's a String, check if it's an eval key reference
+            Value::String(eval_key) => {
+                if let Some(logic_id) = evaluations.get(eval_key) {
+                    // It's a pre-compiled evaluation - run it
+                    let result = engine.run(logic_id, eval_data.data())
+                        .map_err(|e| format!("Failed to evaluate dependent logic '{}': {}", eval_key, e))?;
+                    Ok(result)
+                } else {
+                    // It's a regular string value
+                    Ok(value.clone())
                 }
             }
+            // For backwards compatibility: compile $evaluation on-the-fly (shouldn't happen anymore)
+            Value::Object(map) if map.contains_key("$evaluation") => {
+                let logic_value = map.get("$evaluation").unwrap();
+                let logic_id = engine
+                    .compile(logic_value)
+                    .map_err(|e| format!("Failed to compile dependent evaluation: {}", e))?;
+                let result = engine.run(&logic_id, eval_data.data())
+                    .map_err(|e| format!("Failed to evaluate dependent logic: {}", e))?;
+                Ok(result)
+            }
+            // Primitive value - return as-is
+            _ => Ok(value.clone()),
         }
-        
-        Ok(self.evaluated_schema.clone())
     }
 
     /// Validate form data against schema rules
@@ -1105,14 +1201,14 @@ impl JSONEval {
 }
 
 /// Validation error for a field
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidationError {
     pub rule_type: String,
     pub message: String,
 }
 
 /// Result of validation
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidationResult {
     pub has_error: bool,
     pub errors: IndexMap<String, ValidationError>,

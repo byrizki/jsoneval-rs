@@ -116,10 +116,9 @@ namespace JsonEvalRs
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_evaluate_dependents(
             IntPtr handle,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string changedPathsJson,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string data,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
-            [MarshalAs(UnmanagedType.I1)] bool nested
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string changedPath,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? data,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context
         );
 #else
         // .NET Standard 2.0/2.1 - Use byte array marshalling
@@ -155,10 +154,9 @@ namespace JsonEvalRs
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_evaluate_dependents(
             IntPtr handle,
-            byte[]? changedPathsJson,
+            byte[]? changedPath,
             byte[]? data,
-            byte[]? context,
-            [MarshalAs(UnmanagedType.I1)] bool nested
+            byte[]? context
         );
 
         internal static byte[]? ToUTF8Bytes(string? str)
@@ -453,31 +451,27 @@ namespace JsonEvalRs
         }
 
         /// <summary>
-        /// Re-evaluates fields that depend on changed paths
+        /// Re-evaluates fields that depend on the changed path (processes transitively)
         /// </summary>
-        /// <param name="changedPaths">List of field paths that changed</param>
-        /// <param name="data">Updated JSON data string</param>
+        /// <param name="changedPath">Field path that changed (e.g., "#/properties/field")</param>
+        /// <param name="data">Optional updated JSON data string (null to use existing data)</param>
         /// <param name="context">Optional context data</param>
-        /// <param name="nested">Whether to recursively follow dependency chains</param>
-        /// <returns>Updated evaluated schema as JObject</returns>
-        public JObject EvaluateDependents(List<string> changedPaths, string data, 
-            string? context = null, bool nested = true)
+        /// <returns>Array of dependent change objects as JArray</returns>
+        public JArray EvaluateDependents(string changedPath, string? data = null, 
+            string? context = null)
         {
             ThrowIfDisposed();
 
-            if (changedPaths == null || changedPaths.Count == 0)
-                throw new ArgumentException("Changed paths cannot be empty", nameof(changedPaths));
+            if (string.IsNullOrEmpty(changedPath))
+                throw new ArgumentNullException(nameof(changedPath));
 
-            if (string.IsNullOrEmpty(data))
-                throw new ArgumentNullException(nameof(data));
-
-            string pathsJson = JsonConvert.SerializeObject(changedPaths);
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_evaluate_dependents(_handle, pathsJson, data, context, nested);
+            var result = Native.json_eval_evaluate_dependents(_handle, changedPath, data, context);
 #else
-            var result = Native.json_eval_evaluate_dependents(_handle, Native.ToUTF8Bytes(pathsJson), Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), nested);
+            var result = Native.json_eval_evaluate_dependents(_handle, Native.ToUTF8Bytes(changedPath), Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context));
 #endif
-            return ProcessResult(result);
+            var jsonResult = ProcessResult(result);
+            return jsonResult as JArray ?? new JArray();
         }
 
         /// <summary>

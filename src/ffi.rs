@@ -300,47 +300,43 @@ pub unsafe extern "C" fn json_eval_validate(
     }
 }
 
-/// Evaluate dependents after data changes
+/// Evaluate dependents (fields that depend on a changed path)
 /// 
 /// # Safety
 /// 
 /// - handle must be a valid pointer from json_eval_new
-/// - changed_paths must be a JSON array string
-/// - data must be a valid null-terminated UTF-8 string
+/// - changed_path must be a valid null-terminated UTF-8 string
+/// - data can be null (uses existing data)
 /// - Caller must call json_eval_free_result when done
 #[no_mangle]
 pub unsafe extern "C" fn json_eval_evaluate_dependents(
     handle: *mut JSONEvalHandle,
-    changed_paths_json: *const c_char,
+    changed_path: *const c_char,
     data: *const c_char,
     context: *const c_char,
-    nested: bool,
 ) -> FFIResult {
-    if handle.is_null() || changed_paths_json.is_null() || data.is_null() {
+    if handle.is_null() || changed_path.is_null() {
         return FFIResult::error("Invalid pointer".to_string());
     }
 
     let eval = &mut (*handle).inner;
 
-    let paths_json = match CStr::from_ptr(changed_paths_json).to_str() {
+    let path_str = match CStr::from_ptr(changed_path).to_str() {
         Ok(s) => s,
         Err(_) => {
-            return FFIResult::error("Invalid UTF-8 in paths".to_string())
+            return FFIResult::error("Invalid UTF-8 in path".to_string())
         }
     };
 
-    let paths: Vec<String> = match serde_json::from_str(paths_json) {
-        Ok(p) => p,
-        Err(_) => {
-            return FFIResult::error("Invalid JSON array for paths".to_string())
+    let data_str = if !data.is_null() {
+        match CStr::from_ptr(data).to_str() {
+            Ok(s) => Some(s),
+            Err(_) => {
+                return FFIResult::error("Invalid UTF-8 in data".to_string())
+            }
         }
-    };
-
-    let data_str = match CStr::from_ptr(data).to_str() {
-        Ok(s) => s,
-        Err(_) => {
-            return FFIResult::error("Invalid UTF-8 in data".to_string())
-        }
+    } else {
+        None
     };
 
     let context_str = if !context.is_null() {
@@ -354,7 +350,7 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents(
         None
     };
 
-    match eval.evaluate_dependents(&paths, data_str, context_str, nested) {
+    match eval.evaluate_dependents(path_str, data_str, context_str) {
         Ok(result) => {
             let result_str = serde_json::to_string(&result).unwrap_or_default();
             FFIResult::success(result_str)

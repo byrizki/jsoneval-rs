@@ -16,6 +16,7 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
         deps: &mut IndexMap<String, IndexSet<String>>,
         value_fields: &mut Vec<String>,
         layout_paths: &mut Vec<String>,
+        dependents: &mut IndexMap<String, Vec<crate::DependentItem>>,
     ) -> Result<(), String> {
         match value {
             Value::Object(map) => {
@@ -90,10 +91,75 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
                     }
                 }
 
+                // Check for dependents array
+                if let Some(Value::Array(dependents_arr)) = map.get("dependents") {
+                    let mut dependent_items = Vec::new();
+                    
+                    for (dep_idx, dep_item) in dependents_arr.iter().enumerate() {
+                        if let Value::Object(dep_obj) = dep_item {
+                            if let Some(Value::String(ref_path)) = dep_obj.get("$ref") {
+                                // Process clear - compile if it's an $evaluation
+                                let clear_val = if let Some(clear) = dep_obj.get("clear") {
+                                    if let Value::Object(clear_obj) = clear {
+                                        if clear_obj.contains_key("$evaluation") {
+                                            // Compile and store the evaluation
+                                            let clear_eval = clear_obj.get("$evaluation").unwrap();
+                                            let clear_key = format!("{}/dependents/{}/clear", path, dep_idx);
+                                            let logic_id = engine.compile(clear_eval)
+                                                .map_err(|e| format!("Failed to compile dependent clear at {}: {}", clear_key, e))?;
+                                            evaluations.insert(clear_key.clone(), logic_id);
+                                            // Replace with eval key reference
+                                            Some(Value::String(clear_key))
+                                        } else {
+                                            Some(clear.clone())
+                                        }
+                                    } else {
+                                        Some(clear.clone())
+                                    }
+                                } else {
+                                    None
+                                };
+                                
+                                // Process value - compile if it's an $evaluation
+                                let value_val = if let Some(value) = dep_obj.get("value") {
+                                    if let Value::Object(value_obj) = value {
+                                        if value_obj.contains_key("$evaluation") {
+                                            // Compile and store the evaluation
+                                            let value_eval = value_obj.get("$evaluation").unwrap();
+                                            let value_key = format!("{}/dependents/{}/value", path, dep_idx);
+                                            let logic_id = engine.compile(value_eval)
+                                                .map_err(|e| format!("Failed to compile dependent value at {}: {}", value_key, e))?;
+                                            evaluations.insert(value_key.clone(), logic_id);
+                                            // Replace with eval key reference
+                                            Some(Value::String(value_key))
+                                        } else {
+                                            Some(value.clone())
+                                        }
+                                    } else {
+                                        Some(value.clone())
+                                    }
+                                } else {
+                                    None
+                                };
+                                
+                                dependent_items.push(crate::DependentItem {
+                                    ref_path: ref_path.clone(),
+                                    clear: clear_val,
+                                    value: value_val,
+                                });
+                            }
+                        }
+                    }
+                    
+                    if !dependent_items.is_empty() {
+                        dependents.insert(path.to_string(), dependent_items);
+                    }
+                }
+
                 // Recurse into children
                 Ok(for (key, val) in map {
-                    // Skip special evaluation key from recursion (already processed above)
-                    if key == "$evaluation" {
+                    // Skip special evaluation and dependents keys from recursion (already processed above)
+                    if key == "$evaluation" || key == "dependents" {
                         continue;
                     }
                     
@@ -109,7 +175,7 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
                     }
                     
                     // Recurse into all children (including $ keys like $table, $datas, etc.)
-                    walk(val, &next_path, engine, evaluations, tables, deps, value_fields, layout_paths)?;
+                    walk(val, &next_path, engine, evaluations, tables, deps, value_fields, layout_paths, dependents)?;
                 })
             }
             Value::Array(arr) => Ok(for (index, item) in arr.iter().enumerate() {
@@ -118,7 +184,7 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
                 } else {
                     format!("{path}/{index}")
                 };
-                walk(item, &next_path, engine, evaluations, tables, deps, value_fields, layout_paths)?;
+                walk(item, &next_path, engine, evaluations, tables, deps, value_fields, layout_paths, dependents)?;
             }),
             _ => Ok(()),
         }
@@ -168,6 +234,7 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
     let mut dependencies = IndexMap::new();
     let mut value_fields = Vec::new();
     let mut layout_paths = Vec::new();
+    let mut dependents_evaluations = IndexMap::new();
     
     walk(
         &lib.schema,
@@ -178,12 +245,14 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
         &mut dependencies,
         &mut value_fields,
         &mut layout_paths,
+        &mut dependents_evaluations,
     )?;
     
     lib.evaluations = evaluations;
     lib.tables = tables;
     lib.dependencies = dependencies;
     lib.layout_paths = layout_paths;
+    lib.dependents_evaluations = dependents_evaluations;
     
     // Collect table-level dependencies by aggregating all column dependencies
     collect_table_dependencies(lib);
@@ -250,11 +319,10 @@ fn categorize_evaluations(lib: &mut JSONEval) {
         }
 
         // Categorize based on path patterns
-        if eval_key.contains("/dependents/") {
-            lib.dependents_evaluations.push(eval_key.clone());
-        } else if eval_key.contains("/rules/") {
+        if eval_key.contains("/rules/") {
             lib.rules_evaluations.push(eval_key.clone());
-        } else {
+        } else if !eval_key.contains("/dependents/") {
+            // Don't add dependents to others_evaluations
             lib.others_evaluations.push(eval_key.clone());
         }
     }

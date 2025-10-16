@@ -30,10 +30,9 @@ export interface EvaluateOptions {
 }
 
 export interface EvaluateDependentsOptions {
-  changedPaths: string[];
-  data: any;
+  changedPath: string;
+  data?: any;
   context?: any;
-  nested?: boolean;
 }
 
 export interface GetEvaluatedSchemaOptions {

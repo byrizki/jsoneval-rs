@@ -46,6 +46,39 @@ pub fn normalize_to_json_pointer(path: &str) -> String {
     }
 }
 
+/// Convert dotted path to JSON Schema pointer format
+/// 
+/// This is used for schema paths where properties are nested under `/properties/`
+/// 
+/// Examples:
+/// - "illustration.insured.name" -> "#/illustration/properties/insured/properties/name"
+/// - "header.form_number" -> "#/header/properties/form_number"
+/// - "#/already/formatted" -> "#/already/formatted" (no change)
+#[inline]
+pub fn dot_notation_to_schema_pointer(path: &str) -> String {
+    // If already a JSON pointer (starts with # or /), return as-is
+    if path.starts_with('#') || path.starts_with('/') {
+        return path.to_string();
+    }
+    
+    // Split by dots and join with /properties/
+    let parts: Vec<&str> = path.split('.').collect();
+    if parts.is_empty() {
+        return "#/".to_string();
+    }
+    
+    // Build schema path: #/part1/properties/part2/properties/part3
+    let mut result = String::from("#/");
+    for (i, part) in parts.iter().enumerate() {
+        if i > 0 {
+            result.push_str("/properties/");
+        }
+        result.push_str(part);
+    }
+    
+    result
+}
+
 /// Fast JSON pointer-based value access using serde's native implementation
 /// 
 /// This is significantly faster than manual path traversal for deeply nested objects

@@ -18,7 +18,7 @@ extern "C" {
     JSONEvalHandle* json_eval_new(const char* schema, const char* context, const char* data);
     FFIResult json_eval_evaluate(JSONEvalHandle* handle, const char* data, const char* context);
     FFIResult json_eval_validate(JSONEvalHandle* handle, const char* data, const char* context);
-    FFIResult json_eval_evaluate_dependents(JSONEvalHandle* handle, const char* changed_paths_json, const char* data, const char* context, bool nested);
+    FFIResult json_eval_evaluate_dependents(JSONEvalHandle* handle, const char* changed_path, const char* data, const char* context);
     FFIResult json_eval_get_evaluated_schema(JSONEvalHandle* handle, bool skip_layout);
     FFIResult json_eval_get_schema_value(JSONEvalHandle* handle);
     FFIResult json_eval_get_evaluated_schema_without_params(JSONEvalHandle* handle, bool skip_layout);
@@ -132,26 +132,25 @@ void JsonEvalBridge::validateAsync(
 
 void JsonEvalBridge::evaluateDependentsAsync(
     const std::string& handleId,
-    const std::string& changedPathsJson,
+    const std::string& changedPath,
     const std::string& data,
     const std::string& context,
-    bool nested,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, changedPathsJson, data, context, nested]() -> std::string {
+    runAsync([handleId, changedPath, data, context]() -> std::string {
         std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
         }
         
+        const char* dataPtr = data.empty() ? nullptr : data.c_str();
         const char* ctx = context.empty() ? nullptr : context.c_str();
         FFIResult result = json_eval_evaluate_dependents(
             it->second, 
-            changedPathsJson.c_str(), 
-            data.c_str(), 
-            ctx, 
-            nested
+            changedPath.c_str(), 
+            dataPtr, 
+            ctx
         );
         
         if (!result.success) {

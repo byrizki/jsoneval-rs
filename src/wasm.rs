@@ -216,24 +216,23 @@ impl JSONEvalWasm {
         }
     }
 
-    /// Re-evaluate fields that depend on changed paths
+    /// Re-evaluate dependents when a field changes (processes transitively)
     /// 
-    /// @param changedPaths - Array of field paths that changed
-    /// @param data - Updated JSON data string
+    /// @param changedPath - Path of the field that changed
+    /// @param data - Optional updated JSON data string (null to use existing data)
     /// @param context - Optional context data JSON string
-    /// @param nested - Whether to recursively follow dependency chains
-    /// @returns Updated evaluated schema as JSON string
+    /// @returns Array of dependent change objects as JSON string
     #[wasm_bindgen(js_name = evaluateDependents)]
     pub fn evaluate_dependents(
         &mut self,
-        changed_paths: Vec<String>,
-        data: &str,
+        changed_path: &str,
+        data: Option<String>,
         context: Option<String>,
-        nested: bool,
     ) -> Result<String, JsValue> {
+        let data_str = data.as_deref();
         let ctx = context.as_deref();
         
-        match self.inner.evaluate_dependents(&changed_paths, data, ctx, nested) {
+        match self.inner.evaluate_dependents(changed_path, data_str, ctx) {
             Ok(result) => serde_json::to_string(&result)
                 .map_err(|e| JsValue::from_str(&e.to_string())),
             Err(e) => Err(JsValue::from_str(&e)),
@@ -242,22 +241,21 @@ impl JSONEvalWasm {
 
     /// Re-evaluate dependents and return as JsValue
     /// 
-    /// @param changedPaths - Array of field paths that changed
-    /// @param data - Updated JSON data string
+    /// @param changedPath - Path of the field that changed
+    /// @param data - Optional updated JSON data string (null to use existing data)
     /// @param context - Optional context data JSON string
-    /// @param nested - Whether to recursively follow dependency chains
-    /// @returns Updated evaluated schema as JavaScript object
+    /// @returns Array of dependent change objects as JavaScript object
     #[wasm_bindgen(js_name = evaluateDependentsJS)]
     pub fn evaluate_dependents_js(
         &mut self,
-        changed_paths: Vec<String>,
-        data: &str,
+        changed_path: &str,
+        data: Option<String>,
         context: Option<String>,
-        nested: bool,
     ) -> Result<JsValue, JsValue> {
+        let data_str = data.as_deref();
         let ctx = context.as_deref();
         
-        match self.inner.evaluate_dependents(&changed_paths, data, ctx, nested) {
+        match self.inner.evaluate_dependents(changed_path, data_str, ctx) {
             Ok(result) => serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&e.to_string())),
             Err(e) => Err(JsValue::from_str(&e)),

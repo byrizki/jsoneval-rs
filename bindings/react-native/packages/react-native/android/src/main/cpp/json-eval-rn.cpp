@@ -137,23 +137,21 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeEvaluateDependentsAsync(
     JNIEnv* env,
     jobject /* this */,
     jstring handle,
-    jstring changedPathsJson,
+    jstring changedPath,
     jstring data,
     jstring context,
-    jboolean nested,
     jobject promise
 ) {
     std::string handleStr = jstringToString(env, handle);
-    std::string pathsStr = jstringToString(env, changedPathsJson);
+    std::string pathStr = jstringToString(env, changedPath);
     std::string dataStr = jstringToString(env, data);
     std::string contextStr = jstringToString(env, context);
-    bool nestedBool = (nested == JNI_TRUE);
     
     JavaVM* jvm;
     env->GetJavaVM(&jvm);
     jobject globalPromise = env->NewGlobalRef(promise);
     
-    JsonEvalBridge::evaluateDependentsAsync(handleStr, pathsStr, dataStr, contextStr, nestedBool,
+    JsonEvalBridge::evaluateDependentsAsync(handleStr, pathStr, dataStr, contextStr,
         [jvm, globalPromise](const std::string& result, const std::string& error) {
             JNIEnv* env;
             jvm->AttachCurrentThread(&env, nullptr);

@@ -1,0 +1,735 @@
+{
+    "$schema": "https://raw.githubusercontent.com/QuadrantSynergyInternational/form-schema/refs/heads/main/schema.json",
+    "$params": {
+        "type": "illustration",
+        "productCode": "TEST",
+        "productName": "Test Product",
+        "productType": "TR",
+        "productTypeName": "Traditional",
+        "productFormCode": "TESTFORM",
+        "riplayTemplates": [
+            "TEST"
+        ],
+        "constants": {
+            "MAX_AGE": 100,
+            "MIN_AGE": {
+                "$evaluation": {
+                    "-": [
+                        100,
+                        {
+                            "$ref": "#/illustration/properties/insured/properties/age"
+                        }
+                    ]
+                }
+            }
+        },
+        "references": {
+            "PRODUCT_TYPES": [
+                {
+                    "TYPE": "Basic",
+                    "CODE": "B1"
+                },
+                {
+                    "TYPE": "Premium",
+                    "CODE": "P1"
+                }
+            ],
+            "PREMIUM_RATES": [
+                {
+                    "AGE": 20,
+                    "MALE_RATE": 1.5,
+                    "FEMALE_RATE": 1.2,
+                    "SMOKER_MULTIPLIER": 1.5
+                },
+                {
+                    "AGE": 30,
+                    "MALE_RATE": 2.0,
+                    "FEMALE_RATE": 1.8,
+                    "SMOKER_MULTIPLIER": 1.6
+                },
+                {
+                    "AGE": 40,
+                    "MALE_RATE": 3.5,
+                    "FEMALE_RATE": 3.0,
+                    "SMOKER_MULTIPLIER": 1.8
+                },
+                {
+                    "AGE": 50,
+                    "MALE_RATE": 5.5,
+                    "FEMALE_RATE": 4.8,
+                    "SMOKER_MULTIPLIER": 2.0
+                }
+            ],
+            "OCCUPATION_TABLE": [
+                {
+                    "OCC_CODE": "OFFICE",
+                    "OCC_DESC": "Office Worker",
+                    "OCC_CLASS": "1",
+                    "RISK_LEVEL": "Low"
+                },
+                {
+                    "OCC_CODE": "MANUAL",
+                    "OCC_DESC": "Manual Labor",
+                    "OCC_CLASS": "2",
+                    "RISK_LEVEL": "Medium"
+                },
+                {
+                    "OCC_CODE": "PROFESSIONAL",
+                    "OCC_DESC": "Professional",
+                    "OCC_CLASS": "1",
+                    "RISK_LEVEL": "Low"
+                },
+                {
+                    "OCC_CODE": "HIGH_RISK",
+                    "OCC_DESC": "High Risk Occupation",
+                    "OCC_CLASS": "3",
+                    "RISK_LEVEL": "High"
+                }
+            ]
+        }
+    },
+    "illustration": {
+        "type": "object",
+        "$layout": {
+            "type": "VerticalLayout",
+            "elements": [
+                {
+                    "$ref": "#/illustration/properties/header"
+                },
+                {
+                    "$ref": "#/illustration/properties/insured"
+                },
+                {
+                    "$ref": "#/illustration/properties/policy_container"
+                }
+            ]
+        },
+        "properties": {
+            "header": {
+                "type": "object",
+                "$layout": {
+                    "type": "FlexLayout",
+                    "template": "FormHeader",
+                    "elements": [
+                        {
+                            "$ref": "#/illustration/properties/header/properties/form_number"
+                        },
+                        {
+                            "$ref": "#/illustration/properties/header/properties/form_date"
+                        }
+                    ]
+                },
+                "properties": {
+                    "form_number": {
+                        "type": "string",
+                        "title": "Form Number",
+                        "fieldType": "textinput",
+                        "condition": {
+                            "disabled": true
+                        },
+                        "rules": {
+                            "maxLength": {
+                                "value": 15,
+                                "message": "Max 15 characters"
+                            }
+                        }
+                    },
+                    "form_date": {
+                        "type": "string",
+                        "title": "Form Date",
+                        "fieldType": "datepicker",
+                        "condition": {
+                            "disabled": true
+                        },
+                        "value": {
+                            "$evaluation": {
+                                "NOW": []
+                            }
+                        }
+                    }
+                }
+            },
+            "insured": {
+                "type": "object",
+                "title": "Insured Person",
+                "$layout": {
+                    "type": "VerticalLayout",
+                    "elements": [
+                        {
+                            "$ref": "#/illustration/properties/insured/properties/name"
+                        },
+                        {
+                            "$ref": "#/illustration/properties/insured/properties/date_of_birth"
+                        },
+                        {
+                            "$ref": "#/illustration/properties/insured/properties/age"
+                        },
+                        {
+                            "$ref": "#/illustration/properties/insured/properties/gender"
+                        },
+                        {
+                            "$ref": "#/illustration/properties/insured/properties/is_smoker"
+                        },
+                        {
+                            "$ref": "#/illustration/properties/insured/properties/occupation"
+                        },
+                        {
+                            "$ref": "#/illustration/properties/insured/properties/occupation_class"
+                        },
+                        {
+                            "$ref": "#/illustration/properties/insured/properties/risk_category"
+                        }
+                    ]
+                },
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Full Name",
+                        "fieldType": "textinput",
+                        "rules": {
+                            "required": {
+                                "value": true,
+                                "message": "Name is required"
+                            }
+                        }
+                    },
+                    "date_of_birth": {
+                        "type": "string",
+                        "title": "Date of Birth",
+                        "fieldType": "datepicker",
+                        "dependents": [
+                            {
+                                "$ref": "#/illustration/properties/insured/properties/age",
+                                "value": {
+                                    "$evaluation": {
+                                        "DATEDIF": [
+                                            {
+                                                "$ref": "$value"
+                                            },
+                                            {
+                                                "NOW": []
+                                            },
+                                            "Y"
+                                        ]
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    "age": {
+                        "type": "number",
+                        "title": "Age",
+                        "fieldType": "numberinput",
+                        "rules": {
+                            "minValue": {
+                                "value": 1,
+                                "message": "Age must be at least 1"
+                            },
+                            "maxValue": {
+                                "value": 100,
+                                "message": "Age must be at most 100"
+                            }
+                        }
+                    },
+                    "gender": {
+                        "type": "string",
+                        "title": "Gender",
+                        "fieldType": "select",
+                        "options": [
+                            {
+                                "label": "Male",
+                                "value": "M"
+                            },
+                            {
+                                "label": "Female",
+                                "value": "F"
+                            }
+                        ]
+                    },
+                    "is_smoker": {
+                        "type": "boolean",
+                        "title": "Is Smoker?",
+                        "fieldType": "checkbox",
+                        "dependents": [
+                            {
+                                "$ref": "#/illustration/properties/insured/properties/occupation",
+                                "clear": {
+                                    "$evaluation": true
+                                }
+                            },
+                            {
+                                "$ref": "#/illustration/properties/insured/properties/risk_category",
+                                "value": {
+                                    "$evaluation": {
+                                        "if": [
+                                            {
+                                                "$ref": "$value"
+                                            },
+                                            "High",
+                                            "Standard"
+                                        ]
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    "occupation": {
+                        "type": "string",
+                        "title": "Occupation",
+                        "fieldType": "select",
+                        "options": [
+                            {
+                                "label": "Office Worker",
+                                "value": "OFFICE"
+                            },
+                            {
+                                "label": "Manual Labor",
+                                "value": "MANUAL"
+                            },
+                            {
+                                "label": "Professional",
+                                "value": "PROFESSIONAL"
+                            },
+                            {
+                                "label": "High Risk",
+                                "value": "HIGH_RISK"
+                            }
+                        ],
+                        "dependents": [
+                            {
+                                "$ref": "#/illustration/properties/insured/properties/occupation_class",
+                                "value": {
+                                    "$evaluation": {
+                                        "if": [
+                                            {
+                                                "==": [
+                                                    {
+                                                        "$ref": "$value"
+                                                    },
+                                                    "OFFICE"
+                                                ]
+                                            },
+                                            "1",
+                                            {
+                                                "if": [
+                                                    {
+                                                        "==": [
+                                                            {
+                                                                "$ref": "$value"
+                                                            },
+                                                            "PROFESSIONAL"
+                                                        ]
+                                                    },
+                                                    "1",
+                                                    {
+                                                        "if": [
+                                                            {
+                                                                "==": [
+                                                                    {
+                                                                        "$ref": "$value"
+                                                                    },
+                                                                    "MANUAL"
+                                                                ]
+                                                            },
+                                                            "2",
+                                                            "3"
+                                                        ]
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    "occupation_class": {
+                        "type": "string",
+                        "title": "Occupation Class",
+                        "fieldType": "textinput",
+                        "condition": {
+                            "disabled": true
+                        },
+                        "dependents": [
+                            {
+                                "$ref": "#/illustration/properties/insured/properties/risk_category",
+                                "value": {
+                                    "$evaluation": {
+                                        "if": [
+                                            {
+                                                "==": [
+                                                    {
+                                                        "$ref": "$value"
+                                                    },
+                                                    "1"
+                                                ]
+                                            },
+                                            "Low",
+                                            {
+                                                "if": [
+                                                    {
+                                                        "==": [
+                                                            {
+                                                                "$ref": "$value"
+                                                            },
+                                                            "2"
+                                                        ]
+                                                    },
+                                                    "Medium",
+                                                    "High"
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    "risk_category": {
+                        "type": "string",
+                        "title": "Risk Category",
+                        "fieldType": "textinput",
+                        "condition": {
+                            "disabled": true
+                        }
+                    }
+                }
+            },
+            "policy_container": {
+                "type": "object",
+                "title": "Policy Details",
+                "$layout": {
+                    "type": "VerticalLayout",
+                    "elements": [
+                        {
+                            "$ref": "#/illustration/properties/policy_container/properties/has_additional_coverage"
+                        },
+                        {
+                            "$ref": "#/illustration/properties/policy_container/properties/coverage_type"
+                        },
+                        {
+                            "$ref": "#/illustration/properties/policy_container/properties/coverage_details"
+                        }
+                    ]
+                },
+                "properties": {
+                    "has_additional_coverage": {
+                        "type": "boolean",
+                        "title": "Add Additional Coverage?",
+                        "fieldType": "checkbox",
+                        "dependents": [
+                            {
+                                "$ref": "#/illustration/properties/policy_container/properties/coverage_type",
+                                "clear": {
+                                    "$evaluation": {
+                                        "if": [
+                                            {
+                                                "==": [
+                                                    {
+                                                        "$ref": "$value"
+                                                    },
+                                                    false
+                                                ]
+                                            },
+                                            true,
+                                            false
+                                        ]
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    "coverage_type": {
+                        "type": "string",
+                        "title": "Coverage Type",
+                        "fieldType": "select",
+                        "options": [
+                            {
+                                "label": "Standard Coverage",
+                                "value": "STANDARD"
+                            },
+                            {
+                                "label": "Premium Coverage",
+                                "value": "PREMIUM"
+                            },
+                            {
+                                "label": "Custom Coverage",
+                                "value": "CUSTOM"
+                            }
+                        ],
+                        "condition": {
+                            "hidden": {
+                                "$evaluation": {
+                                    "!=": [
+                                        {
+                                            "$ref": "#/illustration/properties/policy_container/properties/has_additional_coverage"
+                                        },
+                                        true
+                                    ]
+                                }
+                            },
+                            "disabled": {
+                                "$evaluation": {
+                                    "or": [
+                                        {
+                                            "ISEMPTY": [
+                                                {
+                                                    "$ref": "#/illustration/properties/policy_container/properties/has_additional_coverage"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "==": [
+                                                {
+                                                    "$ref": "#/illustration/properties/policy_container/properties/has_additional_coverage"
+                                                },
+                                                false
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "dependents": [
+                            {
+                                "$ref": "#/illustration/properties/policy_container/properties/coverage_details",
+                                "clear": {
+                                    "$evaluation": true
+                                }
+                            }
+                        ]
+                    },
+                    "coverage_details": {
+                        "type": "object",
+                        "title": "Coverage Details",
+                        "$layout": {
+                            "type": "VerticalLayout",
+                            "elements": [
+                                {
+                                    "$ref": "#/illustration/properties/policy_container/properties/coverage_details/properties/sum_assured"
+                                },
+                                {
+                                    "$ref": "#/illustration/properties/policy_container/properties/coverage_details/properties/premium_amount"
+                                },
+                                {
+                                    "$ref": "#/illustration/properties/policy_container/properties/coverage_details/properties/custom_options"
+                                }
+                            ]
+                        },
+                        "condition": {
+                            "hidden": {
+                                "$evaluation": {
+                                    "or": [
+                                        {
+                                            "ISEMPTY": [
+                                                {
+                                                    "$ref": "#/illustration/properties/policy_container/properties/coverage_type"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "!=": [
+                                                {
+                                                    "$ref": "#/illustration/properties/policy_container/properties/has_additional_coverage"
+                                                },
+                                                true
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "properties": {
+                            "sum_assured": {
+                                "type": "number",
+                                "title": "Sum Assured",
+                                "fieldType": "numberinput",
+                                "condition": {
+                                    "disabled": {
+                                        "$evaluation": {
+                                            "or": [
+                                                {
+                                                    "ISEMPTY": [
+                                                        {
+                                                            "$ref": "#/illustration/properties/policy_container/properties/coverage_type"
+                                                        }
+                                                    ]
+                                                },
+                                                {
+                                                    "!=": [
+                                                        {
+                                                            "$ref": "#/illustration/properties/policy_container/properties/has_additional_coverage"
+                                                        },
+                                                        true
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    }
+                                },
+                                "dependents": [
+                                    {
+                                        "$ref": "#/illustration/properties/policy_container/properties/coverage_details/properties/premium_amount",
+                                        "value": {
+                                            "$evaluation": {
+                                                "*": [
+                                                    {
+                                                        "$ref": "$value"
+                                                    },
+                                                    0.05
+                                                ]
+                                            }
+                                        }
+                                    }
+                                ]
+                            },
+                            "premium_amount": {
+                                "type": "number",
+                                "title": "Premium Amount",
+                                "fieldType": "numberinput",
+                                "condition": {
+                                    "disabled": true,
+                                    "hidden": {
+                                        "$evaluation": {
+                                            "or": [
+                                                {
+                                                    "ISEMPTY": [
+                                                        {
+                                                            "$ref": "#/illustration/properties/policy_container/properties/coverage_type"
+                                                        }
+                                                    ]
+                                                },
+                                                {
+                                                    "ISEMPTY": [
+                                                        {
+                                                            "$ref": "#/illustration/properties/policy_container/properties/coverage_details/properties/sum_assured"
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            },
+                            "custom_options": {
+                                "type": "object",
+                                "title": "Custom Options",
+                                "$layout": {
+                                    "type": "VerticalLayout",
+                                    "elements": [
+                                        {
+                                            "$ref": "#/illustration/properties/policy_container/properties/coverage_details/properties/custom_options/properties/option_a"
+                                        },
+                                        {
+                                            "$ref": "#/illustration/properties/policy_container/properties/coverage_details/properties/custom_options/properties/option_b"
+                                        }
+                                    ]
+                                },
+                                "condition": {
+                                    "hidden": {
+                                        "$evaluation": {
+                                            "!=": [
+                                                {
+                                                    "$ref": "#/illustration/properties/policy_container/properties/coverage_type"
+                                                },
+                                                "CUSTOM"
+                                            ]
+                                        }
+                                    }
+                                },
+                                "properties": {
+                                    "option_a": {
+                                        "type": "string",
+                                        "title": "Custom Option A",
+                                        "fieldType": "textinput",
+                                        "condition": {
+                                            "disabled": {
+                                                "$evaluation": {
+                                                    "or": [
+                                                        {
+                                                            "!=": [
+                                                                {
+                                                                    "$ref": "#/illustration/properties/policy_container/properties/coverage_type"
+                                                                },
+                                                                "CUSTOM"
+                                                            ]
+                                                        },
+                                                        {
+                                                            "!=": [
+                                                                {
+                                                                    "$ref": "#/illustration/properties/policy_container/properties/has_additional_coverage"
+                                                                },
+                                                                true
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "option_b": {
+                                        "type": "boolean",
+                                        "title": "Enable Option B",
+                                        "fieldType": "checkbox",
+                                        "condition": {
+                                            "hidden": {
+                                                "$evaluation": {
+                                                    "or": [
+                                                        {
+                                                            "!=": [
+                                                                {
+                                                                    "$ref": "#/illustration/properties/policy_container/properties/coverage_type"
+                                                                },
+                                                                "CUSTOM"
+                                                            ]
+                                                        },
+                                                        {
+                                                            "ISEMPTY": [
+                                                                {
+                                                                    "$ref": "#/illustration/properties/policy_container/properties/coverage_details/properties/custom_options/properties/option_a"
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            },
+                                            "disabled": {
+                                                "$evaluation": {
+                                                    "or": [
+                                                        {
+                                                            "!=": [
+                                                                {
+                                                                    "$ref": "#/illustration/properties/policy_container/properties/coverage_type"
+                                                                },
+                                                                "CUSTOM"
+                                                            ]
+                                                        },
+                                                        {
+                                                            "ISEMPTY": [
+                                                                {
+                                                                    "$ref": "#/illustration/properties/policy_container/properties/coverage_details/properties/custom_options/properties/option_a"
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "!=": [
+                                                                {
+                                                                    "$ref": "#/illustration/properties/policy_container/properties/has_additional_coverage"
+                                                                },
+                                                                true
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

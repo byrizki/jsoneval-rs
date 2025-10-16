@@ -55,20 +55,18 @@ public:
     );
 
     /**
-     * Evaluate dependents (async)
+     * Evaluate dependents (async) - processes transitively
      * @param handle Instance handle
-     * @param changedPathsJson JSON array of changed paths
-     * @param data JSON data string
+     * @param changedPath Single field path that changed
+     * @param data Optional updated JSON data string (empty to use existing)
      * @param context Optional context data
-     * @param nested Whether to follow nested dependencies
      * @param callback Result callback
      */
     static void evaluateDependentsAsync(
         const std::string& handle,
-        const std::string& changedPathsJson,
+        const std::string& changedPath,
         const std::string& data,
         const std::string& context,
-        bool nested,
         std::function<void(const std::string&, const std::string&)> callback
     );
 

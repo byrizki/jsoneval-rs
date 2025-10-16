@@ -81,19 +81,18 @@ RCT_EXPORT_METHOD(validate:(NSString *)handle
 }
 
 RCT_EXPORT_METHOD(evaluateDependents:(NSString *)handle
-                  changedPaths:(NSArray *)changedPaths
+                  changedPath:(NSString *)changedPath
                   data:(NSString *)data
                   context:(NSString *)context
-                  nested:(BOOL)nested
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 {
     std::string handleStr = [self stdStringFromNSString:handle];
-    std::string pathsJson = [self stdStringFromNSString:[self arrayToJsonString:changedPaths]];
+    std::string pathStr = [self stdStringFromNSString:changedPath];
     std::string dataStr = [self stdStringFromNSString:data];
     std::string contextStr = [self stdStringFromNSString:context];
     
-    JsonEvalBridge::evaluateDependentsAsync(handleStr, pathsJson, dataStr, contextStr, nested,
+    JsonEvalBridge::evaluateDependentsAsync(handleStr, pathStr, dataStr, contextStr,
         [resolve, reject](const std::string& result, const std::string& error) {
             if (error.empty()) {
                 resolve([NSString stringWithUTF8String:result.c_str()]);
