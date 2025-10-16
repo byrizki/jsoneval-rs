@@ -240,6 +240,12 @@ jobs:
           i686-linux-android \
           x86_64-linux-android
     
+    - name: Add NDK toolchain to PATH
+      run: |
+        NDK_HOME="${{ steps.setup-ndk.outputs.ndk-path }}"
+        echo "$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
+        echo "NDK toolchain added to PATH"
+    
     - name: Cache cargo build
       uses: actions/cache@v4
       with:
