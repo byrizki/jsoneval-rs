@@ -311,9 +311,9 @@ namespace JsonEvalRs
                 try
                 {
 #if NETCOREAPP || NET5_0_OR_GREATER
-                    return Marshal.PtrToStringUTF8(ptr);
+                    return Marshal.PtrToStringUTF8(ptr) ?? "unknown";
 #else
-                    return Native.PtrToStringUTF8(ptr);
+                    return Native.PtrToStringUTF8(ptr) ?? "unknown";
 #endif
                 }
                 finally
@@ -329,7 +329,7 @@ namespace JsonEvalRs
         /// <param name="schema">JSON schema string</param>
         /// <param name="context">Optional context data (can be null)</param>
         /// <param name="data">Optional initial data (can be null)</param>
-        public JSONEval(string schema, string context = null, string data = null)
+        public JSONEval(string schema, string? context = null, string? data = null)
         {
             if (string.IsNullOrEmpty(schema))
                 throw new ArgumentNullException(nameof(schema));
@@ -389,7 +389,7 @@ namespace JsonEvalRs
         /// <param name="data">JSON data string</param>
         /// <param name="context">Optional context data</param>
         /// <returns>Evaluated schema as JObject</returns>
-        public JObject Evaluate(string data, string context = null)
+        public JObject Evaluate(string data, string? context = null)
         {
             ThrowIfDisposed();
 
@@ -410,7 +410,7 @@ namespace JsonEvalRs
         /// <param name="data">JSON data string</param>
         /// <param name="context">Optional context data</param>
         /// <returns>ValidationResult</returns>
-        public ValidationResult Validate(string data, string context = null)
+        public ValidationResult Validate(string data, string? context = null)
         {
             ThrowIfDisposed();
 
@@ -435,7 +435,7 @@ namespace JsonEvalRs
         /// <param name="nested">Whether to recursively follow dependency chains</param>
         /// <returns>Updated evaluated schema as JObject</returns>
         public JObject EvaluateDependents(List<string> changedPaths, string data, 
-            string context = null, bool nested = true)
+            string? context = null, bool nested = true)
         {
             ThrowIfDisposed();
 
@@ -483,7 +483,7 @@ namespace JsonEvalRs
         /// <param name="schema">New JSON schema string</param>
         /// <param name="context">Optional context data</param>
         /// <param name="data">Optional initial data</param>
-        public void ReloadSchema(string schema, string context = null, string data = null)
+        public void ReloadSchema(string schema, string? context = null, string? data = null)
         {
             ThrowIfDisposed();
 
@@ -595,7 +595,7 @@ namespace JsonEvalRs
         /// <param name="context">Optional context data</param>
         /// <param name="paths">Optional list of paths to validate (null for all)</param>
         /// <returns>ValidationResult</returns>
-        public ValidationResult ValidatePaths(string data, string context = null, List<string> paths = null)
+        public ValidationResult ValidatePaths(string data, string? context = null, List<string>? paths = null)
         {
             ThrowIfDisposed();
 
