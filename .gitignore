@@ -7,3 +7,10 @@ samples
 pkg
 node_modules
 !bindings/web/packages/bundler/*
+bin
+obj
+.next
+build
+.cxx
+*.so
+*.a
