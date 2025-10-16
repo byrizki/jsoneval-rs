@@ -40,6 +40,11 @@ export interface GetEvaluatedSchemaOptions {
   skipLayout?: boolean;
 }
 
+export interface GetValueByPathOptions {
+  path: string;
+  skipLayout?: boolean;
+}
+
 export interface ReloadSchemaOptions {
   schema: any;
   context?: any;
@@ -60,6 +65,8 @@ export class JSONEval {
   evaluateDependents(options: EvaluateDependentsOptions): Promise<any>;
   getEvaluatedSchema(options?: GetEvaluatedSchemaOptions): Promise<any>;
   getSchemaValue(): Promise<any>;
+  getEvaluatedSchemaWithoutParams(options?: GetEvaluatedSchemaOptions): Promise<any>;
+  getValueByPath(options: GetValueByPathOptions): Promise<any | null>;
   reloadSchema(options: ReloadSchemaOptions): Promise<void>;
   cacheStats(): Promise<CacheStats>;
   clearCache(): Promise<void>;

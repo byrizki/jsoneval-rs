@@ -383,6 +383,56 @@ impl JSONEval {
         clean_float_noise(self.data.clone())
     }
 
+    /// Get the evaluated schema without $params field.
+    /// This method filters out $params from the root level only.
+    ///
+    /// # Arguments
+    ///
+    /// * `skip_layout` - Whether to skip layout resolution.
+    ///
+    /// # Returns
+    ///
+    /// The evaluated schema with $params removed.
+    pub fn get_evaluated_schema_without_params(&mut self, skip_layout: bool) -> Value {
+        if !skip_layout {
+            self.resolve_layout();
+        }
+        
+        // Filter $params at root level only
+        if let Value::Object(mut map) = self.evaluated_schema.clone() {
+            map.remove("$params");
+            Value::Object(map)
+        } else {
+            self.evaluated_schema.clone()
+        }
+    }
+
+    /// Get a value from the evaluated schema using dotted path notation.
+    /// Converts dotted notation (e.g., "properties.field.value") to JSON pointer format.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The dotted path to the value (e.g., "properties.field.value")
+    /// * `skip_layout` - Whether to skip layout resolution.
+    ///
+    /// # Returns
+    ///
+    /// The value at the specified path, or None if not found.
+    pub fn get_value_by_path(&mut self, path: &str, skip_layout: bool) -> Option<Value> {
+        if !skip_layout {
+            self.resolve_layout();
+        }
+        
+        // Convert dotted notation to JSON pointer
+        let pointer = if path.is_empty() {
+            "".to_string()
+        } else {
+            format!("/{}", path.replace(".", "/"))
+        };
+        
+        self.evaluated_schema.pointer(&pointer).cloned()
+    }
+
     /// Check if a dependency should be cached
     /// Caches everything except keys starting with $ (except $context)
     #[inline]
@@ -654,9 +704,11 @@ impl JSONEval {
     
     /// Resolve $ref references in layout elements (recursively)
     fn resolve_layout_elements(&mut self, layout_elements_path: &str) {
-        // Extract elements array to avoid borrow checker issues
-        let elements = if let Some(Value::Array(arr)) = self.evaluated_schema.pointer_mut(layout_elements_path) {
-            mem::take(arr)
+        // Always read elements from original schema (not evaluated_schema)
+        // This ensures we get fresh $ref entries on re-evaluation
+        // since evaluated_schema elements get mutated to objects after first resolution
+        let elements = if let Some(Value::Array(arr)) = self.schema.pointer(layout_elements_path) {
+            arr.clone()
         } else {
             return;
         };

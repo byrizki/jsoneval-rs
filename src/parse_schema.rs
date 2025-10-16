@@ -250,7 +250,7 @@ fn categorize_evaluations(lib: &mut JSONEval) {
         }
 
         // Categorize based on path patterns
-        if eval_key.contains("dependents") {
+        if eval_key.contains("/dependents/") {
             lib.dependents_evaluations.push(eval_key.clone());
         } else if eval_key.contains("/rules/") {
             lib.rules_evaluations.push(eval_key.clone());

@@ -406,6 +406,63 @@ pub unsafe extern "C" fn json_eval_get_schema_value(
     FFIResult::success(result_str)
 }
 
+/// Get the evaluated schema without $params field
+/// 
+/// # Safety
+/// 
+/// - handle must be a valid pointer from json_eval_new
+/// - Caller must call json_eval_free_result when done
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_get_evaluated_schema_without_params(
+    handle: *mut JSONEvalHandle,
+    skip_layout: bool,
+) -> FFIResult {
+    if handle.is_null() {
+        return FFIResult::error("Invalid handle pointer".to_string());
+    }
+
+    let eval = &mut (*handle).inner;
+    let result = eval.get_evaluated_schema_without_params(skip_layout);
+    let result_str = serde_json::to_string(&result).unwrap_or_default();
+    
+    FFIResult::success(result_str)
+}
+
+/// Get a value from the evaluated schema using dotted path notation
+/// 
+/// # Safety
+/// 
+/// - handle must be a valid pointer from json_eval_new
+/// - path must be a valid null-terminated UTF-8 string (dotted notation)
+/// - Caller must call json_eval_free_result when done
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_get_value_by_path(
+    handle: *mut JSONEvalHandle,
+    path: *const c_char,
+    skip_layout: bool,
+) -> FFIResult {
+    if handle.is_null() || path.is_null() {
+        return FFIResult::error("Invalid handle or path pointer".to_string());
+    }
+
+    let eval = &mut (*handle).inner;
+
+    let path_str = match CStr::from_ptr(path).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            return FFIResult::error("Invalid UTF-8 in path".to_string())
+        }
+    };
+
+    match eval.get_value_by_path(path_str, skip_layout) {
+        Some(value) => {
+            let result_str = serde_json::to_string(&value).unwrap_or_default();
+            FFIResult::success(result_str)
+        }
+        None => FFIResult::error("Path not found".to_string()),
+    }
+}
+
 /// Free an FFIResult
 /// 
 /// # Safety

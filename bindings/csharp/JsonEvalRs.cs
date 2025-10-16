@@ -200,7 +200,20 @@ namespace JsonEvalRs
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_get_schema_value(IntPtr handle);
 
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_get_evaluated_schema_without_params(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.I1)] bool skipLayout
+        );
+
 #if NETCOREAPP || NET5_0_OR_GREATER
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_get_value_by_path(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string path,
+            [MarshalAs(UnmanagedType.I1)] bool skipLayout
+        );
+
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_reload_schema(
             IntPtr handle,
@@ -217,6 +230,13 @@ namespace JsonEvalRs
             [MarshalAs(UnmanagedType.LPUTF8Str)] string? pathsJson
         );
 #else
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_get_value_by_path(
+            IntPtr handle,
+            byte[]? path,
+            [MarshalAs(UnmanagedType.I1)] bool skipLayout
+        );
+
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_reload_schema(
             IntPtr handle,
@@ -481,6 +501,66 @@ namespace JsonEvalRs
             ThrowIfDisposed();
             var result = Native.json_eval_get_schema_value(_handle);
             return ProcessResult(result);
+        }
+
+        /// <summary>
+        /// Gets the evaluated schema without $params field
+        /// </summary>
+        /// <param name="skipLayout">Whether to skip layout resolution</param>
+        /// <returns>Evaluated schema as JObject</returns>
+        public JObject GetEvaluatedSchemaWithoutParams(bool skipLayout = false)
+        {
+            ThrowIfDisposed();
+            var result = Native.json_eval_get_evaluated_schema_without_params(_handle, skipLayout);
+            return ProcessResult(result);
+        }
+
+        /// <summary>
+        /// Gets a value from the evaluated schema using dotted path notation
+        /// </summary>
+        /// <param name="path">Dotted path to the value (e.g., "properties.field.value")</param>
+        /// <param name="skipLayout">Whether to skip layout resolution</param>
+        /// <returns>Value as JToken, or null if not found</returns>
+        public JToken? GetValueByPath(string path, bool skipLayout = false)
+        {
+            ThrowIfDisposed();
+
+            if (string.IsNullOrEmpty(path))
+                throw new ArgumentNullException(nameof(path));
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+            var result = Native.json_eval_get_value_by_path(_handle, path, skipLayout);
+#else
+            var result = Native.json_eval_get_value_by_path(_handle, Native.ToUTF8Bytes(path), skipLayout);
+#endif
+            
+            if (!result.Success)
+            {
+                // Path not found - return null instead of throwing
+                Native.json_eval_free_result(result);
+                return null;
+            }
+
+            try
+            {
+                if (result.Data == IntPtr.Zero)
+                    return null;
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+                string json = Marshal.PtrToStringUTF8(result.Data);
+#else
+                string json = Native.PtrToStringUTF8(result.Data);
+#endif
+                
+                if (string.IsNullOrWhiteSpace(json))
+                    return null;
+
+                return JToken.Parse(json);
+            }
+            finally
+            {
+                Native.json_eval_free_result(result);
+            }
         }
 
         /// <summary>

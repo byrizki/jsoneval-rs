@@ -296,6 +296,52 @@ impl JSONEvalWasm {
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
+    /// Get the evaluated schema without $params field
+    /// 
+    /// @param skipLayout - Whether to skip layout resolution
+    /// @returns Evaluated schema as JSON string
+    #[wasm_bindgen(js_name = getEvaluatedSchemaWithoutParams)]
+    pub fn get_evaluated_schema_without_params(&mut self, skip_layout: bool) -> String {
+        let result = self.inner.get_evaluated_schema_without_params(skip_layout);
+        serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    /// Get the evaluated schema without $params as JavaScript object
+    /// 
+    /// @param skipLayout - Whether to skip layout resolution
+    /// @returns Evaluated schema as JavaScript object
+    #[wasm_bindgen(js_name = getEvaluatedSchemaWithoutParamsJS)]
+    pub fn get_evaluated_schema_without_params_js(&mut self, skip_layout: bool) -> Result<JsValue, JsValue> {
+        let result = self.inner.get_evaluated_schema_without_params(skip_layout);
+        serde_wasm_bindgen::to_value(&result)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Get a value from the evaluated schema using dotted path notation
+    /// 
+    /// @param path - Dotted path to the value (e.g., "properties.field.value")
+    /// @param skipLayout - Whether to skip layout resolution
+    /// @returns Value as JSON string or null if not found
+    #[wasm_bindgen(js_name = getValueByPath)]
+    pub fn get_value_by_path(&mut self, path: &str, skip_layout: bool) -> Option<String> {
+        self.inner.get_value_by_path(path, skip_layout)
+            .map(|v| serde_json::to_string(&v).unwrap_or_else(|_| "null".to_string()))
+    }
+
+    /// Get a value from the evaluated schema using dotted path notation as JavaScript object
+    /// 
+    /// @param path - Dotted path to the value (e.g., "properties.field.value")
+    /// @param skipLayout - Whether to skip layout resolution
+    /// @returns Value as JavaScript object or null if not found
+    #[wasm_bindgen(js_name = getValueByPathJS)]
+    pub fn get_value_by_path_js(&mut self, path: &str, skip_layout: bool) -> Result<JsValue, JsValue> {
+        match self.inner.get_value_by_path(path, skip_layout) {
+            Some(value) => serde_wasm_bindgen::to_value(&value)
+                .map_err(|e| JsValue::from_str(&e.to_string())),
+            None => Ok(JsValue::NULL),
+        }
+    }
+
     /// Reload schema with new data
     /// 
     /// @param schema - New JSON schema string

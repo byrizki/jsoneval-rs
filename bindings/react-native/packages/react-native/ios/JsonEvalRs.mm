@@ -139,6 +139,44 @@ RCT_EXPORT_METHOD(getSchemaValue:(NSString *)handle
     );
 }
 
+RCT_EXPORT_METHOD(getEvaluatedSchemaWithoutParams:(NSString *)handle
+                  skipLayout:(BOOL)skipLayout
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    
+    JsonEvalBridge::getEvaluatedSchemaWithoutParamsAsync(handleStr, skipLayout,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"GET_SCHEMA_WITHOUT_PARAMS_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_METHOD(getValueByPath:(NSString *)handle
+                  path:(NSString *)path
+                  skipLayout:(BOOL)skipLayout
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    std::string pathStr = [self stdStringFromNSString:path];
+    
+    JsonEvalBridge::getValueByPathAsync(handleStr, pathStr, skipLayout,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"GET_VALUE_BY_PATH_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
 RCT_EXPORT_METHOD(reloadSchema:(NSString *)handle
                   schema:(NSString *)schema
                   context:(NSString *)context

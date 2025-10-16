@@ -266,6 +266,31 @@ export class JSONEval {
   }
 
   /**
+   * Get the evaluated schema without $params field
+   * @param skipLayout - Whether to skip layout resolution (default: false)
+   * @returns Promise resolving to evaluated schema object
+   * @throws {Error} If operation fails
+   */
+  async getEvaluatedSchemaWithoutParams(skipLayout: boolean = false): Promise<any> {
+    this.throwIfDisposed();
+    const resultStr = await JsonEvalRs.getEvaluatedSchemaWithoutParams(this.handle, skipLayout);
+    return JSON.parse(resultStr);
+  }
+
+  /**
+   * Get a value from the evaluated schema using dotted path notation
+   * @param path - Dotted path to the value (e.g., "properties.field.value")
+   * @param skipLayout - Whether to skip layout resolution (default: false)
+   * @returns Promise resolving to the value at the path, or null if not found
+   * @throws {Error} If operation fails
+   */
+  async getValueByPath(path: string, skipLayout: boolean = false): Promise<any | null> {
+    this.throwIfDisposed();
+    const resultStr = await JsonEvalRs.getValueByPath(this.handle, path, skipLayout);
+    return resultStr ? JSON.parse(resultStr) : null;
+  }
+
+  /**
    * Reload schema with new data
    * @param options - Configuration options with new schema, context, and data
    * @throws {Error} If reload fails

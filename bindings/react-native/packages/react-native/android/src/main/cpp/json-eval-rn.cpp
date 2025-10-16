@@ -233,6 +233,70 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeGetSchemaValueAsync(
 }
 
 JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedSchemaWithoutParamsAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jboolean skipLayout,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    
+    JavaVM* jvm;
+    env->GetJavaVM(&jvm);
+    jobject globalPromise = env->NewGlobalRef(promise);
+    
+    JsonEvalBridge::getEvaluatedSchemaWithoutParamsAsync(handleStr, skipLayout,
+        [jvm, globalPromise](const std::string& result, const std::string& error) {
+            JNIEnv* env;
+            jvm->AttachCurrentThread(&env, nullptr);
+            
+            if (error.empty()) {
+                resolvePromise(env, globalPromise, result);
+            } else {
+                rejectPromise(env, globalPromise, "GET_SCHEMA_WITHOUT_PARAMS_ERROR", error);
+            }
+            
+            env->DeleteGlobalRef(globalPromise);
+            jvm->DetachCurrentThread();
+        }
+    );
+}
+
+JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeGetValueByPathAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jstring path,
+    jboolean skipLayout,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    std::string pathStr = jstringToString(env, path);
+    
+    JavaVM* jvm;
+    env->GetJavaVM(&jvm);
+    jobject globalPromise = env->NewGlobalRef(promise);
+    
+    JsonEvalBridge::getValueByPathAsync(handleStr, pathStr, skipLayout,
+        [jvm, globalPromise](const std::string& result, const std::string& error) {
+            JNIEnv* env;
+            jvm->AttachCurrentThread(&env, nullptr);
+            
+            if (error.empty()) {
+                resolvePromise(env, globalPromise, result);
+            } else {
+                rejectPromise(env, globalPromise, "GET_VALUE_BY_PATH_ERROR", error);
+            }
+            
+            env->DeleteGlobalRef(globalPromise);
+            jvm->DetachCurrentThread();
+        }
+    );
+}
+
+JNIEXPORT void JNICALL
 Java_com_jsonevalrs_JsonEvalRsModule_nativeReloadSchemaAsync(
     JNIEnv* env,
     jobject /* this */,

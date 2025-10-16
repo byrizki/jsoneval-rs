@@ -21,6 +21,8 @@ extern "C" {
     FFIResult json_eval_evaluate_dependents(JSONEvalHandle* handle, const char* changed_paths_json, const char* data, const char* context, bool nested);
     FFIResult json_eval_get_evaluated_schema(JSONEvalHandle* handle, bool skip_layout);
     FFIResult json_eval_get_schema_value(JSONEvalHandle* handle);
+    FFIResult json_eval_get_evaluated_schema_without_params(JSONEvalHandle* handle, bool skip_layout);
+    FFIResult json_eval_get_value_by_path(JSONEvalHandle* handle, const char* path, bool skip_layout);
     FFIResult json_eval_reload_schema(JSONEvalHandle* handle, const char* schema, const char* context, const char* data);
     FFIResult json_eval_cache_stats(JSONEvalHandle* handle);
     FFIResult json_eval_clear_cache(JSONEvalHandle* handle);
@@ -210,6 +212,59 @@ void JsonEvalBridge::getSchemaValueAsync(
         }
         
         std::string resultStr = result.data ? result.data : "{}";
+        json_eval_free_result(result);
+        return resultStr;
+    }, callback);
+}
+
+void JsonEvalBridge::getEvaluatedSchemaWithoutParamsAsync(
+    const std::string& handleId,
+    bool skipLayout,
+    std::function<void(const std::string&, const std::string&)> callback
+) {
+    runAsync([handleId, skipLayout]() -> std::string {
+        std::lock_guard<std::mutex> lock(handlesMutex);
+        auto it = handles.find(handleId);
+        if (it == handles.end()) {
+            throw std::runtime_error("Invalid handle");
+        }
+        
+        FFIResult result = json_eval_get_evaluated_schema_without_params(it->second, skipLayout);
+        
+        if (!result.success) {
+            std::string error = result.error ? result.error : "Unknown error";
+            json_eval_free_result(result);
+            throw std::runtime_error(error);
+        }
+        
+        std::string resultStr = result.data ? result.data : "{}";
+        json_eval_free_result(result);
+        return resultStr;
+    }, callback);
+}
+
+void JsonEvalBridge::getValueByPathAsync(
+    const std::string& handleId,
+    const std::string& path,
+    bool skipLayout,
+    std::function<void(const std::string&, const std::string&)> callback
+) {
+    runAsync([handleId, path, skipLayout]() -> std::string {
+        std::lock_guard<std::mutex> lock(handlesMutex);
+        auto it = handles.find(handleId);
+        if (it == handles.end()) {
+            throw std::runtime_error("Invalid handle");
+        }
+        
+        FFIResult result = json_eval_get_value_by_path(it->second, path.c_str(), skipLayout);
+        
+        if (!result.success) {
+            std::string error = result.error ? result.error : "Unknown error";
+            json_eval_free_result(result);
+            throw std::runtime_error(error);
+        }
+        
+        std::string resultStr = result.data ? result.data : "null";
         json_eval_free_result(result);
         return resultStr;
     }, callback);

@@ -84,6 +84,25 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun getEvaluatedSchemaWithoutParams(
+        handle: String,
+        skipLayout: Boolean,
+        promise: Promise
+    ) {
+        nativeGetEvaluatedSchemaWithoutParamsAsync(handle, skipLayout, promise)
+    }
+
+    @ReactMethod
+    fun getValueByPath(
+        handle: String,
+        path: String,
+        skipLayout: Boolean,
+        promise: Promise
+    ) {
+        nativeGetValueByPathAsync(handle, path, skipLayout, promise)
+    }
+
+    @ReactMethod
     fun reloadSchema(
         handle: String,
         schema: String,
@@ -174,6 +193,8 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     )
     private external fun nativeGetEvaluatedSchemaAsync(handle: String, skipLayout: Boolean, promise: Promise)
     private external fun nativeGetSchemaValueAsync(handle: String, promise: Promise)
+    private external fun nativeGetEvaluatedSchemaWithoutParamsAsync(handle: String, skipLayout: Boolean, promise: Promise)
+    private external fun nativeGetValueByPathAsync(handle: String, path: String, skipLayout: Boolean, promise: Promise)
     private external fun nativeReloadSchemaAsync(handle: String, schema: String, context: String, data: String, promise: Promise)
     private external fun nativeCacheStatsAsync(handle: String, promise: Promise)
     private external fun nativeClearCacheAsync(handle: String, promise: Promise)

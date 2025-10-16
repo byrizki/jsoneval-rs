@@ -155,6 +155,29 @@ export class JSONEvalCore {
   }
 
   /**
+   * Get evaluated schema without $params field
+   * @param {object} [options]
+   * @param {boolean} [options.skipLayout=false] - Skip layout resolution
+   * @returns {Promise<any>}
+   */
+  async getEvaluatedSchemaWithoutParams({ skipLayout = false } = {}) {
+    await this.init();
+    return this._instance.getEvaluatedSchemaWithoutParamsJS(skipLayout);
+  }
+
+  /**
+   * Get a value from the evaluated schema using dotted path notation
+   * @param {object} options
+   * @param {string} options.path - Dotted path to the value (e.g., "properties.field.value")
+   * @param {boolean} [options.skipLayout=false] - Skip layout resolution
+   * @returns {Promise<any|null>} Value at the path, or null if not found
+   */
+  async getValueByPath({ path, skipLayout = false }) {
+    await this.init();
+    return this._instance.getValueByPathJS(path, skipLayout);
+  }
+
+  /**
    * Reload schema with new data
    * @param {object} options
    * @param {object} options.schema - New JSON schema

@@ -95,6 +95,32 @@ public:
     );
 
     /**
+     * Get evaluated schema without $params field (async)
+     * @param handle Instance handle
+     * @param skipLayout Whether to skip layout resolution
+     * @param callback Result callback
+     */
+    static void getEvaluatedSchemaWithoutParamsAsync(
+        const std::string& handle,
+        bool skipLayout,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Get a value from evaluated schema using dotted path notation (async)
+     * @param handle Instance handle
+     * @param path Dotted path to the value (e.g., "properties.field.value")
+     * @param skipLayout Whether to skip layout resolution
+     * @param callback Result callback
+     */
+    static void getValueByPathAsync(
+        const std::string& handle,
+        const std::string& path,
+        bool skipLayout,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
      * Reload schema (async)
      * @param handle Instance handle
      * @param schema New JSON schema string
