@@ -60,7 +60,7 @@ git push origin main
 ### 2. `publish.yml` - Publish Packages
 
 **Triggers:**
-- Push tags matching `v*.*.*` (e.g., v0.0.2)
+- Push tags matching `v*.*.*` (e.g., v0.0.1)
 - Manual dispatch with selective publishing
 
 **Jobs:**
@@ -90,8 +90,8 @@ git push origin main
 #    - bindings/react-native/package.json
 
 # 2. Create and push tag
-git tag v0.0.2
-git push origin v0.0.2
+git tag v0.0.1
+git push origin v0.0.1
 
 # Workflow automatically publishes all packages
 ```
@@ -164,7 +164,7 @@ Before publishing, configure these secrets in your GitHub repository:
    
    # Commit changes
    git add -A
-   git commit -m "Release v0.0.2"
+   git commit -m "Release v0.0.1"
    git push origin main
    ```
 
@@ -176,8 +176,8 @@ Before publishing, configure these secrets in your GitHub repository:
 
 3. **Create Release Tag**
    ```bash
-   git tag -a v0.0.2 -m "Release version 0.0.2"
-   git push origin v0.0.2
+   git tag -a v0.0.1 -m "Release version 0.0.1"
+   git push origin v0.0.1
    ```
 
 4. **Monitor Workflow**

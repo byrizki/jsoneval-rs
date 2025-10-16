@@ -53,7 +53,7 @@ cargo build --release --features ffi --target x86_64-pc-windows-msvc
 Edit `bindings/csharp/JsonEvalRs.csproj`:
 
 ```xml
-<Version>0.0.2</Version>
+<Version>0.0.1</Version>
 <PackageReleaseNotes>
   - Initial release
   - Schema evaluation support
@@ -69,7 +69,7 @@ cd bindings/csharp
 dotnet pack -c Release
 ```
 
-This creates `bin/Release/JsonEvalRs.0.0.2.nupkg`
+This creates `bin/Release/JsonEvalRs.0.0.1.nupkg`
 
 #### 1.4. Test Package Locally
 
@@ -86,7 +86,7 @@ Test the package works correctly.
 
 ```bash
 cd bindings/csharp
-dotnet nuget push bin/Release/JsonEvalRs.0.0.2.nupkg \
+dotnet nuget push bin/Release/JsonEvalRs.0.0.1.nupkg \
   --api-key YOUR_API_KEY \
   --source https://api.nuget.org/v3/index.json
 ```
@@ -101,7 +101,7 @@ For debugging support:
 
 ```bash
 dotnet pack -c Release -p:IncludeSymbols=true -p:SymbolPackageFormat=snupkg
-dotnet nuget push bin/Release/JsonEvalRs.0.0.2.snupkg \
+dotnet nuget push bin/Release/JsonEvalRs.0.0.1.snupkg \
   --api-key YOUR_API_KEY \
   --source https://api.nuget.org/v3/index.json
 ```
@@ -135,7 +135,7 @@ Edit `bindings/web/package.json`:
 
 ```json
 {
-  "version": "0.0.2",
+  "version": "0.0.1",
   "description": "Updated description",
   "keywords": ["json", "logic", "wasm", "rust"]
 }
@@ -154,7 +154,7 @@ npm pack
 
 # Install locally in test project
 cd /path/to/test/project
-npm install /path/to/json-eval-rs/bindings/web/json-eval-rs-web-0.0.2.tgz
+npm install /path/to/json-eval-rs/bindings/web/json-eval-rs-web-0.0.1.tgz
 ```
 
 #### 2.4. Login to npm
@@ -230,7 +230,7 @@ Edit `bindings/react-native/package.json`:
 
 ```json
 {
-  "version": "0.0.2",
+  "version": "0.0.1",
   "description": "Updated description"
 }
 ```
@@ -276,7 +276,7 @@ Visit https://www.npmjs.com/package/@json-eval-rs/react-native
 ```toml
 [package]
 name = "json-eval-rs"
-version = "0.0.2"
+version = "0.0.1"
 description = "High-performance JSON Logic evaluator with schema validation"
 license = "MIT"
 repository = "https://github.com/byrizki/json-eval-rs"
@@ -320,8 +320,8 @@ After publishing all packages:
 ### 1. Create GitHub Release
 
 ```bash
-git tag v0.0.2
-git push origin v0.0.2
+git tag v0.0.1
+git push origin v0.0.1
 ```
 
 Create release on GitHub with:

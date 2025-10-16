@@ -1,6 +1,6 @@
 {
   "name": "json-eval-rs-web-monorepo",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": true,
   "description": "JSON Eval RS Web Bindings - Monorepo",
   "workspaces": [
