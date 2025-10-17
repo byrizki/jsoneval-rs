@@ -12,38 +12,53 @@ pub struct JSONEvalHandle {
     inner: Box<JSONEval>,
 }
 
-/// Result type for FFI operations
+/// Zero-copy result type for FFI operations
+/// 
+/// Returns raw pointers to data without copying. The data is owned by Rust
+/// and remains valid until explicitly freed.
 #[repr(C)]
 pub struct FFIResult {
     pub success: bool,
-    pub data: *mut c_char,
+    pub data_ptr: *const u8,
+    pub data_len: usize,
     pub error: *mut c_char,
+    // Internal pointer to owned data for cleanup
+    _owned_data: *mut Vec<u8>,
 }
 
 impl Default for FFIResult {
     fn default() -> Self {
         Self {
             success: false,
-            data: ptr::null_mut(),
+            data_ptr: ptr::null(),
+            data_len: 0,
             error: ptr::null_mut(),
+            _owned_data: ptr::null_mut(),
         }
     }
 }
 
 impl FFIResult {
-    fn success(data: String) -> Self {
+    fn success(data: Vec<u8>) -> Self {
+        let boxed_data = Box::new(data);
+        let data_ptr = boxed_data.as_ptr();
+        let data_len = boxed_data.len();
         Self {
             success: true,
-            data: CString::new(data).unwrap().into_raw(),
+            data_ptr,
+            data_len,
             error: ptr::null_mut(),
+            _owned_data: Box::into_raw(boxed_data),
         }
     }
 
     fn error(msg: String) -> Self {
         Self {
             success: false,
-            data: ptr::null_mut(),
+            data_ptr: ptr::null(),
+            data_len: 0,
             error: CString::new(msg).unwrap_or_else(|_| CString::new("Error message contains null byte").unwrap()).into_raw(),
+            _owned_data: ptr::null_mut(),
         }
     }
 }
@@ -246,7 +261,7 @@ pub unsafe extern "C" fn json_eval_evaluate(
         Ok(_) => {
             // Don't serialize the schema here - massive performance waste!
             // C# can call get_evaluated_schema() explicitly if needed
-            FFIResult::success(String::new())
+            FFIResult::success(Vec::new())
         }
         Err(e) => FFIResult::error(e),
     }
@@ -303,8 +318,7 @@ pub unsafe extern "C" fn json_eval_validate(
             });
             
             let result_bytes = serde_json::to_vec(&result_json).unwrap_or_default();
-            let result_str = unsafe { String::from_utf8_unchecked(result_bytes) };
-            FFIResult::success(result_str)
+            FFIResult::success(result_bytes)
         }
         Err(e) => FFIResult::error(e),
     }
@@ -363,8 +377,7 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents(
     match eval.evaluate_dependents(path_str, data_str, context_str) {
         Ok(result) => {
             let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
-            let result_str = unsafe { String::from_utf8_unchecked(result_bytes) };
-            FFIResult::success(result_str)
+            FFIResult::success(result_bytes)
         }
         Err(e) => FFIResult::error(e),
     }
@@ -388,9 +401,8 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema(
     let eval = &mut (*handle).inner;
     let result = eval.get_evaluated_schema(skip_layout);
     let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
-    let result_str = unsafe { String::from_utf8_unchecked(result_bytes) };
     
-    FFIResult::success(result_str)
+    FFIResult::success(result_bytes)
 }
 
 /// Get all schema values (evaluations ending with .value)
@@ -410,9 +422,8 @@ pub unsafe extern "C" fn json_eval_get_schema_value(
     let eval = &mut (*handle).inner;
     let result = eval.get_schema_value();
     let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
-    let result_str = unsafe { String::from_utf8_unchecked(result_bytes) };
     
-    FFIResult::success(result_str)
+    FFIResult::success(result_bytes)
 }
 
 /// Get the evaluated schema without $params field
@@ -433,9 +444,8 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_without_params(
     let eval = &mut (*handle).inner;
     let result = eval.get_evaluated_schema_without_params(skip_layout);
     let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
-    let result_str = unsafe { String::from_utf8_unchecked(result_bytes) };
     
-    FFIResult::success(result_str)
+    FFIResult::success(result_bytes)
 }
 
 /// Get a value from the evaluated schema using dotted path notation
@@ -467,8 +477,7 @@ pub unsafe extern "C" fn json_eval_get_value_by_path(
     match eval.get_value_by_path(path_str, skip_layout) {
         Some(value) => {
             let result_bytes = serde_json::to_vec(&value).unwrap_or_default();
-            let result_str = unsafe { String::from_utf8_unchecked(result_bytes) };
-            FFIResult::success(result_str)
+            FFIResult::success(result_bytes)
         }
         None => FFIResult::error("Path not found".to_string()),
     }
@@ -482,8 +491,8 @@ pub unsafe extern "C" fn json_eval_get_value_by_path(
 /// - result should not be used after calling this function
 #[no_mangle]
 pub unsafe extern "C" fn json_eval_free_result(result: FFIResult) {
-    if !result.data.is_null() {
-        drop(CString::from_raw(result.data));
+    if !result._owned_data.is_null() {
+        drop(Box::from_raw(result._owned_data));
     }
     if !result.error.is_null() {
         drop(CString::from_raw(result.error));
@@ -565,7 +574,7 @@ pub unsafe extern "C" fn json_eval_reload_schema(
     };
 
     match eval.reload_schema(schema_str, context_str, data_str) {
-        Ok(_) => FFIResult::success(String::new()),
+        Ok(_) => FFIResult::success(Vec::new()),
         Err(e) => FFIResult::error(e),
     }
 }
@@ -594,9 +603,8 @@ pub unsafe extern "C" fn json_eval_cache_stats(
     });
     
     let result_bytes = serde_json::to_vec(&stats_json).unwrap_or_default();
-    let result_str = unsafe { String::from_utf8_unchecked(result_bytes) };
     
-    FFIResult::success(result_str)
+    FFIResult::success(result_bytes)
 }
 
 /// Clear the evaluation cache
@@ -615,7 +623,7 @@ pub unsafe extern "C" fn json_eval_clear_cache(
     let eval = &mut (*handle).inner;
     eval.clear_cache();
     
-    FFIResult::success(String::new())
+    FFIResult::success(Vec::new())
 }
 
 /// Get the number of cached entries
@@ -636,8 +644,9 @@ pub unsafe extern "C" fn json_eval_cache_len(
     let len = eval.cache_len();
     
     let result_str = len.to_string();
+    let result_bytes = result_str.into_bytes();
     
-    FFIResult::success(result_str)
+    FFIResult::success(result_bytes)
 }
 
 /// Validate data against schema rules with optional path filtering
@@ -713,8 +722,7 @@ pub unsafe extern "C" fn json_eval_validate_paths(
             });
             
             let result_bytes = serde_json::to_vec(&result_json).unwrap_or_default();
-            let result_str = unsafe { String::from_utf8_unchecked(result_bytes) };
-            FFIResult::success(result_str)
+            FFIResult::success(result_bytes)
         }
         Err(e) => FFIResult::error(e),
     }

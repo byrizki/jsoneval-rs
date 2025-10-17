@@ -73,8 +73,10 @@ namespace JsonEvalRs
         {
             [MarshalAs(UnmanagedType.I1)]
             public bool Success;
-            public IntPtr Data;
+            public IntPtr DataPtr;
+            public UIntPtr DataLen;
             public IntPtr Error;
+            public IntPtr OwnedData;
         }
 
 #if NETCOREAPP || NET5_0_OR_GREATER
@@ -449,8 +451,7 @@ namespace JsonEvalRs
 #else
             var result = Native.json_eval_validate(_handle, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context));
 #endif
-            var jsonResult = ProcessResult(result);
-            return jsonResult.ToObject<ValidationResult>() ?? new ValidationResult();
+            return ProcessResult<ValidationResult>(result);
         }
 
         /// <summary>
@@ -539,19 +540,19 @@ namespace JsonEvalRs
 
             try
             {
-                if (result.Data == IntPtr.Zero)
+                if (result.DataPtr == IntPtr.Zero)
                     return null;
 
-#if NETCOREAPP || NET5_0_OR_GREATER
-                string? jsonNullable = Marshal.PtrToStringUTF8(result.Data);
-#else
-                string? jsonNullable = Native.PtrToStringUTF8(result.Data);
-#endif
+                int dataLen = (int)result.DataLen.ToUInt32();
+                if (dataLen == 0)
+                    return null;
+
+                // Zero-copy: read directly from Rust-owned memory
+                byte[] buffer = new byte[dataLen];
+                Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
                 
-                if (string.IsNullOrWhiteSpace(jsonNullable))
-                    return null;
-
-                return JToken.Parse(jsonNullable!);
+                string json = Encoding.UTF8.GetString(buffer);
+                return JToken.Parse(json);
             }
             finally
             {
@@ -654,16 +655,18 @@ namespace JsonEvalRs
                     throw new JsonEvalException(error);
                 }
 
-                if (result.Data == IntPtr.Zero)
+                if (result.DataPtr == IntPtr.Zero)
                     throw new JsonEvalException("No data returned from native function");
 
-#if NETCOREAPP || NET5_0_OR_GREATER
-                string? lenStr = Marshal.PtrToStringUTF8(result.Data);
-#else
-                string? lenStr = Native.PtrToStringUTF8(result.Data);
-#endif
-                if (string.IsNullOrEmpty(lenStr))
+                int dataLen = (int)result.DataLen.ToUInt32();
+                if (dataLen == 0)
                     throw new JsonEvalException("Invalid cache length returned from native function");
+
+                // Zero-copy: read directly from Rust-owned memory
+                byte[] buffer = new byte[dataLen];
+                Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
+                
+                string lenStr = Encoding.UTF8.GetString(buffer);
                 return int.Parse(lenStr);
             }
             finally
@@ -692,8 +695,7 @@ namespace JsonEvalRs
 #else
             var result = Native.json_eval_validate_paths(_handle, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), Native.ToUTF8Bytes(pathsJson));
 #endif
-            var jsonResult = ProcessResult(result);
-            return jsonResult.ToObject<ValidationResult>() ?? new ValidationResult();
+            return ProcessResult<ValidationResult>(result);
         }
 
         private JObject ProcessResult(Native.FFIResult result)
@@ -714,20 +716,19 @@ namespace JsonEvalRs
                     throw new JsonEvalException(error);
                 }
 
-                if (result.Data == IntPtr.Zero)
+                if (result.DataPtr == IntPtr.Zero)
                     throw new JsonEvalException("No data returned from native function");
 
-#if NETCOREAPP || NET5_0_OR_GREATER
-                string? jsonNullable = Marshal.PtrToStringUTF8(result.Data);
-#else
-                string? jsonNullable = Native.PtrToStringUTF8(result.Data);
-#endif
-                
-                if (string.IsNullOrWhiteSpace(jsonNullable))
+                int dataLen = (int)result.DataLen.ToUInt32();
+                if (dataLen == 0)
                     throw new JsonEvalException("Empty JSON returned from native function");
+
+                // Zero-copy: read directly from Rust-owned memory
+                byte[] buffer = new byte[dataLen];
+                Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
                 
-                // Use Newtonsoft.Json directly - faster than System.Text.Json conversion for large objects
-                return JObject.Parse(jsonNullable!);
+                string json = Encoding.UTF8.GetString(buffer);
+                return JObject.Parse(json);
             }
             finally
             {
@@ -753,20 +754,58 @@ namespace JsonEvalRs
                     throw new JsonEvalException(error);
                 }
 
-                if (result.Data == IntPtr.Zero)
+                if (result.DataPtr == IntPtr.Zero)
                     throw new JsonEvalException("No data returned from native function");
 
-#if NETCOREAPP || NET5_0_OR_GREATER
-                string? jsonNullable = Marshal.PtrToStringUTF8(result.Data);
-#else
-                string? jsonNullable = Native.PtrToStringUTF8(result.Data);
-#endif
-                
-                if (string.IsNullOrWhiteSpace(jsonNullable))
+                int dataLen = (int)result.DataLen.ToUInt32();
+                if (dataLen == 0)
                     throw new JsonEvalException("Empty JSON returned from native function");
+
+                // Zero-copy: read directly from Rust-owned memory
+                byte[] buffer = new byte[dataLen];
+                Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
                 
-                // Use Newtonsoft.Json directly - faster than System.Text.Json conversion for large arrays
-                return JArray.Parse(jsonNullable!);
+                string json = Encoding.UTF8.GetString(buffer);
+                return JArray.Parse(json);
+            }
+            finally
+            {
+                Native.json_eval_free_result(result);
+            }
+        }
+
+        private T ProcessResult<T>(Native.FFIResult result) where T : class
+        {
+            try
+            {
+                if (!result.Success)
+                {
+#if NETCOREAPP || NET5_0_OR_GREATER
+                    string error = result.Error != IntPtr.Zero
+                        ? Marshal.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                        : "Unknown error";
+#else
+                    string error = result.Error != IntPtr.Zero
+                        ? Native.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                        : "Unknown error";
+#endif
+                    throw new JsonEvalException(error);
+                }
+
+                if (result.DataPtr == IntPtr.Zero)
+                    throw new JsonEvalException("No data returned from native function");
+
+                int dataLen = (int)result.DataLen.ToUInt32();
+                if (dataLen == 0)
+                    throw new JsonEvalException("Empty JSON returned from native function");
+
+                // Zero-copy: read directly from Rust-owned memory
+                byte[] buffer = new byte[dataLen];
+                Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
+                
+                string json = Encoding.UTF8.GetString(buffer);
+                var obj = JObject.Parse(json);
+                return obj.ToObject<T>() ?? throw new JsonEvalException("Failed to deserialize result");
             }
             finally
             {

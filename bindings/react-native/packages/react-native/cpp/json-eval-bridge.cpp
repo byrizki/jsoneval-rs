@@ -11,8 +11,10 @@ extern "C" {
 
     typedef struct {
         bool success;
-        char* data;
+        const uint8_t* data_ptr;
+        size_t data_len;
         char* error;
+        void* _owned_data;
     } FFIResult;
 
     JSONEvalHandle* json_eval_new(const char* schema, const char* context, const char* data);
@@ -107,7 +109,12 @@ void JsonEvalBridge::evaluateAsync(
             throw std::runtime_error(error);
         }
         
-        std::string resultStr = schemaResult.data ? schemaResult.data : "{}";
+        std::string resultStr;
+        if (schemaResult.data_ptr && schemaResult.data_len > 0) {
+            resultStr = std::string(reinterpret_cast<const char*>(schemaResult.data_ptr), schemaResult.data_len);
+        } else {
+            resultStr = "{}";
+        }
         json_eval_free_result(schemaResult);
         return resultStr;
     }, callback);
@@ -135,7 +142,12 @@ void JsonEvalBridge::validateAsync(
             throw std::runtime_error(error);
         }
         
-        std::string resultStr = result.data ? result.data : "{}";
+        std::string resultStr;
+        if (result.data_ptr && result.data_len > 0) {
+            resultStr = std::string(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+        } else {
+            resultStr = "{}";
+        }
         json_eval_free_result(result);
         return resultStr;
     }, callback);
@@ -170,7 +182,12 @@ void JsonEvalBridge::evaluateDependentsAsync(
             throw std::runtime_error(error);
         }
         
-        std::string resultStr = result.data ? result.data : "{}";
+        std::string resultStr;
+        if (result.data_ptr && result.data_len > 0) {
+            resultStr = std::string(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+        } else {
+            resultStr = "{}";
+        }
         json_eval_free_result(result);
         return resultStr;
     }, callback);
@@ -196,7 +213,12 @@ void JsonEvalBridge::getEvaluatedSchemaAsync(
             throw std::runtime_error(error);
         }
         
-        std::string resultStr = result.data ? result.data : "{}";
+        std::string resultStr;
+        if (result.data_ptr && result.data_len > 0) {
+            resultStr = std::string(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+        } else {
+            resultStr = "{}";
+        }
         json_eval_free_result(result);
         return resultStr;
     }, callback);
@@ -221,7 +243,12 @@ void JsonEvalBridge::getSchemaValueAsync(
             throw std::runtime_error(error);
         }
         
-        std::string resultStr = result.data ? result.data : "{}";
+        std::string resultStr;
+        if (result.data_ptr && result.data_len > 0) {
+            resultStr = std::string(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+        } else {
+            resultStr = "{}";
+        }
         json_eval_free_result(result);
         return resultStr;
     }, callback);
@@ -247,7 +274,12 @@ void JsonEvalBridge::getEvaluatedSchemaWithoutParamsAsync(
             throw std::runtime_error(error);
         }
         
-        std::string resultStr = result.data ? result.data : "{}";
+        std::string resultStr;
+        if (result.data_ptr && result.data_len > 0) {
+            resultStr = std::string(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+        } else {
+            resultStr = "{}";
+        }
         json_eval_free_result(result);
         return resultStr;
     }, callback);
@@ -274,7 +306,12 @@ void JsonEvalBridge::getValueByPathAsync(
             throw std::runtime_error(error);
         }
         
-        std::string resultStr = result.data ? result.data : "null";
+        std::string resultStr;
+        if (result.data_ptr && result.data_len > 0) {
+            resultStr = std::string(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+        } else {
+            resultStr = "null";
+        }
         json_eval_free_result(result);
         return resultStr;
     }, callback);
@@ -328,7 +365,12 @@ void JsonEvalBridge::cacheStatsAsync(
             throw std::runtime_error(error);
         }
         
-        std::string resultStr = result.data ? result.data : "{}";
+        std::string resultStr;
+        if (result.data_ptr && result.data_len > 0) {
+            resultStr = std::string(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+        } else {
+            resultStr = "{}";
+        }
         json_eval_free_result(result);
         return resultStr;
     }, callback);
@@ -377,7 +419,12 @@ void JsonEvalBridge::cacheLenAsync(
             throw std::runtime_error(error);
         }
         
-        std::string resultStr = result.data ? result.data : "0";
+        std::string resultStr;
+        if (result.data_ptr && result.data_len > 0) {
+            resultStr = std::string(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+        } else {
+            resultStr = "0";
+        }
         json_eval_free_result(result);
         return resultStr;
     }, callback);
@@ -407,7 +454,12 @@ void JsonEvalBridge::validatePathsAsync(
             throw std::runtime_error(error);
         }
         
-        std::string resultStr = result.data ? result.data : "{}";
+        std::string resultStr;
+        if (result.data_ptr && result.data_len > 0) {
+            resultStr = std::string(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+        } else {
+            resultStr = "{}";
+        }
         json_eval_free_result(result);
         return resultStr;
     }, callback);
