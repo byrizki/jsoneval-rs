@@ -6,6 +6,11 @@
 //! - All data mutations gated through EvalData for thread safety
 //! - Zero external logic dependencies (built from scratch)
 
+// Use mimalloc allocator on Windows for better performance
+#[cfg(windows)]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 pub mod rlogic;
 pub mod table_evaluate;
 pub mod table_metadata;

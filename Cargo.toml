@@ -1,6 +1,6 @@
 [package]
 name = "json-eval-rs"
-version = "0.0.5"
+version = "0.0.6"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -58,6 +58,10 @@ optional = true
 
 [dependencies.once_cell]
 version = "1.19"
+
+# Windows-specific: Use mimalloc for better performance
+[target.'cfg(windows)'.dependencies]
+mimalloc = "0.1"
 
 # WebAssembly support for getrandom
 [target.'cfg(target_arch = "wasm32")'.dependencies]

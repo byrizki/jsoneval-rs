@@ -107,7 +107,7 @@ namespace JsonEvalBenchmark
             // Ensure DLL is in the correct location for C# to find it
             Console.WriteLine("📋 Ensuring DLL is accessible...");
             string dllSource = Path.Combine(_projectRoot!, "target", "release", "json_eval_rs.dll");
-            string dllDest = Path.Combine(_projectRoot!, "bindings", "csharp", "json_eval_rs.dll");
+            string dllDest = Path.Combine(_projectRoot!, "bindings", "csharp-example", "bin", "Release", "net8.0", "json_eval_rs.dll");
             
             if (File.Exists(dllSource))
             {

@@ -199,6 +199,25 @@ fn print_help(program_name: &str) {
     println!("    {} --help               # Show this help", program_name);
 }
 
+fn print_cpu_info() {
+    #[cfg(target_arch = "x86_64")]
+    {
+        println!("🖥️  CPU Features:");
+        println!("  SSE2:    {}", is_x86_feature_detected!("sse2"));
+        println!("  SSE4.2:  {}", is_x86_feature_detected!("sse4.2"));
+        println!("  AVX:     {}", is_x86_feature_detected!("avx"));
+        println!("  AVX2:    {}", is_x86_feature_detected!("avx2"));
+        
+        #[cfg(windows)]
+        println!("  Allocator: mimalloc");
+        
+        #[cfg(not(windows))]
+        println!("  Allocator: system default");
+        
+        println!();
+    }
+}
+
 fn main() {
     // Parse command-line arguments
     let args: Vec<String> = std::env::args().collect();
@@ -206,6 +225,7 @@ fn main() {
     
     let mut iterations = 1usize;
     let mut scenario_filter: Option<String> = None;
+    let mut show_cpu_info = false;
     let mut i = 1;
     
     // Parse arguments
@@ -218,6 +238,8 @@ fn main() {
         } else if arg == "-v" || arg == "--version" {
             println!("json-eval-rs v{}", env!("CARGO_PKG_VERSION"));
             return;
+        } else if arg == "--cpu-info" {
+            show_cpu_info = true;
         } else if arg == "-i" || arg == "--iterations" {
             if i + 1 >= args.len() {
                 eprintln!("Error: {} requires a value", arg);
@@ -244,6 +266,11 @@ fn main() {
     }
     
     println!("\n🚀 JSON Evaluation Benchmark\n");
+    
+    // Show CPU info if requested or if running benchmarks
+    if show_cpu_info || iterations > 1 {
+        print_cpu_info();
+    }
     
     if iterations > 1 {
         println!("🔄 Iterations per scenario: {}\n", iterations);

@@ -5,6 +5,8 @@ rustflags = [
 
 [build]
 target-dir = "target"
+# Enable native CPU features for better SIMD performance (remove for portable builds)
+rustflags = ["-C", "target-cpu=native"]
 
 # Enable getrandom's wasm_js feature for wasm32 targets
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))']
