@@ -77,7 +77,7 @@ namespace JsonEvalBenchmark
             JSONEval eval;
             try
             {
-                eval = new JSONEval(schemaJson, context: null, data: null);
+                eval = new JSONEval(schemaJson, context: "{}", data: dataJson);
             }
             catch (Exception ex)
             {
@@ -136,7 +136,7 @@ namespace JsonEvalBenchmark
             // Compare results if comparison file exists
             if (compareData != null)
             {
-                CompareResults(result, compareData, scenario);
+                CompareResults(result.SelectToken("$.$params.others")?.ToObject<JObject>() ?? new JObject(), compareData, scenario);
             }
 
             // Performance comparison with Rust
