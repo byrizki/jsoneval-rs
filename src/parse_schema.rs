@@ -36,6 +36,12 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
                         .unwrap_or_default()
                         .into_iter()
                         .map(|dep| path_utils::normalize_to_json_pointer(&dep))
+                        .filter(|dep| {
+                            // Filter out simple column references (e.g., "/INSAGE_YEAR", "/PREM_PP")
+                            // These are FINDINDEX/MATCH column names, not actual data dependencies
+                            // Real dependencies have multiple path segments (e.g., "/illustration/properties/...")
+                            dep.matches('/').count() > 1 || dep.starts_with("/$")
+                        })
                         .collect();
                     let mut extra_refs = IndexSet::new();
                     collect_refs(logic_value, &mut extra_refs);
