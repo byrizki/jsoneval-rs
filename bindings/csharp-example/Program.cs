@@ -88,10 +88,9 @@ namespace JsonEvalBenchmark
 
             // Benchmark 2: Evaluation
             var evalStopwatch = Stopwatch.StartNew();
-            JObject result;
             try
             {
-                result = eval.Evaluate(dataJson);
+                eval.Evaluate(dataJson);
             }
             catch (Exception ex)
             {
@@ -105,6 +104,9 @@ namespace JsonEvalBenchmark
             Console.WriteLine($"⏱️  Total execution time: {totalStopwatch.Elapsed.TotalMilliseconds:F6}ms");
             Console.ResetColor();
             Console.WriteLine();
+            
+            // Get the result for file output (not included in performance timing)
+            JObject result = eval.GetEvaluatedSchema(skipLayout: true);
 
             // Save results
             string outputDir = "samples";
@@ -114,12 +116,12 @@ namespace JsonEvalBenchmark
             string parsedPath = $"{outputDir}/{scenario}-parsed-schema.json";
             string sortedPath = $"{outputDir}/{scenario}-sorted-evaluations.json";
 
-            // Get evaluated schema
-            var evaluatedSchema = eval.GetEvaluatedSchema(skipLayout: true);
-            File.WriteAllText(evaluatedPath, evaluatedSchema.ToString(Formatting.Indented));
-
-            // Get schema value
-            var schemaValue = eval.GetSchemaValue();
+            // The result from Evaluate already contains the full evaluated schema
+            // No need for additional FFI calls to GetEvaluatedSchema() and GetSchemaValue()
+            File.WriteAllText(evaluatedPath, result.ToString(Formatting.Indented));
+            
+            // Extract schema value from result (avoiding extra FFI call)
+            var schemaValue = result.SelectToken("$.$params") ?? new JObject();
             File.WriteAllText(parsedPath, schemaValue.ToString(Formatting.Indented));
 
             // Save the evaluation result

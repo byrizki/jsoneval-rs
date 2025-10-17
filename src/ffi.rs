@@ -244,9 +244,9 @@ pub unsafe extern "C" fn json_eval_evaluate(
 
     match eval.evaluate(data_str, context_str) {
         Ok(_) => {
-            let result = eval.get_evaluated_schema(false);
-            let result_str = serde_json::to_string(&result).unwrap_or_default();
-            FFIResult::success(result_str)
+            // Don't serialize the schema here - massive performance waste!
+            // C# can call get_evaluated_schema() explicitly if needed
+            FFIResult::success(String::new())
         }
         Err(e) => FFIResult::error(e),
     }
@@ -302,7 +302,8 @@ pub unsafe extern "C" fn json_eval_validate(
                 }).collect::<Vec<_>>()
             });
             
-            let result_str = serde_json::to_string(&result_json).unwrap_or_default();
+            let result_bytes = serde_json::to_vec(&result_json).unwrap_or_default();
+            let result_str = unsafe { String::from_utf8_unchecked(result_bytes) };
             FFIResult::success(result_str)
         }
         Err(e) => FFIResult::error(e),
@@ -361,7 +362,8 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents(
 
     match eval.evaluate_dependents(path_str, data_str, context_str) {
         Ok(result) => {
-            let result_str = serde_json::to_string(&result).unwrap_or_default();
+            let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
+            let result_str = unsafe { String::from_utf8_unchecked(result_bytes) };
             FFIResult::success(result_str)
         }
         Err(e) => FFIResult::error(e),
@@ -385,7 +387,8 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema(
 
     let eval = &mut (*handle).inner;
     let result = eval.get_evaluated_schema(skip_layout);
-    let result_str = serde_json::to_string(&result).unwrap_or_default();
+    let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
+    let result_str = unsafe { String::from_utf8_unchecked(result_bytes) };
     
     FFIResult::success(result_str)
 }
@@ -406,7 +409,8 @@ pub unsafe extern "C" fn json_eval_get_schema_value(
 
     let eval = &mut (*handle).inner;
     let result = eval.get_schema_value();
-    let result_str = serde_json::to_string(&result).unwrap_or_default();
+    let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
+    let result_str = unsafe { String::from_utf8_unchecked(result_bytes) };
     
     FFIResult::success(result_str)
 }
@@ -428,7 +432,8 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_without_params(
 
     let eval = &mut (*handle).inner;
     let result = eval.get_evaluated_schema_without_params(skip_layout);
-    let result_str = serde_json::to_string(&result).unwrap_or_default();
+    let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
+    let result_str = unsafe { String::from_utf8_unchecked(result_bytes) };
     
     FFIResult::success(result_str)
 }
@@ -461,7 +466,8 @@ pub unsafe extern "C" fn json_eval_get_value_by_path(
 
     match eval.get_value_by_path(path_str, skip_layout) {
         Some(value) => {
-            let result_str = serde_json::to_string(&value).unwrap_or_default();
+            let result_bytes = serde_json::to_vec(&value).unwrap_or_default();
+            let result_str = unsafe { String::from_utf8_unchecked(result_bytes) };
             FFIResult::success(result_str)
         }
         None => FFIResult::error("Path not found".to_string()),
@@ -587,7 +593,8 @@ pub unsafe extern "C" fn json_eval_cache_stats(
         "entries": stats.entries,
     });
     
-    let result_str = serde_json::to_string(&stats_json).unwrap_or_default();
+    let result_bytes = serde_json::to_vec(&stats_json).unwrap_or_default();
+    let result_str = unsafe { String::from_utf8_unchecked(result_bytes) };
     
     FFIResult::success(result_str)
 }
@@ -705,7 +712,8 @@ pub unsafe extern "C" fn json_eval_validate_paths(
                 }).collect::<Vec<_>>()
             });
             
-            let result_str = serde_json::to_string(&result_json).unwrap_or_default();
+            let result_bytes = serde_json::to_vec(&result_json).unwrap_or_default();
+            let result_str = unsafe { String::from_utf8_unchecked(result_bytes) };
             FFIResult::success(result_str)
         }
         Err(e) => FFIResult::error(e),

@@ -87,17 +87,28 @@ void JsonEvalBridge::evaluateAsync(
             throw std::runtime_error("Invalid handle");
         }
         
+        // Step 1: Evaluate (no longer returns data)
         const char* ctx = context.empty() ? nullptr : context.c_str();
-        FFIResult result = json_eval_evaluate(it->second, data.c_str(), ctx);
+        FFIResult evalResult = json_eval_evaluate(it->second, data.c_str(), ctx);
         
-        if (!result.success) {
-            std::string error = result.error ? result.error : "Unknown error";
-            json_eval_free_result(result);
+        if (!evalResult.success) {
+            std::string error = evalResult.error ? evalResult.error : "Unknown error";
+            json_eval_free_result(evalResult);
+            throw std::runtime_error(error);
+        }
+        json_eval_free_result(evalResult);
+        
+        // Step 2: Get the evaluated schema
+        FFIResult schemaResult = json_eval_get_evaluated_schema(it->second, true);
+        
+        if (!schemaResult.success) {
+            std::string error = schemaResult.error ? schemaResult.error : "Unknown error";
+            json_eval_free_result(schemaResult);
             throw std::runtime_error(error);
         }
         
-        std::string resultStr = result.data ? result.data : "{}";
-        json_eval_free_result(result);
+        std::string resultStr = schemaResult.data ? schemaResult.data : "{}";
+        json_eval_free_result(schemaResult);
         return resultStr;
     }, callback);
 }

@@ -400,8 +400,7 @@ namespace JsonEvalRs
         /// </summary>
         /// <param name="data">JSON data string</param>
         /// <param name="context">Optional context data</param>
-        /// <returns>Evaluated schema as JObject</returns>
-        public JObject Evaluate(string data, string? context = null)
+        public void Evaluate(string data, string? context = null)
         {
             ThrowIfDisposed();
 
@@ -413,7 +412,23 @@ namespace JsonEvalRs
 #else
             var result = Native.json_eval_evaluate(_handle, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context));
 #endif
-            return ProcessResult(result);
+            
+            // Check for errors but don't return data (massive performance optimization)
+            if (!result.Success)
+            {
+#if NETCOREAPP || NET5_0_OR_GREATER
+                string error = result.Error != IntPtr.Zero
+                    ? Marshal.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                    : "Unknown error";
+#else
+                string error = result.Error != IntPtr.Zero
+                    ? Native.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                    : "Unknown error";
+#endif
+                Native.json_eval_free_result(result);
+                throw new JsonEvalException(error);
+            }
+            Native.json_eval_free_result(result);
         }
 
         /// <summary>

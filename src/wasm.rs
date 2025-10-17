@@ -101,31 +101,21 @@ impl JSONEvalWasm {
         }
     }
 
-    /// Evaluate schema with provided data
+    /// Evaluate schema with provided data (does not return schema - use getEvaluatedSchema() for that)
     /// 
     /// @param data - JSON data string
     /// @param context - Optional context data JSON string
-    /// @returns Evaluated schema as JSON string
+    /// @throws Error if evaluation fails
     #[wasm_bindgen]
-    pub fn evaluate(&mut self, data: &str, context: Option<String>) -> Result<String, JsValue> {
+    pub fn evaluate(&mut self, data: &str, context: Option<String>) -> Result<(), JsValue> {
         let ctx = context.as_deref();
         
-        match self.inner.evaluate(data, ctx) {
-            Ok(_) => {
-                let result = self.inner.get_evaluated_schema(false);
-                serde_json::to_string(&result)
-                    .map_err(|e| {
-                        let error_msg = format!("Failed to serialize evaluation result: {}", e);
-                        log(&format!("[WASM ERROR] {}", error_msg));
-                        JsValue::from_str(&error_msg)
-                    })
-            },
-            Err(e) => {
+        self.inner.evaluate(data, ctx)
+            .map_err(|e| {
                 let error_msg = format!("Evaluation failed: {}", e);
                 log(&format!("[WASM ERROR] {}", error_msg));
-                Err(JsValue::from_str(&error_msg))
-            }
-        }
+                JsValue::from_str(&error_msg)
+            })
     }
 
     /// Evaluate and return as JsValue for direct JavaScript object access
