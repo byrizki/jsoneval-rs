@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import FormValidator from '@/components/FormValidator';
 import DependentFields from '@/components/DependentFields';
+import InsuranceForm from '@/components/InsuranceForm';
 import WorkerExample from '@/components/WorkerExample';
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'validator' | 'dependent' | 'worker'>('validator');
+  const [activeTab, setActiveTab] = useState<'validator' | 'dependent' | 'insurance' | 'worker'>('insurance');
 
   return (
     <>
@@ -58,6 +59,16 @@ export default function Home() {
                 Dependent Fields
               </button>
               <button
+                onClick={() => setActiveTab('insurance')}
+                className={`px-4 py-2 border-b-2 transition-colors ${
+                  activeTab === 'insurance'
+                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                }`}
+              >
+                Insurance Form 🎯
+              </button>
+              <button
                 onClick={() => setActiveTab('worker')}
                 className={`px-4 py-2 border-b-2 transition-colors ${
                   activeTab === 'worker'
@@ -73,6 +84,7 @@ export default function Home() {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
             {activeTab === 'validator' && <FormValidator />}
             {activeTab === 'dependent' && <DependentFields />}
+            {activeTab === 'insurance' && <InsuranceForm />}
             {activeTab === 'worker' && <WorkerExample />}
           </div>
 
