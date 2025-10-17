@@ -367,8 +367,8 @@ git push origin v0.0.1
 # Test each package
 cargo add json-eval-rs
 dotnet add package JsonEvalRs
-npm install @json-eval-rs/web
-npm install @json-eval-rs/react-native
+yarn install @json-eval-rs/web
+yarn install @json-eval-rs/react-native
 ```
 
 ---

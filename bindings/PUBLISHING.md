@@ -154,7 +154,7 @@ npm pack
 
 # Install locally in test project
 cd /path/to/test/project
-npm install /path/to/json-eval-rs/bindings/web/json-eval-rs-web-0.0.1.tgz
+yarn install /path/to/json-eval-rs/bindings/web/json-eval-rs-web-0.0.1.tgz
 ```
 
 #### 2.4. Login to npm
@@ -241,7 +241,7 @@ Edit `bindings/react-native/package.json`:
 cd bindings/react-native
 
 # Install dependencies
-npm install
+yarn install
 
 # Build TypeScript
 npm run prepare

@@ -178,7 +178,7 @@ jobs:
     - name: Install dependencies
       run: |
         cd bindings/web
-        npm install
+        yarn install
     
     - name: Publish to npm
       run: |
@@ -255,7 +255,7 @@ jobs:
     - name: Install dependencies
       run: |
         cd bindings/react-native
-        npm install
+        yarn install
     
     - name: Build TypeScript
       run: |
@@ -351,12 +351,12 @@ jobs:
         
         **Web:**
         ```bash
-        npm install @json-eval-rs/web
+        yarn install @json-eval-rs/web
         ```
         
         **React Native:**
         ```bash
-        npm install @json-eval-rs/react-native
+        yarn install @json-eval-rs/react-native
         ```
         
         ### 📝 Changes

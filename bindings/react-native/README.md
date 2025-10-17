@@ -69,7 +69,7 @@ yarn rncli android
 ## Installation (For End Users)
 
 ```bash
-npm install @json-eval-rs/react-native
+yarn install @json-eval-rs/react-native
 # or
 yarn add @json-eval-rs/react-native
 ```

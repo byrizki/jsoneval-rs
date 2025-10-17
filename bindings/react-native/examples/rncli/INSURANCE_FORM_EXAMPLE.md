@@ -153,7 +153,7 @@ From `tests/fixtures/minimal_form.json`:
 
 ```bash
 cd bindings/react-native/examples/rncli
-npm install
+yarn install
 npm run android  # or npm run ios
 ```
 

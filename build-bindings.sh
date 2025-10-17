@@ -109,7 +109,7 @@ build_web() {
     # Install web dependencies
     if command -v npm &> /dev/null; then
         cd bindings/web
-        npm install
+        yarn install
         print_success "Installed web dependencies"
         cd ../..
     fi
@@ -197,7 +197,7 @@ build_react_native() {
     if command -v npm &> /dev/null; then
         cd bindings/react-native
         if [ -f "package.json" ]; then
-            npm install
+            yarn install
             npm run prepare 2>/dev/null || true
             print_success "Installed React Native dependencies"
         fi
@@ -207,7 +207,7 @@ build_react_native() {
         print_info "Installing example dependencies..."
         cd bindings/react-native/examples/rncli
         if [ -f "package.json" ]; then
-            npm install 2>/dev/null || true
+            yarn install 2>/dev/null || true
             print_success "Installed rncli example dependencies"
         fi
         cd ../../../..

@@ -6,13 +6,13 @@ High-level JavaScript API for JSON Eval RS WASM bindings.
 
 ```bash
 # Install bridge + your target WASM package
-npm install @json-eval-rs/core @json-eval-rs/bundler
+yarn install @json-eval-rs/core @json-eval-rs/bundler
 
 # Or for direct browser use
-npm install @json-eval-rs/core @json-eval-rs/vanilla
+yarn install @json-eval-rs/core @json-eval-rs/vanilla
 
 # Or for Node.js
-npm install @json-eval-rs/core @json-eval-rs/node
+yarn install @json-eval-rs/core @json-eval-rs/node
 ```
 
 ## Usage

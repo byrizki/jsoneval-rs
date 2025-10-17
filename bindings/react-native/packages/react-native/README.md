@@ -17,7 +17,7 @@ Built with Rust for maximum performance, with native Android (Kotlin + JNI) and 
 ## Installation
 
 ```bash
-npm install @json-eval-rs/react-native
+yarn install @json-eval-rs/react-native
 ```
 
 Or with Yarn:

@@ -216,7 +216,7 @@ From `tests/fixtures/minimal_form.json`:
 
 ```bash
 cd bindings/web/examples/nextjs
-npm install
+yarn install
 npm run dev
 ```
 

@@ -46,13 +46,13 @@ dotnet add package JsonEvalRs
 ### Web / JavaScript / TypeScript
 
 ```bash
-npm install @json-eval-rs/web
+yarn install @json-eval-rs/web
 ```
 
 ### React Native
 
 ```bash
-npm install @json-eval-rs/react-native
+yarn install @json-eval-rs/react-native
 ```
 
 ## 🚀 Quick Start

@@ -5,7 +5,7 @@ JSON Eval RS for modern bundlers (Webpack, Vite, Rollup, Next.js, etc.) with erg
 ## Installation
 
 ```bash
-npm install @json-eval-rs/bundler
+yarn install @json-eval-rs/bundler
 # or
 yarn add @json-eval-rs/bundler
 ```

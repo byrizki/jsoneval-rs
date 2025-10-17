@@ -182,7 +182,7 @@ jobs:
     - name: Install web dependencies
       run: |
         cd bindings/web
-        npm install
+        yarn install
     
     - name: Package web binding
       run: |
@@ -381,7 +381,7 @@ jobs:
     - name: Install React Native dependencies
       run: |
         cd bindings/react-native
-        npm install
+        yarn install
     
     - name: Build TypeScript
       run: |
@@ -391,7 +391,7 @@ jobs:
     - name: Install example dependencies
       run: |
         cd bindings/react-native/examples/rncli
-        npm install || echo "Example dependencies installation skipped"
+        yarn install || echo "Example dependencies installation skipped"
     
     - name: Package React Native binding
       run: |

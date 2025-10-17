@@ -66,7 +66,7 @@ export class JSONEvalCore {
       throw new Error(
         'No WASM module provided. Please either:\n' +
         '1. Pass wasmModule in constructor: new JSONEval({ schema, wasmModule: await import("@json-eval-rs/bundler") })\n' +
-        '2. Or install a peer dependency: npm install @json-eval-rs/bundler (or @json-eval-rs/vanilla or @json-eval-rs/node)'
+        '2. Or install a peer dependency: yarn install @json-eval-rs/bundler (or @json-eval-rs/vanilla or @json-eval-rs/node)'
       );
     }
 
