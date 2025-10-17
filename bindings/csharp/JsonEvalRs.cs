@@ -447,7 +447,7 @@ namespace JsonEvalRs
             var result = Native.json_eval_validate(_handle, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context));
 #endif
             var jsonResult = ProcessResult(result);
-            return jsonResult.ToObject<ValidationResult>();
+            return jsonResult.ToObject<ValidationResult>() ?? new ValidationResult();
         }
 
         /// <summary>
@@ -470,8 +470,7 @@ namespace JsonEvalRs
 #else
             var result = Native.json_eval_evaluate_dependents(_handle, Native.ToUTF8Bytes(changedPath), Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context));
 #endif
-            var jsonResult = ProcessResult(result);
-            return jsonResult as JArray ?? new JArray();
+            return ProcessResultAsArray(result);
         }
 
         /// <summary>
@@ -541,15 +540,15 @@ namespace JsonEvalRs
                     return null;
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-                string json = Marshal.PtrToStringUTF8(result.Data);
+                string? jsonNullable = Marshal.PtrToStringUTF8(result.Data);
 #else
-                string json = Native.PtrToStringUTF8(result.Data);
+                string? jsonNullable = Native.PtrToStringUTF8(result.Data);
 #endif
                 
-                if (string.IsNullOrWhiteSpace(json))
+                if (string.IsNullOrWhiteSpace(jsonNullable))
                     return null;
 
-                return JToken.Parse(json);
+                return JToken.Parse(jsonNullable!);
             }
             finally
             {
@@ -579,11 +578,11 @@ namespace JsonEvalRs
             {
 #if NETCOREAPP || NET5_0_OR_GREATER
                 string error = result.Error != IntPtr.Zero
-                    ? Marshal.PtrToStringUTF8(result.Error)
+                    ? Marshal.PtrToStringUTF8(result.Error) ?? "Unknown error"
                     : "Unknown error";
 #else
                 string error = result.Error != IntPtr.Zero
-                    ? Native.PtrToStringUTF8(result.Error)
+                    ? Native.PtrToStringUTF8(result.Error) ?? "Unknown error"
                     : "Unknown error";
 #endif
                 Native.json_eval_free_result(result);
@@ -601,7 +600,7 @@ namespace JsonEvalRs
             ThrowIfDisposed();
             var result = Native.json_eval_cache_stats(_handle);
             var jsonResult = ProcessResult(result);
-            return jsonResult.ToObject<CacheStats>();
+            return jsonResult.ToObject<CacheStats>() ?? new CacheStats();
         }
 
         /// <summary>
@@ -615,11 +614,11 @@ namespace JsonEvalRs
             {
 #if NETCOREAPP || NET5_0_OR_GREATER
                 string error = result.Error != IntPtr.Zero
-                    ? Marshal.PtrToStringUTF8(result.Error)
+                    ? Marshal.PtrToStringUTF8(result.Error) ?? "Unknown error"
                     : "Unknown error";
 #else
                 string error = result.Error != IntPtr.Zero
-                    ? Native.PtrToStringUTF8(result.Error)
+                    ? Native.PtrToStringUTF8(result.Error) ?? "Unknown error"
                     : "Unknown error";
 #endif
                 Native.json_eval_free_result(result);
@@ -642,11 +641,11 @@ namespace JsonEvalRs
                 {
 #if NETCOREAPP || NET5_0_OR_GREATER
                     string error = result.Error != IntPtr.Zero
-                        ? Marshal.PtrToStringUTF8(result.Error)
+                        ? Marshal.PtrToStringUTF8(result.Error) ?? "Unknown error"
                         : "Unknown error";
 #else
                     string error = result.Error != IntPtr.Zero
-                        ? Native.PtrToStringUTF8(result.Error)
+                        ? Native.PtrToStringUTF8(result.Error) ?? "Unknown error"
                         : "Unknown error";
 #endif
                     throw new JsonEvalException(error);
@@ -656,10 +655,12 @@ namespace JsonEvalRs
                     throw new JsonEvalException("No data returned from native function");
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-                string lenStr = Marshal.PtrToStringUTF8(result.Data);
+                string? lenStr = Marshal.PtrToStringUTF8(result.Data);
 #else
-                string lenStr = Native.PtrToStringUTF8(result.Data);
+                string? lenStr = Native.PtrToStringUTF8(result.Data);
 #endif
+                if (string.IsNullOrEmpty(lenStr))
+                    throw new JsonEvalException("Invalid cache length returned from native function");
                 return int.Parse(lenStr);
             }
             finally
@@ -682,14 +683,14 @@ namespace JsonEvalRs
             if (string.IsNullOrEmpty(data))
                 throw new ArgumentNullException(nameof(data));
 
-            string pathsJson = paths != null ? JsonConvert.SerializeObject(paths) : null;
+            string? pathsJson = paths != null ? JsonConvert.SerializeObject(paths) : null;
 #if NETCOREAPP || NET5_0_OR_GREATER
             var result = Native.json_eval_validate_paths(_handle, data, context, pathsJson);
 #else
             var result = Native.json_eval_validate_paths(_handle, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), Native.ToUTF8Bytes(pathsJson));
 #endif
             var jsonResult = ProcessResult(result);
-            return jsonResult.ToObject<ValidationResult>();
+            return jsonResult.ToObject<ValidationResult>() ?? new ValidationResult();
         }
 
         private JObject ProcessResult(Native.FFIResult result)
@@ -700,11 +701,11 @@ namespace JsonEvalRs
                 {
 #if NETCOREAPP || NET5_0_OR_GREATER
                     string error = result.Error != IntPtr.Zero
-                        ? Marshal.PtrToStringUTF8(result.Error)
+                        ? Marshal.PtrToStringUTF8(result.Error) ?? "Unknown error"
                         : "Unknown error";
 #else
                     string error = result.Error != IntPtr.Zero
-                        ? Native.PtrToStringUTF8(result.Error)
+                        ? Native.PtrToStringUTF8(result.Error) ?? "Unknown error"
                         : "Unknown error";
 #endif
                     throw new JsonEvalException(error);
@@ -714,20 +715,64 @@ namespace JsonEvalRs
                     throw new JsonEvalException("No data returned from native function");
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-                string json = Marshal.PtrToStringUTF8(result.Data);
+                string? jsonNullable = Marshal.PtrToStringUTF8(result.Data);
 #else
-                string json = Native.PtrToStringUTF8(result.Data);
+                string? jsonNullable = Native.PtrToStringUTF8(result.Data);
 #endif
                 
-                if (string.IsNullOrWhiteSpace(json))
+                if (string.IsNullOrWhiteSpace(jsonNullable))
                     throw new JsonEvalException("Empty JSON returned from native function");
                 
 #if NET5_0_OR_GREATER
                 // Use System.Text.Json for 3-5x faster parsing on .NET 5+
-                using var jsonDoc = JsonDocument.Parse(json);
+                using var jsonDoc = JsonDocument.Parse(jsonNullable!);
                 return ConvertToJObject(jsonDoc.RootElement);
 #else
-                return JObject.Parse(json);
+                return JObject.Parse(jsonNullable!);
+#endif
+            }
+            finally
+            {
+                Native.json_eval_free_result(result);
+            }
+        }
+
+        private JArray ProcessResultAsArray(Native.FFIResult result)
+        {
+            try
+            {
+                if (!result.Success)
+                {
+#if NETCOREAPP || NET5_0_OR_GREATER
+                    string error = result.Error != IntPtr.Zero
+                        ? Marshal.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                        : "Unknown error";
+#else
+                    string error = result.Error != IntPtr.Zero
+                        ? Native.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                        : "Unknown error";
+#endif
+                    throw new JsonEvalException(error);
+                }
+
+                if (result.Data == IntPtr.Zero)
+                    throw new JsonEvalException("No data returned from native function");
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+                string? jsonNullable = Marshal.PtrToStringUTF8(result.Data);
+#else
+                string? jsonNullable = Native.PtrToStringUTF8(result.Data);
+#endif
+                
+                if (string.IsNullOrWhiteSpace(jsonNullable))
+                    throw new JsonEvalException("Empty JSON returned from native function");
+                
+#if NET5_0_OR_GREATER
+                // Use System.Text.Json for 3-5x faster parsing on .NET 5+
+                using var jsonDoc = JsonDocument.Parse(jsonNullable!);
+                return ConvertToJArray(jsonDoc.RootElement);
+#else
+                return JArray.Parse(jsonNullable!);
 #endif
             }
             finally
@@ -752,6 +797,23 @@ namespace JsonEvalRs
                 jObject.Add(property.Name, ConvertToJToken(property.Value));
             }
             return jObject;
+        }
+        
+        /// <summary>
+        /// Efficiently convert System.Text.Json JsonElement to Newtonsoft.Json JArray
+        /// This avoids double parsing by directly converting the parsed structure
+        /// </summary>
+        private static JArray ConvertToJArray(JsonElement element)
+        {
+            if (element.ValueKind != JsonValueKind.Array)
+                throw new JsonEvalException("Expected JSON array from native function");
+            
+            var jArray = new JArray();
+            foreach (var item in element.EnumerateArray())
+            {
+                jArray.Add(ConvertToJToken(item));
+            }
+            return jArray;
         }
         
         /// <summary>
