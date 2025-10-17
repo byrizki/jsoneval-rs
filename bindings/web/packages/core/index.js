@@ -6,6 +6,18 @@
  */
 
 /**
+ * Get the library version from the WASM module
+ * @param {any} wasmModule - WASM module
+ * @returns {string} Version string
+ */
+export function getVersion(wasmModule) {
+  if (wasmModule && typeof wasmModule.getVersion === 'function') {
+    return wasmModule.getVersion();
+  }
+  return 'unknown';
+}
+
+/**
  * JSONEval - High-level JavaScript API for JSON Eval RS
  * 
  * This is an internal abstraction layer. Use specific packages instead:

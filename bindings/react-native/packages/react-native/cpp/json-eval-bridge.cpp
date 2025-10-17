@@ -30,7 +30,7 @@ extern "C" {
     FFIResult json_eval_validate_paths(JSONEvalHandle* handle, const char* data, const char* context, const char* paths_json);
     void json_eval_free(JSONEvalHandle* handle);
     void json_eval_free_result(FFIResult result);
-    char* json_eval_version();
+    const char* json_eval_version();
     void json_eval_free_string(char* ptr);
 }
 
@@ -412,12 +412,9 @@ void JsonEvalBridge::dispose(const std::string& handleId) {
 }
 
 std::string JsonEvalBridge::version() {
-    char* ver = json_eval_version();
-    std::string result = ver ? ver : "unknown";
-    if (ver) {
-        json_eval_free_string(ver);
-    }
-    return result;
+    const char* ver = json_eval_version();
+    // Version string is static in Rust, no need to free it
+    return ver ? ver : "unknown";
 }
 
 } // namespace jsoneval

@@ -71,3 +71,8 @@ strip = true             # Strip symbols for smaller binary
 
 [profile.release.package."*"]
 opt-level = 3
+
+[build-dependencies]
+# Windows resource compiler for adding version info to DLL
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"

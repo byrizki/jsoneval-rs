@@ -65,6 +65,12 @@ impl ValidationResult {
     }
 }
 
+/// Get the library version
+#[wasm_bindgen(js_name = getVersion)]
+pub fn get_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
 /// WebAssembly wrapper for JSONEval
 #[wasm_bindgen]
 pub struct JSONEvalWasm {

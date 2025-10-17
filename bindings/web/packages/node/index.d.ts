@@ -2,6 +2,12 @@
  * @json-eval-rs/node - TypeScript definitions
  */
 
+/**
+ * Get the library version
+ * @returns Version string
+ */
+export function version(): string;
+
 export interface ValidationError {
   path: string;
   rule_type: string;

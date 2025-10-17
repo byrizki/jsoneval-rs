@@ -48,6 +48,15 @@ impl FFIResult {
     }
 }
 
+/// Get the library version
+/// 
+/// Returns a pointer to a static null-terminated string containing the version.
+/// This pointer does not need to be freed.
+#[no_mangle]
+pub extern "C" fn json_eval_version() -> *const c_char {
+    concat!(env!("CARGO_PKG_VERSION"), "\0").as_ptr() as *const c_char
+}
+
 /// Create a new JSONEval instance
 /// 
 /// # Safety
@@ -703,14 +712,3 @@ pub unsafe extern "C" fn json_eval_validate_paths(
     }
 }
 
-/// Get the library version
-/// 
-/// # Safety
-/// 
-/// - Caller must call json_eval_free_string when done
-#[no_mangle]
-pub unsafe extern "C" fn json_eval_version() -> *mut c_char {
-    CString::new(env!("CARGO_PKG_VERSION"))
-        .unwrap()
-        .into_raw()
-}

@@ -5,12 +5,6 @@ using System.Collections.Generic;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-// For high-performance JSON parsing (3-5x faster than Newtonsoft.Json for large documents)
-#if NET5_0_OR_GREATER
-using System.Text.Json;
-using System.Text.Json.Nodes;
-#endif
-
 namespace JsonEvalRs
 {
     /// <summary>
@@ -190,6 +184,9 @@ namespace JsonEvalRs
         internal static extern void json_eval_free(IntPtr handle);
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern IntPtr json_eval_version();
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_get_evaluated_schema(
             IntPtr handle,
             [MarshalAs(UnmanagedType.I1)] bool skipLayout
@@ -260,9 +257,6 @@ namespace JsonEvalRs
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_cache_len(IntPtr handle);
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern IntPtr json_eval_version();
     }
 
     /// <summary>
@@ -332,18 +326,12 @@ namespace JsonEvalRs
             get
             {
                 IntPtr ptr = Native.json_eval_version();
-                try
-                {
+                // Version string is static in Rust, no need to free it
 #if NETCOREAPP || NET5_0_OR_GREATER
-                    return Marshal.PtrToStringUTF8(ptr) ?? "unknown";
+                return Marshal.PtrToStringUTF8(ptr) ?? "unknown";
 #else
-                    return Native.PtrToStringUTF8(ptr) ?? "unknown";
+                return Native.PtrToStringUTF8(ptr) ?? "unknown";
 #endif
-                }
-                finally
-                {
-                    Native.json_eval_free_string(ptr);
-                }
             }
         }
 
@@ -723,13 +711,8 @@ namespace JsonEvalRs
                 if (string.IsNullOrWhiteSpace(jsonNullable))
                     throw new JsonEvalException("Empty JSON returned from native function");
                 
-#if NET5_0_OR_GREATER
-                // Use System.Text.Json for 3-5x faster parsing on .NET 5+
-                using var jsonDoc = JsonDocument.Parse(jsonNullable!);
-                return ConvertToJObject(jsonDoc.RootElement);
-#else
+                // Use Newtonsoft.Json directly - faster than System.Text.Json conversion for large objects
                 return JObject.Parse(jsonNullable!);
-#endif
             }
             finally
             {
@@ -767,104 +750,14 @@ namespace JsonEvalRs
                 if (string.IsNullOrWhiteSpace(jsonNullable))
                     throw new JsonEvalException("Empty JSON returned from native function");
                 
-#if NET5_0_OR_GREATER
-                // Use System.Text.Json for 3-5x faster parsing on .NET 5+
-                using var jsonDoc = JsonDocument.Parse(jsonNullable!);
-                return ConvertToJArray(jsonDoc.RootElement);
-#else
+                // Use Newtonsoft.Json directly - faster than System.Text.Json conversion for large arrays
                 return JArray.Parse(jsonNullable!);
-#endif
             }
             finally
             {
                 Native.json_eval_free_result(result);
             }
         }
-
-#if NET5_0_OR_GREATER
-        /// <summary>
-        /// Efficiently convert System.Text.Json JsonElement to Newtonsoft.Json JObject
-        /// This avoids double parsing by directly converting the parsed structure
-        /// </summary>
-        private static JObject ConvertToJObject(JsonElement element)
-        {
-            if (element.ValueKind != JsonValueKind.Object)
-                throw new JsonEvalException("Expected JSON object from native function");
-            
-            var jObject = new JObject();
-            foreach (var property in element.EnumerateObject())
-            {
-                jObject.Add(property.Name, ConvertToJToken(property.Value));
-            }
-            return jObject;
-        }
-        
-        /// <summary>
-        /// Efficiently convert System.Text.Json JsonElement to Newtonsoft.Json JArray
-        /// This avoids double parsing by directly converting the parsed structure
-        /// </summary>
-        private static JArray ConvertToJArray(JsonElement element)
-        {
-            if (element.ValueKind != JsonValueKind.Array)
-                throw new JsonEvalException("Expected JSON array from native function");
-            
-            var jArray = new JArray();
-            foreach (var item in element.EnumerateArray())
-            {
-                jArray.Add(ConvertToJToken(item));
-            }
-            return jArray;
-        }
-        
-        /// <summary>
-        /// Recursively convert System.Text.Json JsonElement to Newtonsoft.Json JToken
-        /// </summary>
-        private static JToken ConvertToJToken(JsonElement element)
-        {
-            switch (element.ValueKind)
-            {
-                case JsonValueKind.Object:
-                    var jObject = new JObject();
-                    foreach (var property in element.EnumerateObject())
-                    {
-                        jObject.Add(property.Name, ConvertToJToken(property.Value));
-                    }
-                    return jObject;
-                    
-                case JsonValueKind.Array:
-                    var jArray = new JArray();
-                    foreach (var item in element.EnumerateArray())
-                    {
-                        jArray.Add(ConvertToJToken(item));
-                    }
-                    return jArray;
-                    
-                case JsonValueKind.String:
-                    return new JValue(element.GetString());
-                    
-                case JsonValueKind.Number:
-                    if (element.TryGetInt32(out int intValue))
-                        return new JValue(intValue);
-                    if (element.TryGetInt64(out long longValue))
-                        return new JValue(longValue);
-                    if (element.TryGetDouble(out double doubleValue))
-                        return new JValue(doubleValue);
-                    return new JValue(element.GetDecimal());
-                    
-                case JsonValueKind.True:
-                    return new JValue(true);
-                    
-                case JsonValueKind.False:
-                    return new JValue(false);
-                    
-                case JsonValueKind.Null:
-                    return JValue.CreateNull();
-                    
-                default:
-                    return JValue.CreateNull();
-            }
-        }
-#endif
 
         private void ThrowIfDisposed()
         {

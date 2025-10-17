@@ -44,6 +44,11 @@ use rayon::prelude::*;
 use std::mem;
 use std::sync::Mutex;
 
+/// Get the library version
+pub fn version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
+
 /// Clean floating point noise from JSON values
 /// Converts values very close to zero (< 1e-10) to exactly 0
 fn clean_float_noise(value: Value) -> Value {

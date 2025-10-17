@@ -2,6 +2,13 @@
  * @json-eval-rs/core - TypeScript definitions
  */
 
+/**
+ * Get the library version from the WASM module
+ * @param wasmModule - WASM module
+ * @returns Version string
+ */
+export function getVersion(wasmModule: any): string;
+
 export interface ValidationError {
   path: string;
   rule_type: string;

@@ -23,7 +23,8 @@
     
     <!-- Include native libraries in package -->
     <IncludeContentInPack>true</IncludeContentInPack>
-    <ContentTargetFolders>contentFiles;content</ContentTargetFolders>
+    <ContentTargetFolders>content</ContentTargetFolders>
+    <NoWarn>$(NoWarn);NU5100</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
