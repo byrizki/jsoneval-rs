@@ -13,6 +13,10 @@
     <ProjectReference Include="../csharp/JsonEvalRs.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
   <!-- Copy sample files after build -->
   <Target Name="CopySampleFiles" AfterTargets="Build">
     <MakeDir Directories="$(OutputPath)samples" />
