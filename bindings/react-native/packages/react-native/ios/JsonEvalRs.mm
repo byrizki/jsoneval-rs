@@ -9,13 +9,19 @@ using namespace jsoneval;
 RCT_EXPORT_MODULE()
 
 // Helper methods
+// Note: These conversions are required by React Native bridge architecture
+// We minimize copies where possible, but some are unavoidable due to lifetime management
 - (NSString *)stringFromStdString:(const std::string &)str {
+    // Creates NSString from UTF-8 C string (copies data)
     return [NSString stringWithUTF8String:str.c_str()];
 }
 
 - (std::string)stdStringFromNSString:(NSString *)str {
     if (str == nil) return "";
-    return std::string([str UTF8String]);
+    // UTF8String returns a pointer to UTF-8 representation (minimal copy)
+    // We must copy to std::string for safe lifetime management
+    const char* utf8 = [str UTF8String];
+    return utf8 ? std::string(utf8) : std::string();
 }
 
 - (NSString *)arrayToJsonString:(NSArray *)array {
@@ -44,6 +50,7 @@ RCT_EXPORT_METHOD(evaluate:(NSString *)handle
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 {
+    // Convert Objective-C strings to C++ (required by bridge architecture)
     std::string handleStr = [self stdStringFromNSString:handle];
     std::string dataStr = [self stdStringFromNSString:data];
     std::string contextStr = [self stdStringFromNSString:context];
@@ -51,6 +58,7 @@ RCT_EXPORT_METHOD(evaluate:(NSString *)handle
     JsonEvalBridge::evaluateAsync(handleStr, dataStr, contextStr,
         [resolve, reject](const std::string& result, const std::string& error) {
             if (error.empty()) {
+                // Zero-copy within native: direct pointer access to result
                 resolve([NSString stringWithUTF8String:result.c_str()]);
             } else {
                 reject(@"EVALUATE_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);

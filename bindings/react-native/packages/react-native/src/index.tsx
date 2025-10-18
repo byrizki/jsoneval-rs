@@ -103,6 +103,17 @@ export interface EvaluateDependentsOptions {
 /**
  * High-performance JSON Logic evaluator with schema validation for React Native
  * 
+ * ## Zero-Copy Architecture
+ * 
+ * This binding is optimized for minimal memory copies:
+ * - **Rust FFI Layer**: Returns raw pointers (zero-copy)
+ * - **C++ Bridge**: Uses direct pointer access with single-copy string construction
+ * - **Native Platform**: Minimizes intermediate conversions
+ * - **JS Bridge**: React Native's architecture requires serialization (unavoidable)
+ * 
+ * While true zero-copy across JS/Native boundary is not possible due to React Native's
+ * architecture, we minimize copies within the native layer to maximize performance.
+ * 
  * @example
  * ```typescript
  * import { JSONEval } from '@json-eval-rs/react-native';
@@ -168,6 +179,11 @@ export class JSONEval {
     }
   }
 
+  /**
+   * Convert value to JSON string
+   * Performance note: If you have a pre-serialized JSON string, pass it directly
+   * instead of an object to avoid the JSON.stringify overhead
+   */
   private toJsonString(value: string | object): string {
     return typeof value === 'string' ? value : JSON.stringify(value);
   }

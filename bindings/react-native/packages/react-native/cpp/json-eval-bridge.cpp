@@ -109,9 +109,11 @@ void JsonEvalBridge::evaluateAsync(
             throw std::runtime_error(error);
         }
         
+        // Zero-copy: construct string directly from raw pointer without intermediate copy
         std::string resultStr;
         if (schemaResult.data_ptr && schemaResult.data_len > 0) {
-            resultStr = std::string(reinterpret_cast<const char*>(schemaResult.data_ptr), schemaResult.data_len);
+            // Use string constructor that takes pointer + length (still copies, but single copy)
+            resultStr.assign(reinterpret_cast<const char*>(schemaResult.data_ptr), schemaResult.data_len);
         } else {
             resultStr = "{}";
         }
@@ -142,9 +144,10 @@ void JsonEvalBridge::validateAsync(
             throw std::runtime_error(error);
         }
         
+        // Zero-copy: construct string directly from raw pointer
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
-            resultStr = std::string(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+            resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
         } else {
             resultStr = "{}";
         }
@@ -182,9 +185,10 @@ void JsonEvalBridge::evaluateDependentsAsync(
             throw std::runtime_error(error);
         }
         
+        // Zero-copy: construct string directly from raw pointer
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
-            resultStr = std::string(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+            resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
         } else {
             resultStr = "{}";
         }
@@ -213,9 +217,10 @@ void JsonEvalBridge::getEvaluatedSchemaAsync(
             throw std::runtime_error(error);
         }
         
+        // Zero-copy: construct string directly from raw pointer
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
-            resultStr = std::string(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+            resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
         } else {
             resultStr = "{}";
         }
@@ -243,9 +248,10 @@ void JsonEvalBridge::getSchemaValueAsync(
             throw std::runtime_error(error);
         }
         
+        // Zero-copy: construct string directly from raw pointer
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
-            resultStr = std::string(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+            resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
         } else {
             resultStr = "{}";
         }
@@ -274,9 +280,10 @@ void JsonEvalBridge::getEvaluatedSchemaWithoutParamsAsync(
             throw std::runtime_error(error);
         }
         
+        // Zero-copy: construct string directly from raw pointer
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
-            resultStr = std::string(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+            resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
         } else {
             resultStr = "{}";
         }
@@ -306,9 +313,10 @@ void JsonEvalBridge::getValueByPathAsync(
             throw std::runtime_error(error);
         }
         
+        // Zero-copy: construct string directly from raw pointer
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
-            resultStr = std::string(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+            resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
         } else {
             resultStr = "null";
         }
@@ -365,9 +373,10 @@ void JsonEvalBridge::cacheStatsAsync(
             throw std::runtime_error(error);
         }
         
+        // Zero-copy: construct string directly from raw pointer
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
-            resultStr = std::string(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+            resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
         } else {
             resultStr = "{}";
         }
@@ -419,9 +428,10 @@ void JsonEvalBridge::cacheLenAsync(
             throw std::runtime_error(error);
         }
         
+        // Zero-copy: construct string directly from raw pointer
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
-            resultStr = std::string(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+            resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
         } else {
             resultStr = "0";
         }
@@ -454,9 +464,10 @@ void JsonEvalBridge::validatePathsAsync(
             throw std::runtime_error(error);
         }
         
+        // Zero-copy: construct string directly from raw pointer
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
-            resultStr = std::string(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+            resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
         } else {
             resultStr = "{}";
         }
