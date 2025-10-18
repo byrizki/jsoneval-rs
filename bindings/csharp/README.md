@@ -7,7 +7,7 @@ High-performance JSON Logic evaluator with schema validation and dependency trac
 - 🚀 **Blazing Fast** - Built on Rust for maximum performance
 - ✅ **Schema Validation** - Validate data against JSON schema rules
 - 🔄 **Dependency Tracking** - Auto-update dependent fields
-- 🎯 **Type Safe** - Full .NET type safety with JSON.NET integration
+- 🎯 **Type Safe** - Full .NET type safety with System.Text.Json integration
 - 📦 **Cross-Platform** - Works on Windows, Linux, and macOS
 - 🔌 **Easy Integration** - Simple API, just a few lines of code
 
@@ -27,7 +27,7 @@ Install-Package JsonEvalRs
 
 ```csharp
 using JsonEvalRs;
-using Newtonsoft.Json.Linq;
+using System.Text.Json.Nodes;
 
 // Create evaluator with schema
 string schema = @"{
@@ -58,8 +58,9 @@ using (var eval = new JSONEval(schema))
 {
     // Evaluate
     string data = @"{ ""user"": { ""name"": ""John"", ""age"": 25 } }";
-    JObject result = eval.Evaluate(data);
-    Console.WriteLine($"Evaluated: {result}");
+    eval.Evaluate(data);
+    JsonObject result = eval.GetEvaluatedSchema();
+    Console.WriteLine($"Evaluated: {result.ToJsonString()}");
 
     // Validate
     ValidationResult validation = eval.Validate(data);
@@ -73,10 +74,9 @@ using (var eval = new JSONEval(schema))
 
     // Re-evaluate after changes
     string updatedData = @"{ ""user"": { ""name"": ""John"", ""age"": 30 } }";
-    JObject updated = eval.EvaluateDependents(
-        new List<string> { "user.age" },
-        updatedData,
-        nested: true
+    JsonArray updated = eval.EvaluateDependents(
+        "#/properties/user/properties/age",
+        updatedData
     );
 }
 ```
@@ -99,7 +99,7 @@ Creates a new evaluator instance.
 ### Evaluate Method
 
 ```csharp
-public JObject Evaluate(string data, string context = null)
+public void Evaluate(string data, string context = null)
 ```
 
 Evaluates the schema with provided data.
@@ -108,7 +108,30 @@ Evaluates the schema with provided data.
 - `data` (string): JSON data to evaluate
 - `context` (string, optional): Context data
 
-**Returns:** JObject with evaluated schema
+**Returns:** void (use GetEvaluatedSchema() to retrieve results)
+
+### GetEvaluatedSchema Method
+
+```csharp
+public JsonObject GetEvaluatedSchema(bool skipLayout = false)
+```
+
+Gets the evaluated schema with optional layout resolution.
+
+**Parameters:**
+- `skipLayout` (bool): Whether to skip layout resolution
+
+**Returns:** JsonObject with evaluated schema
+
+### GetSchemaValue Method
+
+```csharp
+public JsonObject GetSchemaValue()
+```
+
+Gets all schema values (evaluations ending with .value).
+
+**Returns:** JsonObject with path -> value mapping
 
 ### Validate Method
 
@@ -127,23 +150,21 @@ Validates data against schema rules.
 ### EvaluateDependents Method
 
 ```csharp
-public JObject EvaluateDependents(
-    List<string> changedPaths, 
-    string data, 
-    string context = null, 
-    bool nested = true
+public JsonArray EvaluateDependents(
+    string changedPath, 
+    string data = null, 
+    string context = null
 )
 ```
 
-Re-evaluates fields that depend on changed paths.
+Re-evaluates fields that depend on the changed path.
 
 **Parameters:**
-- `changedPaths` (List<string>): Paths that changed
-- `data` (string): Updated data
+- `changedPath` (string): Field path that changed (e.g., "#/properties/field")
+- `data` (string, optional): Updated JSON data
 - `context` (string, optional): Context data
-- `nested` (bool): Follow dependency chains recursively
 
-**Returns:** JObject with updated evaluated schema
+**Returns:** JsonArray with dependent change objects
 
 ## Validation Rules
 

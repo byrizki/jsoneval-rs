@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using JsonEvalRs;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace JsonEvalBenchmark
 {
@@ -185,8 +185,9 @@ namespace JsonEvalBenchmark
             public double TotalMs { get; set; }
             public double ParsingMs { get; set; }
             public double EvaluationMs { get; set; }
+            public double OutputMs { get; set; }
             public string Scenario { get; set; } = string.Empty;
-            public JObject? EvaluatedSchema { get; set; }
+            public JsonObject? EvaluatedSchema { get; set; }
             public int DifferenceCount { get; set; }
         }
 
@@ -219,10 +220,10 @@ namespace JsonEvalBenchmark
             string schemaJson = File.ReadAllText(schemaPath);
             string dataJson = File.ReadAllText(dataPath);
             
-            JObject? compareData = null;
+            JsonObject? compareData = null;
             if (File.Exists(comparePath))
             {
-                compareData = JObject.Parse(File.ReadAllText(comparePath));
+                compareData = JsonNode.Parse(File.ReadAllText(comparePath))?.AsObject();
             }
 
             Console.WriteLine("⏱️ Running evaluation...");
@@ -257,14 +258,18 @@ namespace JsonEvalBenchmark
             evalStopwatch.Stop();
             Console.WriteLine($"  ⚡ Evaluation: {evalStopwatch.Elapsed.TotalMilliseconds:F3}ms");
 
+            // Benchmark 3: Constructing output
+            var outputStopwatch = Stopwatch.StartNew();
+            JsonObject result = eval.GetEvaluatedSchema(skipLayout: true);
+            var schemaValue = eval.GetSchemaValue();
+            outputStopwatch.Stop();
+            Console.WriteLine($"  📦 Constructing output: {outputStopwatch.Elapsed.TotalMilliseconds:F3}ms");
+
             totalStopwatch.Stop();
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine($"  ✅ Total execution time: {totalStopwatch.Elapsed.TotalMilliseconds:F3}ms");
             Console.ResetColor();
             Console.WriteLine();
-            
-            // Get the result for file output (not included in performance timing)
-            JObject result = eval.GetEvaluatedSchema(skipLayout: true);
 
             // Save results
             Console.WriteLine("💾 Saving results...");
@@ -275,16 +280,13 @@ namespace JsonEvalBenchmark
             string parsedPath = $"{outputDir}/{scenario}-parsed-schema.json";
             string sortedPath = $"{outputDir}/{scenario}-sorted-evaluations.json";
 
-            // The result from Evaluate already contains the full evaluated schema
-            // No need for additional FFI calls to GetEvaluatedSchema() and GetSchemaValue()
-            File.WriteAllText(evaluatedPath, result.ToString(Formatting.Indented));
-            
-            // Extract schema value from result (avoiding extra FFI call)
-            var schemaValue = result.SelectToken("$.$params") ?? new JObject();
-            File.WriteAllText(parsedPath, schemaValue.ToString(Formatting.Indented));
+            // Save the evaluated schema and parsed schema
+            var options = new JsonSerializerOptions { WriteIndented = true };
+            File.WriteAllText(evaluatedPath, result.ToJsonString(options));
+            File.WriteAllText(parsedPath, schemaValue.ToJsonString(options));
 
             // Save the evaluation result
-            File.WriteAllText(sortedPath, result.ToString(Formatting.Indented));
+            File.WriteAllText(sortedPath, result.ToJsonString(options));
 
             Console.WriteLine("✅ Results saved:");
             Console.WriteLine($"  - {evaluatedPath}");
@@ -297,7 +299,9 @@ namespace JsonEvalBenchmark
             List<string> differences = new List<string>();
             if (compareData != null)
             {
-                differences = FindDifferences(result.SelectToken("$.$params.others")?.ToObject<JObject>() ?? new JObject(), compareData.SelectToken("$.others")?.ToObject<JObject>() ?? new JObject(), "$");
+                var resultOthers = result["$params"]?["others"]?.AsObject() ?? new JsonObject();
+                var compareOthers = compareData["others"]?.AsObject() ?? new JsonObject();
+                differences = FindDifferences(resultOthers, compareOthers, "$");
                 differenceCount = differences.Count;
                 
                 if (differenceCount > 0)
@@ -329,6 +333,7 @@ namespace JsonEvalBenchmark
                 TotalMs = totalStopwatch.Elapsed.TotalMilliseconds,
                 ParsingMs = parsingStopwatch.Elapsed.TotalMilliseconds,
                 EvaluationMs = evalStopwatch.Elapsed.TotalMilliseconds,
+                OutputMs = outputStopwatch.Elapsed.TotalMilliseconds,
                 Scenario = scenario,
                 EvaluatedSchema = result,
                 DifferenceCount = differenceCount
@@ -461,6 +466,7 @@ namespace JsonEvalBenchmark
             Console.WriteLine($"  Total:       {csharpResult.TotalMs:F3}ms");
             Console.WriteLine($"  - Parsing:   {csharpResult.ParsingMs:F3}ms");
             Console.WriteLine($"  - Evaluation: {csharpResult.EvaluationMs:F3}ms");
+            Console.WriteLine($"  - Output:    {csharpResult.OutputMs:F3}ms");
             
             if (csharpResult.DifferenceCount > 0)
             {
@@ -522,42 +528,50 @@ namespace JsonEvalBenchmark
             };
         }
 
-        private static List<string> FindDifferences(JToken actual, JToken expected, string path)
+        private static List<string> FindDifferences(JsonNode? actual, JsonNode? expected, string path)
         {
             var differences = new List<string>();
 
-            if (actual.Type != expected.Type)
+            if (actual == null && expected == null)
+                return differences;
+
+            if (actual == null)
             {
-                differences.Add($"{path} type differs: actual={actual.Type} expected={expected.Type}");
+                differences.Add($"{path} is null in actual but not in expected");
                 return differences;
             }
 
-            if (actual is JObject actualObj && expected is JObject expectedObj)
+            if (expected == null)
+            {
+                differences.Add($"{path} is null in expected but not in actual");
+                return differences;
+            }
+
+            if (actual is JsonObject actualObj && expected is JsonObject expectedObj)
             {
                 // Check all properties in expected
-                foreach (var prop in expectedObj.Properties())
+                foreach (var prop in expectedObj)
                 {
-                    var actualProp = actualObj.Property(prop.Name);
-                    if (actualProp == null)
+                    if (!actualObj.ContainsKey(prop.Key))
                     {
-                        differences.Add($"{path}.{prop.Name} missing in actual");
+                        differences.Add($"{path}.{prop.Key} missing in actual");
                     }
                     else
                     {
-                        differences.AddRange(FindDifferences(actualProp.Value, prop.Value, $"{path}.{prop.Name}"));
+                        differences.AddRange(FindDifferences(actualObj[prop.Key], prop.Value, $"{path}.{prop.Key}"));
                     }
                 }
 
                 // Check for extra properties in actual
-                foreach (var prop in actualObj.Properties())
+                foreach (var prop in actualObj)
                 {
-                    if (expectedObj.Property(prop.Name) == null)
+                    if (!expectedObj.ContainsKey(prop.Key))
                     {
-                        differences.Add($"{path}.{prop.Name} extra in actual");
+                        differences.Add($"{path}.{prop.Key} extra in actual");
                     }
                 }
             }
-            else if (actual is JArray actualArray && expected is JArray expectedArray)
+            else if (actual is JsonArray actualArray && expected is JsonArray expectedArray)
             {
                 if (actualArray.Count != expectedArray.Count)
                 {
@@ -571,11 +585,11 @@ namespace JsonEvalBenchmark
                     }
                 }
             }
-            else if (actual is JValue actualValue && expected is JValue expectedValue)
+            else if (actual is JsonValue actualValue && expected is JsonValue expectedValue)
             {
-                if (!JToken.DeepEquals(actualValue, expectedValue))
+                if (!JsonNode.DeepEquals(actualValue, expectedValue))
                 {
-                    differences.Add($"{path} differs: actual={actualValue} expected={expectedValue}");
+                    differences.Add($"{path} differs: actual={actualValue.ToJsonString()} expected={expectedValue.ToJsonString()}");
                 }
             }
 

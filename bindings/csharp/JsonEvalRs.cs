@@ -2,8 +2,9 @@ using System;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Collections.Generic;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 
 namespace JsonEvalRs
 {
@@ -266,13 +267,13 @@ namespace JsonEvalRs
     /// </summary>
     public class ValidationError
     {
-        [JsonProperty("path")]
+        [JsonPropertyName("path")]
         public string Path { get; set; } = string.Empty;
 
-        [JsonProperty("ruleType")]
+        [JsonPropertyName("ruleType")]
         public string RuleType { get; set; } = string.Empty;
 
-        [JsonProperty("message")]
+        [JsonPropertyName("message")]
         public string Message { get; set; } = string.Empty;
     }
 
@@ -281,10 +282,10 @@ namespace JsonEvalRs
     /// </summary>
     public class ValidationResult
     {
-        [JsonProperty("hasError")]
+        [JsonPropertyName("hasError")]
         public bool HasError { get; set; }
 
-        [JsonProperty("errors")]
+        [JsonPropertyName("errors")]
         public List<ValidationError> Errors { get; set; } = new List<ValidationError>();
     }
 
@@ -293,13 +294,13 @@ namespace JsonEvalRs
     /// </summary>
     public class CacheStats
     {
-        [JsonProperty("hits")]
+        [JsonPropertyName("hits")]
         public ulong Hits { get; set; }
 
-        [JsonProperty("misses")]
+        [JsonPropertyName("misses")]
         public ulong Misses { get; set; }
 
-        [JsonProperty("entries")]
+        [JsonPropertyName("entries")]
         public ulong Entries { get; set; }
     }
 
@@ -460,8 +461,8 @@ namespace JsonEvalRs
         /// <param name="changedPath">Field path that changed (e.g., "#/properties/field")</param>
         /// <param name="data">Optional updated JSON data string (null to use existing data)</param>
         /// <param name="context">Optional context data</param>
-        /// <returns>Array of dependent change objects as JArray</returns>
-        public JArray EvaluateDependents(string changedPath, string? data = null, 
+        /// <returns>Array of dependent change objects as JsonArray</returns>
+        public JsonArray EvaluateDependents(string changedPath, string? data = null, 
             string? context = null)
         {
             ThrowIfDisposed();
@@ -481,8 +482,8 @@ namespace JsonEvalRs
         /// Gets the evaluated schema with optional layout resolution
         /// </summary>
         /// <param name="skipLayout">Whether to skip layout resolution</param>
-        /// <returns>Evaluated schema as JObject</returns>
-        public JObject GetEvaluatedSchema(bool skipLayout = false)
+        /// <returns>Evaluated schema as JsonObject</returns>
+        public JsonObject GetEvaluatedSchema(bool skipLayout = false)
         {
             ThrowIfDisposed();
             var result = Native.json_eval_get_evaluated_schema(_handle, skipLayout);
@@ -493,7 +494,7 @@ namespace JsonEvalRs
         /// Gets all schema values (evaluations ending with .value)
         /// </summary>
         /// <returns>Dictionary of path -> value</returns>
-        public JObject GetSchemaValue()
+        public JsonObject GetSchemaValue()
         {
             ThrowIfDisposed();
             var result = Native.json_eval_get_schema_value(_handle);
@@ -504,8 +505,8 @@ namespace JsonEvalRs
         /// Gets the evaluated schema without $params field
         /// </summary>
         /// <param name="skipLayout">Whether to skip layout resolution</param>
-        /// <returns>Evaluated schema as JObject</returns>
-        public JObject GetEvaluatedSchemaWithoutParams(bool skipLayout = false)
+        /// <returns>Evaluated schema as JsonObject</returns>
+        public JsonObject GetEvaluatedSchemaWithoutParams(bool skipLayout = false)
         {
             ThrowIfDisposed();
             var result = Native.json_eval_get_evaluated_schema_without_params(_handle, skipLayout);
@@ -517,8 +518,8 @@ namespace JsonEvalRs
         /// </summary>
         /// <param name="path">Dotted path to the value (e.g., "properties.field.value")</param>
         /// <param name="skipLayout">Whether to skip layout resolution</param>
-        /// <returns>Value as JToken, or null if not found</returns>
-        public JToken? GetValueByPath(string path, bool skipLayout = false)
+        /// <returns>Value as JsonNode, or null if not found</returns>
+        public JsonNode? GetValueByPath(string path, bool skipLayout = false)
         {
             ThrowIfDisposed();
 
@@ -552,7 +553,7 @@ namespace JsonEvalRs
                 Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
                 
                 string json = Encoding.UTF8.GetString(buffer);
-                return JToken.Parse(json);
+                return JsonNode.Parse(json);
             }
             finally
             {
@@ -604,7 +605,7 @@ namespace JsonEvalRs
             ThrowIfDisposed();
             var result = Native.json_eval_cache_stats(_handle);
             var jsonResult = ProcessResult(result);
-            return jsonResult.ToObject<CacheStats>() ?? new CacheStats();
+            return JsonSerializer.Deserialize<CacheStats>(jsonResult.ToJsonString()) ?? new CacheStats();
         }
 
         /// <summary>
@@ -689,7 +690,7 @@ namespace JsonEvalRs
             if (string.IsNullOrEmpty(data))
                 throw new ArgumentNullException(nameof(data));
 
-            string? pathsJson = paths != null ? JsonConvert.SerializeObject(paths) : null;
+            string? pathsJson = paths != null ? JsonSerializer.Serialize(paths) : null;
 #if NETCOREAPP || NET5_0_OR_GREATER
             var result = Native.json_eval_validate_paths(_handle, data, context, pathsJson);
 #else
@@ -698,7 +699,7 @@ namespace JsonEvalRs
             return ProcessResult<ValidationResult>(result);
         }
 
-        private JObject ProcessResult(Native.FFIResult result)
+        private JsonObject ProcessResult(Native.FFIResult result)
         {
             try
             {
@@ -728,7 +729,7 @@ namespace JsonEvalRs
                 Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
                 
                 string json = Encoding.UTF8.GetString(buffer);
-                return JObject.Parse(json);
+                return JsonNode.Parse(json)?.AsObject() ?? throw new JsonEvalException("Failed to parse JSON as object");
             }
             finally
             {
@@ -736,7 +737,7 @@ namespace JsonEvalRs
             }
         }
 
-        private JArray ProcessResultAsArray(Native.FFIResult result)
+        private JsonArray ProcessResultAsArray(Native.FFIResult result)
         {
             try
             {
@@ -766,7 +767,7 @@ namespace JsonEvalRs
                 Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
                 
                 string json = Encoding.UTF8.GetString(buffer);
-                return JArray.Parse(json);
+                return JsonNode.Parse(json)?.AsArray() ?? throw new JsonEvalException("Failed to parse JSON as array");
             }
             finally
             {
@@ -804,8 +805,7 @@ namespace JsonEvalRs
                 Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
                 
                 string json = Encoding.UTF8.GetString(buffer);
-                var obj = JObject.Parse(json);
-                return obj.ToObject<T>() ?? throw new JsonEvalException("Failed to deserialize result");
+                return JsonSerializer.Deserialize<T>(json) ?? throw new JsonEvalException("Failed to deserialize result");
             }
             finally
             {
