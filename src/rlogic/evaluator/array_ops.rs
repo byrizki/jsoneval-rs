@@ -201,65 +201,88 @@ impl Evaluator {
         }
     }
 
-    /// Evaluate Sum operation - ZERO-COPY
-    pub(super) fn eval_sum(&self, array_expr: &CompiledLogic, field_expr: &Option<Box<CompiledLogic>>, user_data: &Value, internal_context: &Value, depth: usize) -> Result<Value, String> {
+    /// Evaluate Sum operation with optional indexThreshold - ZERO-COPY
+    pub(super) fn eval_sum(&self, array_expr: &CompiledLogic, field_expr: &Option<Box<CompiledLogic>>, threshold_expr: &Option<Box<CompiledLogic>>, user_data: &Value, internal_context: &Value, depth: usize) -> Result<Value, String> {
         let array_val = self.evaluate_with_context(array_expr, user_data, internal_context, depth + 1)?;
+        
+        // Evaluate threshold if provided
+        let threshold = if let Some(thresh_e) = threshold_expr {
+            let thresh_val = self.evaluate_with_context(thresh_e, user_data, internal_context, depth + 1)?;
+            helpers::to_f64(&thresh_val) as i64
+        } else {
+            -1  // No threshold
+        };
 
         let sum = match &array_val {
             Value::Array(arr) => {
-                if let Some(field_e) = field_expr {
+                // Check if field is provided and is a non-null string
+                let field_name_opt = if let Some(field_e) = field_expr {
                     let field_val = self.evaluate_with_context(field_e, user_data, internal_context, depth + 1)?;
-                    if let Value::String(field_name) = field_val {
-                        // Parallelize for large arrays
-                        #[cfg(feature = "parallel")]
-                        if arr.len() >= PARALLEL_THRESHOLD {
-                            arr.par_iter()
-                                .filter_map(|item| {
-                                    if let Value::Object(obj) = item {
-                                        obj.get(&field_name).map(|val| helpers::to_f64(val))
-                                    } else {
-                                        None
-                                    }
-                                })
-                                .sum()
-                        } else {
-                            let mut sum = 0.0_f64;
-                            for item in arr {
-                                if let Value::Object(obj) = item {
-                                    if let Some(val) = obj.get(&field_name) {
-                                        sum += helpers::to_f64(val);
-                                    }
-                                }
-                            }
-                            sum
-                        }
-                        
-                        #[cfg(not(feature = "parallel"))]
-                        {
-                            let mut sum = 0.0_f64;
-                            for item in arr {
-                                if let Value::Object(obj) = item {
-                                    if let Some(val) = obj.get(&field_name) {
-                                        sum += helpers::to_f64(val);
-                                    }
-                                }
-                            }
-                            sum
-                        }
-                    } else {
-                        0.0
+                    match field_val {
+                        Value::String(s) => Some(s),
+                        Value::Null => None,  // Treat null as no field
+                        _ => None,
                     }
                 } else {
-                    // Parallelize for large arrays
+                    None
+                };
+                
+                // Apply threshold if specified
+                let items_to_process = if threshold >= 0 {
+                    let limit = (threshold as usize + 1).min(arr.len());
+                    &arr[..limit]
+                } else {
+                    arr
+                };
+                
+                if let Some(field_name) = field_name_opt {
+                    // Sum with field name
                     #[cfg(feature = "parallel")]
-                    if arr.len() >= PARALLEL_THRESHOLD {
-                        arr.par_iter().map(|item| helpers::to_f64(item)).sum()
+                    if items_to_process.len() >= PARALLEL_THRESHOLD {
+                        items_to_process.par_iter()
+                            .filter_map(|item| {
+                                if let Value::Object(obj) = item {
+                                    obj.get(&field_name).map(|val| helpers::to_f64(val))
+                                } else {
+                                    None
+                                }
+                            })
+                            .sum()
                     } else {
-                        arr.iter().map(|item| helpers::to_f64(item)).sum()
+                        let mut sum = 0.0_f64;
+                        for item in items_to_process {
+                            if let Value::Object(obj) = item {
+                                if let Some(val) = obj.get(&field_name) {
+                                    sum += helpers::to_f64(val);
+                                }
+                            }
+                        }
+                        sum
                     }
                     
                     #[cfg(not(feature = "parallel"))]
-                    arr.iter().map(|item| helpers::to_f64(item)).sum()
+                    {
+                        let mut sum = 0.0_f64;
+                        for item in items_to_process {
+                            if let Value::Object(obj) = item {
+                                if let Some(val) = obj.get(&field_name) {
+                                    sum += helpers::to_f64(val);
+                                }
+                            }
+                        }
+                        sum
+                    }
+                } else {
+                    // Sum without field name (threshold already applied above)
+                    #[cfg(feature = "parallel")]
+                    if items_to_process.len() >= PARALLEL_THRESHOLD {
+                        items_to_process.par_iter().map(|item| helpers::to_f64(item)).sum()
+                    } else {
+                        items_to_process.iter().map(|item| helpers::to_f64(item)).sum()
+                    }
+                    
+                    #[cfg(not(feature = "parallel"))]
+                    items_to_process.iter().map(|item| helpers::to_f64(item)).sum()
                 }
             }
             _ => helpers::to_f64(&array_val),

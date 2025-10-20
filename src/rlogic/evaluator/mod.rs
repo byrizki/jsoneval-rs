@@ -238,7 +238,7 @@ impl Evaluator {
             CompiledLogic::None(array_expr, logic_expr) => self.eval_quantifier(Quantifier::None, array_expr, logic_expr, user_data, internal_context, depth),
             CompiledLogic::Merge(items) => self.eval_merge(items, user_data, internal_context, depth),
             CompiledLogic::In(value_expr, array_expr) => self.eval_in(value_expr, array_expr, user_data, internal_context, depth),
-            CompiledLogic::Sum(array_expr, field_expr) => self.eval_sum(array_expr, field_expr, user_data, internal_context, depth),
+            CompiledLogic::Sum(array_expr, field_expr, threshold_expr) => self.eval_sum(array_expr, field_expr, threshold_expr, user_data, internal_context, depth),
             CompiledLogic::For(start_expr, end_expr, logic_expr) => self.eval_for(start_expr, end_expr, logic_expr, user_data, internal_context, depth),
             CompiledLogic::Multiplies(items) => self.eval_multiplies(items, user_data, internal_context, depth),
             CompiledLogic::Divides(items) => self.eval_divides(items, user_data, internal_context, depth),

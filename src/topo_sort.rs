@@ -173,8 +173,18 @@ pub fn topological_sort(lib: &JSONEval) -> Result<Vec<Vec<String>>, String> {
         let resolved_deps: IndexSet<String> = deps
             .iter()
             .filter_map(|dep| {
+                // Filter out self-references (table depending on itself)
+                // This is common for iterative calculations within the same table
+                if dep == table_path {
+                    return None;
+                }
+                
                 // Try to resolve JSON pointer path to evaluation key
                 if let Some(eval_key) = pointer_to_eval.get(dep) {
+                    // Also filter out resolved self-references
+                    if eval_key == table_path {
+                        return None;
+                    }
                     Some(eval_key.clone())
                 } else {
                     // Keep as-is if not resolvable

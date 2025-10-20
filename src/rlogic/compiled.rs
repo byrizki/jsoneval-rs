@@ -99,7 +99,7 @@ pub enum CompiledLogic {
     Date(Box<CompiledLogic>, Box<CompiledLogic>, Box<CompiledLogic>), // year, month, day
     
     // Custom operators - Array/Table
-    Sum(Box<CompiledLogic>, Option<Box<CompiledLogic>>), // array/value, optional field name
+    Sum(Box<CompiledLogic>, Option<Box<CompiledLogic>>, Option<Box<CompiledLogic>>), // array/value, optional field name, optional index threshold
     For(Box<CompiledLogic>, Box<CompiledLogic>, Box<CompiledLogic>), // start, end, logic (with $iteration variable)
     
     // Complex table operations
@@ -496,9 +496,14 @@ impl CompiledLogic {
                     } else {
                         None
                     };
-                    Ok(CompiledLogic::Sum(Box::new(Self::compile(&arr[0])?), field))
+                    let threshold = if arr.len() > 2 {
+                        Some(Box::new(Self::compile(&arr[2])?))
+                    } else {
+                        None
+                    };
+                    Ok(CompiledLogic::Sum(Box::new(Self::compile(&arr[0])?), field, threshold))
                 } else {
-                    Ok(CompiledLogic::Sum(Box::new(Self::compile(args)?), None))
+                    Ok(CompiledLogic::Sum(Box::new(Self::compile(args)?), None, None))
                 }
             }
             "FOR" => {
@@ -946,9 +951,13 @@ impl CompiledLogic {
                 s.check_forward_reference() || start.check_forward_reference() 
                 || len.as_ref().map(|l| l.check_forward_reference()).unwrap_or(false)
             }
-            CompiledLogic::Left(a, opt) | CompiledLogic::Right(a, opt)
-            | CompiledLogic::Sum(a, opt) => {
+            CompiledLogic::Left(a, opt) | CompiledLogic::Right(a, opt) => {
                 a.check_forward_reference() || opt.as_ref().map(|o| o.check_forward_reference()).unwrap_or(false)
+            }
+            CompiledLogic::Sum(a, opt1, opt2) => {
+                a.check_forward_reference() 
+                || opt1.as_ref().map(|o| o.check_forward_reference()).unwrap_or(false)
+                || opt2.as_ref().map(|o| o.check_forward_reference()).unwrap_or(false)
             }
             CompiledLogic::IndexAt(a, b, c, opt) => {
                 a.check_forward_reference() || b.check_forward_reference() 
@@ -1096,9 +1105,18 @@ impl CompiledLogic {
                 }
             }
             CompiledLogic::Left(a, opt) | CompiledLogic::Right(a, opt)
-            | CompiledLogic::Sum(a, opt) | CompiledLogic::ValueAt(a, _, opt) => {
+            | CompiledLogic::ValueAt(a, _, opt) => {
                 a.collect_vars(vars);
                 if let Some(o) = opt {
+                    o.collect_vars(vars);
+                }
+            }
+            CompiledLogic::Sum(a, opt1, opt2) => {
+                a.collect_vars(vars);
+                if let Some(o) = opt1 {
+                    o.collect_vars(vars);
+                }
+                if let Some(o) = opt2 {
                     o.collect_vars(vars);
                 }
             }
