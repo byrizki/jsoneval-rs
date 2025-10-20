@@ -300,9 +300,9 @@ export class JSONEval {
    * @returns Promise resolving to the value at the path, or null if not found
    * @throws {Error} If operation fails
    */
-  async getValueByPath(path: string, skipLayout: boolean = false): Promise<any | null> {
+  async getEvaluatedSchemaByPath(path: string, skipLayout: boolean = false): Promise<any | null> {
     this.throwIfDisposed();
-    const resultStr = await JsonEvalRs.getValueByPath(this.handle, path, skipLayout);
+    const resultStr = await JsonEvalRs.getEvaluatedSchemaByPath(this.handle, path, skipLayout);
     return resultStr ? JSON.parse(resultStr) : null;
   }
 
@@ -356,6 +356,34 @@ export class JSONEval {
   async cacheLen(): Promise<number> {
     this.throwIfDisposed();
     return await JsonEvalRs.cacheLen(this.handle);
+  }
+
+  /**
+   * Resolve layout with optional evaluation
+   * @param evaluate - If true, runs evaluation before resolving layout (default: false)
+   * @returns Promise that resolves when layout resolution is complete
+   * @throws {Error} If operation fails
+   */
+  async resolveLayout(evaluate: boolean = false): Promise<void> {
+    this.throwIfDisposed();
+    await JsonEvalRs.resolveLayout(this.handle, evaluate);
+  }
+
+  /**
+   * Compile and run JSON logic from a JSON logic string
+   * @param logicStr - JSON logic expression as a string or object
+   * @param data - Optional data to evaluate against (uses existing data if not provided)
+   * @returns Promise resolving to the result of the evaluation
+   * @throws {Error} If compilation or evaluation fails
+   */
+  async compileAndRunLogic(logicStr: string | object, data?: string | object): Promise<any> {
+    this.throwIfDisposed();
+    
+    const logic = this.toJsonString(logicStr);
+    const dataStr = data ? this.toJsonString(data) : null;
+    
+    const resultStr = await JsonEvalRs.compileAndRunLogic(this.handle, logic, dataStr);
+    return JSON.parse(resultStr);
   }
 
   /**

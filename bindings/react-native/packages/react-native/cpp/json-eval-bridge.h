@@ -136,7 +136,7 @@ public:
      * @param skipLayout Whether to skip layout resolution
      * @param callback Result callback
      */
-    static void getValueByPathAsync(
+    static void getEvaluatedSchemaByPathAsync(
         const std::string& handle,
         const std::string& path,
         bool skipLayout,
@@ -186,6 +186,32 @@ public:
      */
     static void cacheLenAsync(
         const std::string& handle,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Resolve layout with optional evaluation (async)
+     * @param handle Instance handle
+     * @param evaluate If true, runs evaluation before resolving layout
+     * @param callback Result callback
+     */
+    static void resolveLayoutAsync(
+        const std::string& handle,
+        bool evaluate,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Compile and run JSON logic from a JSON logic string (async)
+     * @param handle Instance handle
+     * @param logicStr JSON logic expression as a string
+     * @param data Optional JSON data string (empty to use existing data)
+     * @param callback Result callback
+     */
+    static void compileAndRunLogicAsync(
+        const std::string& handle,
+        const std::string& logicStr,
+        const std::string& data,
         std::function<void(const std::string&, const std::string&)> callback
     );
 

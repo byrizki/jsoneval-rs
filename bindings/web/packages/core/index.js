@@ -204,9 +204,9 @@ export class JSONEvalCore {
    * @param {boolean} [options.skipLayout=false] - Skip layout resolution
    * @returns {Promise<any|null>} Value at the path, or null if not found
    */
-  async getValueByPath({ path, skipLayout = false }) {
+  async getEvaluatedSchemaByPath({ path, skipLayout = false }) {
     await this.init();
-    return this._instance.getValueByPathJS(path, skipLayout);
+    return this._instance.getEvaluatedSchemaByPathJS(path, skipLayout);
   }
 
   /**
@@ -263,6 +263,55 @@ export class JSONEvalCore {
   async cacheLen() {
     await this.init();
     return this._instance.cacheLen();
+  }
+
+  /**
+   * Resolve layout with optional evaluation
+   * @param {object} [options]
+   * @param {boolean} [options.evaluate=false] - If true, runs evaluation before resolving layout
+   * @returns {Promise<void>}
+   */
+  async resolveLayout({ evaluate = false } = {}) {
+    await this.init();
+    return this._instance.resolveLayout(evaluate);
+  }
+
+  /**
+   * Compile and run JSON logic from a JSON logic string
+   * @param {object} options
+   * @param {string|object} options.logicStr - JSON logic expression as a string or object
+   * @param {object} [options.data] - Optional data to evaluate against (uses existing data if not provided)
+   * @returns {Promise<any>} Result of the evaluation
+   */
+  async compileAndRunLogic({ logicStr, data }) {
+    await this.init();
+    const logic = typeof logicStr === 'string' ? logicStr : JSON.stringify(logicStr);
+    return this._instance.compileAndRunLogicJS(
+      logic,
+      data ? JSON.stringify(data) : null
+    );
+  }
+
+  /**
+   * Validate data against schema rules with optional path filtering
+   * @param {object} options
+   * @param {object} options.data - Data to validate
+   * @param {object} [options.context] - Optional context
+   * @param {Array<string>} [options.paths] - Optional array of paths to validate (null for all)
+   * @returns {Promise<{has_error: boolean, errors: Array<{path: string, rule_type: string, message: string}>}>}
+   */
+  async validatePaths({ data, context, paths }) {
+    await this.init();
+    try {
+      // Use validatePathsJS for proper serialization (Worker-safe)
+      return this._instance.validatePathsJS(
+        JSON.stringify(data),
+        context ? JSON.stringify(context) : null,
+        paths || null
+      );
+    } catch (error) {
+      throw new Error(`Validation failed: ${error.message || error}`);
+    }
   }
 
   /**

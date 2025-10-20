@@ -412,7 +412,7 @@ impl JSONEval {
     /// The evaluated schema as a JSON value.
     pub fn get_evaluated_schema(&mut self, skip_layout: bool) -> Value {
         if !skip_layout {
-            self.resolve_layout();
+            self.resolve_layout_internal();
         }
         
         self.evaluated_schema.clone()
@@ -436,7 +436,7 @@ impl JSONEval {
     /// highly optimized by rmp-serde.
     pub fn get_evaluated_schema_msgpack(&mut self, skip_layout: bool) -> Result<Vec<u8>, String> {
         if !skip_layout {
-            self.resolve_layout();
+            self.resolve_layout_internal();
         }
         
         // Serialize evaluated schema to MessagePack
@@ -511,7 +511,7 @@ impl JSONEval {
     /// The evaluated schema with $params removed.
     pub fn get_evaluated_schema_without_params(&mut self, skip_layout: bool) -> Value {
         if !skip_layout {
-            self.resolve_layout();
+            self.resolve_layout_internal();
         }
         
         // Filter $params at root level only
@@ -534,9 +534,9 @@ impl JSONEval {
     /// # Returns
     ///
     /// The value at the specified path, or None if not found.
-    pub fn get_value_by_path(&mut self, path: &str, skip_layout: bool) -> Option<Value> {
+    pub fn get_evaluated_schema_by_path(&mut self, path: &str, skip_layout: bool) -> Option<Value> {
         if !skip_layout {
-            self.resolve_layout();
+            self.resolve_layout_internal();
         }
         
         // Convert dotted notation to JSON pointer
@@ -729,7 +729,55 @@ impl JSONEval {
         }
     }
 
-    fn resolve_layout(&mut self) {
+    /// Compile and run JSON logic from a JSON logic string
+    ///
+    /// # Arguments
+    ///
+    /// * `logic_str` - JSON logic expression as a string
+    /// * `data` - Optional data to evaluate against (uses existing data if None)
+    ///
+    /// # Returns
+    ///
+    /// The result of the evaluation as a Value
+    pub fn compile_and_run_logic(&mut self, logic_str: &str, data: Option<&str>) -> Result<Value, String> {
+        // Parse the logic string
+        let logic: Value = json_parser::parse_json_str(logic_str)?;
+        
+        // Get the data to evaluate against
+        let data_value = if let Some(data_str) = data {
+            json_parser::parse_json_str(data_str)?
+        } else {
+            self.eval_data.data().clone()
+        };
+        
+        // Compile and evaluate the logic
+        let result = self.engine.evaluate(&logic, &data_value)?;
+        
+        Ok(clean_float_noise(result))
+    }
+
+    /// Resolve layout references with optional evaluation
+    ///
+    /// # Arguments
+    ///
+    /// * `evaluate` - If true, runs evaluation before resolving layout. If false, only resolves layout.
+    ///
+    /// # Returns
+    ///
+    /// A Result indicating success or an error message.
+    pub fn resolve_layout(&mut self, evaluate: bool) -> Result<(), String> {
+        if evaluate {
+            // Use existing data
+            let data_str = serde_json::to_string(&self.data)
+                .map_err(|e| format!("Failed to serialize data: {}", e))?;
+            self.evaluate(&data_str, None)?;
+        }
+        
+        self.resolve_layout_internal();
+        Ok(())
+    }
+    
+    fn resolve_layout_internal(&mut self) {
         // Use cached layout paths (collected at parse time)
         // Clone to avoid borrow checker issues
         let layout_paths = self.layout_paths.clone();

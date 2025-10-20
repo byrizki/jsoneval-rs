@@ -357,9 +357,9 @@ impl JSONEvalWasm {
     /// @param path - Dotted path to the value (e.g., "properties.field.value")
     /// @param skipLayout - Whether to skip layout resolution
     /// @returns Value as JSON string or null if not found
-    #[wasm_bindgen(js_name = getValueByPath)]
-    pub fn get_value_by_path(&mut self, path: &str, skip_layout: bool) -> Option<String> {
-        self.inner.get_value_by_path(path, skip_layout)
+    #[wasm_bindgen(js_name = getEvaluatedSchemaByPath)]
+    pub fn get_evaluated_schema_by_path(&mut self, path: &str, skip_layout: bool) -> Option<String> {
+        self.inner.get_evaluated_schema_by_path(path, skip_layout)
             .map(|v| serde_json::to_string(&v).unwrap_or_else(|_| "null".to_string()))
     }
 
@@ -368,9 +368,9 @@ impl JSONEvalWasm {
     /// @param path - Dotted path to the value (e.g., "properties.field.value")
     /// @param skipLayout - Whether to skip layout resolution
     /// @returns Value as JavaScript object or null if not found
-    #[wasm_bindgen(js_name = getValueByPathJS)]
-    pub fn get_value_by_path_js(&mut self, path: &str, skip_layout: bool) -> Result<JsValue, JsValue> {
-        match self.inner.get_value_by_path(path, skip_layout) {
+    #[wasm_bindgen(js_name = getEvaluatedSchemaByPathJS)]
+    pub fn get_evaluated_schema_by_path_js(&mut self, path: &str, skip_layout: bool) -> Result<JsValue, JsValue> {
+        match self.inner.get_evaluated_schema_by_path(path, skip_layout) {
             Some(value) => serde_wasm_bindgen::to_value(&value)
                 .map_err(|e| JsValue::from_str(&e.to_string())),
             None => Ok(JsValue::NULL),
@@ -488,6 +488,62 @@ impl JSONEvalWasm {
                     .map_err(|e| JsValue::from_str(&format!("JSON parse error: {:?}", e)))
             }
             Err(e) => Err(JsValue::from_str(&e)),
+        }
+    }
+
+    /// Resolve layout with optional evaluation
+    /// 
+    /// @param evaluate - If true, runs evaluation before resolving layout
+    /// @throws Error if resolve fails
+    #[wasm_bindgen(js_name = resolveLayout)]
+    pub fn resolve_layout(&mut self, evaluate: bool) -> Result<(), JsValue> {
+        self.inner.resolve_layout(evaluate)
+            .map_err(|e| {
+                let error_msg = format!("Failed to resolve layout: {}", e);
+                log(&format!("[WASM ERROR] {}", error_msg));
+                JsValue::from_str(&error_msg)
+            })
+    }
+
+    /// Compile and run JSON logic from a JSON logic string
+    /// 
+    /// @param logicStr - JSON logic expression as a string
+    /// @param data - Optional JSON data string (null to use existing data)
+    /// @returns Result as JSON string
+    /// @throws Error if compilation or evaluation fails
+    #[wasm_bindgen(js_name = compileAndRunLogic)]
+    pub fn compile_and_run_logic(&mut self, logic_str: &str, data: Option<String>) -> Result<String, JsValue> {
+        let data_str = data.as_deref();
+        
+        match self.inner.compile_and_run_logic(logic_str, data_str) {
+            Ok(result) => serde_json::to_string(&result)
+                .map_err(|e| JsValue::from_str(&e.to_string())),
+            Err(e) => {
+                let error_msg = format!("Failed to compile and run logic: {}", e);
+                log(&format!("[WASM ERROR] {}", error_msg));
+                Err(JsValue::from_str(&error_msg))
+            }
+        }
+    }
+
+    /// Compile and run JSON logic and return as JavaScript object
+    /// 
+    /// @param logicStr - JSON logic expression as a string
+    /// @param data - Optional JSON data string (null to use existing data)
+    /// @returns Result as JavaScript object
+    /// @throws Error if compilation or evaluation fails
+    #[wasm_bindgen(js_name = compileAndRunLogicJS)]
+    pub fn compile_and_run_logic_js(&mut self, logic_str: &str, data: Option<String>) -> Result<JsValue, JsValue> {
+        let data_str = data.as_deref();
+        
+        match self.inner.compile_and_run_logic(logic_str, data_str) {
+            Ok(result) => serde_wasm_bindgen::to_value(&result)
+                .map_err(|e| JsValue::from_str(&e.to_string())),
+            Err(e) => {
+                let error_msg = format!("Failed to compile and run logic: {}", e);
+                log(&format!("[WASM ERROR] {}", error_msg));
+                Err(JsValue::from_str(&error_msg))
+            }
         }
     }
 }

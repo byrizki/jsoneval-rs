@@ -572,7 +572,7 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_without_params(
 /// - path must be a valid null-terminated UTF-8 string (dotted notation)
 /// - Caller must call json_eval_free_result when done
 #[no_mangle]
-pub unsafe extern "C" fn json_eval_get_value_by_path(
+pub unsafe extern "C" fn json_eval_get_evaluated_schema_by_path(
     handle: *mut JSONEvalHandle,
     path: *const c_char,
     skip_layout: bool,
@@ -590,7 +590,7 @@ pub unsafe extern "C" fn json_eval_get_value_by_path(
         }
     };
 
-    match eval.get_value_by_path(path_str, skip_layout) {
+    match eval.get_evaluated_schema_by_path(path_str, skip_layout) {
         Some(value) => {
             let result_bytes = serde_json::to_vec(&value).unwrap_or_default();
             FFIResult::success(result_bytes)
@@ -838,6 +838,75 @@ pub unsafe extern "C" fn json_eval_validate_paths(
             });
             
             let result_bytes = serde_json::to_vec(&result_json).unwrap_or_default();
+            FFIResult::success(result_bytes)
+        }
+        Err(e) => FFIResult::error(e),
+    }
+}
+
+/// Resolve layout with optional evaluation
+/// 
+/// # Safety
+/// 
+/// - handle must be a valid pointer from json_eval_new
+/// - evaluate: if true, runs evaluation before resolving layout
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_resolve_layout(
+    handle: *mut JSONEvalHandle,
+    evaluate: bool,
+) -> FFIResult {
+    if handle.is_null() {
+        return FFIResult::error("Invalid handle pointer".to_string());
+    }
+
+    let eval = &mut (*handle).inner;
+    match eval.resolve_layout(evaluate) {
+        Ok(_) => FFIResult::success(Vec::new()),
+        Err(e) => FFIResult::error(e),
+    }
+}
+
+/// Compile and run JSON logic from a JSON logic string
+/// 
+/// # Safety
+/// 
+/// - handle must be a valid pointer from json_eval_new
+/// - logic_str must be a valid null-terminated UTF-8 string containing JSON logic
+/// - data can be NULL (uses existing data)
+/// - Caller must call json_eval_free_result when done
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_compile_and_run_logic(
+    handle: *mut JSONEvalHandle,
+    logic_str: *const c_char,
+    data: *const c_char,
+) -> FFIResult {
+    if handle.is_null() || logic_str.is_null() {
+        return FFIResult::error("Invalid handle or logic_str pointer".to_string());
+    }
+
+    let eval = &mut (*handle).inner;
+
+    let logic = match CStr::from_ptr(logic_str).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            return FFIResult::error("Invalid UTF-8 in logic_str".to_string())
+        }
+    };
+
+    let data_str = if !data.is_null() {
+        match CStr::from_ptr(data).to_str() {
+            Ok(s) => Some(s),
+            Err(_) => {
+                return FFIResult::error("Invalid UTF-8 in data".to_string())
+            }
+        }
+    } else {
+        None
+    };
+
+    match eval.compile_and_run_logic(logic, data_str) {
+        Ok(result) => {
+            let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
             FFIResult::success(result_bytes)
         }
         Err(e) => FFIResult::error(e),

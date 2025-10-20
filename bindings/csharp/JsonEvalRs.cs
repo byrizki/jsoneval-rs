@@ -218,7 +218,7 @@ namespace JsonEvalRs
             [MarshalAs(UnmanagedType.LPUTF8Str)] string? data
         );
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_get_value_by_path(
+        internal static extern FFIResult json_eval_get_evaluated_schema_by_path(
             IntPtr handle,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string path,
             [MarshalAs(UnmanagedType.I1)] bool skipLayout
@@ -249,7 +249,7 @@ namespace JsonEvalRs
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_get_value_by_path(
+        internal static extern FFIResult json_eval_get_evaluated_schema_by_path(
             IntPtr handle,
             byte[]? path,
             [MarshalAs(UnmanagedType.I1)] bool skipLayout
@@ -280,6 +280,34 @@ namespace JsonEvalRs
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_cache_len(IntPtr handle);
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_resolve_layout(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.I1)] bool evaluate
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_compile_and_run_logic(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string logicStr,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? data
+        );
+#else
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_resolve_layout(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.I1)] bool evaluate
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_compile_and_run_logic(
+            IntPtr handle,
+            byte[]? logicStr,
+            byte[]? data
+        );
+#endif
     }
 
     /// <summary>
@@ -608,7 +636,7 @@ namespace JsonEvalRs
         /// <param name="path">Dotted path to the value (e.g., "properties.field.value")</param>
         /// <param name="skipLayout">Whether to skip layout resolution</param>
         /// <returns>Value as JToken, or null if not found</returns>
-        public JToken? GetValueByPath(string path, bool skipLayout = false)
+        public JToken? GetEvaluatedSchemaByPath(string path, bool skipLayout = false)
         {
             ThrowIfDisposed();
 
@@ -616,9 +644,9 @@ namespace JsonEvalRs
                 throw new ArgumentNullException(nameof(path));
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_get_value_by_path(_handle, path, skipLayout);
+            var result = Native.json_eval_get_evaluated_schema_by_path(_handle, path, skipLayout);
 #else
-            var result = Native.json_eval_get_value_by_path(_handle, Native.ToUTF8Bytes(path), skipLayout);
+            var result = Native.json_eval_get_evaluated_schema_by_path(_handle, Native.ToUTF8Bytes(path), skipLayout);
 #endif
             
             if (!result.Success)
@@ -758,6 +786,88 @@ namespace JsonEvalRs
                 
                 string lenStr = Encoding.UTF8.GetString(buffer);
                 return int.Parse(lenStr);
+            }
+            finally
+            {
+                Native.json_eval_free_result(result);
+            }
+        }
+
+        /// <summary>
+        /// Resolves layout with optional evaluation
+        /// </summary>
+        /// <param name="evaluate">If true, runs evaluation before resolving layout</param>
+        /// <throws>JsonEvalException if resolve fails</throws>
+        public void ResolveLayout(bool evaluate = false)
+        {
+            ThrowIfDisposed();
+            var result = Native.json_eval_resolve_layout(_handle, evaluate);
+            if (!result.Success)
+            {
+#if NETCOREAPP || NET5_0_OR_GREATER
+                string error = result.Error != IntPtr.Zero
+                    ? Marshal.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                    : "Unknown error";
+#else
+                string error = result.Error != IntPtr.Zero
+                    ? Native.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                    : "Unknown error";
+#endif
+                Native.json_eval_free_result(result);
+                throw new JsonEvalException(error);
+            }
+            Native.json_eval_free_result(result);
+        }
+
+        /// <summary>
+        /// Compiles and runs JSON logic from a JSON logic string
+        /// </summary>
+        /// <param name="logicStr">JSON logic expression as a string</param>
+        /// <param name="data">Optional JSON data string (null to use existing data)</param>
+        /// <returns>Result as JToken</returns>
+        /// <throws>JsonEvalException if compilation or evaluation fails</throws>
+        public JToken CompileAndRunLogic(string logicStr, string? data = null)
+        {
+            ThrowIfDisposed();
+
+            if (string.IsNullOrEmpty(logicStr))
+                throw new ArgumentNullException(nameof(logicStr));
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+            var result = Native.json_eval_compile_and_run_logic(_handle, logicStr, data);
+#else
+            var result = Native.json_eval_compile_and_run_logic(_handle, Native.ToUTF8Bytes(logicStr), Native.ToUTF8Bytes(data));
+#endif
+            
+            try
+            {
+                if (!result.Success)
+                {
+#if NETCOREAPP || NET5_0_OR_GREATER
+                    string error = result.Error != IntPtr.Zero
+                        ? Marshal.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                        : "Unknown error";
+#else
+                    string error = result.Error != IntPtr.Zero
+                        ? Native.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                        : "Unknown error";
+#endif
+                    throw new JsonEvalException(error);
+                }
+
+                if (result.DataPtr == IntPtr.Zero)
+                    throw new JsonEvalException("No data returned from native function");
+
+                int dataLen = (int)result.DataLen.ToUInt32();
+                if (dataLen == 0)
+                    throw new JsonEvalException("Empty result returned from native function");
+
+                // Zero-copy: read directly from Rust-owned memory
+                byte[] buffer = new byte[dataLen];
+                Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
+                
+                string json = Encoding.UTF8.GetString(buffer);
+                return JToken.Parse(json);
             }
             finally
             {
