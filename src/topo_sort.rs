@@ -86,6 +86,12 @@ pub fn topological_sort(lib: &JSONEval) -> Result<Vec<Vec<String>>, String> {
         let pointer = path_utils::normalize_to_json_pointer(eval_key);
         pointer_to_eval.insert(pointer, eval_key.clone());
     }
+    
+    // Also add table paths to pointer_to_eval for dependency resolution
+    for table_path in &table_paths {
+        let pointer = path_utils::normalize_to_json_pointer(table_path);
+        pointer_to_eval.insert(pointer, table_path.clone());
+    }
 
     // Second pass: group ALL evaluations by table and merge dependencies
     // Process ALL evaluations (not just filtered ones) to capture table dependencies
@@ -94,9 +100,12 @@ pub fn topological_sort(lib: &JSONEval) -> Result<Vec<Vec<String>>, String> {
         (k, deps)
     }) {
         // Find which table this evaluation belongs to
+        // Use longest match to handle nested table names correctly
+        // (e.g., ILB_SURRENDER vs ILB_SURRENDER_BENPAY_CLONE)
         let table_path_opt = table_paths
             .iter()
-            .find(|tp| eval_key.starts_with(tp.as_str()));
+            .filter(|tp| eval_key.starts_with(tp.as_str()))
+            .max_by_key(|tp| tp.len());
 
         if let Some(table_path) = table_path_opt {
             evaluation_to_table.insert(eval_key.clone(), table_path.clone());
