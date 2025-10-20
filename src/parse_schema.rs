@@ -17,6 +17,7 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
         value_fields: &mut Vec<String>,
         layout_paths: &mut Vec<String>,
         dependents: &mut IndexMap<String, Vec<crate::DependentItem>>,
+        options_templates: &mut Vec<(String, String, String)>,
     ) -> Result<(), String> {
         match value {
             Value::Object(map) => {
@@ -94,6 +95,17 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
                     if let Some(Value::Array(_)) = layout_obj.get("elements") {
                         let layout_elements_path = format!("{}/$layout/elements", path);
                         layout_paths.push(layout_elements_path);
+                    }
+                }
+
+                // Check for options with URL templates
+                if let Some(Value::String(url)) = map.get("url") {
+                    // Check if URL contains template pattern {variable}
+                    if url.contains('{') && url.contains('}') {
+                        // Convert to JSON pointer format for evaluated_schema access
+                        let url_path = path_utils::normalize_to_json_pointer(&format!("{}/url", path));
+                        let params_path = path_utils::normalize_to_json_pointer(&format!("{}/params", path));
+                        options_templates.push((url_path, url.clone(), params_path));
                     }
                 }
 
@@ -181,7 +193,7 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
                     }
                     
                     // Recurse into all children (including $ keys like $table, $datas, etc.)
-                    walk(val, &next_path, engine, evaluations, tables, deps, value_fields, layout_paths, dependents)?;
+                    walk(val, &next_path, engine, evaluations, tables, deps, value_fields, layout_paths, dependents, options_templates)?;
                 })
             }
             Value::Array(arr) => Ok(for (index, item) in arr.iter().enumerate() {
@@ -190,7 +202,7 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
                 } else {
                     format!("{path}/{index}")
                 };
-                walk(item, &next_path, engine, evaluations, tables, deps, value_fields, layout_paths, dependents)?;
+                walk(item, &next_path, engine, evaluations, tables, deps, value_fields, layout_paths, dependents, options_templates)?;
             }),
             _ => Ok(()),
         }
@@ -241,6 +253,7 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
     let mut value_fields = Vec::new();
     let mut layout_paths = Vec::new();
     let mut dependents_evaluations = IndexMap::new();
+    let mut options_templates = Vec::new();
     
     walk(
         &lib.schema,
@@ -252,6 +265,7 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
         &mut value_fields,
         &mut layout_paths,
         &mut dependents_evaluations,
+        &mut options_templates,
     )?;
     
     lib.evaluations = evaluations;
@@ -259,6 +273,7 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
     lib.dependencies = dependencies;
     lib.layout_paths = layout_paths;
     lib.dependents_evaluations = dependents_evaluations;
+    lib.options_templates = options_templates;
     
     // Collect table-level dependencies by aggregating all column dependencies
     collect_table_dependencies(lib);

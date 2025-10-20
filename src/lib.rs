@@ -115,6 +115,8 @@ pub struct JSONEval {
     pub value_evaluations: Vec<String>,
     /// Cached layout paths (collected at parse time)
     pub layout_paths: Vec<String>,
+    /// Options URL templates (url_path, template_str, params_path) collected at parse time
+    pub options_templates: Vec<(String, String, String)>,
     pub context: Value,
     pub data: Value,
     pub evaluated_schema: Value,
@@ -154,6 +156,7 @@ impl JSONEval {
             others_evaluations: Vec::new(),
             value_evaluations: Vec::new(),
             layout_paths: Vec::new(),
+            options_templates: Vec::new(),
             engine: RLogic::with_config(engine_config),
             context: context.clone(),
             data: data.clone(),
@@ -209,6 +212,7 @@ impl JSONEval {
             others_evaluations: Vec::new(),
             value_evaluations: Vec::new(),
             layout_paths: Vec::new(),
+            options_templates: Vec::new(),
             engine: RLogic::with_config(engine_config),
             context: context.clone(),
             data: data.clone(),
@@ -242,6 +246,7 @@ impl JSONEval {
         self.others_evaluations.clear();
         self.value_evaluations.clear();
         self.layout_paths.clear();
+        self.options_templates.clear();
         parse_schema::parse_schema(self)?;
         
         // Re-initialize eval_data with new schema, data, and context
@@ -640,7 +645,10 @@ impl JSONEval {
     }
 
     fn evaluate_others(&mut self) {
-        // Evaluate "rules" and "others" categories with caching
+        // Step 1: Evaluate options URL templates (handles {variable} patterns)
+        self.evaluate_options_templates();
+        
+        // Step 2: Evaluate "rules" and "others" categories with caching
         let combined_count = self.rules_evaluations.len() + self.others_evaluations.len();
         if combined_count == 0 {
             return;
@@ -728,6 +736,43 @@ impl JSONEval {
             }
         }
     }
+    
+    /// Evaluate options URL templates (handles {variable} patterns)
+    fn evaluate_options_templates(&mut self) {
+        // Use pre-collected options templates from parsing (no clone, no recursion)
+        let templates_to_eval = self.options_templates.clone();
+        
+        // Evaluate each template
+        for (path, template_str, params_path) in templates_to_eval {
+            if let Some(params) = self.evaluated_schema.pointer(&params_path) {
+                if let Ok(evaluated) = self.evaluate_template(&template_str, params) {
+                    if let Some(target) = self.evaluated_schema.pointer_mut(&path) {
+                        *target = Value::String(evaluated);
+                    }
+                }
+            }
+        }
+    }
+    
+    /// Evaluate a template string like "api/users/{id}" with params
+    fn evaluate_template(&self, template: &str, params: &Value) -> Result<String, String> {
+        let mut result = template.to_string();
+        
+        // Simple template evaluation: replace {key} with params.key
+        if let Value::Object(params_map) = params {
+            for (key, value) in params_map {
+                let placeholder = format!("{{{}}}", key);
+                if let Some(str_val) = value.as_str() {
+                    result = result.replace(&placeholder, str_val);
+                } else {
+                    // Convert non-string values to strings
+                    result = result.replace(&placeholder, &value.to_string());
+                }
+            }
+        }
+        
+        Ok(result)
+    }
 
     /// Compile and run JSON logic from a JSON logic string
     ///
@@ -794,8 +839,11 @@ impl JSONEval {
     
     /// Propagate parent hidden/disabled conditions to children recursively
     fn propagate_parent_conditions(&mut self, layout_elements_path: &str) {
+        // Normalize path from schema format (#/) to JSON pointer format (/)
+        let normalized_path = path_utils::normalize_to_json_pointer(layout_elements_path);
+        
         // Extract elements array to avoid borrow checker issues
-        let elements = if let Some(Value::Array(arr)) = self.evaluated_schema.pointer_mut(layout_elements_path) {
+        let elements = if let Some(Value::Array(arr)) = self.evaluated_schema.pointer_mut(&normalized_path) {
             mem::take(arr)
         } else {
             return;
@@ -808,7 +856,7 @@ impl JSONEval {
         }
         
         // Write back the updated elements
-        if let Some(target) = self.evaluated_schema.pointer_mut(layout_elements_path) {
+        if let Some(target) = self.evaluated_schema.pointer_mut(&normalized_path) {
             *target = Value::Array(updated_elements);
         }
     }
@@ -868,10 +916,13 @@ impl JSONEval {
     
     /// Resolve $ref references in layout elements (recursively)
     fn resolve_layout_elements(&mut self, layout_elements_path: &str) {
+        // Normalize path from schema format (#/) to JSON pointer format (/)
+        let normalized_path = path_utils::normalize_to_json_pointer(layout_elements_path);
+        
         // Always read elements from original schema (not evaluated_schema)
         // This ensures we get fresh $ref entries on re-evaluation
         // since evaluated_schema elements get mutated to objects after first resolution
-        let elements = if let Some(Value::Array(arr)) = self.schema.pointer(layout_elements_path) {
+        let elements = if let Some(Value::Array(arr)) = self.schema.pointer(&normalized_path) {
             arr.clone()
         } else {
             return;
@@ -885,7 +936,7 @@ impl JSONEval {
         }
         
         // Write back the resolved elements
-        if let Some(target) = self.evaluated_schema.pointer_mut(layout_elements_path) {
+        if let Some(target) = self.evaluated_schema.pointer_mut(&normalized_path) {
             *target = Value::Array(resolved_elements);
         }
     }
@@ -917,8 +968,16 @@ impl JSONEval {
         match element {
             Value::Object(mut map) => {
                 // Check if element has $ref
-                if let Some(Value::String(ref_path)) = map.get("$ref") {
-                    let normalized_path = path_utils::normalize_to_json_pointer(ref_path);
+                if let Some(Value::String(ref_path)) = map.get("$ref").cloned() {
+                    // Inject metadata fields first
+                    map.insert("$fullpath".to_string(), Value::String(ref_path.clone()));
+                    if let Some(last_segment) = ref_path.split('.').last() {
+                        map.insert("$path".to_string(), Value::String(last_segment.to_string()));
+                    }
+                    map.insert("$parentHide".to_string(), Value::Bool(false));
+                    map.insert("path".to_string(), Value::String(ref_path.clone()));
+                    
+                    let normalized_path = path_utils::normalize_to_json_pointer(&ref_path);
                     
                     // Get the referenced value
                     if let Some(referenced_value) = self.evaluated_schema.pointer(&normalized_path) {
