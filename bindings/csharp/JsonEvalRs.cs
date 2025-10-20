@@ -189,6 +189,20 @@ namespace JsonEvalRs
         internal static extern IntPtr json_eval_version();
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern IntPtr json_eval_new_from_msgpack(
+            IntPtr schemaMsgpack,
+            UIntPtr schemaLen,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? data
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_get_evaluated_schema_msgpack(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.I1)] bool skipLayout
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_get_evaluated_schema(
             IntPtr handle,
             [MarshalAs(UnmanagedType.I1)] bool skipLayout
@@ -398,6 +412,54 @@ namespace JsonEvalRs
         }
 
         /// <summary>
+        /// Creates a new JSON evaluator instance from MessagePack-encoded schema
+        /// </summary>
+        /// <param name="schemaMsgpack">MessagePack-encoded schema bytes</param>
+        /// <param name="context">Optional context data (can be null)</param>
+        /// <param name="data">Optional initial data (can be null)</param>
+        public JSONEval(byte[] schemaMsgpack, string? context = null, string? data = null)
+        {
+            if (schemaMsgpack == null || schemaMsgpack.Length == 0)
+                throw new ArgumentNullException(nameof(schemaMsgpack));
+
+            // Test if library can be loaded
+            try
+            {
+                var version = Version;
+            }
+            catch (Exception ex)
+            {
+                throw new JsonEvalException(
+                    $"Failed to load native library 'json_eval_rs'. Make sure the native library is in the correct location. " +
+                    $"Platform: {RuntimeInformation.OSDescription}, " +
+                    $"Architecture: {RuntimeInformation.ProcessArchitecture}. " +
+                    $"Error: {ex.Message}", ex);
+            }
+
+            // Pin the byte array and get a pointer to it
+            GCHandle handle = GCHandle.Alloc(schemaMsgpack, GCHandleType.Pinned);
+            try
+            {
+                IntPtr schemaPtr = handle.AddrOfPinnedObject();
+                _handle = Native.json_eval_new_from_msgpack(
+                    schemaPtr,
+                    (UIntPtr)schemaMsgpack.Length,
+                    context,
+                    data
+                );
+            }
+            finally
+            {
+                handle.Free();
+            }
+            
+            if (_handle == IntPtr.Zero)
+            {
+                throw new JsonEvalException("Failed to create JSONEval instance from MessagePack schema");
+            }
+        }
+
+        /// <summary>
         /// Evaluates the schema with provided data
         /// </summary>
         /// <param name="data">JSON data string</param>
@@ -487,6 +549,18 @@ namespace JsonEvalRs
             ThrowIfDisposed();
             var result = Native.json_eval_get_evaluated_schema(_handle, skipLayout);
             return ProcessResult(result);
+        }
+
+        /// <summary>
+        /// Gets the evaluated schema as MessagePack binary data
+        /// </summary>
+        /// <param name="skipLayout">Whether to skip layout resolution</param>
+        /// <returns>Evaluated schema as MessagePack bytes</returns>
+        public byte[] GetEvaluatedSchemaMsgpack(bool skipLayout = false)
+        {
+            ThrowIfDisposed();
+            var result = Native.json_eval_get_evaluated_schema_msgpack(_handle, skipLayout);
+            return ProcessResultAsBytes(result);
         }
 
         /// <summary>
@@ -806,6 +880,43 @@ namespace JsonEvalRs
                 string json = Encoding.UTF8.GetString(buffer);
                 var obj = JObject.Parse(json);
                 return obj.ToObject<T>() ?? throw new JsonEvalException("Failed to deserialize result");
+            }
+            finally
+            {
+                Native.json_eval_free_result(result);
+            }
+        }
+
+        private byte[] ProcessResultAsBytes(Native.FFIResult result)
+        {
+            try
+            {
+                if (!result.Success)
+                {
+#if NETCOREAPP || NET5_0_OR_GREATER
+                    string error = result.Error != IntPtr.Zero
+                        ? Marshal.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                        : "Unknown error";
+#else
+                    string error = result.Error != IntPtr.Zero
+                        ? Native.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                        : "Unknown error";
+#endif
+                    throw new JsonEvalException(error);
+                }
+
+                if (result.DataPtr == IntPtr.Zero)
+                    throw new JsonEvalException("No data returned from native function");
+
+                int dataLen = (int)result.DataLen.ToUInt32();
+                if (dataLen == 0)
+                    throw new JsonEvalException("Empty data returned from native function");
+
+                // Zero-copy: read directly from Rust-owned memory
+                byte[] buffer = new byte[dataLen];
+                Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
+                
+                return buffer;
             }
             finally
             {

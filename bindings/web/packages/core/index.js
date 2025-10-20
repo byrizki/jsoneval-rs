@@ -41,7 +41,7 @@ export class JSONEvalCore {
   /**
    * @param {any} wasmModule - WASM module (injected by wrapper package)
    * @param {object} options
-   * @param {object} options.schema - JSON schema
+   * @param {object|Uint8Array} options.schema - JSON schema or MessagePack bytes
    * @param {object} [options.context] - Optional context data
    * @param {object} [options.data] - Optional initial data
    */
@@ -52,6 +52,7 @@ export class JSONEvalCore {
     this._data = data;
     this._instance = null;
     this._ready = false;
+    this._isMsgpackSchema = schema instanceof Uint8Array;
   }
 
   /**
@@ -72,11 +73,21 @@ export class JSONEvalCore {
 
     try {
       const { JSONEvalWasm } = this._wasmModule;
-      this._instance = new JSONEvalWasm(
-        JSON.stringify(this._schema),
-        this._context ? JSON.stringify(this._context) : null,
-        this._data ? JSON.stringify(this._data) : null
-      );
+      
+      // Create instance from MessagePack or JSON
+      if (this._isMsgpackSchema) {
+        this._instance = JSONEvalWasm.newFromMsgpack(
+          this._schema,
+          this._context ? JSON.stringify(this._context) : null,
+          this._data ? JSON.stringify(this._data) : null
+        );
+      } else {
+        this._instance = new JSONEvalWasm(
+          JSON.stringify(this._schema),
+          this._context ? JSON.stringify(this._context) : null,
+          this._data ? JSON.stringify(this._data) : null
+        );
+      }
       this._ready = true;
     } catch (error) {
       throw new Error(`Failed to create JSONEval instance: ${error.message || error}`);
@@ -153,6 +164,17 @@ export class JSONEvalCore {
   async getEvaluatedSchema({ skipLayout = false } = {}) {
     await this.init();
     return this._instance.getEvaluatedSchemaJS(skipLayout);
+  }
+
+  /**
+   * Get evaluated schema as MessagePack binary data
+   * @param {object} [options]
+   * @param {boolean} [options.skipLayout=false] - Skip layout resolution
+   * @returns {Promise<Uint8Array>} MessagePack-encoded schema bytes
+   */
+  async getEvaluatedSchemaMsgpack({ skipLayout = false } = {}) {
+    await this.init();
+    return this._instance.getEvaluatedSchemaMsgpack(skipLayout);
   }
 
   /**

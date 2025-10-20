@@ -14,8 +14,28 @@ pub struct JSONEvalHandle {
 
 /// Zero-copy result type for FFI operations
 /// 
-/// Returns raw pointers to data without copying. The data is owned by Rust
-/// and remains valid until explicitly freed.
+/// # Zero-Copy Architecture
+/// 
+/// This structure implements true zero-copy data transfer across the FFI boundary:
+/// 
+/// 1. **Rust Side**: Serialized data (JSON/MessagePack) is allocated in a Vec<u8>
+/// 2. **Boxing**: Vec is boxed and converted to raw pointer via Box::into_raw()
+/// 3. **Transfer**: Raw pointer and length are passed to caller (NO COPY)
+/// 4. **Caller Side**: Reads data directly from Rust-owned memory (NO COPY)
+/// 5. **Cleanup**: Caller must call json_eval_free_result() to drop the Box
+/// 
+/// The data remains valid and owned by Rust until explicitly freed. The caller
+/// accesses Rust's memory directly without any intermediate copies.
+/// 
+/// # Memory Layout
+/// 
+/// ```text
+/// Rust Memory:        FFI Boundary:      Caller Memory:
+/// +-----------+       data_ptr ------>  Direct read (zero-copy)
+/// | Vec<u8>   |       data_len          No allocation needed
+/// | [1,2,3..] |                         Marshal.Copy if needed
+/// +-----------+
+/// ```
 #[repr(C)]
 pub struct FFIResult {
     pub success: bool,
@@ -70,6 +90,69 @@ impl FFIResult {
 #[no_mangle]
 pub extern "C" fn json_eval_version() -> *const c_char {
     concat!(env!("CARGO_PKG_VERSION"), "\0").as_ptr() as *const c_char
+}
+
+/// Create a new JSONEval instance from MessagePack-encoded schema
+/// 
+/// # Safety
+/// 
+/// - schema_msgpack must be a valid pointer to MessagePack-encoded bytes
+/// - schema_len must be the exact length of the MessagePack data
+/// - context can be NULL for no context
+/// - data can be NULL for no initial data
+/// - Caller must call json_eval_free when done
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_new_from_msgpack(
+    schema_msgpack: *const u8,
+    schema_len: usize,
+    context: *const c_char,
+    data: *const c_char,
+) -> *mut JSONEvalHandle {
+    if schema_msgpack.is_null() || schema_len == 0 {
+        eprintln!("[FFI ERROR] json_eval_new_from_msgpack: invalid schema pointer or length");
+        return ptr::null_mut();
+    }
+
+    // Convert raw pointer to slice
+    let schema_bytes = std::slice::from_raw_parts(schema_msgpack, schema_len);
+
+    let context_str = if !context.is_null() {
+        match CStr::from_ptr(context).to_str() {
+            Ok(s) => Some(s),
+            Err(e) => {
+                eprintln!("[FFI ERROR] json_eval_new_from_msgpack: invalid UTF-8 in context: {}", e);
+                return ptr::null_mut();
+            }
+        }
+    } else {
+        None
+    };
+
+    let data_str = if !data.is_null() {
+        match CStr::from_ptr(data).to_str() {
+            Ok(s) => Some(s),
+            Err(e) => {
+                eprintln!("[FFI ERROR] json_eval_new_from_msgpack: invalid UTF-8 in data: {}", e);
+                return ptr::null_mut();
+            }
+        }
+    } else {
+        None
+    };
+
+    match JSONEval::new_from_msgpack(schema_bytes, context_str, data_str) {
+        Ok(eval) => {
+            let handle = Box::new(JSONEvalHandle {
+                inner: Box::new(eval),
+            });
+            Box::into_raw(handle)
+        }
+        Err(e) => {
+            let error_msg = format!("Failed to create JSONEval instance from MessagePack: {}", e);
+            eprintln!("[FFI ERROR] json_eval_new_from_msgpack: {}", error_msg);
+            ptr::null_mut()
+        }
+    }
 }
 
 /// Create a new JSONEval instance
@@ -403,6 +486,39 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema(
     let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
     
     FFIResult::success(result_bytes)
+}
+
+/// Get the evaluated schema in MessagePack format with optional layout resolution
+/// 
+/// # Safety
+/// 
+/// - handle must be a valid pointer from json_eval_new
+/// - Caller must call json_eval_free_result when done
+/// 
+/// # Zero-Copy Optimization
+/// 
+/// This function implements zero-copy data transfer:
+/// 1. Serializes evaluated schema to MessagePack Vec<u8> (unavoidable)
+/// 2. Returns raw pointer to this data via FFIResult (zero-copy)
+/// 3. Caller reads directly from Rust memory (zero-copy)
+/// 4. Single Marshal.Copy on caller side if needed (one copy total)
+/// 
+/// The MessagePack binary format is typically 20-50% smaller than JSON,
+/// making it ideal for performance-critical scenarios.
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_get_evaluated_schema_msgpack(
+    handle: *mut JSONEvalHandle,
+    skip_layout: bool,
+) -> FFIResult {
+    if handle.is_null() {
+        return FFIResult::error("Invalid handle pointer".to_string());
+    }
+
+    let eval = &mut (*handle).inner;
+    match eval.get_evaluated_schema_msgpack(skip_layout) {
+        Ok(msgpack_bytes) => FFIResult::success(msgpack_bytes),
+        Err(e) => FFIResult::error(e),
+    }
 }
 
 /// Get all schema values (evaluations ending with .value)

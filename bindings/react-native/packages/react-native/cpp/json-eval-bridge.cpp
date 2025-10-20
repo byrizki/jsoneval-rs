@@ -18,7 +18,9 @@ extern "C" {
     } FFIResult;
 
     JSONEvalHandle* json_eval_new(const char* schema, const char* context, const char* data);
+    JSONEvalHandle* json_eval_new_from_msgpack(const uint8_t* schema_msgpack, size_t schema_len, const char* context, const char* data);
     FFIResult json_eval_evaluate(JSONEvalHandle* handle, const char* data, const char* context);
+    FFIResult json_eval_get_evaluated_schema_msgpack(JSONEvalHandle* handle, bool skip_layout);
     FFIResult json_eval_validate(JSONEvalHandle* handle, const char* data, const char* context);
     FFIResult json_eval_evaluate_dependents(JSONEvalHandle* handle, const char* changed_path, const char* data, const char* context);
     FFIResult json_eval_get_evaluated_schema(JSONEvalHandle* handle, bool skip_layout);
@@ -55,6 +57,32 @@ std::string JsonEvalBridge::create(
     
     if (handle == nullptr) {
         throw std::runtime_error("Failed to create JSONEval instance");
+    }
+    
+    std::lock_guard<std::mutex> lock(handlesMutex);
+    std::string handleId = "handle_" + std::to_string(handleCounter++);
+    handles[handleId] = handle;
+    
+    return handleId;
+}
+
+std::string JsonEvalBridge::createFromMsgpack(
+    const std::vector<uint8_t>& schemaMsgpack,
+    const std::string& context,
+    const std::string& data
+) {
+    const char* ctx = context.empty() ? nullptr : context.c_str();
+    const char* dt = data.empty() ? nullptr : data.c_str();
+    
+    JSONEvalHandle* handle = json_eval_new_from_msgpack(
+        schemaMsgpack.data(),
+        schemaMsgpack.size(),
+        ctx,
+        dt
+    );
+    
+    if (handle == nullptr) {
+        throw std::runtime_error("Failed to create JSONEval instance from MessagePack");
     }
     
     std::lock_guard<std::mutex> lock(handlesMutex);
@@ -223,6 +251,38 @@ void JsonEvalBridge::getEvaluatedSchemaAsync(
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
         } else {
             resultStr = "{}";
+        }
+        json_eval_free_result(result);
+        return resultStr;
+    }, callback);
+}
+
+void JsonEvalBridge::getEvaluatedSchemaMsgpackAsync(
+    const std::string& handleId,
+    bool skipLayout,
+    std::function<void(const std::string&, const std::string&)> callback
+) {
+    runAsync([handleId, skipLayout]() -> std::string {
+        std::lock_guard<std::mutex> lock(handlesMutex);
+        auto it = handles.find(handleId);
+        if (it == handles.end()) {
+            throw std::runtime_error("Invalid handle");
+        }
+        
+        FFIResult result = json_eval_get_evaluated_schema_msgpack(it->second, skipLayout);
+        
+        if (!result.success) {
+            std::string error = result.error ? result.error : "Unknown error";
+            json_eval_free_result(result);
+            throw std::runtime_error(error);
+        }
+        
+        // Zero-copy: construct string directly from raw pointer (binary data)
+        std::string resultStr;
+        if (result.data_ptr && result.data_len > 0) {
+            resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+        } else {
+            resultStr = "";
         }
         json_eval_free_result(result);
         return resultStr;

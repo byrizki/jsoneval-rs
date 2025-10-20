@@ -16,3 +16,4 @@ build
 *.a
 *.dll
 *.dylib
+output/*

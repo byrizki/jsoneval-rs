@@ -101,6 +101,28 @@ impl JSONEvalWasm {
         }
     }
 
+    /// Create a new JSONEval instance from MessagePack-encoded schema
+    /// 
+    /// @param schemaMsgpack - MessagePack-encoded schema bytes (Uint8Array)
+    /// @param context - Optional context data JSON string
+    /// @param data - Optional initial data JSON string
+    #[wasm_bindgen(js_name = newFromMsgpack)]
+    pub fn new_from_msgpack(schema_msgpack: &[u8], context: Option<String>, data: Option<String>) -> Result<JSONEvalWasm, JsValue> {
+        console_error_panic_hook::set_once();
+        
+        let ctx = context.as_deref();
+        let dt = data.as_deref();
+        
+        match JSONEval::new_from_msgpack(schema_msgpack, ctx, dt) {
+            Ok(eval) => Ok(JSONEvalWasm { inner: eval }),
+            Err(e) => {
+                let error_msg = format!("Failed to create JSONEval instance from MessagePack: {}", e);
+                log(&format!("[WASM ERROR] {}", error_msg));
+                Err(JsValue::from_str(&error_msg))
+            }
+        }
+    }
+
     /// Evaluate schema with provided data (does not return schema - use getEvaluatedSchema() for that)
     /// 
     /// @param data - JSON data string
@@ -277,6 +299,25 @@ impl JSONEvalWasm {
         let result = self.inner.get_evaluated_schema(skip_layout);
         serde_wasm_bindgen::to_value(&result)
             .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Get the evaluated schema in MessagePack format
+    /// 
+    /// @param skipLayout - Whether to skip layout resolution
+    /// @returns Evaluated schema as MessagePack bytes (Uint8Array)
+    /// 
+    /// # Zero-Copy Optimization
+    /// 
+    /// This method returns MessagePack binary data with minimal copying:
+    /// 1. Serializes schema to Vec<u8> in Rust (unavoidable)
+    /// 2. wasm-bindgen transfers Vec<u8> to JS as Uint8Array (optimized)
+    /// 3. Result is a Uint8Array view (minimal overhead)
+    /// 
+    /// MessagePack format is 20-50% smaller than JSON, ideal for web/WASM.
+    #[wasm_bindgen(js_name = getEvaluatedSchemaMsgpack)]
+    pub fn get_evaluated_schema_msgpack(&mut self, skip_layout: bool) -> Result<Vec<u8>, JsValue> {
+        self.inner.get_evaluated_schema_msgpack(skip_layout)
+            .map_err(|e| JsValue::from_str(&e))
     }
 
     /// Get all schema values (evaluations ending with .value)

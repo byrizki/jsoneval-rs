@@ -12,6 +12,7 @@ struct Scenario {
     schema_path: PathBuf,
     data_path: PathBuf,
     comparison_path: Option<PathBuf>,
+    is_msgpack: bool,  // True if schema is MessagePack (.bform), false if JSON
 }
 
 fn pretty_json(value: &Value) -> String {
@@ -144,15 +145,23 @@ fn discover_scenarios(dir: &Path) -> Vec<Scenario> {
         };
 
         if let Some(base) = file_name.strip_suffix("-data.json") {
-            let schema_path = dir.join(format!("{}.json", base));
-            if !schema_path.exists() {
-                eprintln!(
-                    "⚠️  Skipping scenario `{}`: schema file `{}` missing",
-                    base,
-                    schema_path.display()
-                );
-                continue;
-            }
+            // Check for MessagePack schema first (.bform), then JSON (.json)
+            let (schema_path, is_msgpack) = {
+                let msgpack_path = dir.join(format!("{}.bform", base));
+                let json_path = dir.join(format!("{}.json", base));
+                
+                if msgpack_path.exists() {
+                    (msgpack_path, true)
+                } else if json_path.exists() {
+                    (json_path, false)
+                } else {
+                    eprintln!(
+                        "⚠️  Skipping scenario `{}`: schema file `{}.json` or `{}.bform` missing",
+                        base, base, base
+                    );
+                    continue;
+                }
+            };
 
             let comparison_path = {
                 let candidate = dir.join(format!("{}-evaluated-compare.json", base));
@@ -168,6 +177,7 @@ fn discover_scenarios(dir: &Path) -> Vec<Scenario> {
                 schema_path,
                 data_path: path.clone(),
                 comparison_path,
+                is_msgpack,
             });
         }
     }
@@ -187,11 +197,12 @@ fn print_help(program_name: &str) {
     println!("ARGUMENTS:");
     println!("    [FILTER]                   Optional filter to match scenario names\n");
     println!("DESCRIPTION:");
-    println!("    Discovers and runs JSON evaluation scenarios from the 'example/' directory.");
+    println!("    Discovers and runs JSON evaluation scenarios from the 'samples/' directory.");
     println!("    Each scenario consists of:");
-    println!("      - <name>.json           (schema file)");
-    println!("      - <name>-data.json      (input data file)");
+    println!("      - <name>.json or <name>.bform  (schema file - JSON or MessagePack)");
+    println!("      - <name>-data.json             (input data file)");
     println!("      - <name>-evaluated-compare.json (optional comparison file)\n");
+    println!("    Note: .bform files are MessagePack binary schemas (prioritized over .json)\n");
     println!("EXAMPLES:");
     println!("    {}                      # Run all scenarios", program_name);
     println!("    {} zcc                  # Run scenarios matching 'zcc'", program_name);
@@ -311,21 +322,33 @@ fn main() {
     for scenario in &scenarios {
         println!("==============================");
         println!("Scenario: {}", scenario.name);
-        println!("Schema: {}", scenario.schema_path.display());
+        println!("Schema: {} ({})", 
+            scenario.schema_path.display(),
+            if scenario.is_msgpack { "MessagePack" } else { "JSON" }
+        );
         println!("Data: {}\n", scenario.data_path.display());
 
         println!("Loading files...");
-        // Use SIMD-accelerated file reading for maximum performance
-        let schema_str = fs::read_to_string(&scenario.schema_path)
-            .unwrap_or_else(|e| panic!("failed to read {}: {}", scenario.schema_path.display(), e));
         let data_str = fs::read_to_string(&scenario.data_path)
             .unwrap_or_else(|e| panic!("failed to read {}: {}", scenario.data_path.display(), e));
 
         println!("Running evaluation...\n");
 
         let start_time = Instant::now();
-        let mut eval = JSONEval::new(&schema_str, None, Some(&data_str))
-            .unwrap_or_else(|e| panic!("failed to create JSONEval: {}", e));
+        let mut eval = if scenario.is_msgpack {
+            // Load MessagePack binary schema
+            let schema_msgpack = fs::read(&scenario.schema_path)
+                .unwrap_or_else(|e| panic!("failed to read {}: {}", scenario.schema_path.display(), e));
+            println!("  📦 MessagePack schema size: {} bytes", schema_msgpack.len());
+            JSONEval::new_from_msgpack(&schema_msgpack, None, Some(&data_str))
+                .unwrap_or_else(|e| panic!("failed to create JSONEval from MessagePack: {}", e))
+        } else {
+            // Load JSON schema
+            let schema_str = fs::read_to_string(&scenario.schema_path)
+                .unwrap_or_else(|e| panic!("failed to read {}: {}", scenario.schema_path.display(), e));
+            JSONEval::new(&schema_str, None, Some(&data_str))
+                .unwrap_or_else(|e| panic!("failed to create JSONEval: {}", e))
+        };
         let parse_time = start_time.elapsed();
         println!("  Schema parsing & compilation: {:?}", parse_time);
 

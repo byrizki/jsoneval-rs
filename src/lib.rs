@@ -123,6 +123,9 @@ pub struct JSONEval {
     pub eval_cache: EvalCache,
     /// Mutex for synchronous execution of evaluate and evaluate_dependents
     eval_lock: Mutex<()>,
+    /// Cached MessagePack bytes for zero-copy schema retrieval
+    /// Stores original MessagePack if initialized from binary, cleared on schema mutations
+    cached_msgpack_schema: Option<Vec<u8>>,
 }
 
 impl JSONEval {
@@ -158,8 +161,64 @@ impl JSONEval {
             eval_data: EvalData::with_schema_data_context(&evaluated_schema, &data, &context),
             eval_cache: EvalCache::new(),
             eval_lock: Mutex::new(()),
+            cached_msgpack_schema: None, // JSON initialization, no MessagePack cache
         };
         parse_schema::parse_schema(&mut instance).map_err(serde_json::Error::custom)?;
+        Ok(instance)
+    }
+
+    /// Create a new JSONEval instance from MessagePack-encoded schema
+    /// 
+    /// # Arguments
+    /// 
+    /// * `schema_msgpack` - MessagePack-encoded schema bytes
+    /// * `context` - Optional JSON context string
+    /// * `data` - Optional JSON data string
+    /// 
+    /// # Returns
+    /// 
+    /// A Result containing the JSONEval instance or an error
+    pub fn new_from_msgpack(
+        schema_msgpack: &[u8],
+        context: Option<&str>,
+        data: Option<&str>,
+    ) -> Result<Self, String> {
+        // Store original MessagePack bytes for zero-copy retrieval
+        let cached_msgpack = schema_msgpack.to_vec();
+        
+        // Deserialize MessagePack schema to Value
+        let schema_val: Value = rmp_serde::from_slice(schema_msgpack)
+            .map_err(|e| format!("Failed to deserialize MessagePack schema: {}", e))?;
+        
+        let context: Value = json_parser::parse_json_str(context.unwrap_or("{}"))
+            .map_err(|e| format!("Failed to parse context: {}", e))?;
+        let data: Value = json_parser::parse_json_str(data.unwrap_or("{}"))
+            .map_err(|e| format!("Failed to parse data: {}", e))?;
+        let evaluated_schema = schema_val.clone();
+        let engine_config = RLogicConfig::default();
+
+        let mut instance = Self {
+            schema: schema_val,
+            evaluations: IndexMap::new(),
+            tables: IndexMap::new(),
+            table_metadata: IndexMap::new(),
+            dependencies: IndexMap::new(),
+            sorted_evaluations: Vec::new(),
+            dependents_evaluations: IndexMap::new(),
+            rules_evaluations: Vec::new(),
+            others_evaluations: Vec::new(),
+            value_evaluations: Vec::new(),
+            layout_paths: Vec::new(),
+            engine: RLogic::with_config(engine_config),
+            context: context.clone(),
+            data: data.clone(),
+            evaluated_schema: evaluated_schema.clone(),
+            eval_data: EvalData::with_schema_data_context(&evaluated_schema, &data, &context),
+            eval_cache: EvalCache::new(),
+            eval_lock: Mutex::new(()),
+            cached_msgpack_schema: Some(cached_msgpack), // Store for zero-copy retrieval
+        };
+        parse_schema::parse_schema(&mut instance)?;
         Ok(instance)
     }
 
@@ -190,6 +249,9 @@ impl JSONEval {
         
         // Clear cache when schema changes
         self.eval_cache.clear();
+        
+        // Clear MessagePack cache since schema has been mutated
+        self.cached_msgpack_schema = None;
 
         Ok(())
     }
@@ -354,6 +416,34 @@ impl JSONEval {
         }
         
         self.evaluated_schema.clone()
+    }
+
+    /// Get the evaluated schema as MessagePack binary format
+    ///
+    /// # Arguments
+    ///
+    /// * `skip_layout` - Whether to skip layout resolution.
+    ///
+    /// # Returns
+    ///
+    /// The evaluated schema serialized as MessagePack bytes
+    ///
+    /// # Zero-Copy Optimization
+    ///
+    /// This method serializes the evaluated schema to MessagePack. The resulting Vec<u8>
+    /// is then passed to FFI/WASM boundaries via raw pointers (zero-copy at boundary).
+    /// The serialization step itself (Value -> MessagePack) cannot be avoided but is
+    /// highly optimized by rmp-serde.
+    pub fn get_evaluated_schema_msgpack(&mut self, skip_layout: bool) -> Result<Vec<u8>, String> {
+        if !skip_layout {
+            self.resolve_layout();
+        }
+        
+        // Serialize evaluated schema to MessagePack
+        // Note: This is the only copy required. The FFI layer then returns raw pointers
+        // to this data for zero-copy transfer to calling code.
+        rmp_serde::to_vec(&self.evaluated_schema)
+            .map_err(|e| format!("Failed to serialize schema to MessagePack: {}", e))
     }
 
     /// Get all schema values (evaluations ending with .value)

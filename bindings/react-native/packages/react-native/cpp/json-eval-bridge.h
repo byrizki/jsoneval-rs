@@ -27,6 +27,19 @@ public:
     );
 
     /**
+     * Create a new JSONEval instance from MessagePack-encoded schema
+     * @param schemaMsgpack MessagePack-encoded schema bytes
+     * @param context Optional context data
+     * @param data Optional initial data
+     * @return Handle string or error
+     */
+    static std::string createFromMsgpack(
+        const std::vector<uint8_t>& schemaMsgpack,
+        const std::string& context,
+        const std::string& data
+    );
+
+    /**
      * Evaluate schema with data (async)
      * @param handle Instance handle
      * @param data JSON data string
@@ -77,6 +90,18 @@ public:
      * @param callback Result callback
      */
     static void getEvaluatedSchemaAsync(
+        const std::string& handle,
+        bool skipLayout,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Get evaluated schema in MessagePack format (async)
+     * @param handle Instance handle
+     * @param skipLayout Whether to skip layout resolution
+     * @param callback Result callback with MessagePack binary data
+     */
+    static void getEvaluatedSchemaMsgpackAsync(
         const std::string& handle,
         bool skipLayout,
         std::function<void(const std::string&, const std::string&)> callback
