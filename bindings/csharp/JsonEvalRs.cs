@@ -189,20 +189,6 @@ namespace JsonEvalRs
         internal static extern IntPtr json_eval_version();
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern IntPtr json_eval_new_from_msgpack(
-            IntPtr schemaMsgpack,
-            UIntPtr schemaLen,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? data
-        );
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_get_evaluated_schema_msgpack(
-            IntPtr handle,
-            [MarshalAs(UnmanagedType.I1)] bool skipLayout
-        );
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_get_evaluated_schema(
             IntPtr handle,
             [MarshalAs(UnmanagedType.I1)] bool skipLayout
@@ -217,7 +203,20 @@ namespace JsonEvalRs
             [MarshalAs(UnmanagedType.I1)] bool skipLayout
         );
 
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_get_evaluated_schema_msgpack(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.I1)] bool skipLayout
+        );
+
 #if NETCOREAPP || NET5_0_OR_GREATER
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern IntPtr json_eval_new_from_msgpack(
+            IntPtr schemaMsgpack,
+            UIntPtr schemaLen,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? data
+        );
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_get_value_by_path(
             IntPtr handle,
@@ -241,6 +240,14 @@ namespace JsonEvalRs
             [MarshalAs(UnmanagedType.LPUTF8Str)] string? pathsJson
         );
 #else
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern IntPtr json_eval_new_from_msgpack(
+            IntPtr schemaMsgpack,
+            UIntPtr schemaLen,
+            byte[]? context,
+            byte[]? data
+        );
+
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_get_value_by_path(
             IntPtr handle,
@@ -441,12 +448,21 @@ namespace JsonEvalRs
             try
             {
                 IntPtr schemaPtr = handle.AddrOfPinnedObject();
+#if NETCOREAPP || NET5_0_OR_GREATER
                 _handle = Native.json_eval_new_from_msgpack(
                     schemaPtr,
                     (UIntPtr)schemaMsgpack.Length,
                     context,
                     data
                 );
+#else
+                _handle = Native.json_eval_new_from_msgpack(
+                    schemaPtr,
+                    (UIntPtr)schemaMsgpack.Length,
+                    Native.ToUTF8Bytes(context),
+                    Native.ToUTF8Bytes(data)
+                );
+#endif
             }
             finally
             {
