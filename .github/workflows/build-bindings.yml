@@ -463,30 +463,21 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
     
-    - name: Download React Native package
-      uses: actions/download-artifact@v4
-      with:
-        name: react-native-package
-        path: package-artifacts/
-    
     - name: Install monorepo dependencies
       run: |
         cd bindings/react-native
         yarn install
     
-    - name: Link local package to example
+    - name: Install example dependencies
       run: |
         cd bindings/react-native/examples/rncli
-        # Install dependencies
         yarn install
-        # Link the built package
-        PACKAGE_TGZ=$(ls ../../packages/react-native/*.tgz | head -n 1)
-        yarn add "file:$PACKAGE_TGZ"
     
     - name: Build Android app
       run: |
         cd bindings/react-native/examples/rncli/android
-        ./gradlew assembleDebug --no-daemon
+        chmod +x gradlew
+        ./gradlew assembleDebug --no-daemon --stacktrace
     
     - name: Upload Android APK
       uses: actions/upload-artifact@v4
@@ -509,25 +500,15 @@ jobs:
       with:
         node-version: '20'
     
-    - name: Download React Native package
-      uses: actions/download-artifact@v4
-      with:
-        name: react-native-package
-        path: package-artifacts/
-    
     - name: Install monorepo dependencies
       run: |
         cd bindings/react-native
         yarn install
     
-    - name: Link local package to example
+    - name: Install example dependencies
       run: |
         cd bindings/react-native/examples/rncli
-        # Install dependencies
         yarn install
-        # Link the built package
-        PACKAGE_TGZ=$(ls ../../packages/react-native/*.tgz | head -n 1)
-        yarn add "file:$PACKAGE_TGZ"
     
     - name: Install CocoaPods dependencies
       run: |
@@ -537,11 +518,11 @@ jobs:
     - name: Build iOS app
       run: |
         cd bindings/react-native/examples/rncli/ios
-        xcodebuild -workspace Rncli.xcworkspace \
-          -scheme Rncli \
+        xcodebuild -workspace rncli.xcworkspace \
+          -scheme rncli \
           -configuration Debug \
           -sdk iphonesimulator \
-          -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+          -destination 'platform=iOS Simulator,name=iPhone 15 Pro' \
           build \
           CODE_SIGNING_ALLOWED=NO \
           CODE_SIGNING_REQUIRED=NO
