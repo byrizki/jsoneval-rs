@@ -113,42 +113,33 @@ jobs:
     
     - name: Organize native libraries for NuGet
       run: |
-        # Create target directory structure
-        mkdir -p target/x86_64-unknown-linux-gnu/release
-        mkdir -p target/x86_64-pc-windows-msvc/release
-        mkdir -p target/x86_64-apple-darwin/release
-        mkdir -p target/aarch64-apple-darwin/release
+        # Create native library directories for C# bindings
+        mkdir -p bindings/csharp/native/linux-x64
+        mkdir -p bindings/csharp/native/win-x64
+        mkdir -p bindings/csharp/native/osx-x64
+        mkdir -p bindings/csharp/native/osx-arm64
         
-        # Copy from artifact structure to expected locations
-        cp artifacts/native-x86_64-unknown-linux-gnu/* target/x86_64-unknown-linux-gnu/release/ 2>/dev/null || true
-        cp artifacts/native-x86_64-pc-windows-msvc/* target/x86_64-pc-windows-msvc/release/ 2>/dev/null || true
-        cp artifacts/native-x86_64-apple-darwin/* target/x86_64-apple-darwin/release/ 2>/dev/null || true
-        cp artifacts/native-aarch64-apple-darwin/* target/aarch64-apple-darwin/release/ 2>/dev/null || true
+        # Copy native libraries to C# native directory
+        cp artifacts/native-x86_64-unknown-linux-gnu/*.so bindings/csharp/native/linux-x64/ 2>/dev/null || true
+        cp artifacts/native-x86_64-pc-windows-msvc/*.dll bindings/csharp/native/win-x64/ 2>/dev/null || true
+        cp artifacts/native-x86_64-apple-darwin/*.dylib bindings/csharp/native/osx-x64/ 2>/dev/null || true
+        cp artifacts/native-aarch64-apple-darwin/*.dylib bindings/csharp/native/osx-arm64/ 2>/dev/null || true
     
     - name: Verify native libraries exist
       run: |
-        echo "Checking for native libraries..."
+        echo "Checking for native libraries in bindings/csharp/native/..."
         echo ""
         echo "Linux x64:"
-        ls -lh target/x86_64-unknown-linux-gnu/release/*.so 2>/dev/null || echo "  Not found"
+        ls -lh bindings/csharp/native/linux-x64/*.so 2>/dev/null || echo "  Not found"
         echo ""
         echo "Windows x64:"
-        ls -lh target/x86_64-pc-windows-msvc/release/*.dll 2>/dev/null || echo "  Not found"
+        ls -lh bindings/csharp/native/win-x64/*.dll 2>/dev/null || echo "  Not found"
         echo ""
         echo "macOS x64:"
-        ls -lh target/x86_64-apple-darwin/release/*.dylib 2>/dev/null || echo "  Not found"
+        ls -lh bindings/csharp/native/osx-x64/*.dylib 2>/dev/null || echo "  Not found"
         echo ""
         echo "macOS ARM64:"
-        ls -lh target/aarch64-apple-darwin/release/*.dylib 2>/dev/null || echo "  Not found"
-    
-    - name: List files before packing
-      run: |
-        echo "Files that should be packed:"
-        ls -la ../../target/x86_64-unknown-linux-gnu/release/libjson_eval_rs.so 2>/dev/null || echo "❌ Linux library not found"
-        ls -la ../../target/x86_64-pc-windows-msvc/release/json_eval_rs.dll 2>/dev/null || echo "❌ Windows library not found"
-        ls -la ../../target/x86_64-apple-darwin/release/libjson_eval_rs.dylib 2>/dev/null || echo "❌ macOS x64 library not found"
-        ls -la ../../target/aarch64-apple-darwin/release/libjson_eval_rs.dylib 2>/dev/null || echo "❌ macOS ARM64 library not found"
-      working-directory: bindings/csharp
+        ls -lh bindings/csharp/native/osx-arm64/*.dylib 2>/dev/null || echo "  Not found"
     
     - name: Build NuGet package
       run: |
