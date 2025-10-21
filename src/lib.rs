@@ -20,6 +20,7 @@ pub mod json_parser;
 pub mod path_utils;
 pub mod eval_data;
 pub mod eval_cache;
+pub mod subform_methods;
 
 // FFI module for C# and other languages
 #[cfg(feature = "ffi")]
@@ -117,6 +118,9 @@ pub struct JSONEval {
     pub layout_paths: Vec<String>,
     /// Options URL templates (url_path, template_str, params_path) collected at parse time
     pub options_templates: Vec<(String, String, String)>,
+    /// Subforms: isolated JSONEval instances for array fields with items
+    /// Key is the schema path (e.g., "#/riders"), value is the sub-JSONEval
+    pub subforms: IndexMap<String, Box<JSONEval>>,
     pub context: Value,
     pub data: Value,
     pub evaluated_schema: Value,
@@ -157,6 +161,7 @@ impl JSONEval {
             value_evaluations: Vec::new(),
             layout_paths: Vec::new(),
             options_templates: Vec::new(),
+            subforms: IndexMap::new(),
             engine: RLogic::with_config(engine_config),
             context: context.clone(),
             data: data.clone(),
@@ -213,6 +218,7 @@ impl JSONEval {
             value_evaluations: Vec::new(),
             layout_paths: Vec::new(),
             options_templates: Vec::new(),
+            subforms: IndexMap::new(),
             engine: RLogic::with_config(engine_config),
             context: context.clone(),
             data: data.clone(),
@@ -247,6 +253,7 @@ impl JSONEval {
         self.value_evaluations.clear();
         self.layout_paths.clear();
         self.options_templates.clear();
+        self.subforms.clear();
         parse_schema::parse_schema(self)?;
         
         // Re-initialize eval_data with new schema, data, and context

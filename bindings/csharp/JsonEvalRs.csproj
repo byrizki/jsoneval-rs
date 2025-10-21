@@ -38,6 +38,9 @@
 
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="README.modular.md" Pack="true" PackagePath="/docs/" />
+    <None Include="MIGRATION.modular.md" Pack="true" PackagePath="/docs/" />
+    <None Include="MODULAR_ARCHITECTURE.md" Pack="true" PackagePath="/docs/" />
     <None Include="icon.png" Pack="true" PackagePath="/" Condition="Exists('icon.png')" />
     <None Include="JsonEvalRs.targets" Pack="true" PackagePath="build/" />
     

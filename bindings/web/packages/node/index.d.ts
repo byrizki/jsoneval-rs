@@ -62,6 +62,45 @@ export interface CacheStats {
   entries: number;
 }
 
+export interface EvaluateSubformOptions {
+  subformPath: string;
+  data: any;
+  context?: any;
+}
+
+export interface ValidateSubformOptions {
+  subformPath: string;
+  data: any;
+  context?: any;
+}
+
+export interface EvaluateDependentsSubformOptions {
+  subformPath: string;
+  changedPath: string;
+  data?: any;
+  context?: any;
+}
+
+export interface ResolveLayoutSubformOptions {
+  subformPath: string;
+  evaluate?: boolean;
+}
+
+export interface GetEvaluatedSchemaSubformOptions {
+  subformPath: string;
+  resolveLayout?: boolean;
+}
+
+export interface GetSchemaValueSubformOptions {
+  subformPath: string;
+}
+
+export interface GetEvaluatedSchemaByPathSubformOptions {
+  subformPath: string;
+  schemaPath: string;
+  skipLayout?: boolean;
+}
+
 export class JSONEval {
   constructor(options: JSONEvalOptions);
   init(): Promise<void>;
@@ -76,6 +115,19 @@ export class JSONEval {
   cacheStats(): Promise<CacheStats>;
   clearCache(): Promise<void>;
   cacheLen(): Promise<number>;
+  
+  // Subform methods
+  evaluateSubform(options: EvaluateSubformOptions): Promise<void>;
+  validateSubform(options: ValidateSubformOptions): Promise<ValidationResult>;
+  evaluateDependentsSubform(options: EvaluateDependentsSubformOptions): Promise<any>;
+  resolveLayoutSubform(options: ResolveLayoutSubformOptions): Promise<void>;
+  getEvaluatedSchemaSubform(options: GetEvaluatedSchemaSubformOptions): Promise<any>;
+  getSchemaValueSubform(options: GetSchemaValueSubformOptions): Promise<any>;
+  getEvaluatedSchemaWithoutParamsSubform(options: GetEvaluatedSchemaSubformOptions): Promise<any>;
+  getEvaluatedSchemaByPathSubform(options: GetEvaluatedSchemaByPathSubformOptions): Promise<any | null>;
+  getSubformPaths(): Promise<string[]>;
+  hasSubform(subformPath: string): Promise<boolean>;
+  
   free(): void;
 }
 

@@ -5,9 +5,9 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.multiply = exports.default = exports.JSONEval = void 0;
 exports.useJSONEval = useJSONEval;
+var _react = _interopRequireDefault(require("react"));
 var _reactNative = require("react-native");
-var React = _interopRequireWildcard(require("react"));
-function _interopRequireWildcard(e, t) { if ("function" == typeof WeakMap) var r = new WeakMap(), n = new WeakMap(); return (_interopRequireWildcard = function (e, t) { if (!t && e && e.__esModule) return e; var o, i, f = { __proto__: null, default: e }; if (null === e || "object" != typeof e && "function" != typeof e) return f; if (o = t ? n : r) { if (o.has(e)) return o.get(e); o.set(e, f); } for (const t in e) "default" !== t && {}.hasOwnProperty.call(e, t) && ((i = (o = Object.defineProperty) && Object.getOwnPropertyDescriptor(e, t)) && (i.get || i.set) ? o(f, t, i) : f[t] = e[t]); return f; })(e, t); }
+function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
 const LINKING_ERROR = `The package '@json-eval-rs/react-native' doesn't seem to be linked. Make sure: \n\n` + _reactNative.Platform.select({
   ios: "- You have run 'pod install'\n",
   default: ''
@@ -47,7 +47,46 @@ const JsonEvalRs = _reactNative.NativeModules.JsonEvalRs ? _reactNative.NativeMo
  */
 
 /**
+ * Options for evaluating a subform
+ */
+
+/**
+ * Options for validating a subform
+ */
+
+/**
+ * Options for evaluating dependents in a subform
+ */
+
+/**
+ * Options for resolving layout in a subform
+ */
+
+/**
+ * Options for getting evaluated schema from a subform
+ */
+
+/**
+ * Options for getting schema value from a subform
+ */
+
+/**
+ * Options for getting evaluated schema by path from a subform
+ */
+
+/**
  * High-performance JSON Logic evaluator with schema validation for React Native
+ * 
+ * ## Zero-Copy Architecture
+ * 
+ * This binding is optimized for minimal memory copies:
+ * - **Rust FFI Layer**: Returns raw pointers (zero-copy)
+ * - **C++ Bridge**: Uses direct pointer access with single-copy string construction
+ * - **Native Platform**: Minimizes intermediate conversions
+ * - **JS Bridge**: React Native's architecture requires serialization (unavoidable)
+ * 
+ * While true zero-copy across JS/Native boundary is not possible due to React Native's
+ * architecture, we minimize copies within the native layer to maximize performance.
  * 
  * @example
  * ```typescript
@@ -98,16 +137,27 @@ class JSONEval {
       context,
       data
     } = options;
-    const schemaStr = typeof schema === 'string' ? schema : JSON.stringify(schema);
-    const contextStr = context ? typeof context === 'string' ? context : JSON.stringify(context) : undefined;
-    const dataStr = data ? typeof data === 'string' ? data : JSON.stringify(data) : undefined;
-    this.handle = JsonEvalRs.create(schemaStr, contextStr, dataStr);
+    try {
+      const schemaStr = typeof schema === 'string' ? schema : JSON.stringify(schema);
+      const contextStr = context ? typeof context === 'string' ? context : JSON.stringify(context) : null;
+      const dataStr = data ? typeof data === 'string' ? data : JSON.stringify(data) : null;
+      this.handle = JsonEvalRs.create(schemaStr, contextStr, dataStr);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to create JSONEval instance: ${errorMessage}`);
+    }
   }
   throwIfDisposed() {
     if (this.disposed) {
       throw new Error('JSONEval instance has been disposed');
     }
   }
+
+  /**
+   * Convert value to JSON string
+   * Performance note: If you have a pre-serialized JSON string, pass it directly
+   * instead of an object to avoid the JSON.stringify overhead
+   */
   toJsonString(value) {
     return typeof value === 'string' ? value : JSON.stringify(value);
   }
@@ -120,10 +170,15 @@ class JSONEval {
    */
   async evaluate(options) {
     this.throwIfDisposed();
-    const dataStr = this.toJsonString(options.data);
-    const contextStr = options.context ? this.toJsonString(options.context) : undefined;
-    const resultStr = await JsonEvalRs.evaluate(this.handle, dataStr, contextStr);
-    return JSON.parse(resultStr);
+    try {
+      const dataStr = this.toJsonString(options.data);
+      const contextStr = options.context ? this.toJsonString(options.context) : null;
+      const resultStr = await JsonEvalRs.evaluate(this.handle, dataStr, contextStr);
+      return JSON.parse(resultStr);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Evaluation failed: ${errorMessage}`);
+    }
   }
 
   /**
@@ -134,10 +189,15 @@ class JSONEval {
    */
   async validate(options) {
     this.throwIfDisposed();
-    const dataStr = this.toJsonString(options.data);
-    const contextStr = options.context ? this.toJsonString(options.context) : undefined;
-    const resultStr = await JsonEvalRs.validate(this.handle, dataStr, contextStr);
-    return JSON.parse(resultStr);
+    try {
+      const dataStr = this.toJsonString(options.data);
+      const contextStr = options.context ? this.toJsonString(options.context) : null;
+      const resultStr = await JsonEvalRs.validate(this.handle, dataStr, contextStr);
+      return JSON.parse(resultStr);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Validation failed: ${errorMessage}`);
+    }
   }
 
   /**
@@ -148,16 +208,21 @@ class JSONEval {
    */
   async evaluateDependents(options) {
     this.throwIfDisposed();
-    const {
-      changedPaths,
-      data,
-      context,
-      nested = true
-    } = options;
-    const dataStr = this.toJsonString(data);
-    const contextStr = context ? this.toJsonString(context) : undefined;
-    const resultStr = await JsonEvalRs.evaluateDependents(this.handle, changedPaths, dataStr, contextStr, nested);
-    return JSON.parse(resultStr);
+    try {
+      const {
+        changedPaths,
+        data,
+        context,
+        nested = true
+      } = options;
+      const dataStr = this.toJsonString(data);
+      const contextStr = context ? this.toJsonString(context) : null;
+      const resultStr = await JsonEvalRs.evaluateDependents(this.handle, changedPaths, dataStr, contextStr, nested);
+      return JSON.parse(resultStr);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Dependent evaluation failed: ${errorMessage}`);
+    }
   }
 
   /**
@@ -184,21 +249,51 @@ class JSONEval {
   }
 
   /**
+   * Get the evaluated schema without $params field
+   * @param skipLayout - Whether to skip layout resolution (default: false)
+   * @returns Promise resolving to evaluated schema object
+   * @throws {Error} If operation fails
+   */
+  async getEvaluatedSchemaWithoutParams(skipLayout = false) {
+    this.throwIfDisposed();
+    const resultStr = await JsonEvalRs.getEvaluatedSchemaWithoutParams(this.handle, skipLayout);
+    return JSON.parse(resultStr);
+  }
+
+  /**
+   * Get a value from the evaluated schema using dotted path notation
+   * @param path - Dotted path to the value (e.g., "properties.field.value")
+   * @param skipLayout - Whether to skip layout resolution (default: false)
+   * @returns Promise resolving to the value at the path, or null if not found
+   * @throws {Error} If operation fails
+   */
+  async getEvaluatedSchemaByPath(path, skipLayout = false) {
+    this.throwIfDisposed();
+    const resultStr = await JsonEvalRs.getEvaluatedSchemaByPath(this.handle, path, skipLayout);
+    return resultStr ? JSON.parse(resultStr) : null;
+  }
+
+  /**
    * Reload schema with new data
    * @param options - Configuration options with new schema, context, and data
    * @throws {Error} If reload fails
    */
   async reloadSchema(options) {
     this.throwIfDisposed();
-    const {
-      schema,
-      context,
-      data
-    } = options;
-    const schemaStr = typeof schema === 'string' ? schema : JSON.stringify(schema);
-    const contextStr = context ? typeof context === 'string' ? context : JSON.stringify(context) : undefined;
-    const dataStr = data ? typeof data === 'string' ? data : JSON.stringify(data) : undefined;
-    await JsonEvalRs.reloadSchema(this.handle, schemaStr, contextStr, dataStr);
+    try {
+      const {
+        schema,
+        context,
+        data
+      } = options;
+      const schemaStr = typeof schema === 'string' ? schema : JSON.stringify(schema);
+      const contextStr = context ? typeof context === 'string' ? context : JSON.stringify(context) : null;
+      const dataStr = data ? typeof data === 'string' ? data : JSON.stringify(data) : null;
+      await JsonEvalRs.reloadSchema(this.handle, schemaStr, contextStr, dataStr);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to reload schema: ${errorMessage}`);
+    }
   }
 
   /**
@@ -233,6 +328,32 @@ class JSONEval {
   }
 
   /**
+   * Resolve layout with optional evaluation
+   * @param evaluate - If true, runs evaluation before resolving layout (default: false)
+   * @returns Promise that resolves when layout resolution is complete
+   * @throws {Error} If operation fails
+   */
+  async resolveLayout(evaluate = false) {
+    this.throwIfDisposed();
+    await JsonEvalRs.resolveLayout(this.handle, evaluate);
+  }
+
+  /**
+   * Compile and run JSON logic from a JSON logic string
+   * @param logicStr - JSON logic expression as a string or object
+   * @param data - Optional data to evaluate against (uses existing data if not provided)
+   * @returns Promise resolving to the result of the evaluation
+   * @throws {Error} If compilation or evaluation fails
+   */
+  async compileAndRunLogic(logicStr, data) {
+    this.throwIfDisposed();
+    const logic = this.toJsonString(logicStr);
+    const dataStr = data ? this.toJsonString(data) : null;
+    const resultStr = await JsonEvalRs.compileAndRunLogic(this.handle, logic, dataStr);
+    return JSON.parse(resultStr);
+  }
+
+  /**
    * Validate data against schema rules with optional path filtering
    * @param options - Validation options with optional path filtering
    * @returns Promise resolving to ValidationResult
@@ -241,10 +362,136 @@ class JSONEval {
   async validatePaths(options) {
     this.throwIfDisposed();
     const dataStr = this.toJsonString(options.data);
-    const contextStr = options.context ? this.toJsonString(options.context) : undefined;
-    const paths = options.paths || undefined;
+    const contextStr = options.context ? this.toJsonString(options.context) : null;
+    const paths = options.paths || null;
     const resultStr = await JsonEvalRs.validatePaths(this.handle, dataStr, contextStr, paths);
     return JSON.parse(resultStr);
+  }
+
+  // ============================================================================
+  // Subform Methods
+  // ============================================================================
+
+  /**
+   * Evaluate a subform with data
+   * @param options - Evaluation options including subform path and data
+   * @returns Promise that resolves when evaluation is complete
+   * @throws {Error} If evaluation fails
+   */
+  async evaluateSubform(options) {
+    this.throwIfDisposed();
+    const dataStr = this.toJsonString(options.data);
+    const contextStr = options.context ? this.toJsonString(options.context) : null;
+    return JsonEvalRs.evaluateSubform(this.handle, options.subformPath, dataStr, contextStr);
+  }
+
+  /**
+   * Validate subform data against its schema rules
+   * @param options - Validation options including subform path and data
+   * @returns Promise resolving to ValidationResult
+   * @throws {Error} If validation fails
+   */
+  async validateSubform(options) {
+    this.throwIfDisposed();
+    const dataStr = this.toJsonString(options.data);
+    const contextStr = options.context ? this.toJsonString(options.context) : null;
+    const resultStr = await JsonEvalRs.validateSubform(this.handle, options.subformPath, dataStr, contextStr);
+    return JSON.parse(resultStr);
+  }
+
+  /**
+   * Evaluate dependents in subform when a field changes
+   * @param options - Options including subform path, changed path, and optional data
+   * @returns Promise resolving to dependent evaluation results
+   * @throws {Error} If evaluation fails
+   */
+  async evaluateDependentsSubform(options) {
+    this.throwIfDisposed();
+    const dataStr = options.data ? this.toJsonString(options.data) : null;
+    const contextStr = options.context ? this.toJsonString(options.context) : null;
+    const resultStr = await JsonEvalRs.evaluateDependentsSubform(this.handle, options.subformPath, options.changedPath, dataStr, contextStr);
+    return JSON.parse(resultStr);
+  }
+
+  /**
+   * Resolve layout for subform
+   * @param options - Options including subform path and evaluate flag
+   * @returns Promise that resolves when layout is resolved
+   * @throws {Error} If layout resolution fails
+   */
+  async resolveLayoutSubform(options) {
+    this.throwIfDisposed();
+    return JsonEvalRs.resolveLayoutSubform(this.handle, options.subformPath, options.evaluate || false);
+  }
+
+  /**
+   * Get evaluated schema from subform
+   * @param options - Options including subform path and resolveLayout flag
+   * @returns Promise resolving to evaluated schema
+   * @throws {Error} If operation fails
+   */
+  async getEvaluatedSchemaSubform(options) {
+    this.throwIfDisposed();
+    const resultStr = await JsonEvalRs.getEvaluatedSchemaSubform(this.handle, options.subformPath, options.resolveLayout || false);
+    return JSON.parse(resultStr);
+  }
+
+  /**
+   * Get schema value from subform (all .value fields)
+   * @param options - Options including subform path
+   * @returns Promise resolving to schema values
+   * @throws {Error} If operation fails
+   */
+  async getSchemaValueSubform(options) {
+    this.throwIfDisposed();
+    const resultStr = await JsonEvalRs.getSchemaValueSubform(this.handle, options.subformPath);
+    return JSON.parse(resultStr);
+  }
+
+  /**
+   * Get evaluated schema without $params from subform
+   * @param options - Options including subform path and resolveLayout flag
+   * @returns Promise resolving to evaluated schema without $params
+   * @throws {Error} If operation fails
+   */
+  async getEvaluatedSchemaWithoutParamsSubform(options) {
+    this.throwIfDisposed();
+    const resultStr = await JsonEvalRs.getEvaluatedSchemaWithoutParamsSubform(this.handle, options.subformPath, options.resolveLayout || false);
+    return JSON.parse(resultStr);
+  }
+
+  /**
+   * Get evaluated schema by specific path from subform
+   * @param options - Options including subform path, schema path, and skipLayout flag
+   * @returns Promise resolving to value at path or null if not found
+   * @throws {Error} If operation fails
+   */
+  async getEvaluatedSchemaByPathSubform(options) {
+    this.throwIfDisposed();
+    const resultStr = await JsonEvalRs.getEvaluatedSchemaByPathSubform(this.handle, options.subformPath, options.schemaPath, options.skipLayout || false);
+    return resultStr ? JSON.parse(resultStr) : null;
+  }
+
+  /**
+   * Get list of available subform paths
+   * @returns Promise resolving to array of subform paths
+   * @throws {Error} If operation fails
+   */
+  async getSubformPaths() {
+    this.throwIfDisposed();
+    const resultStr = await JsonEvalRs.getSubformPaths(this.handle);
+    return JSON.parse(resultStr);
+  }
+
+  /**
+   * Check if a subform exists at the given path
+   * @param subformPath - Path to check
+   * @returns Promise resolving to true if subform exists, false otherwise
+   * @throws {Error} If operation fails
+   */
+  async hasSubform(subformPath) {
+    this.throwIfDisposed();
+    return JsonEvalRs.hasSubform(this.handle, subformPath);
   }
 
   /**
@@ -291,8 +538,8 @@ class JSONEval {
  */
 exports.JSONEval = JSONEval;
 function useJSONEval(options) {
-  const [evalInstance, setEvalInstance] = React.useState(null);
-  React.useEffect(() => {
+  const [evalInstance, setEvalInstance] = _react.default.useState(null);
+  _react.default.useEffect(() => {
     const instance = new JSONEval(options);
     setEvalInstance(instance);
     return () => {

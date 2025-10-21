@@ -18,6 +18,7 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
         layout_paths: &mut Vec<String>,
         dependents: &mut IndexMap<String, Vec<crate::DependentItem>>,
         options_templates: &mut Vec<(String, String, String)>,
+        subforms: &mut Vec<(String, serde_json::Map<String, Value>, Value)>,
     ) -> Result<(), String> {
         match value {
             Value::Object(map) => {
@@ -108,6 +109,18 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
                         options_templates.push((url_path, url.clone(), params_path));
                     }
                 }
+                
+                // Check for array fields with items (subforms)
+                if let Some(Value::String(type_str)) = map.get("type") {
+                    if type_str == "array" {
+                        if let Some(items) = map.get("items") {
+                            // Store subform info for later creation (after walk completes)
+                            subforms.push((path.to_string(), map.clone(), items.clone()));
+                            // Don't recurse into items - it will be processed as a separate subform
+                            return Ok(());
+                        }
+                    }
+                }
 
                 // Check for dependents array
                 if let Some(Value::Array(dependents_arr)) = map.get("dependents") {
@@ -193,7 +206,7 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
                     }
                     
                     // Recurse into all children (including $ keys like $table, $datas, etc.)
-                    walk(val, &next_path, engine, evaluations, tables, deps, value_fields, layout_paths, dependents, options_templates)?;
+                    walk(val, &next_path, engine, evaluations, tables, deps, value_fields, layout_paths, dependents, options_templates, subforms)?;
                 })
             }
             Value::Array(arr) => Ok(for (index, item) in arr.iter().enumerate() {
@@ -202,7 +215,7 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
                 } else {
                     format!("{path}/{index}")
                 };
-                walk(item, &next_path, engine, evaluations, tables, deps, value_fields, layout_paths, dependents, options_templates)?;
+                walk(item, &next_path, engine, evaluations, tables, deps, value_fields, layout_paths, dependents, options_templates, subforms)?;
             }),
             _ => Ok(()),
         }
@@ -254,6 +267,7 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
     let mut layout_paths = Vec::new();
     let mut dependents_evaluations = IndexMap::new();
     let mut options_templates = Vec::new();
+    let mut subforms_data = Vec::new();
     
     walk(
         &lib.schema,
@@ -266,6 +280,7 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
         &mut layout_paths,
         &mut dependents_evaluations,
         &mut options_templates,
+        &mut subforms_data,
     )?;
     
     lib.evaluations = evaluations;
@@ -274,6 +289,9 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
     lib.layout_paths = layout_paths;
     lib.dependents_evaluations = dependents_evaluations;
     lib.options_templates = options_templates;
+    
+    // Build subforms from collected data (after walk completes)
+    lib.subforms = build_subforms_from_data(subforms_data, lib)?;
     
     // Collect table-level dependencies by aggregating all column dependencies
     collect_table_dependencies(lib);
@@ -288,6 +306,76 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
     
     // Pre-compile all table metadata for zero-copy evaluation
     build_table_metadata(lib)?;
+    
+    Ok(())
+}
+
+/// Build subforms from collected data during walk
+fn build_subforms_from_data(
+    subforms_data: Vec<(String, serde_json::Map<String, Value>, Value)>,
+    parent: &JSONEval,
+) -> Result<IndexMap<String, Box<JSONEval>>, String> {
+    let mut subforms = IndexMap::new();
+    
+    for (path, field_map, items) in subforms_data {
+        create_subform(&path, &field_map, &items, &mut subforms, parent)?;
+    }
+    
+    Ok(subforms)
+}
+
+/// Create an isolated sub-JSONEval for a subform
+fn create_subform(
+    path: &str,
+    field_map: &serde_json::Map<String, Value>,
+    items: &Value,
+    subforms: &mut IndexMap<String, Box<JSONEval>>,
+    parent: &JSONEval,
+) -> Result<(), String> {
+    // Extract field key from path (e.g., "#/riders" -> "riders")
+    let field_key = path.trim_start_matches('#').trim_start_matches('/');
+    
+    // Build subform schema: { $params: from parent, [field_key]: items content }
+    let mut subform_schema = serde_json::Map::new();
+    
+    // Copy $params from parent schema
+    if let Some(params) = parent.schema.get("$params") {
+        subform_schema.insert("$params".to_string(), params.clone());
+    }
+    
+    // Create field object with items content
+    let mut field_obj = serde_json::Map::new();
+    
+    // Copy properties from items
+    if let Value::Object(items_map) = items {
+        for (key, value) in items_map {
+            field_obj.insert(key.clone(), value.clone());
+        }
+    }
+    
+    // Copy field-level properties (title, etc.) but exclude items and type="array"
+    for (key, value) in field_map {
+        if key != "items" && key != "type" {
+            field_obj.insert(key.clone(), value.clone());
+        }
+    }
+    
+    // Set type to "object" for the subform root
+    field_obj.insert("type".to_string(), Value::String("object".to_string()));
+    
+    subform_schema.insert(field_key.to_string(), Value::Object(field_obj));
+    
+    // Create sub-JSONEval with isolated schema
+    let subform_schema_json = serde_json::to_string(&subform_schema)
+        .map_err(|e| format!("Failed to serialize subform schema: {}", e))?;
+    
+    let sub_eval = crate::JSONEval::new(
+        &subform_schema_json,
+        Some(&serde_json::to_string(&parent.context).unwrap_or("{}".to_string())),
+        None, // No data initially
+    ).map_err(|e| format!("Failed to create subform for {}: {}", field_key, e))?;
+    
+    subforms.insert(path.to_string(), Box::new(sub_eval));
     
     Ok(())
 }
@@ -562,4 +650,3 @@ fn compute_column_partitions(columns: &[ColumnMetadata]) -> (Vec<usize>, Vec<usi
     
     (forward_indices, normal_indices)
 }
-

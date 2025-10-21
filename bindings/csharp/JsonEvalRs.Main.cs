@@ -1,370 +1,23 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Collections.Generic;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace JsonEvalRs
 {
     /// <summary>
-    /// P/Invoke interop with the native json-eval-rs library
-    /// </summary>
-    internal static class Native
-    {
-        private const string LibName = "json_eval_rs";
-
-        static Native()
-        {
-            // Set up DLL import resolver for .NET 5+ to help find the native library
-#if NET5_0_OR_GREATER
-            NativeLibrary.SetDllImportResolver(typeof(Native).Assembly, DllImportResolver);
-#endif
-        }
-
-#if NET5_0_OR_GREATER
-        private static IntPtr DllImportResolver(string libraryName, System.Reflection.Assembly assembly, DllImportSearchPath? searchPath)
-        {
-            if (libraryName != LibName)
-                return IntPtr.Zero;
-
-            // Try to load from different possible locations
-            string[] possiblePaths = GetPossibleLibraryPaths();
-            
-            foreach (var path in possiblePaths)
-            {
-                if (NativeLibrary.TryLoad(path, out IntPtr handle))
-                {
-                    return handle;
-                }
-            }
-
-            // Let the default resolver try
-            return IntPtr.Zero;
-        }
-
-        private static string[] GetPossibleLibraryPaths()
-        {
-            var paths = new List<string>();
-            var assemblyLocation = System.IO.Path.GetDirectoryName(typeof(Native).Assembly.Location) ?? "";
-            
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                paths.Add(System.IO.Path.Combine(assemblyLocation, "json_eval_rs.dll"));
-                paths.Add(System.IO.Path.Combine(assemblyLocation, "runtimes", "win-x64", "native", "json_eval_rs.dll"));
-            }
-            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            {
-                paths.Add(System.IO.Path.Combine(assemblyLocation, "libjson_eval_rs.so"));
-                paths.Add(System.IO.Path.Combine(assemblyLocation, "runtimes", "linux-x64", "native", "libjson_eval_rs.so"));
-            }
-            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                paths.Add(System.IO.Path.Combine(assemblyLocation, "libjson_eval_rs.dylib"));
-                paths.Add(System.IO.Path.Combine(assemblyLocation, "runtimes", "osx-x64", "native", "libjson_eval_rs.dylib"));
-            }
-
-            return paths.ToArray();
-        }
-#endif
-
-        [StructLayout(LayoutKind.Sequential)]
-        internal struct FFIResult
-        {
-            [MarshalAs(UnmanagedType.I1)]
-            public bool Success;
-            public IntPtr DataPtr;
-            public UIntPtr DataLen;
-            public IntPtr Error;
-            public IntPtr OwnedData;
-        }
-
-#if NETCOREAPP || NET5_0_OR_GREATER
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern IntPtr json_eval_new(
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string schema,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? data
-        );
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern IntPtr json_eval_new_with_error(
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string schema,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? data,
-            out IntPtr errorOut
-        );
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_evaluate(
-            IntPtr handle,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string data,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context
-        );
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_validate(
-            IntPtr handle,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string data,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context
-        );
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_evaluate_dependents(
-            IntPtr handle,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string changedPath,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? data,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context
-        );
-#else
-        // .NET Standard 2.0/2.1 - Use byte array marshalling
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern IntPtr json_eval_new(
-            byte[]? schema,
-            byte[]? context,
-            byte[]? data
-        );
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern IntPtr json_eval_new_with_error(
-            byte[]? schema,
-            byte[]? context,
-            byte[]? data,
-            out IntPtr errorOut
-        );
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_evaluate(
-            IntPtr handle,
-            byte[]? data,
-            byte[]? context
-        );
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_validate(
-            IntPtr handle,
-            byte[]? data,
-            byte[]? context
-        );
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_evaluate_dependents(
-            IntPtr handle,
-            byte[]? changedPath,
-            byte[]? data,
-            byte[]? context
-        );
-
-        internal static byte[]? ToUTF8Bytes(string? str)
-        {
-            if (str == null) return null;
-            return Encoding.UTF8.GetBytes(str + "\0"); // Null-terminated
-        }
-
-        internal static string? PtrToStringUTF8(IntPtr ptr)
-        {
-            if (ptr == IntPtr.Zero)
-                return null;
-
-            int length = 0;
-            while (Marshal.ReadByte(ptr, length) != 0)
-                length++;
-
-            byte[] buffer = new byte[length];
-            Marshal.Copy(ptr, buffer, 0, length);
-            return Encoding.UTF8.GetString(buffer);
-        }
-#endif
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern void json_eval_free_result(FFIResult result);
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern void json_eval_free_string(IntPtr ptr);
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern void json_eval_free(IntPtr handle);
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern IntPtr json_eval_version();
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_get_evaluated_schema(
-            IntPtr handle,
-            [MarshalAs(UnmanagedType.I1)] bool skipLayout
-        );
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_get_schema_value(IntPtr handle);
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_get_evaluated_schema_without_params(
-            IntPtr handle,
-            [MarshalAs(UnmanagedType.I1)] bool skipLayout
-        );
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_get_evaluated_schema_msgpack(
-            IntPtr handle,
-            [MarshalAs(UnmanagedType.I1)] bool skipLayout
-        );
-
-#if NETCOREAPP || NET5_0_OR_GREATER
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern IntPtr json_eval_new_from_msgpack(
-            IntPtr schemaMsgpack,
-            UIntPtr schemaLen,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? data
-        );
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_get_evaluated_schema_by_path(
-            IntPtr handle,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string path,
-            [MarshalAs(UnmanagedType.I1)] bool skipLayout
-        );
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_reload_schema(
-            IntPtr handle,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string schema,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? data
-        );
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_validate_paths(
-            IntPtr handle,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string data,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? pathsJson
-        );
-#else
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern IntPtr json_eval_new_from_msgpack(
-            IntPtr schemaMsgpack,
-            UIntPtr schemaLen,
-            byte[]? context,
-            byte[]? data
-        );
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_get_evaluated_schema_by_path(
-            IntPtr handle,
-            byte[]? path,
-            [MarshalAs(UnmanagedType.I1)] bool skipLayout
-        );
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_reload_schema(
-            IntPtr handle,
-            byte[]? schema,
-            byte[]? context,
-            byte[]? data
-        );
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_validate_paths(
-            IntPtr handle,
-            byte[]? data,
-            byte[]? context,
-            byte[]? pathsJson
-        );
-#endif
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_cache_stats(IntPtr handle);
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_clear_cache(IntPtr handle);
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_cache_len(IntPtr handle);
-
-#if NETCOREAPP || NET5_0_OR_GREATER
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_resolve_layout(
-            IntPtr handle,
-            [MarshalAs(UnmanagedType.I1)] bool evaluate
-        );
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_compile_and_run_logic(
-            IntPtr handle,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string logicStr,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? data
-        );
-#else
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_resolve_layout(
-            IntPtr handle,
-            [MarshalAs(UnmanagedType.I1)] bool evaluate
-        );
-
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_compile_and_run_logic(
-            IntPtr handle,
-            byte[]? logicStr,
-            byte[]? data
-        );
-#endif
-    }
-
-    /// <summary>
-    /// Validation error for a specific field
-    /// </summary>
-    public class ValidationError
-    {
-        [JsonProperty("path")]
-        public string Path { get; set; } = string.Empty;
-
-        [JsonProperty("ruleType")]
-        public string RuleType { get; set; } = string.Empty;
-
-        [JsonProperty("message")]
-        public string Message { get; set; } = string.Empty;
-    }
-
-    /// <summary>
-    /// Result of validation operation
-    /// </summary>
-    public class ValidationResult
-    {
-        [JsonProperty("hasError")]
-        public bool HasError { get; set; }
-
-        [JsonProperty("errors")]
-        public List<ValidationError> Errors { get; set; } = new List<ValidationError>();
-    }
-
-    /// <summary>
-    /// Cache statistics
-    /// </summary>
-    public class CacheStats
-    {
-        [JsonProperty("hits")]
-        public ulong Hits { get; set; }
-
-        [JsonProperty("misses")]
-        public ulong Misses { get; set; }
-
-        [JsonProperty("entries")]
-        public ulong Entries { get; set; }
-    }
-
-    /// <summary>
-    /// Exception thrown when JSON evaluation operations fail
-    /// </summary>
-    public class JsonEvalException : Exception
-    {
-        public JsonEvalException(string message) : base(message) { }
-        public JsonEvalException(string message, Exception innerException) : base(message, innerException) { }
-    }
-
-    /// <summary>
     /// High-performance JSON Logic evaluator with schema validation
+    /// 
+    /// This file contains the platform-agnostic JSONEval class implementation.
+    /// Platform-specific Native FFI declarations are in:
+    /// - JsonEvalRs.Native.Common.cs (shared)
+    /// - JsonEvalRs.Native.NetCore.cs (.NET Core/.NET 5+)
+    /// - JsonEvalRs.Native.NetStandard.cs (.NET Standard 2.0)
+    /// 
+    /// Subform methods are in JsonEvalRs.Subforms.cs
     /// </summary>
-    public class JSONEval : IDisposable
+    public partial class JSONEval : IDisposable
     {
         private IntPtr _handle;
         private bool _disposed;
@@ -882,7 +535,7 @@ namespace JsonEvalRs
         /// <param name="context">Optional context data</param>
         /// <param name="paths">Optional list of paths to validate (null for all)</param>
         /// <returns>ValidationResult</returns>
-        public ValidationResult ValidatePaths(string data, string? context = null, List<string>? paths = null)
+        public ValidationResult ValidatePaths(string data, string? context = null, System.Collections.Generic.List<string>? paths = null)
         {
             ThrowIfDisposed();
 
@@ -898,6 +551,7 @@ namespace JsonEvalRs
             return ProcessResult<ValidationResult>(result);
         }
 
+        // Helper methods for processing results
         private JObject ProcessResult(Native.FFIResult result)
         {
             try

@@ -231,6 +231,152 @@ public:
         std::function<void(const std::string&, const std::string&)> callback
     );
 
+    // ========================================================================
+    // Subform Methods
+    // ========================================================================
+
+    /**
+     * Evaluate a subform with data (async)
+     * @param handleId Instance handle
+     * @param subformPath Path to the subform (e.g., "#/riders")
+     * @param data JSON data string for the subform
+     * @param context Optional context data
+     * @param callback Result callback
+     */
+    static void evaluateSubformAsync(
+        const std::string& handleId,
+        const std::string& subformPath,
+        const std::string& data,
+        const std::string& context,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Validate subform data against its schema rules (async)
+     * @param handleId Instance handle
+     * @param subformPath Path to the subform
+     * @param data JSON data string for the subform
+     * @param context Optional context data
+     * @param callback Result callback
+     */
+    static void validateSubformAsync(
+        const std::string& handleId,
+        const std::string& subformPath,
+        const std::string& data,
+        const std::string& context,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Evaluate dependents in subform when a field changes (async)
+     * @param handleId Instance handle
+     * @param subformPath Path to the subform
+     * @param changedPath Path of the field that changed
+     * @param data Optional updated JSON data string
+     * @param context Optional context data
+     * @param callback Result callback
+     */
+    static void evaluateDependentsSubformAsync(
+        const std::string& handleId,
+        const std::string& subformPath,
+        const std::string& changedPath,
+        const std::string& data,
+        const std::string& context,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Resolve layout for subform (async)
+     * @param handleId Instance handle
+     * @param subformPath Path to the subform
+     * @param evaluate If true, runs evaluation before resolving layout
+     * @param callback Result callback
+     */
+    static void resolveLayoutSubformAsync(
+        const std::string& handleId,
+        const std::string& subformPath,
+        bool evaluate,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Get evaluated schema from subform (async)
+     * @param handleId Instance handle
+     * @param subformPath Path to the subform
+     * @param resolveLayout Whether to resolve layout
+     * @param callback Result callback
+     */
+    static void getEvaluatedSchemaSubformAsync(
+        const std::string& handleId,
+        const std::string& subformPath,
+        bool resolveLayout,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Get schema value from subform (async)
+     * @param handleId Instance handle
+     * @param subformPath Path to the subform
+     * @param callback Result callback
+     */
+    static void getSchemaValueSubformAsync(
+        const std::string& handleId,
+        const std::string& subformPath,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Get evaluated schema without $params from subform (async)
+     * @param handleId Instance handle
+     * @param subformPath Path to the subform
+     * @param resolveLayout Whether to resolve layout
+     * @param callback Result callback
+     */
+    static void getEvaluatedSchemaWithoutParamsSubformAsync(
+        const std::string& handleId,
+        const std::string& subformPath,
+        bool resolveLayout,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Get evaluated schema by specific path from subform (async)
+     * @param handleId Instance handle
+     * @param subformPath Path to the subform
+     * @param schemaPath Dotted path to the value within the subform
+     * @param skipLayout Whether to skip layout resolution
+     * @param callback Result callback
+     */
+    static void getEvaluatedSchemaByPathSubformAsync(
+        const std::string& handleId,
+        const std::string& subformPath,
+        const std::string& schemaPath,
+        bool skipLayout,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Get list of available subform paths (async)
+     * @param handleId Instance handle
+     * @param callback Result callback
+     */
+    static void getSubformPathsAsync(
+        const std::string& handleId,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Check if a subform exists at the given path (async)
+     * @param handleId Instance handle
+     * @param subformPath Path to check
+     * @param callback Result callback
+     */
+    static void hasSubformAsync(
+        const std::string& handleId,
+        const std::string& subformPath,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
     /**
      * Dispose instance
      * @param handle Instance handle

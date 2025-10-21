@@ -164,7 +164,7 @@ RCT_EXPORT_METHOD(getEvaluatedSchemaWithoutParams:(NSString *)handle
     );
 }
 
-RCT_EXPORT_METHOD(getValueByPath:(NSString *)handle
+RCT_EXPORT_METHOD(getEvaluatedSchemaByPath:(NSString *)handle
                   path:(NSString *)path
                   skipLayout:(BOOL)skipLayout
                   resolver:(RCTPromiseResolveBlock)resolve
@@ -173,12 +173,12 @@ RCT_EXPORT_METHOD(getValueByPath:(NSString *)handle
     std::string handleStr = [self stdStringFromNSString:handle];
     std::string pathStr = [self stdStringFromNSString:path];
     
-    JsonEvalBridge::getValueByPathAsync(handleStr, pathStr, skipLayout,
+    JsonEvalBridge::getEvaluatedSchemaByPathAsync(handleStr, pathStr, skipLayout,
         [resolve, reject](const std::string& result, const std::string& error) {
             if (error.empty()) {
                 resolve([NSString stringWithUTF8String:result.c_str()]);
             } else {
-                reject(@"GET_VALUE_BY_PATH_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+                reject(@"GET_EVALUATED_SCHEMA_BY_PATH_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
             }
         }
     );
@@ -277,6 +277,218 @@ RCT_EXPORT_METHOD(validatePaths:(NSString *)handle
                 resolve([NSString stringWithUTF8String:result.c_str()]);
             } else {
                 reject(@"VALIDATE_PATHS_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+// ============================================================================
+// Subform Methods
+// ============================================================================
+
+RCT_EXPORT_METHOD(evaluateSubform:(NSString *)handle
+                  subformPath:(NSString *)subformPath
+                  data:(NSString *)data
+                  context:(NSString *)context
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    std::string pathStr = [self stdStringFromNSString:subformPath];
+    std::string dataStr = [self stdStringFromNSString:data];
+    std::string contextStr = [self stdStringFromNSString:context];
+    
+    JsonEvalBridge::evaluateSubformAsync(handleStr, pathStr, dataStr, contextStr,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"EVALUATE_SUBFORM_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_METHOD(validateSubform:(NSString *)handle
+                  subformPath:(NSString *)subformPath
+                  data:(NSString *)data
+                  context:(NSString *)context
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    std::string pathStr = [self stdStringFromNSString:subformPath];
+    std::string dataStr = [self stdStringFromNSString:data];
+    std::string contextStr = [self stdStringFromNSString:context];
+    
+    JsonEvalBridge::validateSubformAsync(handleStr, pathStr, dataStr, contextStr,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"VALIDATE_SUBFORM_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_METHOD(evaluateDependentsSubform:(NSString *)handle
+                  subformPath:(NSString *)subformPath
+                  changedPath:(NSString *)changedPath
+                  data:(NSString *)data
+                  context:(NSString *)context
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    std::string subformPathStr = [self stdStringFromNSString:subformPath];
+    std::string changedPathStr = [self stdStringFromNSString:changedPath];
+    std::string dataStr = [self stdStringFromNSString:data];
+    std::string contextStr = [self stdStringFromNSString:context];
+    
+    JsonEvalBridge::evaluateDependentsSubformAsync(handleStr, subformPathStr, changedPathStr, dataStr, contextStr,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"EVALUATE_DEPENDENTS_SUBFORM_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_METHOD(resolveLayoutSubform:(NSString *)handle
+                  subformPath:(NSString *)subformPath
+                  evaluate:(BOOL)evaluate
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    std::string pathStr = [self stdStringFromNSString:subformPath];
+    
+    JsonEvalBridge::resolveLayoutSubformAsync(handleStr, pathStr, evaluate,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"RESOLVE_LAYOUT_SUBFORM_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_METHOD(getEvaluatedSchemaSubform:(NSString *)handle
+                  subformPath:(NSString *)subformPath
+                  resolveLayout:(BOOL)resolveLayout
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    std::string pathStr = [self stdStringFromNSString:subformPath];
+    
+    JsonEvalBridge::getEvaluatedSchemaSubformAsync(handleStr, pathStr, resolveLayout,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"GET_EVALUATED_SCHEMA_SUBFORM_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_METHOD(getSchemaValueSubform:(NSString *)handle
+                  subformPath:(NSString *)subformPath
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    std::string pathStr = [self stdStringFromNSString:subformPath];
+    
+    JsonEvalBridge::getSchemaValueSubformAsync(handleStr, pathStr,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"GET_SCHEMA_VALUE_SUBFORM_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_METHOD(getEvaluatedSchemaWithoutParamsSubform:(NSString *)handle
+                  subformPath:(NSString *)subformPath
+                  resolveLayout:(BOOL)resolveLayout
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    std::string pathStr = [self stdStringFromNSString:subformPath];
+    
+    JsonEvalBridge::getEvaluatedSchemaWithoutParamsSubformAsync(handleStr, pathStr, resolveLayout,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"GET_EVALUATED_SCHEMA_WITHOUT_PARAMS_SUBFORM_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_METHOD(getEvaluatedSchemaByPathSubform:(NSString *)handle
+                  subformPath:(NSString *)subformPath
+                  schemaPath:(NSString *)schemaPath
+                  skipLayout:(BOOL)skipLayout
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    std::string subformPathStr = [self stdStringFromNSString:subformPath];
+    std::string schemaPathStr = [self stdStringFromNSString:schemaPath];
+    
+    JsonEvalBridge::getEvaluatedSchemaByPathSubformAsync(handleStr, subformPathStr, schemaPathStr, skipLayout,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"GET_EVALUATED_SCHEMA_BY_PATH_SUBFORM_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_METHOD(getSubformPaths:(NSString *)handle
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    
+    JsonEvalBridge::getSubformPathsAsync(handleStr,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"GET_SUBFORM_PATHS_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_METHOD(hasSubform:(NSString *)handle
+                  subformPath:(NSString *)subformPath
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    std::string pathStr = [self stdStringFromNSString:subformPath];
+    
+    JsonEvalBridge::hasSubformAsync(handleStr, pathStr,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"HAS_SUBFORM_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
             }
         }
     );

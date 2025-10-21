@@ -314,6 +314,142 @@ export class JSONEvalCore {
     }
   }
 
+  // ============================================================================
+  // Subform Methods
+  // ============================================================================
+
+  /**
+   * Evaluate a subform with data
+   * @param {object} options
+   * @param {string} options.subformPath - Path to the subform (e.g., "#/riders")
+   * @param {object} options.data - Data for the subform
+   * @param {object} [options.context] - Optional context
+   * @returns {Promise<void>}
+   */
+  async evaluateSubform({ subformPath, data, context }) {
+    await this.init();
+    return this._instance.evaluateSubform(
+      subformPath,
+      JSON.stringify(data),
+      context ? JSON.stringify(context) : null
+    );
+  }
+
+  /**
+   * Validate subform data against its schema rules
+   * @param {object} options
+   * @param {string} options.subformPath - Path to the subform
+   * @param {object} options.data - Data for the subform
+   * @param {object} [options.context] - Optional context
+   * @returns {Promise<{has_error: boolean, errors: Array}>}
+   */
+  async validateSubform({ subformPath, data, context }) {
+    await this.init();
+    return this._instance.validateSubform(
+      subformPath,
+      JSON.stringify(data),
+      context ? JSON.stringify(context) : null
+    );
+  }
+
+  /**
+   * Evaluate dependents in subform when a field changes
+   * @param {object} options
+   * @param {string} options.subformPath - Path to the subform
+   * @param {string} options.changedPath - Path of the field that changed
+   * @param {object} [options.data] - Optional updated data
+   * @param {object} [options.context] - Optional context
+   * @returns {Promise<any>}
+   */
+  async evaluateDependentsSubform({ subformPath, changedPath, data, context }) {
+    await this.init();
+    return this._instance.evaluateDependentsSubformJS(
+      subformPath,
+      changedPath,
+      data ? JSON.stringify(data) : null,
+      context ? JSON.stringify(context) : null
+    );
+  }
+
+  /**
+   * Resolve layout for subform
+   * @param {object} options
+   * @param {string} options.subformPath - Path to the subform
+   * @param {boolean} [options.evaluate=false] - If true, runs evaluation before resolving layout
+   * @returns {Promise<void>}
+   */
+  async resolveLayoutSubform({ subformPath, evaluate = false }) {
+    await this.init();
+    return this._instance.resolveLayoutSubform(subformPath, evaluate);
+  }
+
+  /**
+   * Get evaluated schema from subform
+   * @param {object} options
+   * @param {string} options.subformPath - Path to the subform
+   * @param {boolean} [options.resolveLayout=false] - Whether to resolve layout
+   * @returns {Promise<any>}
+   */
+  async getEvaluatedSchemaSubform({ subformPath, resolveLayout = false }) {
+    await this.init();
+    return this._instance.getEvaluatedSchemaSubformJS(subformPath, resolveLayout);
+  }
+
+  /**
+   * Get schema value from subform (all .value fields)
+   * @param {object} options
+   * @param {string} options.subformPath - Path to the subform
+   * @returns {Promise<any>}
+   */
+  async getSchemaValueSubform({ subformPath }) {
+    await this.init();
+    return this._instance.getSchemaValueSubform(subformPath);
+  }
+
+  /**
+   * Get evaluated schema without $params from subform
+   * @param {object} options
+   * @param {string} options.subformPath - Path to the subform
+   * @param {boolean} [options.resolveLayout=false] - Whether to resolve layout
+   * @returns {Promise<any>}
+   */
+  async getEvaluatedSchemaWithoutParamsSubform({ subformPath, resolveLayout = false }) {
+    await this.init();
+    return this._instance.getEvaluatedSchemaWithoutParamsSubformJS(subformPath, resolveLayout);
+  }
+
+  /**
+   * Get evaluated schema by specific path from subform
+   * @param {object} options
+   * @param {string} options.subformPath - Path to the subform
+   * @param {string} options.schemaPath - Path within the subform
+   * @param {boolean} [options.skipLayout=false] - Whether to skip layout resolution
+   * @returns {Promise<any|null>}
+   */
+  async getEvaluatedSchemaByPathSubform({ subformPath, schemaPath, skipLayout = false }) {
+    await this.init();
+    return this._instance.getEvaluatedSchemaByPathSubformJS(subformPath, schemaPath, skipLayout);
+  }
+
+  /**
+   * Get list of available subform paths
+   * @returns {Promise<Array<string>>}
+   */
+  async getSubformPaths() {
+    await this.init();
+    return this._instance.getSubformPaths();
+  }
+
+  /**
+   * Check if a subform exists at the given path
+   * @param {string} subformPath - Path to check
+   * @returns {Promise<boolean>}
+   */
+  async hasSubform(subformPath) {
+    await this.init();
+    return this._instance.hasSubform(subformPath);
+  }
+
   /**
    * Free WASM resources
    */

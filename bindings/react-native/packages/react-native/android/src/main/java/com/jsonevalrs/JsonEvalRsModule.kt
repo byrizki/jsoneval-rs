@@ -93,13 +93,13 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
-    fun getValueByPath(
+    fun getEvaluatedSchemaByPath(
         handle: String,
         path: String,
         skipLayout: Boolean,
         promise: Promise
     ) {
-        nativeGetValueByPathAsync(handle, path, skipLayout, promise)
+        nativeGetEvaluatedSchemaByPathAsync(handle, path, skipLayout, promise)
     }
 
     @ReactMethod
@@ -149,6 +149,111 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
         nativeValidatePathsAsync(handle, data, context ?: "", pathsJson, promise)
     }
 
+    // ========================================================================
+    // Subform Methods
+    // ========================================================================
+
+    @ReactMethod
+    fun evaluateSubform(
+        handle: String,
+        subformPath: String,
+        data: String,
+        context: String?,
+        promise: Promise
+    ) {
+        nativeEvaluateSubformAsync(handle, subformPath, data, context ?: "", promise)
+    }
+
+    @ReactMethod
+    fun validateSubform(
+        handle: String,
+        subformPath: String,
+        data: String,
+        context: String?,
+        promise: Promise
+    ) {
+        nativeValidateSubformAsync(handle, subformPath, data, context ?: "", promise)
+    }
+
+    @ReactMethod
+    fun evaluateDependentsSubform(
+        handle: String,
+        subformPath: String,
+        changedPath: String,
+        data: String?,
+        context: String?,
+        promise: Promise
+    ) {
+        nativeEvaluateDependentsSubformAsync(handle, subformPath, changedPath, data ?: "", context ?: "", promise)
+    }
+
+    @ReactMethod
+    fun resolveLayoutSubform(
+        handle: String,
+        subformPath: String,
+        evaluate: Boolean,
+        promise: Promise
+    ) {
+        nativeResolveLayoutSubformAsync(handle, subformPath, evaluate, promise)
+    }
+
+    @ReactMethod
+    fun getEvaluatedSchemaSubform(
+        handle: String,
+        subformPath: String,
+        resolveLayout: Boolean,
+        promise: Promise
+    ) {
+        nativeGetEvaluatedSchemaSubformAsync(handle, subformPath, resolveLayout, promise)
+    }
+
+    @ReactMethod
+    fun getSchemaValueSubform(
+        handle: String,
+        subformPath: String,
+        promise: Promise
+    ) {
+        nativeGetSchemaValueSubformAsync(handle, subformPath, promise)
+    }
+
+    @ReactMethod
+    fun getEvaluatedSchemaWithoutParamsSubform(
+        handle: String,
+        subformPath: String,
+        resolveLayout: Boolean,
+        promise: Promise
+    ) {
+        nativeGetEvaluatedSchemaWithoutParamsSubformAsync(handle, subformPath, resolveLayout, promise)
+    }
+
+    @ReactMethod
+    fun getEvaluatedSchemaByPathSubform(
+        handle: String,
+        subformPath: String,
+        schemaPath: String,
+        skipLayout: Boolean,
+        promise: Promise
+    ) {
+        nativeGetEvaluatedSchemaByPathSubformAsync(handle, subformPath, schemaPath, skipLayout, promise)
+    }
+
+    @ReactMethod
+    fun getSubformPaths(
+        handle: String,
+        promise: Promise
+    ) {
+        nativeGetSubformPathsAsync(handle, promise)
+    }
+
+    @ReactMethod
+    fun hasSubform(
+        handle: String,
+        subformPath: String,
+        promise: Promise
+    ) {
+        nativeHasSubformAsync(handle, subformPath, promise)
+    }
+
     @ReactMethod(isBlockingSynchronousMethod = true)
     fun dispose(
         handle: String
@@ -194,12 +299,25 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     private external fun nativeGetEvaluatedSchemaAsync(handle: String, skipLayout: Boolean, promise: Promise)
     private external fun nativeGetSchemaValueAsync(handle: String, promise: Promise)
     private external fun nativeGetEvaluatedSchemaWithoutParamsAsync(handle: String, skipLayout: Boolean, promise: Promise)
-    private external fun nativeGetValueByPathAsync(handle: String, path: String, skipLayout: Boolean, promise: Promise)
+    private external fun nativeGetEvaluatedSchemaByPathAsync(handle: String, path: String, skipLayout: Boolean, promise: Promise)
     private external fun nativeReloadSchemaAsync(handle: String, schema: String, context: String, data: String, promise: Promise)
     private external fun nativeCacheStatsAsync(handle: String, promise: Promise)
     private external fun nativeClearCacheAsync(handle: String, promise: Promise)
     private external fun nativeCacheLenAsync(handle: String, promise: Promise)
     private external fun nativeValidatePathsAsync(handle: String, data: String, context: String, pathsJson: String, promise: Promise)
+    
+    // Subform native methods
+    private external fun nativeEvaluateSubformAsync(handle: String, subformPath: String, data: String, context: String, promise: Promise)
+    private external fun nativeValidateSubformAsync(handle: String, subformPath: String, data: String, context: String, promise: Promise)
+    private external fun nativeEvaluateDependentsSubformAsync(handle: String, subformPath: String, changedPath: String, data: String, context: String, promise: Promise)
+    private external fun nativeResolveLayoutSubformAsync(handle: String, subformPath: String, evaluate: Boolean, promise: Promise)
+    private external fun nativeGetEvaluatedSchemaSubformAsync(handle: String, subformPath: String, resolveLayout: Boolean, promise: Promise)
+    private external fun nativeGetSchemaValueSubformAsync(handle: String, subformPath: String, promise: Promise)
+    private external fun nativeGetEvaluatedSchemaWithoutParamsSubformAsync(handle: String, subformPath: String, resolveLayout: Boolean, promise: Promise)
+    private external fun nativeGetEvaluatedSchemaByPathSubformAsync(handle: String, subformPath: String, schemaPath: String, skipLayout: Boolean, promise: Promise)
+    private external fun nativeGetSubformPathsAsync(handle: String, promise: Promise)
+    private external fun nativeHasSubformAsync(handle: String, subformPath: String, promise: Promise)
+    
     private external fun nativeDispose(handle: String)
     private external fun nativeVersion(): String
 }

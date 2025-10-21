@@ -101,6 +101,84 @@ export interface EvaluateDependentsOptions {
 }
 
 /**
+ * Options for evaluating a subform
+ */
+export interface EvaluateSubformOptions {
+  /** Path to the subform (e.g., "#/riders") */
+  subformPath: string;
+  /** JSON data string or object */
+  data: string | object;
+  /** Optional context data (string or object) */
+  context?: string | object;
+}
+
+/**
+ * Options for validating a subform
+ */
+export interface ValidateSubformOptions {
+  /** Path to the subform */
+  subformPath: string;
+  /** JSON data string or object */
+  data: string | object;
+  /** Optional context data (string or object) */
+  context?: string | object;
+}
+
+/**
+ * Options for evaluating dependents in a subform
+ */
+export interface EvaluateDependentsSubformOptions {
+  /** Path to the subform */
+  subformPath: string;
+  /** Path of the field that changed */
+  changedPath: string;
+  /** Optional updated JSON data (string or object) */
+  data?: string | object;
+  /** Optional context data (string or object) */
+  context?: string | object;
+}
+
+/**
+ * Options for resolving layout in a subform
+ */
+export interface ResolveLayoutSubformOptions {
+  /** Path to the subform */
+  subformPath: string;
+  /** If true, runs evaluation before resolving layout */
+  evaluate?: boolean;
+}
+
+/**
+ * Options for getting evaluated schema from a subform
+ */
+export interface GetEvaluatedSchemaSubformOptions {
+  /** Path to the subform */
+  subformPath: string;
+  /** Whether to resolve layout */
+  resolveLayout?: boolean;
+}
+
+/**
+ * Options for getting schema value from a subform
+ */
+export interface GetSchemaValueSubformOptions {
+  /** Path to the subform */
+  subformPath: string;
+}
+
+/**
+ * Options for getting evaluated schema by path from a subform
+ */
+export interface GetEvaluatedSchemaByPathSubformOptions {
+  /** Path to the subform */
+  subformPath: string;
+  /** Dotted path to the value within the subform */
+  schemaPath: string;
+  /** Whether to skip layout resolution */
+  skipLayout?: boolean;
+}
+
+/**
  * High-performance JSON Logic evaluator with schema validation for React Native
  * 
  * ## Zero-Copy Architecture
@@ -401,6 +479,164 @@ export class JSONEval {
     
     const resultStr = await JsonEvalRs.validatePaths(this.handle, dataStr, contextStr, paths);
     return JSON.parse(resultStr);
+  }
+
+  // ============================================================================
+  // Subform Methods
+  // ============================================================================
+
+  /**
+   * Evaluate a subform with data
+   * @param options - Evaluation options including subform path and data
+   * @returns Promise that resolves when evaluation is complete
+   * @throws {Error} If evaluation fails
+   */
+  async evaluateSubform(options: EvaluateSubformOptions): Promise<void> {
+    this.throwIfDisposed();
+    
+    const dataStr = this.toJsonString(options.data);
+    const contextStr = options.context ? this.toJsonString(options.context) : null;
+    
+    return JsonEvalRs.evaluateSubform(this.handle, options.subformPath, dataStr, contextStr);
+  }
+
+  /**
+   * Validate subform data against its schema rules
+   * @param options - Validation options including subform path and data
+   * @returns Promise resolving to ValidationResult
+   * @throws {Error} If validation fails
+   */
+  async validateSubform(options: ValidateSubformOptions): Promise<ValidationResult> {
+    this.throwIfDisposed();
+    
+    const dataStr = this.toJsonString(options.data);
+    const contextStr = options.context ? this.toJsonString(options.context) : null;
+    
+    const resultStr = await JsonEvalRs.validateSubform(this.handle, options.subformPath, dataStr, contextStr);
+    return JSON.parse(resultStr);
+  }
+
+  /**
+   * Evaluate dependents in subform when a field changes
+   * @param options - Options including subform path, changed path, and optional data
+   * @returns Promise resolving to dependent evaluation results
+   * @throws {Error} If evaluation fails
+   */
+  async evaluateDependentsSubform(options: EvaluateDependentsSubformOptions): Promise<any> {
+    this.throwIfDisposed();
+    
+    const dataStr = options.data ? this.toJsonString(options.data) : null;
+    const contextStr = options.context ? this.toJsonString(options.context) : null;
+    
+    const resultStr = await JsonEvalRs.evaluateDependentsSubform(
+      this.handle,
+      options.subformPath,
+      options.changedPath,
+      dataStr,
+      contextStr
+    );
+    return JSON.parse(resultStr);
+  }
+
+  /**
+   * Resolve layout for subform
+   * @param options - Options including subform path and evaluate flag
+   * @returns Promise that resolves when layout is resolved
+   * @throws {Error} If layout resolution fails
+   */
+  async resolveLayoutSubform(options: ResolveLayoutSubformOptions): Promise<void> {
+    this.throwIfDisposed();
+    
+    return JsonEvalRs.resolveLayoutSubform(this.handle, options.subformPath, options.evaluate || false);
+  }
+
+  /**
+   * Get evaluated schema from subform
+   * @param options - Options including subform path and resolveLayout flag
+   * @returns Promise resolving to evaluated schema
+   * @throws {Error} If operation fails
+   */
+  async getEvaluatedSchemaSubform(options: GetEvaluatedSchemaSubformOptions): Promise<any> {
+    this.throwIfDisposed();
+    
+    const resultStr = await JsonEvalRs.getEvaluatedSchemaSubform(
+      this.handle,
+      options.subformPath,
+      options.resolveLayout || false
+    );
+    return JSON.parse(resultStr);
+  }
+
+  /**
+   * Get schema value from subform (all .value fields)
+   * @param options - Options including subform path
+   * @returns Promise resolving to schema values
+   * @throws {Error} If operation fails
+   */
+  async getSchemaValueSubform(options: GetSchemaValueSubformOptions): Promise<any> {
+    this.throwIfDisposed();
+    
+    const resultStr = await JsonEvalRs.getSchemaValueSubform(this.handle, options.subformPath);
+    return JSON.parse(resultStr);
+  }
+
+  /**
+   * Get evaluated schema without $params from subform
+   * @param options - Options including subform path and resolveLayout flag
+   * @returns Promise resolving to evaluated schema without $params
+   * @throws {Error} If operation fails
+   */
+  async getEvaluatedSchemaWithoutParamsSubform(options: GetEvaluatedSchemaSubformOptions): Promise<any> {
+    this.throwIfDisposed();
+    
+    const resultStr = await JsonEvalRs.getEvaluatedSchemaWithoutParamsSubform(
+      this.handle,
+      options.subformPath,
+      options.resolveLayout || false
+    );
+    return JSON.parse(resultStr);
+  }
+
+  /**
+   * Get evaluated schema by specific path from subform
+   * @param options - Options including subform path, schema path, and skipLayout flag
+   * @returns Promise resolving to value at path or null if not found
+   * @throws {Error} If operation fails
+   */
+  async getEvaluatedSchemaByPathSubform(options: GetEvaluatedSchemaByPathSubformOptions): Promise<any | null> {
+    this.throwIfDisposed();
+    
+    const resultStr = await JsonEvalRs.getEvaluatedSchemaByPathSubform(
+      this.handle,
+      options.subformPath,
+      options.schemaPath,
+      options.skipLayout || false
+    );
+    return resultStr ? JSON.parse(resultStr) : null;
+  }
+
+  /**
+   * Get list of available subform paths
+   * @returns Promise resolving to array of subform paths
+   * @throws {Error} If operation fails
+   */
+  async getSubformPaths(): Promise<string[]> {
+    this.throwIfDisposed();
+    
+    const resultStr = await JsonEvalRs.getSubformPaths(this.handle);
+    return JSON.parse(resultStr);
+  }
+
+  /**
+   * Check if a subform exists at the given path
+   * @param subformPath - Path to check
+   * @returns Promise resolving to true if subform exists, false otherwise
+   * @throws {Error} If operation fails
+   */
+  async hasSubform(subformPath: string): Promise<boolean> {
+    this.throwIfDisposed();
+    
+    return JsonEvalRs.hasSubform(this.handle, subformPath);
   }
 
   /**

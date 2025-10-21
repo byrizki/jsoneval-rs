@@ -344,7 +344,10 @@ namespace JsonEvalBenchmark
             Console.WriteLine("==================================================");
 
             // Run the pre-built binary directly to avoid cargo rebuilding and clearing the FFI DLL
-            string binaryPath = Path.Combine(_projectRoot!, "target", "release", "json-eval-cli.exe");
+            string binaryName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) 
+                ? "json-eval-cli.exe" 
+                : "json-eval-cli";
+            string binaryPath = Path.Combine(_projectRoot!, "target", "release", binaryName);
             
             if (!File.Exists(binaryPath))
             {
