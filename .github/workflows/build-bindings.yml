@@ -141,10 +141,22 @@ jobs:
         echo "macOS ARM64:"
         ls -lh target/aarch64-apple-darwin/release/*.dylib 2>/dev/null || echo "  Not found"
     
+    - name: List files before packing
+      run: |
+        echo "Files that should be packed:"
+        ls -la ../../target/x86_64-unknown-linux-gnu/release/libjson_eval_rs.so 2>/dev/null || echo "❌ Linux library not found"
+        ls -la ../../target/x86_64-pc-windows-msvc/release/json_eval_rs.dll 2>/dev/null || echo "❌ Windows library not found"
+        ls -la ../../target/x86_64-apple-darwin/release/libjson_eval_rs.dylib 2>/dev/null || echo "❌ macOS x64 library not found"
+        ls -la ../../target/aarch64-apple-darwin/release/libjson_eval_rs.dylib 2>/dev/null || echo "❌ macOS ARM64 library not found"
+      working-directory: bindings/csharp
+    
     - name: Build NuGet package
       run: |
         cd bindings/csharp
-        dotnet pack -c Release
+        dotnet pack -c Release -v detailed 2>&1 | tee pack.log
+        echo ""
+        echo "Checking pack log for native libraries..."
+        grep -i "libjson_eval_rs\|json_eval_rs" pack.log || echo "⚠ No native library references found in pack log"
     
     - name: Verify NuGet package contents
       run: |

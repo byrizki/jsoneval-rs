@@ -140,7 +140,10 @@ jobs:
     - name: Pack NuGet package
       run: |
         cd bindings/csharp
-        dotnet pack -c Release --no-build
+        dotnet pack -c Release --no-build -v detailed 2>&1 | tee pack.log
+        echo ""
+        echo "Checking pack log for native libraries..."
+        grep -i "libjson_eval_rs\|json_eval_rs" pack.log || echo "⚠ No native library references in pack log"
     
     - name: Verify NuGet package contents
       run: |

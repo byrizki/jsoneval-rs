@@ -4,12 +4,11 @@
 
 using namespace jsoneval;
 
-extern "C" {
-
+// Helper functions (C++ linkage - internal use only)
 // Helper to convert jstring to std::string
 // Note: GetStringUTFChars provides a pinned pointer (minimal copy), but we must
 // copy to std::string to pass to the C++ bridge layer due to lifetime management
-std::string jstringToString(JNIEnv* env, jstring jStr) {
+static std::string jstringToString(JNIEnv* env, jstring jStr) {
     if (jStr == nullptr) return "";
     // GetStringUTFChars returns a pointer to UTF-8 chars (may pin Java string in memory)
     const char* chars = env->GetStringUTFChars(jStr, nullptr);
@@ -22,9 +21,11 @@ std::string jstringToString(JNIEnv* env, jstring jStr) {
 
 // Helper to create jstring from std::string
 // Note: NewStringUTF copies C string to create Java String object (unavoidable)
-jstring stringToJstring(JNIEnv* env, const std::string& str) {
+static jstring stringToJstring(JNIEnv* env, const std::string& str) {
     return env->NewStringUTF(str.c_str());
 }
+
+extern "C" {
 
 // Helper to resolve promise with string result
 // Zero-copy optimization: Pass result directly without intermediate conversions
