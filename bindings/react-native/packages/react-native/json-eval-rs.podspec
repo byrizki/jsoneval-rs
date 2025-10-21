@@ -19,20 +19,15 @@ Pod::Spec.new do |s|
   s.dependency "React-Core"
 
   # Rust library paths (bundled with npm package)
-  # Uses separate libraries for device and simulator to avoid name conflicts
-  # CocoaPods will automatically select the appropriate library based on SDK
-  s.ios.vendored_libraries = [
-    "ios/libs/libjson_eval_rs_device.a",
-    "ios/libs/libjson_eval_rs_simulator.a"
-  ]
+  # Use on_demand_resources to provide SDK-specific libraries
+  s.ios.vendored_library = 'ios/libs/libjson_eval_rs_device.a'
   
   s.pod_target_xcconfig = {
     'CLANG_CXX_LANGUAGE_STANDARD' => 'c++17',
     'CLANG_CXX_LIBRARY' => 'libc++',
     'LIBRARY_SEARCH_PATHS' => '$(PODS_TARGET_SRCROOT)/ios/libs',
-    # Link the appropriate library based on SDK
-    'OTHER_LDFLAGS[sdk=iphonesimulator*]' => '-l"json_eval_rs_simulator"',
-    'OTHER_LDFLAGS[sdk=iphoneos*]' => '-l"json_eval_rs_device"'
+    'OTHER_LDFLAGS[sdk=iphonesimulator*]' => '-force_load "$(PODS_TARGET_SRCROOT)/ios/libs/libjson_eval_rs_simulator.a"',
+    'OTHER_LDFLAGS[sdk=iphoneos*]' => '-force_load "$(PODS_TARGET_SRCROOT)/ios/libs/libjson_eval_rs_device.a"'
   }
   
   # System frameworks

@@ -90,7 +90,7 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeEvaluateAsync(
     
     JsonEvalBridge::evaluateAsync(handleStr, dataStr, contextStr,
         [jvm, globalPromise](const std::string& result, const std::string& error) {
-            JNIEnv* env;
+            JNIEnv* env = nullptr;
             jvm->AttachCurrentThread(&env, nullptr);
             
             if (error.empty()) {
@@ -124,7 +124,7 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeValidateAsync(
     
     JsonEvalBridge::validateAsync(handleStr, dataStr, contextStr,
         [jvm, globalPromise](const std::string& result, const std::string& error) {
-            JNIEnv* env;
+            JNIEnv* env = nullptr;
             jvm->AttachCurrentThread(&env, nullptr);
             
             if (error.empty()) {
@@ -160,7 +160,7 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeEvaluateDependentsAsync(
     
     JsonEvalBridge::evaluateDependentsAsync(handleStr, pathStr, dataStr, contextStr,
         [jvm, globalPromise](const std::string& result, const std::string& error) {
-            JNIEnv* env;
+            JNIEnv* env = nullptr;
             jvm->AttachCurrentThread(&env, nullptr);
             
             if (error.empty()) {
@@ -192,7 +192,7 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedSchemaAsync(
     
     JsonEvalBridge::getEvaluatedSchemaAsync(handleStr, skipLayoutBool,
         [jvm, globalPromise](const std::string& result, const std::string& error) {
-            JNIEnv* env;
+            JNIEnv* env = nullptr;
             jvm->AttachCurrentThread(&env, nullptr);
             
             if (error.empty()) {
@@ -222,7 +222,7 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeGetSchemaValueAsync(
     
     JsonEvalBridge::getSchemaValueAsync(handleStr,
         [jvm, globalPromise](const std::string& result, const std::string& error) {
-            JNIEnv* env;
+            JNIEnv* env = nullptr;
             jvm->AttachCurrentThread(&env, nullptr);
             
             if (error.empty()) {
@@ -253,7 +253,7 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedSchemaWithoutParamsAsync(
     
     JsonEvalBridge::getEvaluatedSchemaWithoutParamsAsync(handleStr, skipLayout,
         [jvm, globalPromise](const std::string& result, const std::string& error) {
-            JNIEnv* env;
+            JNIEnv* env = nullptr;
             jvm->AttachCurrentThread(&env, nullptr);
             
             if (error.empty()) {
@@ -269,7 +269,7 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedSchemaWithoutParamsAsync(
 }
 
 JNIEXPORT void JNICALL
-Java_com_jsonevalrs_JsonEvalRsModule_nativeGetValueByPathAsync(
+Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedSchemaByPathAsync(
     JNIEnv* env,
     jobject /* this */,
     jstring handle,
@@ -284,15 +284,15 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeGetValueByPathAsync(
     env->GetJavaVM(&jvm);
     jobject globalPromise = env->NewGlobalRef(promise);
     
-    JsonEvalBridge::getValueByPathAsync(handleStr, pathStr, skipLayout,
+    JsonEvalBridge::getEvaluatedSchemaByPathAsync(handleStr, pathStr, skipLayout,
         [jvm, globalPromise](const std::string& result, const std::string& error) {
-            JNIEnv* env;
+            JNIEnv* env = nullptr;
             jvm->AttachCurrentThread(&env, nullptr);
             
             if (error.empty()) {
                 resolvePromise(env, globalPromise, result);
             } else {
-                rejectPromise(env, globalPromise, "GET_VALUE_BY_PATH_ERROR", error);
+                rejectPromise(env, globalPromise, "GET_EVALUATED_SCHEMA_BY_PATH_ERROR", error);
             }
             
             env->DeleteGlobalRef(globalPromise);
@@ -322,7 +322,7 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeReloadSchemaAsync(
     
     JsonEvalBridge::reloadSchemaAsync(handleStr, schemaStr, contextStr, dataStr,
         [jvm, globalPromise](const std::string& result, const std::string& error) {
-            JNIEnv* env;
+            JNIEnv* env = nullptr;
             jvm->AttachCurrentThread(&env, nullptr);
             
             if (error.empty()) {
@@ -352,7 +352,7 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeCacheStatsAsync(
     
     JsonEvalBridge::cacheStatsAsync(handleStr,
         [jvm, globalPromise](const std::string& result, const std::string& error) {
-            JNIEnv* env;
+            JNIEnv* env = nullptr;
             jvm->AttachCurrentThread(&env, nullptr);
             
             if (error.empty()) {
@@ -382,7 +382,7 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeClearCacheAsync(
     
     JsonEvalBridge::clearCacheAsync(handleStr,
         [jvm, globalPromise](const std::string& result, const std::string& error) {
-            JNIEnv* env;
+            JNIEnv* env = nullptr;
             jvm->AttachCurrentThread(&env, nullptr);
             
             if (error.empty()) {
@@ -412,7 +412,7 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeCacheLenAsync(
     
     JsonEvalBridge::cacheLenAsync(handleStr,
         [jvm, globalPromise](const std::string& result, const std::string& error) {
-            JNIEnv* env;
+            JNIEnv* env = nullptr;
             jvm->AttachCurrentThread(&env, nullptr);
             
             if (error.empty()) {
@@ -465,7 +465,7 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeValidatePathsAsync(
     
     JsonEvalBridge::validatePathsAsync(handleStr, dataStr, contextStr, pathsStr,
         [jvm, globalPromise](const std::string& result, const std::string& error) {
-            JNIEnv* env;
+            JNIEnv* env = nullptr;
             jvm->AttachCurrentThread(&env, nullptr);
             
             if (error.empty()) {
