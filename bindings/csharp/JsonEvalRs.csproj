@@ -62,16 +62,16 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Copy to output directory for local development -->
-    <Content Include="../../target/x86_64-unknown-linux-gnu/release/libjson_eval_rs.so" Link="libjson_eval_rs.so" CopyToOutputDirectory="PreserveNewest" Condition="Exists('../../target/x86_64-unknown-linux-gnu/release/libjson_eval_rs.so')" />
-    <Content Include="../../target/release/libjson_eval_rs.so" Link="libjson_eval_rs.so" CopyToOutputDirectory="PreserveNewest" Condition="Exists('../../target/release/libjson_eval_rs.so')" />
+    <!-- Copy to output directory for local development (excluded from NuGet package) -->
+    <Content Include="../../target/x86_64-unknown-linux-gnu/release/libjson_eval_rs.so" Link="libjson_eval_rs.so" CopyToOutputDirectory="PreserveNewest" Pack="false" Condition="Exists('../../target/x86_64-unknown-linux-gnu/release/libjson_eval_rs.so')" />
+    <Content Include="../../target/release/libjson_eval_rs.so" Link="libjson_eval_rs.so" CopyToOutputDirectory="PreserveNewest" Pack="false" Condition="Exists('../../target/release/libjson_eval_rs.so')" />
     
-    <Content Include="../../target/x86_64-pc-windows-msvc/release/json_eval_rs.dll" Link="json_eval_rs.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('../../target/x86_64-pc-windows-msvc/release/json_eval_rs.dll')" />
-    <Content Include="../../target/release/json_eval_rs.dll" Link="json_eval_rs.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('../../target/release/json_eval_rs.dll')" />
+    <Content Include="../../target/x86_64-pc-windows-msvc/release/json_eval_rs.dll" Link="json_eval_rs.dll" CopyToOutputDirectory="PreserveNewest" Pack="false" Condition="Exists('../../target/x86_64-pc-windows-msvc/release/json_eval_rs.dll')" />
+    <Content Include="../../target/release/json_eval_rs.dll" Link="json_eval_rs.dll" CopyToOutputDirectory="PreserveNewest" Pack="false" Condition="Exists('../../target/release/json_eval_rs.dll')" />
     
-    <Content Include="../../target/x86_64-apple-darwin/release/libjson_eval_rs.dylib" Link="libjson_eval_rs.dylib" CopyToOutputDirectory="PreserveNewest" Condition="Exists('../../target/x86_64-apple-darwin/release/libjson_eval_rs.dylib')" />
-    <Content Include="../../target/aarch64-apple-darwin/release/libjson_eval_rs.dylib" Link="libjson_eval_rs.dylib" CopyToOutputDirectory="PreserveNewest" Condition="Exists('../../target/aarch64-apple-darwin/release/libjson_eval_rs.dylib')" />
-    <Content Include="../../target/release/libjson_eval_rs.dylib" Link="libjson_eval_rs.dylib" CopyToOutputDirectory="PreserveNewest" Condition="Exists('../../target/release/libjson_eval_rs.dylib')" />
+    <Content Include="../../target/x86_64-apple-darwin/release/libjson_eval_rs.dylib" Link="libjson_eval_rs.dylib" CopyToOutputDirectory="PreserveNewest" Pack="false" Condition="Exists('../../target/x86_64-apple-darwin/release/libjson_eval_rs.dylib')" />
+    <Content Include="../../target/aarch64-apple-darwin/release/libjson_eval_rs.dylib" Link="libjson_eval_rs.dylib" CopyToOutputDirectory="PreserveNewest" Pack="false" Condition="Exists('../../target/aarch64-apple-darwin/release/libjson_eval_rs.dylib')" />
+    <Content Include="../../target/release/libjson_eval_rs.dylib" Link="libjson_eval_rs.dylib" CopyToOutputDirectory="PreserveNewest" Pack="false" Condition="Exists('../../target/release/libjson_eval_rs.dylib')" />
   </ItemGroup>
 
 </Project>
