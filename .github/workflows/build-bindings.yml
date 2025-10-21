@@ -184,6 +184,21 @@ jobs:
         cd bindings/web
         yarn install
     
+    - name: Verify WASM files exist
+      run: |
+        echo "Bundler WASM files:"
+        ls -lh bindings/web/packages/bundler/pkg/ || echo "No bundler pkg directory"
+        echo ""
+        echo "Node WASM files:"
+        ls -lh bindings/web/packages/node/pkg/ || echo "No node pkg directory"
+    
+    - name: Remove pkg .gitignore files
+      run: |
+        # wasm-pack generates .gitignore files that can prevent npm pack from including WASM files
+        rm -f bindings/web/packages/bundler/pkg/.gitignore
+        rm -f bindings/web/packages/node/pkg/.gitignore
+        echo "✓ Removed .gitignore files from pkg directories"
+    
     - name: Package core wrapper
       run: |
         cd bindings/web/packages/core
@@ -193,11 +208,15 @@ jobs:
       run: |
         cd bindings/web/packages/bundler
         npm pack
+        # Verify WASM is included in the tarball
+        tar -tzf *.tgz | grep -E '\.wasm$' && echo "✓ WASM files included in bundler package" || echo "⚠ No WASM files in bundler package"
     
     - name: Package web binding (node)
       run: |
         cd bindings/web/packages/node
         npm pack
+        # Verify WASM is included in the tarball
+        tar -tzf *.tgz | grep -E '\.wasm$' && echo "✓ WASM files included in node package" || echo "⚠ No WASM files in node package"
     
     - name: Upload web packages
       uses: actions/upload-artifact@v4
@@ -507,7 +526,7 @@ jobs:
   # Integration test to verify the package works on iOS
   # Runs in parallel, doesn't block releases
   test-react-native-ios:
-    needs: build-react-native
+    needs: [build-native, build-react-native]
     runs-on: macos-latest
     
     steps:
@@ -517,6 +536,29 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '20'
+    
+    - name: Download iOS libraries
+      uses: actions/download-artifact@v4
+      with:
+        pattern: native-*-apple-ios*
+        path: ios-artifacts/
+    
+    - name: Copy iOS libraries to package
+      run: |
+        mkdir -p bindings/react-native/packages/react-native/ios/libs
+        
+        # Copy all iOS architecture libraries
+        for arch_dir in ios-artifacts/native-*; do
+          if [ -d "$arch_dir" ] && [ -f "$arch_dir/libjson_eval_rs.a" ]; then
+            arch_name=$(basename "$arch_dir" | sed 's/native-//')
+            mkdir -p "bindings/react-native/packages/react-native/ios/libs/$arch_name"
+            cp "$arch_dir/libjson_eval_rs.a" "bindings/react-native/packages/react-native/ios/libs/$arch_name/"
+            echo "✓ Copied $arch_name library"
+          fi
+        done
+        
+        echo "iOS libraries in package:"
+        find bindings/react-native/packages/react-native/ios/libs -name "*.a" -exec ls -lh {} \;
     
     - name: Install monorepo dependencies
       run: |

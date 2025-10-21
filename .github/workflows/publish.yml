@@ -180,6 +180,13 @@ jobs:
         cd bindings/web
         yarn install
     
+    - name: Remove pkg .gitignore files
+      run: |
+        # wasm-pack generates .gitignore files that can prevent npm publish from including WASM files
+        rm -f bindings/web/packages/bundler/pkg/.gitignore
+        rm -f bindings/web/packages/node/pkg/.gitignore
+        echo "✓ Removed .gitignore files from pkg directories"
+    
     - name: Publish core package to npm
       run: |
         cd bindings/web/packages/core
