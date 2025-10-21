@@ -23,6 +23,12 @@ jobs:
             artifact_name: libjson_eval_rs.so
             build_features: ffi
           
+          # Linux ARM64
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact_name: libjson_eval_rs.so
+            build_features: ffi
+          
           # Windows x86_64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
@@ -115,12 +121,14 @@ jobs:
       run: |
         # Create native library directories for C# bindings
         mkdir -p bindings/csharp/runtimes/linux-x64/native
+        mkdir -p bindings/csharp/runtimes/linux-arm64/native
         mkdir -p bindings/csharp/runtimes/win-x64/native
         mkdir -p bindings/csharp/runtimes/osx-x64/native
         mkdir -p bindings/csharp/runtimes/osx-arm64/native
         
         # Copy native libraries to C# native directory
         cp artifacts/native-x86_64-unknown-linux-gnu/*.so bindings/csharp/runtimes/linux-x64/native/ 2>/dev/null || true
+        cp artifacts/native-aarch64-unknown-linux-gnu/*.so bindings/csharp/runtimes/linux-arm64/native/ 2>/dev/null || true
         cp artifacts/native-x86_64-pc-windows-msvc/*.dll bindings/csharp/runtimes/win-x64/native/ 2>/dev/null || true
         cp artifacts/native-x86_64-apple-darwin/*.dylib bindings/csharp/runtimes/osx-x64/native/ 2>/dev/null || true
         cp artifacts/native-aarch64-apple-darwin/*.dylib bindings/csharp/runtimes/osx-arm64/native/ 2>/dev/null || true
@@ -131,6 +139,9 @@ jobs:
         echo ""
         echo "Linux x64:"
         ls -lh bindings/csharp/runtimes/linux-x64/native/*.so 2>/dev/null || echo "  Not found"
+        echo ""
+        echo "Linux ARM64:"
+        ls -lh bindings/csharp/runtimes/linux-arm64/native/*.so 2>/dev/null || echo "  Not found"
         echo ""
         echo "Windows x64:"
         ls -lh bindings/csharp/runtimes/win-x64/native/*.dll 2>/dev/null || echo "  Not found"
@@ -634,7 +645,7 @@ jobs:
   # Integration test to verify the package works on iOS
   # Runs in parallel, doesn't block releases
   test-react-native-ios:
-    needs: [build-native, build-react-native]
+    needs: [build-ios-xcframework, build-react-native]
     runs-on: macos-latest
     
     steps:
@@ -645,21 +656,30 @@ jobs:
       with:
         node-version: '20'
     
-    - name: Download React Native package
+    - name: Download iOS XCFramework
       uses: actions/download-artifact@v4
       with:
-        name: react-native-package
-        path: /tmp/rn-package/
+        name: ios-xcframework
+        path: ios-xcframework-artifacts/
     
-    - name: Install example dependencies with local package
+    - name: Copy iOS XCFramework to package
       run: |
-        cd bindings/react-native/examples/rncli
-        # Install the downloaded package
-        PACKAGE_FILE=$(ls /tmp/rn-package/*.tgz)
-        echo "Installing package: $PACKAGE_FILE"
-        yarn add "file:$PACKAGE_FILE"
+        mkdir -p bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework
+        cp -R ios-xcframework-artifacts/* bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework/
+        
+        echo "iOS XCFramework in package:"
+        find bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework -type f
+    
+    - name: Install monorepo dependencies
+      run: |
+        cd bindings/react-native
         yarn install
     
+    - name: Build TypeScript (React Native package)
+      run: |
+        cd bindings/react-native
+        yarn workspace @json-eval-rs/react-native prepare
+
     - name: Setup CocoaPods cache
       uses: actions/cache@v4
       with:
@@ -725,6 +745,7 @@ jobs:
         
         # Archive native libraries
         tar -czf native-linux-x64.tar.gz native-x86_64-unknown-linux-gnu/
+        tar -czf native-linux-arm64.tar.gz native-aarch64-unknown-linux-gnu/
         tar -czf native-windows-x64.tar.gz native-x86_64-pc-windows-msvc/
         tar -czf native-macos-x64.tar.gz native-x86_64-apple-darwin/
         tar -czf native-macos-arm64.tar.gz native-aarch64-apple-darwin/
@@ -760,7 +781,7 @@ jobs:
         echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Native Libraries" >> $GITHUB_STEP_SUMMARY
-        echo "✅ Desktop platforms (Linux, Windows, macOS)" >> $GITHUB_STEP_SUMMARY
+        echo "✅ Desktop platforms (Linux x64/ARM64, Windows, macOS x64/ARM64)" >> $GITHUB_STEP_SUMMARY
         echo "✅ iOS (device & simulator)" >> $GITHUB_STEP_SUMMARY
         echo "✅ Android (arm64-v8a, armeabi-v7a, x86, x86_64)" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY

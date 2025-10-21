@@ -107,12 +107,14 @@ jobs:
       run: |
         # Create native library directories for C# bindings
         mkdir -p bindings/csharp/runtimes/linux-x64/native
+        mkdir -p bindings/csharp/runtimes/linux-arm64/native
         mkdir -p bindings/csharp/runtimes/win-x64/native
         mkdir -p bindings/csharp/runtimes/osx-x64/native
         mkdir -p bindings/csharp/runtimes/osx-arm64/native
         
         # Extract from downloaded structure (artifacts contain subdirs from build-bindings)
         find artifacts -name "libjson_eval_rs.so" -path "*/native-x86_64-unknown-linux-gnu/*" -exec cp {} bindings/csharp/runtimes/linux-x64/native/ \; || true
+        find artifacts -name "libjson_eval_rs.so" -path "*/native-aarch64-unknown-linux-gnu/*" -exec cp {} bindings/csharp/runtimes/linux-arm64/native/ \; || true
         find artifacts -name "json_eval_rs.dll" -path "*/native-x86_64-pc-windows-msvc/*" -exec cp {} bindings/csharp/runtimes/win-x64/native/ \; || true
         find artifacts -name "libjson_eval_rs.dylib" -path "*/native-x86_64-apple-darwin/*" -exec cp {} bindings/csharp/runtimes/osx-x64/native/ \; || true
         find artifacts -name "libjson_eval_rs.dylib" -path "*/native-aarch64-apple-darwin/*" -exec cp {} bindings/csharp/runtimes/osx-arm64/native/ \; || true
@@ -123,6 +125,9 @@ jobs:
         echo ""
         echo "Linux x64:"
         ls -lh bindings/csharp/runtimes/linux-x64/native/*.so 2>/dev/null || echo "  ⚠ Not found"
+        echo ""
+        echo "Linux ARM64:"
+        ls -lh bindings/csharp/runtimes/linux-arm64/native/*.so 2>/dev/null || echo "  ⚠ Not found"
         echo ""
         echo "Windows x64:"
         ls -lh bindings/csharp/runtimes/win-x64/native/*.dll 2>/dev/null || echo "  ⚠ Not found"
@@ -428,8 +433,8 @@ jobs:
         ### 🔧 Native Libraries
         
         Pre-built native libraries for all platforms:
-        - **Desktop**: Linux, Windows, macOS (x64 & ARM64)
-        - **iOS**: Device (ARM64) & Simulator (x64)
+        - **Desktop**: Linux (x64 & ARM64), Windows (x64), macOS (x64 & ARM64)
+        - **iOS**: Device (ARM64) & Simulator (x64 & ARM64)
         - **Android**: arm64-v8a, armeabi-v7a, x86, x86_64
         
         All native libraries are attached to this release.

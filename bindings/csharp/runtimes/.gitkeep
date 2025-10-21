@@ -1,4 +1,2 @@
 # Native libraries are copied here during CI builds
 # They should not be committed to the repository
-*
-!.gitignore
