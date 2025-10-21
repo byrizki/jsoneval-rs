@@ -104,34 +104,54 @@ jobs:
           8.0.x
           6.0.x
     
-    - name: Download Linux native library
+    - name: Download all native libraries
       uses: actions/download-artifact@v4
       with:
-        name: native-x86_64-unknown-linux-gnu
-        path: target/x86_64-unknown-linux-gnu/release/
+        pattern: native-*
+        path: artifacts/
+        merge-multiple: false
     
-    - name: Download Windows native library
-      uses: actions/download-artifact@v4
-      with:
-        name: native-x86_64-pc-windows-msvc
-        path: target/x86_64-pc-windows-msvc/release/
+    - name: Organize native libraries for NuGet
+      run: |
+        # Create target directory structure
+        mkdir -p target/x86_64-unknown-linux-gnu/release
+        mkdir -p target/x86_64-pc-windows-msvc/release
+        mkdir -p target/x86_64-apple-darwin/release
+        mkdir -p target/aarch64-apple-darwin/release
+        
+        # Copy from artifact structure to expected locations
+        cp artifacts/native-x86_64-unknown-linux-gnu/* target/x86_64-unknown-linux-gnu/release/ 2>/dev/null || true
+        cp artifacts/native-x86_64-pc-windows-msvc/* target/x86_64-pc-windows-msvc/release/ 2>/dev/null || true
+        cp artifacts/native-x86_64-apple-darwin/* target/x86_64-apple-darwin/release/ 2>/dev/null || true
+        cp artifacts/native-aarch64-apple-darwin/* target/aarch64-apple-darwin/release/ 2>/dev/null || true
     
-    - name: Download macOS x64 native library
-      uses: actions/download-artifact@v4
-      with:
-        name: native-x86_64-apple-darwin
-        path: target/x86_64-apple-darwin/release/
-    
-    - name: Download macOS ARM64 native library
-      uses: actions/download-artifact@v4
-      with:
-        name: native-aarch64-apple-darwin
-        path: target/aarch64-apple-darwin/release/
+    - name: Verify native libraries exist
+      run: |
+        echo "Checking for native libraries..."
+        echo ""
+        echo "Linux x64:"
+        ls -lh target/x86_64-unknown-linux-gnu/release/*.so 2>/dev/null || echo "  Not found"
+        echo ""
+        echo "Windows x64:"
+        ls -lh target/x86_64-pc-windows-msvc/release/*.dll 2>/dev/null || echo "  Not found"
+        echo ""
+        echo "macOS x64:"
+        ls -lh target/x86_64-apple-darwin/release/*.dylib 2>/dev/null || echo "  Not found"
+        echo ""
+        echo "macOS ARM64:"
+        ls -lh target/aarch64-apple-darwin/release/*.dylib 2>/dev/null || echo "  Not found"
     
     - name: Build NuGet package
       run: |
         cd bindings/csharp
         dotnet pack -c Release
+    
+    - name: Verify NuGet package contents
+      run: |
+        cd bindings/csharp/bin/Release
+        NUPKG=$(ls *.nupkg | head -n 1)
+        echo "Inspecting NuGet package: $NUPKG"
+        unzip -l "$NUPKG" | grep -E '\.(dll|so|dylib)$' || echo "⚠ No native libraries found in package!"
     
     - name: Upload NuGet package
       uses: actions/upload-artifact@v4

@@ -116,6 +116,22 @@ jobs:
         find artifacts -name "libjson_eval_rs.dylib" -path "*/native-x86_64-apple-darwin/*" -exec cp {} target/x86_64-apple-darwin/release/ \; || true
         find artifacts -name "libjson_eval_rs.dylib" -path "*/native-aarch64-apple-darwin/*" -exec cp {} target/aarch64-apple-darwin/release/ \; || true
     
+    - name: Verify native libraries copied
+      run: |
+        echo "Checking organized native libraries..."
+        echo ""
+        echo "Linux x64:"
+        ls -lh target/x86_64-unknown-linux-gnu/release/*.so 2>/dev/null || echo "  ⚠ Not found"
+        echo ""
+        echo "Windows x64:"
+        ls -lh target/x86_64-pc-windows-msvc/release/*.dll 2>/dev/null || echo "  ⚠ Not found"
+        echo ""
+        echo "macOS x64:"
+        ls -lh target/x86_64-apple-darwin/release/*.dylib 2>/dev/null || echo "  ⚠ Not found"
+        echo ""
+        echo "macOS ARM64:"
+        ls -lh target/aarch64-apple-darwin/release/*.dylib 2>/dev/null || echo "  ⚠ Not found"
+    
     - name: Build C# project
       run: |
         cd bindings/csharp
@@ -125,6 +141,18 @@ jobs:
       run: |
         cd bindings/csharp
         dotnet pack -c Release --no-build
+    
+    - name: Verify NuGet package contents
+      run: |
+        cd bindings/csharp/bin/Release
+        NUPKG=$(ls *.nupkg | head -n 1)
+        echo "Inspecting NuGet package: $NUPKG"
+        echo ""
+        echo "Native libraries in package:"
+        unzip -l "$NUPKG" | grep -E 'runtimes.*\.(dll|so|dylib)$' || echo "⚠ No native libraries found in package!"
+        echo ""
+        echo "Full runtimes folder structure:"
+        unzip -l "$NUPKG" | grep "runtimes/" || echo "No runtimes folder"
     
     - name: Publish to NuGet
       run: |
