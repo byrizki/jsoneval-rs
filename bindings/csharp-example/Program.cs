@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using JsonEvalRs;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System.Runtime.InteropServices;
 
 namespace JsonEvalBenchmark
 {

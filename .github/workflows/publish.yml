@@ -106,32 +106,32 @@ jobs:
     - name: Organize native libraries
       run: |
         # Create native library directories for C# bindings
-        mkdir -p bindings/csharp/native/linux-x64
-        mkdir -p bindings/csharp/native/win-x64
-        mkdir -p bindings/csharp/native/osx-x64
-        mkdir -p bindings/csharp/native/osx-arm64
+        mkdir -p bindings/csharp/runtimes/linux-x64/native
+        mkdir -p bindings/csharp/runtimes/win-x64/native
+        mkdir -p bindings/csharp/runtimes/osx-x64/native
+        mkdir -p bindings/csharp/runtimes/osx-arm64/native
         
         # Extract from downloaded structure (artifacts contain subdirs from build-bindings)
-        find artifacts -name "libjson_eval_rs.so" -path "*/native-x86_64-unknown-linux-gnu/*" -exec cp {} bindings/csharp/native/linux-x64/ \; || true
-        find artifacts -name "json_eval_rs.dll" -path "*/native-x86_64-pc-windows-msvc/*" -exec cp {} bindings/csharp/native/win-x64/ \; || true
-        find artifacts -name "libjson_eval_rs.dylib" -path "*/native-x86_64-apple-darwin/*" -exec cp {} bindings/csharp/native/osx-x64/ \; || true
-        find artifacts -name "libjson_eval_rs.dylib" -path "*/native-aarch64-apple-darwin/*" -exec cp {} bindings/csharp/native/osx-arm64/ \; || true
+        find artifacts -name "libjson_eval_rs.so" -path "*/native-x86_64-unknown-linux-gnu/*" -exec cp {} bindings/csharp/runtimes/linux-x64/native/ \; || true
+        find artifacts -name "json_eval_rs.dll" -path "*/native-x86_64-pc-windows-msvc/*" -exec cp {} bindings/csharp/runtimes/win-x64/native/ \; || true
+        find artifacts -name "libjson_eval_rs.dylib" -path "*/native-x86_64-apple-darwin/*" -exec cp {} bindings/csharp/runtimes/osx-x64/native/ \; || true
+        find artifacts -name "libjson_eval_rs.dylib" -path "*/native-aarch64-apple-darwin/*" -exec cp {} bindings/csharp/runtimes/osx-arm64/native/ \; || true
     
     - name: Verify native libraries copied
       run: |
-        echo "Checking native libraries in bindings/csharp/native/..."
+        echo "Checking native libraries in bindings/csharp/runtimes/..."
         echo ""
         echo "Linux x64:"
-        ls -lh bindings/csharp/native/linux-x64/*.so 2>/dev/null || echo "  ⚠ Not found"
+        ls -lh bindings/csharp/runtimes/linux-x64/native/*.so 2>/dev/null || echo "  ⚠ Not found"
         echo ""
         echo "Windows x64:"
-        ls -lh bindings/csharp/native/win-x64/*.dll 2>/dev/null || echo "  ⚠ Not found"
+        ls -lh bindings/csharp/runtimes/win-x64/native/*.dll 2>/dev/null || echo "  ⚠ Not found"
         echo ""
         echo "macOS x64:"
-        ls -lh bindings/csharp/native/osx-x64/*.dylib 2>/dev/null || echo "  ⚠ Not found"
+        ls -lh bindings/csharp/runtimes/osx-x64/native/*.dylib 2>/dev/null || echo "  ⚠ Not found"
         echo ""
         echo "macOS ARM64:"
-        ls -lh bindings/csharp/native/osx-arm64/*.dylib 2>/dev/null || echo "  ⚠ Not found"
+        ls -lh bindings/csharp/runtimes/osx-arm64/native/*.dylib 2>/dev/null || echo "  ⚠ Not found"
     
     - name: Build C# project
       run: |
