@@ -2,6 +2,10 @@
 name = "json-eval-rs"
 version = "0.0.10"
 edition = "2021"
+description = "High-performance JSON Logic evaluator with schema validation and dependency tracking. Built on blazing-fast Rust engine."
+license = "MIT"
+authors = ["Muhamad Rizki <muhamad.rizki@quadrant.co.id>"]
+repository = "https://github.com/byrizki/json-eval-rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
