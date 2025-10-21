@@ -18,7 +18,7 @@ Pod::Spec.new do |s|
 
   s.dependency "React-Core"
 
-  # Rust XCFramework (bundled with npm package)
+  # Rust XCFramework (pre-built and bundled with npm package)
   # XCFramework automatically handles simulator vs device selection
   s.vendored_frameworks = 'ios/JsonEvalRs.xcframework'
   

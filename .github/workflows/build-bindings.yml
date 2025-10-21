@@ -349,10 +349,84 @@ jobs:
         name: android-jni-${{ matrix.target }}
         path: bindings/react-native/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}/
         if-no-files-found: error
+
+  # Build iOS XCFramework (requires macOS)
+  build-ios-xcframework:
+    needs: [build-native]
+    runs-on: macos-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download iOS libraries
+      uses: actions/download-artifact@v4
+      with:
+        pattern: native-*-apple-ios*
+        path: ios-artifacts/
+    
+    - name: Create XCFramework
+      run: |
+        # Collect libraries by platform
+        DEVICE_LIB=""
+        SIM_LIBS=()
+        
+        for arch_dir in ios-artifacts/native-*; do
+          if [ -d "$arch_dir" ] && [ -f "$arch_dir/libjson_eval_rs.a" ]; then
+            arch_name=$(basename "$arch_dir" | sed 's/native-//')
+            
+            if [[ "$arch_name" == "aarch64-apple-ios" ]]; then
+              DEVICE_LIB="$arch_dir/libjson_eval_rs.a"
+              echo "✓ Found device library: $arch_name"
+            elif [[ "$arch_name" == *"sim"* ]] || [[ "$arch_name" == "x86_64-apple-ios" ]]; then
+              SIM_LIBS+=("$arch_dir/libjson_eval_rs.a")
+              echo "✓ Found simulator library: $arch_name"
+            fi
+          fi
+        done
+        
+        # Create temp directories with identical library names
+        mkdir -p /tmp/device /tmp/simulator
+        
+        if [ -n "$DEVICE_LIB" ]; then
+          cp "$DEVICE_LIB" /tmp/device/libjson_eval_rs.a
+          echo "✓ Prepared device library"
+        fi
+        
+        if [ ${#SIM_LIBS[@]} -gt 0 ]; then
+          if [ ${#SIM_LIBS[@]} -eq 1 ]; then
+            cp "${SIM_LIBS[0]}" /tmp/simulator/libjson_eval_rs.a
+          else
+            lipo -create "${SIM_LIBS[@]}" -output /tmp/simulator/libjson_eval_rs.a
+          fi
+          echo "✓ Created universal simulator library"
+        fi
+        
+        # Create XCFramework
+        if [ -f "/tmp/device/libjson_eval_rs.a" ] && [ -f "/tmp/simulator/libjson_eval_rs.a" ]; then
+          xcodebuild -create-xcframework \
+            -library /tmp/device/libjson_eval_rs.a \
+            -library /tmp/simulator/libjson_eval_rs.a \
+            -output JsonEvalRs.xcframework
+          
+          echo "✓ XCFramework created successfully"
+          echo ""
+          echo "XCFramework structure:"
+          find JsonEvalRs.xcframework -type f
+        else
+          echo "❌ Missing required libraries"
+          exit 1
+        fi
+    
+    - name: Upload XCFramework
+      uses: actions/upload-artifact@v4
+      with:
+        name: ios-xcframework
+        path: JsonEvalRs.xcframework/
+        if-no-files-found: error
   
   # Build React Native package
   build-react-native:
-    needs: [build-native, build-android-jni]
+    needs: [build-native, build-android-jni, build-ios-xcframework]
     runs-on: ubuntu-latest
     
     steps:
@@ -388,56 +462,16 @@ jobs:
         echo "Android JNI libraries bundled in package:"
         find bindings/react-native/packages/react-native/android/src/main/jniLibs -name "*.so" -exec ls -lh {} \;
     
-    - name: Download and organize iOS libraries
+    - name: Download iOS XCFramework
       uses: actions/download-artifact@v4
       with:
-        pattern: native-*-apple-ios
-        path: ios-artifacts/
+        name: ios-xcframework
+        path: bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework/
     
-    - name: Organize iOS libraries
+    - name: Verify XCFramework bundled
       run: |
-        # Create iOS libs directory in the package
-        mkdir -p bindings/react-native/packages/react-native/ios/libs
-        
-        # Create universal simulator binary (x86_64 + arm64-sim) to avoid CocoaPods conflicts
-        DEVICE_LIB=""
-        SIM_LIBS=()
-        
-        for arch_dir in ios-artifacts/native-*; do
-          if [ -d "$arch_dir" ] && [ -f "$arch_dir/libjson_eval_rs.a" ]; then
-            arch_name=$(basename "$arch_dir" | sed 's/native-//')
-            
-            if [[ "$arch_name" == "aarch64-apple-ios" ]]; then
-              # Device library
-              DEVICE_LIB="$arch_dir/libjson_eval_rs.a"
-              echo "✓ Found device library: $arch_name"
-            elif [[ "$arch_name" == *"sim"* ]] || [[ "$arch_name" == "x86_64-apple-ios" ]]; then
-              # Simulator libraries
-              SIM_LIBS+=("$arch_dir/libjson_eval_rs.a")
-              echo "✓ Found simulator library: $arch_name"
-            fi
-          fi
-        done
-        
-        # Copy device library
-        if [ -n "$DEVICE_LIB" ]; then
-          cp "$DEVICE_LIB" bindings/react-native/packages/react-native/ios/libs/libjson_eval_rs_device.a
-          echo "✓ Copied device library"
-        fi
-        
-        # Create universal simulator binary
-        if [ ${#SIM_LIBS[@]} -gt 0 ]; then
-          if [ ${#SIM_LIBS[@]} -eq 1 ]; then
-            cp "${SIM_LIBS[0]}" bindings/react-native/packages/react-native/ios/libs/libjson_eval_rs_simulator.a
-          else
-            lipo -create "${SIM_LIBS[@]}" -output bindings/react-native/packages/react-native/ios/libs/libjson_eval_rs_simulator.a
-          fi
-          echo "✓ Created universal simulator library"
-        fi
-        
-        echo ""
-        echo "iOS static libraries bundled in package:"
-        ls -lh bindings/react-native/packages/react-native/ios/libs/
+        echo "iOS XCFramework bundled in package:"
+        find bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework -type f
     
     - name: Install React Native dependencies
       run: |
@@ -611,74 +645,19 @@ jobs:
       with:
         node-version: '20'
     
-    - name: Download iOS libraries
+    - name: Download React Native package
       uses: actions/download-artifact@v4
       with:
-        pattern: native-*-apple-ios*
-        path: ios-artifacts/
+        name: react-native-package
+        path: /tmp/rn-package/
     
-    - name: Create XCFramework for React Native package
-      run: |
-        mkdir -p bindings/react-native/packages/react-native/ios
-        
-        # Collect libraries by platform
-        DEVICE_LIB=""
-        SIM_LIBS=()
-        
-        for arch_dir in ios-artifacts/native-*; do
-          if [ -d "$arch_dir" ] && [ -f "$arch_dir/libjson_eval_rs.a" ]; then
-            arch_name=$(basename "$arch_dir" | sed 's/native-//')
-            
-            if [[ "$arch_name" == "aarch64-apple-ios" ]]; then
-              DEVICE_LIB="$arch_dir/libjson_eval_rs.a"
-              echo "✓ Found device library: $arch_name"
-            elif [[ "$arch_name" == *"sim"* ]] || [[ "$arch_name" == "x86_64-apple-ios" ]]; then
-              SIM_LIBS+=("$arch_dir/libjson_eval_rs.a")
-              echo "✓ Found simulator library: $arch_name"
-            fi
-          fi
-        done
-        
-        # Create universal simulator binary
-        if [ ${#SIM_LIBS[@]} -gt 0 ]; then
-          if [ ${#SIM_LIBS[@]} -eq 1 ]; then
-            SIM_UNIVERSAL="${SIM_LIBS[0]}"
-          else
-            lipo -create "${SIM_LIBS[@]}" -output /tmp/libjson_eval_rs_sim.a
-            SIM_UNIVERSAL="/tmp/libjson_eval_rs_sim.a"
-          fi
-          echo "✓ Created universal simulator library"
-        fi
-        
-        # Create XCFramework
-        if [ -n "$DEVICE_LIB" ] && [ -n "$SIM_UNIVERSAL" ]; then
-          xcodebuild -create-xcframework \
-            -library "$DEVICE_LIB" \
-            -library "$SIM_UNIVERSAL" \
-            -output bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework
-          
-          echo "✓ Created XCFramework"
-          echo ""
-          echo "XCFramework contents:"
-          find bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework -type f
-        else
-          echo "❌ Missing device or simulator library"
-          exit 1
-        fi
-    
-    - name: Install monorepo dependencies
-      run: |
-        cd bindings/react-native
-        yarn install
-    
-    - name: Build TypeScript (React Native package)
-      run: |
-        cd bindings/react-native
-        yarn workspace @json-eval-rs/react-native prepare
-    
-    - name: Install example dependencies
+    - name: Install example dependencies with local package
       run: |
         cd bindings/react-native/examples/rncli
+        # Install the downloaded package
+        PACKAGE_FILE=$(ls /tmp/rn-package/*.tgz)
+        echo "Installing package: $PACKAGE_FILE"
+        yarn add "file:$PACKAGE_FILE"
         yarn install
     
     - name: Setup CocoaPods cache
@@ -729,7 +708,7 @@ jobs:
   # Create release with all artifacts
   create-release:
     if: github.event_name == 'release'
-    needs: [build-native, build-android-jni, build-csharp, build-web, build-react-native, test]
+    needs: [build-native, build-android-jni, build-ios-xcframework, build-csharp, build-web, build-react-native, test]
     runs-on: ubuntu-latest
     
     steps:
@@ -752,6 +731,11 @@ jobs:
         
         # Archive WASM modules
         tar -czf wasm-modules.tar.gz wasm-modules/
+        
+        # Archive iOS XCFramework
+        if [ -d "ios-xcframework" ]; then
+          tar -czf ios-xcframework.tar.gz ios-xcframework/
+        fi
     
     - name: Upload release archives
       uses: softprops/action-gh-release@v1
@@ -767,7 +751,7 @@ jobs:
   # Summary job
   summary:
     if: always()
-    needs: [build-native, build-android-jni, build-csharp, build-web, build-react-native, test, test-react-native-android, test-react-native-ios]
+    needs: [build-native, build-android-jni, build-ios-xcframework, build-csharp, build-web, build-react-native, test, test-react-native-android, test-react-native-ios]
     runs-on: ubuntu-latest
     
     steps:
@@ -784,6 +768,7 @@ jobs:
         echo "✅ C# NuGet package created" >> $GITHUB_STEP_SUMMARY
         echo "✅ Web/WASM package created" >> $GITHUB_STEP_SUMMARY
         echo "✅ React Native package created" >> $GITHUB_STEP_SUMMARY
+        echo "✅ iOS XCFramework created" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Tests" >> $GITHUB_STEP_SUMMARY
         echo "✅ All Rust tests passed" >> $GITHUB_STEP_SUMMARY
