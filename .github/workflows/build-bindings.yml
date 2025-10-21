@@ -184,6 +184,11 @@ jobs:
         cd bindings/web
         yarn install
     
+    - name: Package core wrapper
+      run: |
+        cd bindings/web/packages/core
+        npm pack
+    
     - name: Package web binding (bundler)
       run: |
         cd bindings/web/packages/bundler
@@ -199,6 +204,7 @@ jobs:
       with:
         name: web-packages
         path: |
+          bindings/web/packages/core/*.tgz
           bindings/web/packages/bundler/*.tgz
           bindings/web/packages/node/*.tgz
         if-no-files-found: error
@@ -468,10 +474,22 @@ jobs:
         cd bindings/react-native
         yarn install
     
+    - name: Build TypeScript (React Native package)
+      run: |
+        cd bindings/react-native
+        yarn workspace @json-eval-rs/react-native prepare
+    
     - name: Install example dependencies
       run: |
         cd bindings/react-native/examples/rncli
         yarn install
+    
+    - name: Verify native files exist
+      run: |
+        echo "Checking for CMakeLists.txt..."
+        ls -la bindings/react-native/packages/react-native/android/CMakeLists.txt
+        echo "Checking node_modules link..."
+        ls -la bindings/react-native/examples/rncli/node_modules/@json-eval-rs/react-native/android/CMakeLists.txt || echo "Symlink issue detected"
     
     - name: Build Android app
       run: |
@@ -505,6 +523,11 @@ jobs:
         cd bindings/react-native
         yarn install
     
+    - name: Build TypeScript (React Native package)
+      run: |
+        cd bindings/react-native
+        yarn workspace @json-eval-rs/react-native prepare
+    
     - name: Install example dependencies
       run: |
         cd bindings/react-native/examples/rncli
@@ -522,7 +545,7 @@ jobs:
           -scheme rncli \
           -configuration Debug \
           -sdk iphonesimulator \
-          -destination 'platform=iOS Simulator,name=iPhone 15 Pro' \
+          -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.5' \
           build \
           CODE_SIGNING_ALLOWED=NO \
           CODE_SIGNING_REQUIRED=NO

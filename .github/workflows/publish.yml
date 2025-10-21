@@ -180,6 +180,14 @@ jobs:
         cd bindings/web
         yarn install
     
+    - name: Publish core package to npm
+      run: |
+        cd bindings/web/packages/core
+        echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
+        npm publish --access public
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    
     - name: Publish bundler package to npm
       run: |
         cd bindings/web/packages/bundler
@@ -198,7 +206,8 @@ jobs:
     
     - name: Create package artifacts
       run: |
-        cd bindings/web/packages/bundler && npm pack
+        cd bindings/web/packages/core && npm pack
+        cd ../bundler && npm pack
         cd ../node && npm pack
     
     - name: Upload web package artifacts
@@ -206,6 +215,7 @@ jobs:
       with:
         name: web-packages
         path: |
+          bindings/web/packages/core/*.tgz
           bindings/web/packages/bundler/*.tgz
           bindings/web/packages/node/*.tgz
 
@@ -344,7 +354,10 @@ jobs:
         
         - **Rust Crate**: [crates.io/crates/json-eval-rs](https://crates.io/crates/json-eval-rs)
         - **C# NuGet**: [nuget.org/packages/JsonEvalRs](https://www.nuget.org/packages/JsonEvalRs)
-        - **Web (npm)**: [npmjs.com/package/@json-eval-rs/web](https://www.npmjs.com/package/@json-eval-rs/web)
+        - **Web (npm)**:
+          - Core: [npmjs.com/package/@json-eval-rs/core](https://www.npmjs.com/package/@json-eval-rs/core)
+          - Bundler: [npmjs.com/package/@json-eval-rs/bundler](https://www.npmjs.com/package/@json-eval-rs/bundler)
+          - Node.js: [npmjs.com/package/@json-eval-rs/node](https://www.npmjs.com/package/@json-eval-rs/node)
         - **React Native (npm)**: [npmjs.com/package/@json-eval-rs/react-native](https://www.npmjs.com/package/@json-eval-rs/react-native)
         
         ### 📥 Installation

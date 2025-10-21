@@ -5,7 +5,6 @@
   "main": "index.js",
   "types": "index.d.ts",
   "type": "module",
-  "private": true,
   "files": [
     "index.js",
     "index.d.ts"
