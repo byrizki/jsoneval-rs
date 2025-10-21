@@ -1,6 +1,7 @@
 target
 *.log
 *.txt
+!CMakeLists.txt
 js-version
 dist
 samples
