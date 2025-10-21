@@ -18,21 +18,21 @@ Pod::Spec.new do |s|
 
   s.dependency "React-Core"
 
-  # C++ Standard
+  # Rust library paths (bundled with npm package)
+  # Uses separate libraries for device and simulator to avoid name conflicts
+  # CocoaPods will automatically select the appropriate library based on SDK
+  s.ios.vendored_libraries = [
+    "ios/libs/libjson_eval_rs_device.a",
+    "ios/libs/libjson_eval_rs_simulator.a"
+  ]
+  
   s.pod_target_xcconfig = {
     'CLANG_CXX_LANGUAGE_STANDARD' => 'c++17',
-    'CLANG_CXX_LIBRARY' => 'libc++'
-  }
-
-  # Rust library paths (bundled with npm package)
-  # Supports multiple layouts:
-  # 1. Universal binary: ios/libs/libjson_eval_rs.a
-  # 2. Named arch-specific: ios/libs/libjson_eval_rs_{arm64,x86_64}.a
-  # 3. Subdirectory arch-specific: ios/libs/{aarch64-apple-ios,universal-sim}/libjson_eval_rs.a
-  s.vendored_libraries = "ios/libs/**/*.a"
-  
-  s.xcconfig = {
-    'LIBRARY_SEARCH_PATHS' => '$(PODS_TARGET_SRCROOT)/ios/libs $(PODS_TARGET_SRCROOT)/ios/libs/**'
+    'CLANG_CXX_LIBRARY' => 'libc++',
+    'LIBRARY_SEARCH_PATHS' => '$(PODS_TARGET_SRCROOT)/ios/libs',
+    # Link the appropriate library based on SDK
+    'OTHER_LDFLAGS[sdk=iphonesimulator*]' => '-l"json_eval_rs_simulator"',
+    'OTHER_LDFLAGS[sdk=iphoneos*]' => '-l"json_eval_rs_device"'
   }
   
   # System frameworks

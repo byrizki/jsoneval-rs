@@ -376,39 +376,45 @@ jobs:
         # Create iOS libs directory in the package
         mkdir -p bindings/react-native/packages/react-native/ios/libs
         
-        # Track which architectures we have
-        HAS_ARM64=false
-        HAS_X86_64=false
-        HAS_ARM64_SIM=false
+        # Create universal simulator binary (x86_64 + arm64-sim) to avoid CocoaPods conflicts
+        DEVICE_LIB=""
+        SIM_LIBS=()
         
-        # Copy architecture-specific libraries
-        if [ -d "ios-artifacts/native-aarch64-apple-ios" ]; then
-          mkdir -p bindings/react-native/packages/react-native/ios/libs/aarch64-apple-ios
-          cp ios-artifacts/native-aarch64-apple-ios/libjson_eval_rs.a \
-             bindings/react-native/packages/react-native/ios/libs/aarch64-apple-ios/ 2>/dev/null || true
-          HAS_ARM64=true
-          echo "✓ Copied iOS arm64 (device) library"
+        for arch_dir in ios-artifacts/native-*; do
+          if [ -d "$arch_dir" ] && [ -f "$arch_dir/libjson_eval_rs.a" ]; then
+            arch_name=$(basename "$arch_dir" | sed 's/native-//')
+            
+            if [[ "$arch_name" == "aarch64-apple-ios" ]]; then
+              # Device library
+              DEVICE_LIB="$arch_dir/libjson_eval_rs.a"
+              echo "✓ Found device library: $arch_name"
+            elif [[ "$arch_name" == *"sim"* ]] || [[ "$arch_name" == "x86_64-apple-ios" ]]; then
+              # Simulator libraries
+              SIM_LIBS+=("$arch_dir/libjson_eval_rs.a")
+              echo "✓ Found simulator library: $arch_name"
+            fi
+          fi
+        done
+        
+        # Copy device library
+        if [ -n "$DEVICE_LIB" ]; then
+          cp "$DEVICE_LIB" bindings/react-native/packages/react-native/ios/libs/libjson_eval_rs_device.a
+          echo "✓ Copied device library"
         fi
         
-        if [ -d "ios-artifacts/native-x86_64-apple-ios" ]; then
-          mkdir -p bindings/react-native/packages/react-native/ios/libs/x86_64-apple-ios
-          cp ios-artifacts/native-x86_64-apple-ios/libjson_eval_rs.a \
-             bindings/react-native/packages/react-native/ios/libs/x86_64-apple-ios/ 2>/dev/null || true
-          HAS_X86_64=true
-          echo "✓ Copied iOS x86_64 (simulator) library"
-        fi
-        
-        if [ -d "ios-artifacts/native-aarch64-apple-ios-sim" ]; then
-          mkdir -p bindings/react-native/packages/react-native/ios/libs/aarch64-apple-ios-sim
-          cp ios-artifacts/native-aarch64-apple-ios-sim/libjson_eval_rs.a \
-             bindings/react-native/packages/react-native/ios/libs/aarch64-apple-ios-sim/ 2>/dev/null || true
-          HAS_ARM64_SIM=true
-          echo "✓ Copied iOS arm64 (simulator) library"
+        # Create universal simulator binary
+        if [ ${#SIM_LIBS[@]} -gt 0 ]; then
+          if [ ${#SIM_LIBS[@]} -eq 1 ]; then
+            cp "${SIM_LIBS[0]}" bindings/react-native/packages/react-native/ios/libs/libjson_eval_rs_simulator.a
+          else
+            lipo -create "${SIM_LIBS[@]}" -output bindings/react-native/packages/react-native/ios/libs/libjson_eval_rs_simulator.a
+          fi
+          echo "✓ Created universal simulator library"
         fi
         
         echo ""
         echo "iOS static libraries bundled in package:"
-        find bindings/react-native/packages/react-native/ios/libs -name "*.a" -exec ls -lh {} \;
+        ls -lh bindings/react-native/packages/react-native/ios/libs/
     
     - name: Install React Native dependencies
       run: |
@@ -468,7 +474,7 @@ jobs:
   # Integration test to verify the package works on Android
   # Runs in parallel, doesn't block releases
   test-react-native-android:
-    needs: build-react-native
+    needs: [build-android-jni, build-react-native]
     runs-on: ubuntu-latest
     
     steps:
@@ -487,6 +493,40 @@ jobs:
     
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
+    
+    - name: Download Android JNI libraries
+      uses: actions/download-artifact@v4
+      with:
+        pattern: android-jni-*
+        path: android-artifacts/
+    
+    - name: Copy Android JNI libraries to package
+      run: |
+        mkdir -p bindings/react-native/packages/react-native/android/src/main/jniLibs
+        
+        # Map artifact names to Android ABIs
+        declare -A abi_map=(
+          ["android-jni-arm64-v8a"]="arm64-v8a"
+          ["android-jni-armeabi-v7a"]="armeabi-v7a"
+          ["android-jni-x86"]="x86"
+          ["android-jni-x86_64"]="x86_64"
+        )
+        
+        for artifact_dir in android-artifacts/android-jni-*; do
+          if [ -d "$artifact_dir" ]; then
+            artifact_name=$(basename "$artifact_dir")
+            abi="${abi_map[$artifact_name]}"
+            
+            if [ -n "$abi" ]; then
+              mkdir -p "bindings/react-native/packages/react-native/android/src/main/jniLibs/$abi"
+              cp "$artifact_dir"/*.so "bindings/react-native/packages/react-native/android/src/main/jniLibs/$abi/" 2>/dev/null || true
+              echo "✓ Copied $abi libraries"
+            fi
+          fi
+        done
+        
+        echo "Android JNI libraries in package:"
+        find bindings/react-native/packages/react-native/android/src/main/jniLibs -name "*.so" -exec ls -lh {} \;
     
     - name: Install monorepo dependencies
       run: |
@@ -547,18 +587,45 @@ jobs:
       run: |
         mkdir -p bindings/react-native/packages/react-native/ios/libs
         
-        # Copy all iOS architecture libraries
+        # Create universal simulator binary (x86_64 + arm64-sim) to avoid CocoaPods conflicts
+        DEVICE_LIB=""
+        SIM_LIBS=()
+        
         for arch_dir in ios-artifacts/native-*; do
           if [ -d "$arch_dir" ] && [ -f "$arch_dir/libjson_eval_rs.a" ]; then
             arch_name=$(basename "$arch_dir" | sed 's/native-//')
-            mkdir -p "bindings/react-native/packages/react-native/ios/libs/$arch_name"
-            cp "$arch_dir/libjson_eval_rs.a" "bindings/react-native/packages/react-native/ios/libs/$arch_name/"
-            echo "✓ Copied $arch_name library"
+            
+            if [[ "$arch_name" == "aarch64-apple-ios" ]]; then
+              # Device library
+              DEVICE_LIB="$arch_dir/libjson_eval_rs.a"
+              echo "✓ Found device library: $arch_name"
+            elif [[ "$arch_name" == *"sim"* ]] || [[ "$arch_name" == "x86_64-apple-ios" ]]; then
+              # Simulator libraries
+              SIM_LIBS+=("$arch_dir/libjson_eval_rs.a")
+              echo "✓ Found simulator library: $arch_name"
+            fi
           fi
         done
         
+        # Copy device library
+        if [ -n "$DEVICE_LIB" ]; then
+          cp "$DEVICE_LIB" bindings/react-native/packages/react-native/ios/libs/libjson_eval_rs_device.a
+          echo "✓ Copied device library"
+        fi
+        
+        # Create universal simulator binary
+        if [ ${#SIM_LIBS[@]} -gt 0 ]; then
+          if [ ${#SIM_LIBS[@]} -eq 1 ]; then
+            cp "${SIM_LIBS[0]}" bindings/react-native/packages/react-native/ios/libs/libjson_eval_rs_simulator.a
+          else
+            lipo -create "${SIM_LIBS[@]}" -output bindings/react-native/packages/react-native/ios/libs/libjson_eval_rs_simulator.a
+          fi
+          echo "✓ Created universal simulator library"
+        fi
+        
+        echo ""
         echo "iOS libraries in package:"
-        find bindings/react-native/packages/react-native/ios/libs -name "*.a" -exec ls -lh {} \;
+        ls -lh bindings/react-native/packages/react-native/ios/libs/
     
     - name: Install monorepo dependencies
       run: |
