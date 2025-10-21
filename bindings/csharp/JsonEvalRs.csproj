@@ -40,55 +40,50 @@
     <None Include="README.md" Pack="true" PackagePath="/" />
     <None Include="icon.png" Pack="true" PackagePath="/" Condition="Exists('icon.png')" />
     <None Include="JsonEvalRs.targets" Pack="true" PackagePath="build/" />
-    
-    <!-- Native libraries are now added dynamically via MSBuild target (see IncludeNativeLibraries target below) -->
   </ItemGroup>
 
+  <!-- Define native library paths as properties first -->
+  <PropertyGroup>
+    <NativeLinuxLib>$(MSBuildProjectDirectory)/../../target/x86_64-unknown-linux-gnu/release/libjson_eval_rs.so</NativeLinuxLib>
+    <NativeWindowsLib>$(MSBuildProjectDirectory)/../../target/x86_64-pc-windows-msvc/release/json_eval_rs.dll</NativeWindowsLib>
+    <NativeMacOSx64Lib>$(MSBuildProjectDirectory)/../../target/x86_64-apple-darwin/release/libjson_eval_rs.dylib</NativeMacOSx64Lib>
+    <NativeMacOSArm64Lib>$(MSBuildProjectDirectory)/../../target/aarch64-apple-darwin/release/libjson_eval_rs.dylib</NativeMacOSArm64Lib>
+    <NativeLinuxFallback>$(MSBuildProjectDirectory)/../../target/release/libjson_eval_rs.so</NativeLinuxFallback>
+    <NativeWindowsFallback>$(MSBuildProjectDirectory)/../../target/release/json_eval_rs.dll</NativeWindowsFallback>
+    <NativeMacOSFallback>$(MSBuildProjectDirectory)/../../target/release/libjson_eval_rs.dylib</NativeMacOSFallback>
+  </PropertyGroup>
+
+  <!-- Include native libraries for NuGet package -->
   <ItemGroup>
-    <!-- Copy to output directory for local development (excluded from NuGet package) -->
-    <Content Include="../../target/x86_64-unknown-linux-gnu/release/libjson_eval_rs.so" Link="libjson_eval_rs.so" CopyToOutputDirectory="PreserveNewest" Pack="false" Condition="Exists('../../target/x86_64-unknown-linux-gnu/release/libjson_eval_rs.so')" />
-    <Content Include="../../target/release/libjson_eval_rs.so" Link="libjson_eval_rs.so" CopyToOutputDirectory="PreserveNewest" Pack="false" Condition="Exists('../../target/release/libjson_eval_rs.so')" />
+    <!-- Primary paths (CI cross-compiled builds) -->
+    <None Include="$(NativeLinuxLib)" Pack="true" PackagePath="runtimes/linux-x64/native/" Condition="Exists('$(NativeLinuxLib)')" />
+    <None Include="$(NativeWindowsLib)" Pack="true" PackagePath="runtimes/win-x64/native/" Condition="Exists('$(NativeWindowsLib)')" />
+    <None Include="$(NativeMacOSx64Lib)" Pack="true" PackagePath="runtimes/osx-x64/native/" Condition="Exists('$(NativeMacOSx64Lib)')" />
+    <None Include="$(NativeMacOSArm64Lib)" Pack="true" PackagePath="runtimes/osx-arm64/native/" Condition="Exists('$(NativeMacOSArm64Lib)')" />
     
-    <Content Include="../../target/x86_64-pc-windows-msvc/release/json_eval_rs.dll" Link="json_eval_rs.dll" CopyToOutputDirectory="PreserveNewest" Pack="false" Condition="Exists('../../target/x86_64-pc-windows-msvc/release/json_eval_rs.dll')" />
-    <Content Include="../../target/release/json_eval_rs.dll" Link="json_eval_rs.dll" CopyToOutputDirectory="PreserveNewest" Pack="false" Condition="Exists('../../target/release/json_eval_rs.dll')" />
-    
-    <Content Include="../../target/x86_64-apple-darwin/release/libjson_eval_rs.dylib" Link="libjson_eval_rs.dylib" CopyToOutputDirectory="PreserveNewest" Pack="false" Condition="Exists('../../target/x86_64-apple-darwin/release/libjson_eval_rs.dylib')" />
-    <Content Include="../../target/aarch64-apple-darwin/release/libjson_eval_rs.dylib" Link="libjson_eval_rs.dylib" CopyToOutputDirectory="PreserveNewest" Pack="false" Condition="Exists('../../target/aarch64-apple-darwin/release/libjson_eval_rs.dylib')" />
-    <Content Include="../../target/release/libjson_eval_rs.dylib" Link="libjson_eval_rs.dylib" CopyToOutputDirectory="PreserveNewest" Pack="false" Condition="Exists('../../target/release/libjson_eval_rs.dylib')" />
+    <!-- Fallback paths (local builds) - only if primary doesn't exist -->
+    <None Include="$(NativeLinuxFallback)" Pack="true" PackagePath="runtimes/linux-x64/native/" Condition="!Exists('$(NativeLinuxLib)') And Exists('$(NativeLinuxFallback)')" />
+    <None Include="$(NativeWindowsFallback)" Pack="true" PackagePath="runtimes/win-x64/native/" Condition="!Exists('$(NativeWindowsLib)') And Exists('$(NativeWindowsFallback)')" />
+    <None Include="$(NativeMacOSFallback)" Pack="true" PackagePath="runtimes/osx-x64/native/" Condition="!Exists('$(NativeMacOSx64Lib)') And Exists('$(NativeMacOSFallback)')" />
   </ItemGroup>
 
-  <!-- Target to verify and include native libraries during pack -->
-  <Target Name="IncludeNativeLibraries" BeforeTargets="GenerateNuspec">
-    <PropertyGroup>
-      <!-- Primary paths (CI cross-compiled builds) -->
-      <NativeLinuxLib>$(MSBuildProjectDirectory)/../../target/x86_64-unknown-linux-gnu/release/libjson_eval_rs.so</NativeLinuxLib>
-      <NativeWindowsLib>$(MSBuildProjectDirectory)/../../target/x86_64-pc-windows-msvc/release/json_eval_rs.dll</NativeWindowsLib>
-      <NativeMacOSx64Lib>$(MSBuildProjectDirectory)/../../target/x86_64-apple-darwin/release/libjson_eval_rs.dylib</NativeMacOSx64Lib>
-      <NativeMacOSArm64Lib>$(MSBuildProjectDirectory)/../../target/aarch64-apple-darwin/release/libjson_eval_rs.dylib</NativeMacOSArm64Lib>
-      
-      <!-- Fallback paths (local builds) -->
-      <NativeLinuxFallback>$(MSBuildProjectDirectory)/../../target/release/libjson_eval_rs.so</NativeLinuxFallback>
-      <NativeWindowsFallback>$(MSBuildProjectDirectory)/../../target/release/json_eval_rs.dll</NativeWindowsFallback>
-      <NativeMacOSFallback>$(MSBuildProjectDirectory)/../../target/release/libjson_eval_rs.dylib</NativeMacOSFallback>
-    </PropertyGroup>
+  <!-- Copy to output directory for local development (excluded from NuGet package) -->
+  <ItemGroup>
+    <Content Include="$(NativeLinuxLib)" Link="libjson_eval_rs.so" CopyToOutputDirectory="PreserveNewest" Pack="false" Condition="Exists('$(NativeLinuxLib)')" />
+    <Content Include="$(NativeLinuxFallback)" Link="libjson_eval_rs.so" CopyToOutputDirectory="PreserveNewest" Pack="false" Condition="Exists('$(NativeLinuxFallback)')" />
+    <Content Include="$(NativeWindowsLib)" Link="json_eval_rs.dll" CopyToOutputDirectory="PreserveNewest" Pack="false" Condition="Exists('$(NativeWindowsLib)')" />
+    <Content Include="$(NativeWindowsFallback)" Link="json_eval_rs.dll" CopyToOutputDirectory="PreserveNewest" Pack="false" Condition="Exists('$(NativeWindowsFallback)')" />
+    <Content Include="$(NativeMacOSx64Lib)" Link="libjson_eval_rs.dylib" CopyToOutputDirectory="PreserveNewest" Pack="false" Condition="Exists('$(NativeMacOSx64Lib)')" />
+    <Content Include="$(NativeMacOSArm64Lib)" Link="libjson_eval_rs.dylib" CopyToOutputDirectory="PreserveNewest" Pack="false" Condition="Exists('$(NativeMacOSArm64Lib)')" />
+    <Content Include="$(NativeMacOSFallback)" Link="libjson_eval_rs.dylib" CopyToOutputDirectory="PreserveNewest" Pack="false" Condition="Exists('$(NativeMacOSFallback)')" />
+  </ItemGroup>
 
+  <!-- Diagnostic target to verify native libraries -->
+  <Target Name="VerifyNativeLibraries" BeforeTargets="GenerateNuspec">
     <Message Text="=== Checking for native libraries ===" Importance="high" />
     <Message Text="Linux lib exists: $([System.IO.File]::Exists($(NativeLinuxLib)))" Importance="high" />
     <Message Text="Windows lib exists: $([System.IO.File]::Exists($(NativeWindowsLib)))" Importance="high" />
     <Message Text="macOS x64 lib exists: $([System.IO.File]::Exists($(NativeMacOSx64Lib)))" Importance="high" />
     <Message Text="macOS ARM64 lib exists: $([System.IO.File]::Exists($(NativeMacOSArm64Lib)))" Importance="high" />
-
-    <ItemGroup>
-      <!-- Add primary paths if they exist -->
-      <None Include="$(NativeLinuxLib)" Pack="true" PackagePath="runtimes/linux-x64/native/" Condition="Exists('$(NativeLinuxLib)')" />
-      <None Include="$(NativeWindowsLib)" Pack="true" PackagePath="runtimes/win-x64/native/" Condition="Exists('$(NativeWindowsLib)')" />
-      <None Include="$(NativeMacOSx64Lib)" Pack="true" PackagePath="runtimes/osx-x64/native/" Condition="Exists('$(NativeMacOSx64Lib)')" />
-      <None Include="$(NativeMacOSArm64Lib)" Pack="true" PackagePath="runtimes/osx-arm64/native/" Condition="Exists('$(NativeMacOSArm64Lib)')" />
-      
-      <!-- Add fallback paths if primary don't exist but fallback does -->
-      <None Include="$(NativeLinuxFallback)" Pack="true" PackagePath="runtimes/linux-x64/native/" Condition="!Exists('$(NativeLinuxLib)') And Exists('$(NativeLinuxFallback)')" />
-      <None Include="$(NativeWindowsFallback)" Pack="true" PackagePath="runtimes/win-x64/native/" Condition="!Exists('$(NativeWindowsLib)') And Exists('$(NativeWindowsFallback)')" />
-      <None Include="$(NativeMacOSFallback)" Pack="true" PackagePath="runtimes/osx-x64/native/" Condition="!Exists('$(NativeMacOSx64Lib)') And Exists('$(NativeMacOSFallback)')" />
-    </ItemGroup>
   </Target>
 </Project>
