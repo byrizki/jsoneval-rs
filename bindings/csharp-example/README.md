@@ -63,7 +63,7 @@ The benchmark measures:
 
 ```
 🚀 JSON Eval RS - C# Benchmark
-📦 Library Version: 0.0.9
+📦 Library Version: 0.0.10
 
 📋 Running scenario: 'zcc'
 

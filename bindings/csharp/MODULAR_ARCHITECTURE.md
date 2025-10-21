@@ -254,7 +254,7 @@ The modular architecture enables:
 
 ## Version History
 
-- **v0.0.9+**: Modular architecture
+- **v0.0.10+**: Modular architecture
 - **v0.0.1-0.0.8**: Monolithic architecture
 
 ## References

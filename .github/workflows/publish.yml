@@ -164,7 +164,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '20'
         registry-url: 'https://registry.npmjs.org'
     
     - name: Install wasm-pack
@@ -180,24 +180,34 @@ jobs:
         cd bindings/web
         yarn install
     
-    - name: Publish to npm
+    - name: Publish bundler package to npm
       run: |
-        cd bindings/web
+        cd bindings/web/packages/bundler
         echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
         npm publish --access public
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     
-    - name: Create package artifact
+    - name: Publish node package to npm
       run: |
-        cd bindings/web
-        npm pack
+        cd bindings/web/packages/node
+        echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
+        npm publish --access public
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     
-    - name: Upload web package artifact
+    - name: Create package artifacts
+      run: |
+        cd bindings/web/packages/bundler && npm pack
+        cd ../node && npm pack
+    
+    - name: Upload web package artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: web-package
-        path: bindings/web/*.tgz
+        name: web-packages
+        path: |
+          bindings/web/packages/bundler/*.tgz
+          bindings/web/packages/node/*.tgz
 
   # Publish React Native npm package
   publish-react-native:
@@ -213,7 +223,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '20'
         registry-url: 'https://registry.npmjs.org'
     
     - name: Download artifacts from previous job
@@ -260,11 +270,11 @@ jobs:
     - name: Build TypeScript
       run: |
         cd bindings/react-native
-        npm run prepare || echo "No prepare script"
+        yarn workspace @json-eval-rs/react-native prepare
     
     - name: Publish to npm
       run: |
-        cd bindings/react-native
+        cd bindings/react-native/packages/react-native
         echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
         npm publish --access public
       env:
@@ -272,14 +282,14 @@ jobs:
     
     - name: Create package artifact
       run: |
-        cd bindings/react-native
+        cd bindings/react-native/packages/react-native
         npm pack
     
     - name: Upload React Native package artifact
       uses: actions/upload-artifact@v4
       with:
         name: react-native-package
-        path: bindings/react-native/*.tgz
+        path: bindings/react-native/packages/react-native/*.tgz
 
   # Publish Rust crate to crates.io
   publish-crates-io:
@@ -379,7 +389,7 @@ jobs:
         body_path: release-notes.md
         files: |
           release-artifacts/nuget-package/*.nupkg
-          release-artifacts/web-package/*.tgz
+          release-artifacts/web-packages/*.tgz
           release-artifacts/react-native-package/*.tgz
           release-artifacts/native-*/*
           release-artifacts/android-jni-*/*

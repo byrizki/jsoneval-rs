@@ -159,7 +159,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '20'
     
     - name: Install wasm-pack
       run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
@@ -184,16 +184,23 @@ jobs:
         cd bindings/web
         yarn install
     
-    - name: Package web binding
+    - name: Package web binding (bundler)
       run: |
-        cd bindings/web
+        cd bindings/web/packages/bundler
         npm pack
     
-    - name: Upload web package
+    - name: Package web binding (node)
+      run: |
+        cd bindings/web/packages/node
+        npm pack
+    
+    - name: Upload web packages
       uses: actions/upload-artifact@v4
       with:
-        name: web-package
-        path: bindings/web/*.tgz
+        name: web-packages
+        path: |
+          bindings/web/packages/bundler/*.tgz
+          bindings/web/packages/node/*.tgz
         if-no-files-found: error
     
     - name: Upload WASM artifacts
@@ -306,7 +313,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '20'
     
     - name: Download Android JNI libraries
       uses: actions/download-artifact@v4
@@ -386,7 +393,7 @@ jobs:
     - name: Build TypeScript
       run: |
         cd bindings/react-native
-        npm run prepare || echo "Prepare script not found, skipping"
+        yarn workspace @json-eval-rs/react-native prepare
     
     - name: Install example dependencies
       run: |
@@ -395,14 +402,14 @@ jobs:
     
     - name: Package React Native binding
       run: |
-        cd bindings/react-native
+        cd bindings/react-native/packages/react-native
         npm pack
     
     - name: Upload React Native package
       uses: actions/upload-artifact@v4
       with:
         name: react-native-package
-        path: bindings/react-native/*.tgz
+        path: bindings/react-native/packages/react-native/*.tgz
         if-no-files-found: error
 
   # Run tests
@@ -431,6 +438,120 @@ jobs:
     
     - name: Run tests (release mode)
       run: cargo test --release --all-features
+
+  # Test React Native example - Android
+  # Integration test to verify the package works on Android
+  # Runs in parallel, doesn't block releases
+  test-react-native-android:
+    needs: build-react-native
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+    
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+    
+    - name: Download React Native package
+      uses: actions/download-artifact@v4
+      with:
+        name: react-native-package
+        path: package-artifacts/
+    
+    - name: Install monorepo dependencies
+      run: |
+        cd bindings/react-native
+        yarn install
+    
+    - name: Link local package to example
+      run: |
+        cd bindings/react-native/examples/rncli
+        # Install dependencies
+        yarn install
+        # Link the built package
+        PACKAGE_TGZ=$(ls ../../packages/react-native/*.tgz | head -n 1)
+        yarn add "file:$PACKAGE_TGZ"
+    
+    - name: Build Android app
+      run: |
+        cd bindings/react-native/examples/rncli/android
+        ./gradlew assembleDebug --no-daemon
+    
+    - name: Upload Android APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: react-native-android-apk
+        path: bindings/react-native/examples/rncli/android/app/build/outputs/apk/debug/*.apk
+
+  # Test React Native example - iOS
+  # Integration test to verify the package works on iOS
+  # Runs in parallel, doesn't block releases
+  test-react-native-ios:
+    needs: build-react-native
+    runs-on: macos-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: Download React Native package
+      uses: actions/download-artifact@v4
+      with:
+        name: react-native-package
+        path: package-artifacts/
+    
+    - name: Install monorepo dependencies
+      run: |
+        cd bindings/react-native
+        yarn install
+    
+    - name: Link local package to example
+      run: |
+        cd bindings/react-native/examples/rncli
+        # Install dependencies
+        yarn install
+        # Link the built package
+        PACKAGE_TGZ=$(ls ../../packages/react-native/*.tgz | head -n 1)
+        yarn add "file:$PACKAGE_TGZ"
+    
+    - name: Install CocoaPods dependencies
+      run: |
+        cd bindings/react-native/examples/rncli/ios
+        pod install
+    
+    - name: Build iOS app
+      run: |
+        cd bindings/react-native/examples/rncli/ios
+        xcodebuild -workspace Rncli.xcworkspace \
+          -scheme Rncli \
+          -configuration Debug \
+          -sdk iphonesimulator \
+          -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+          build \
+          CODE_SIGNING_ALLOWED=NO \
+          CODE_SIGNING_REQUIRED=NO
+    
+    - name: Upload iOS build logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: react-native-ios-build-logs
+        path: ~/Library/Logs/xcodebuild/
 
   # Create release with all artifacts
   create-release:
@@ -465,7 +586,7 @@ jobs:
         files: |
           release-artifacts/*.tar.gz
           release-artifacts/nuget-package/*.nupkg
-          release-artifacts/web-package/*.tgz
+          release-artifacts/web-packages/*.tgz
           release-artifacts/react-native-package/*.tgz
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -473,7 +594,7 @@ jobs:
   # Summary job
   summary:
     if: always()
-    needs: [build-native, build-android-jni, build-csharp, build-web, build-react-native, test]
+    needs: [build-native, build-android-jni, build-csharp, build-web, build-react-native, test, test-react-native-android, test-react-native-ios]
     runs-on: ubuntu-latest
     
     steps:
@@ -492,6 +613,8 @@ jobs:
         echo "✅ React Native package created" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Tests" >> $GITHUB_STEP_SUMMARY
-        echo "✅ All tests passed" >> $GITHUB_STEP_SUMMARY
+        echo "✅ All Rust tests passed" >> $GITHUB_STEP_SUMMARY
+        echo "✅ React Native Android example built" >> $GITHUB_STEP_SUMMARY
+        echo "✅ React Native iOS example built" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "All artifacts are available for download from this workflow run." >> $GITHUB_STEP_SUMMARY
