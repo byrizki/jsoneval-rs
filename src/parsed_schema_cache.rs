@@ -20,7 +20,8 @@ use crate::ParsedSchema;
 /// let cache = ParsedSchemaCache::new();
 /// 
 /// // Parse and cache a schema
-/// let schema = ParsedSchema::from_json(schema_json, None).unwrap();
+/// let schema_json = r#"{"type": "object"}"#;
+/// let schema = ParsedSchema::parse(schema_json).unwrap();
 /// cache.insert("my-schema".to_string(), Arc::new(schema));
 /// 
 /// // Retrieve from cache
@@ -117,8 +118,13 @@ impl ParsedSchemaCache {
     /// 
     /// # Example
     /// ```
+    /// use json_eval_rs::{ParsedSchemaCache, ParsedSchema};
+    /// use std::sync::Arc;
+    /// 
+    /// let cache = ParsedSchemaCache::new();
+    /// let json = r#"{"type": "object"}"#;
     /// let schema = cache.get_or_insert_with("my-schema", || {
-    ///     Arc::new(ParsedSchema::from_json(json, None).unwrap())
+    ///     Arc::new(ParsedSchema::parse(json).unwrap())
     /// });
     /// ```
     pub fn get_or_insert_with<F>(&self, key: &str, factory: F) -> Arc<ParsedSchema>
@@ -201,8 +207,10 @@ use once_cell::sync::Lazy;
 /// 
 /// # Example
 /// ```
-/// use json_eval_rs::PARSED_SCHEMA_CACHE;
+/// use json_eval_rs::{PARSED_SCHEMA_CACHE, ParsedSchema};
+/// use std::sync::Arc;
 /// 
+/// let schema = Arc::new(ParsedSchema::parse(r#"{"type": "object"}"#).unwrap());
 /// PARSED_SCHEMA_CACHE.insert("global-schema".to_string(), schema);
 /// let cached = PARSED_SCHEMA_CACHE.get("global-schema");
 /// ```
