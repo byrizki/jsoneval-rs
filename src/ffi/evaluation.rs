@@ -189,12 +189,7 @@ pub unsafe extern "C" fn json_eval_compile_and_run_logic(
     let eval = &mut (*handle).inner;
 
     let logic = match CStr::from_ptr(logic_str).to_str() {
-        Ok(s) => match serde_json::from_str(s) {
-            Ok(v) => v,
-            Err(e) => {
-                return FFIResult::error(format!("Failed to parse logic JSON: {}", e))
-            }
-        },
+        Ok(s) => s,
         Err(_) => {
             return FFIResult::error("Invalid UTF-8 in logic".to_string())
         }

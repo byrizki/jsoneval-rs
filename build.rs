@@ -4,7 +4,7 @@ fn main() {
     {
         let version = env!("CARGO_PKG_VERSION");
         
-        // Parse version string (e.g., "0.0.12" -> parts [0, 0, 3])
+        // Parse version string (e.g., "0.0.13" -> parts [0, 0, 3])
         let version_parts: Vec<u64> = version
             .split('.')
             .filter_map(|s| s.parse().ok())
