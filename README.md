@@ -34,7 +34,7 @@
 
 ```toml
 [dependencies]
-json-eval-rs = "0.0.13"
+json-eval-rs = "0.0.14"
 ```
 
 ### C# / .NET
@@ -477,6 +477,11 @@ match eval.validate(data, None, None) {
 ```
 
 ## 📈 Changelog
+
+### [0.0.14] - 2025-10-22
+
+**Fixed**
+- Fix FFI compile and run logic with context data.
 
 ### [0.0.13] - 2025-10-22
 
