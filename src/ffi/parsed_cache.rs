@@ -1,9 +1,9 @@
 //! FFI functions for ParsedSchemaCache management
 
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::ptr;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use crate::{ParsedSchemaCache, ParsedSchema};
 use super::types::FFIResult;
 
@@ -32,15 +32,15 @@ pub unsafe extern "C" fn parsed_cache_new() -> *mut ParsedSchemaCacheHandle {
 /// - This is a static singleton that lives for the entire program lifetime
 #[no_mangle]
 pub unsafe extern "C" fn parsed_cache_global() -> *const ParsedSchemaCacheHandle {
-    static mut GLOBAL_CACHE_HANDLE: Option<Box<ParsedSchemaCacheHandle>> = None;
+    static GLOBAL_CACHE_HANDLE: OnceLock<Box<ParsedSchemaCacheHandle>> = OnceLock::new();
     
-    if GLOBAL_CACHE_HANDLE.is_none() {
-        GLOBAL_CACHE_HANDLE = Some(Box::new(ParsedSchemaCacheHandle {
+    let handle = GLOBAL_CACHE_HANDLE.get_or_init(|| {
+        Box::new(ParsedSchemaCacheHandle {
             inner: crate::PARSED_SCHEMA_CACHE.clone(),
-        }));
-    }
+        })
+    });
     
-    GLOBAL_CACHE_HANDLE.as_ref().unwrap().as_ref() as *const ParsedSchemaCacheHandle
+    handle.as_ref() as *const ParsedSchemaCacheHandle
 }
 
 /// Parse and insert a schema into the cache
