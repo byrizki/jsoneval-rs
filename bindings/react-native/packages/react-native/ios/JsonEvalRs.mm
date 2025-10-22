@@ -364,6 +364,47 @@ RCT_EXPORT_METHOD(validatePaths:(NSString *)handle
     );
 }
 
+RCT_EXPORT_METHOD(resolveLayout:(NSString *)handle
+                  evaluate:(BOOL)evaluate
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    
+    JsonEvalBridge::resolveLayoutAsync(handleStr, evaluate,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"RESOLVE_LAYOUT_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_METHOD(compileAndRunLogic:(NSString *)handle
+                  logicStr:(NSString *)logicStr
+                  data:(NSString *)data
+                  context:(NSString *)context
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    std::string logicString = [self stdStringFromNSString:logicStr];
+    std::string dataStr = [self stdStringFromNSString:data];
+    std::string contextStr = [self stdStringFromNSString:context];
+    
+    JsonEvalBridge::compileAndRunLogicAsync(handleStr, logicString, dataStr, contextStr,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"COMPILE_AND_RUN_LOGIC_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
 // ============================================================================
 // Subform Methods
 // ============================================================================

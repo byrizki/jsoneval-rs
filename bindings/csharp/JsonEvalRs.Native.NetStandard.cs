@@ -137,7 +137,8 @@ namespace JsonEvalRs
         internal static extern FFIResult json_eval_compile_and_run_logic(
             IntPtr handle,
             byte[]? logicStr,
-            byte[]? data
+            byte[]? data,
+            byte[]? context
         );
 
         // Subform methods

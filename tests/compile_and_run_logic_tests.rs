@@ -24,7 +24,7 @@ fn test_compile_and_run_logic_with_object() {
     // Test with a logic object (not a string)
     let logic = json!({"==": [{"var": "age"}, 30]}).to_string();
     
-    let result = eval.compile_and_run_logic(&logic, None)
+    let result = eval.compile_and_run_logic(&logic, None, None)
         .expect("Failed to compile and run logic");
 
     assert_eq!(result, json!(true));
@@ -62,7 +62,7 @@ fn test_compile_and_run_logic_with_parsed_schema_cache() {
     // Test compile_and_run_logic with a logic object
     let logic = json!({">=": [{"var": "score"}, 80]}).to_string();
     
-    let result = eval.compile_and_run_logic(&logic, None)
+    let result = eval.compile_and_run_logic(&logic, None, None)
         .expect("Failed to compile and run logic with cached schema");
 
     assert_eq!(result, json!(true));
@@ -93,7 +93,7 @@ fn test_compile_and_run_logic_with_complex_object() {
         ]
     }).to_string();
     
-    let result = eval.compile_and_run_logic(&logic, None)
+    let result = eval.compile_and_run_logic(&logic, None, None)
         .expect("Failed to compile and run complex logic");
 
     assert_eq!(result, json!(15));
@@ -117,7 +117,7 @@ fn test_compile_and_run_logic_with_custom_data() {
     let custom_data = json!({"y": 20}).to_string();
     let logic = json!({"*": [{"var": "y"}, 2]}).to_string();
     
-    let result = eval.compile_and_run_logic(&logic, Some(&custom_data))
+    let result = eval.compile_and_run_logic(&logic, Some(&custom_data), None)
         .expect("Failed to compile and run logic with custom data");
 
     assert_eq!(result, json!(40));
@@ -151,7 +151,7 @@ fn test_compile_and_run_logic_from_global_cache() {
     // Test compile_and_run_logic
     let logic = json!({"==": [{"var": "status"}, "active"]}).to_string();
     
-    let result = eval.compile_and_run_logic(&logic, None)
+    let result = eval.compile_and_run_logic(&logic, None, None)
         .expect("Failed to compile and run logic from global cache");
 
     assert_eq!(result, json!(true));

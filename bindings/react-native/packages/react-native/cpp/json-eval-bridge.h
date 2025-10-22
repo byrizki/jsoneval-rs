@@ -247,16 +247,18 @@ public:
     );
 
     /**
-     * Compile and run JSON logic from a JSON logic string (async)
-     * @param handle Instance handle
-     * @param logicStr JSON logic expression as a string
+     * Compile and run JSON logic expression
+     * @param handle JSONEval instance handle
+     * @param logicStr JSON logic expression
      * @param data Optional JSON data string (empty to use existing data)
+     * @param context Optional context data string (empty to use existing context)
      * @param callback Result callback
      */
     static void compileAndRunLogicAsync(
         const std::string& handle,
         const std::string& logicStr,
         const std::string& data,
+        const std::string& context,
         std::function<void(const std::string&, const std::string&)> callback
     );
 

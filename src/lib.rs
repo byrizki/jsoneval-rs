@@ -1047,23 +1047,53 @@ impl JSONEval {
     ///
     /// * `logic_str` - JSON logic expression as a string
     /// * `data` - Optional data to evaluate against (uses existing data if None)
+    /// * `context` - Optional context to use (uses existing context if None)
     ///
     /// # Returns
     ///
     /// The result of the evaluation as a Value
-    pub fn compile_and_run_logic(&mut self, logic_str: &str, data: Option<&str>) -> Result<Value, String> {
+    pub fn compile_and_run_logic(&mut self, logic_str: &str, data: Option<&str>, context: Option<&str>) -> Result<Value, String> {
         // Parse the logic string
         let logic: Value = json_parser::parse_json_str(logic_str)?;
         
+        // Parse context if provided
+        let context_value = if let Some(ctx_str) = context {
+            json_parser::parse_json_str(ctx_str)?
+        } else {
+            self.context.clone()
+        };
+        
         // Get the data to evaluate against
-        let data_value = if let Some(data_str) = data {
-            json_parser::parse_json_str(data_str)?
+        // If custom data is provided, merge it with context and $params
+        // Otherwise, use the existing eval_data which already has everything merged
+        let eval_data_value = if let Some(data_str) = data {
+            let input_data = json_parser::parse_json_str(data_str)?;
+            
+            // Create merged data structure similar to with_schema_data_context
+            let mut data_map = serde_json::Map::new();
+            
+            // Insert $params from evaluated_schema
+            if let Some(params) = self.evaluated_schema.get("$params") {
+                data_map.insert("$params".to_string(), params.clone());
+            }
+            
+            // Merge input_data into the root level
+            if let Value::Object(input_obj) = input_data {
+                for (key, value) in input_obj {
+                    data_map.insert(key, value);
+                }
+            }
+            
+            // Insert context (use provided context or existing)
+            data_map.insert("$context".to_string(), context_value);
+            
+            Value::Object(data_map)
         } else {
             self.eval_data.data().clone()
         };
         
         // Compile and evaluate the logic
-        let result = self.engine.evaluate(&logic, &data_value)?;
+        let result = self.engine.evaluate(&logic, &eval_data_value)?;
         
         Ok(clean_float_noise(result))
     }

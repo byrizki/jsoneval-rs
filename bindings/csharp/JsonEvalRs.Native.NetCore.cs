@@ -170,7 +170,8 @@ namespace JsonEvalRs
         internal static extern FFIResult json_eval_compile_and_run_logic(
             IntPtr handle,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string logicStr,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? data
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? data,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context
         );
 
         // Subform methods

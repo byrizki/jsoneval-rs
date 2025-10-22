@@ -370,17 +370,19 @@ export class JSONEvalCore {
 
   /**
    * Compile and run JSON logic from a JSON logic string
-   * @param {object} options
+   * @param {object} options - Options for compile and run logic
    * @param {string|object} options.logicStr - JSON logic expression as a string or object
    * @param {object} [options.data] - Optional data to evaluate against (uses existing data if not provided)
+   * @param {object} [options.context] - Optional context to use (uses existing context if not provided)
    * @returns {Promise<any>} Result of the evaluation
    */
-  async compileAndRunLogic({ logicStr, data }) {
+  async compileAndRunLogic({ logicStr, data, context }) {
     await this.init();
     const logic = typeof logicStr === 'string' ? logicStr : JSON.stringify(logicStr);
     return this._instance.compileAndRunLogicJS(
       logic,
-      data ? JSON.stringify(data) : null
+      data ? JSON.stringify(data) : null,
+      context ? JSON.stringify(context) : null
     );
   }
 

@@ -175,12 +175,14 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents(
 /// - handle must be a valid pointer from json_eval_new
 /// - logic_str must be a valid null-terminated UTF-8 string (JSON Logic)
 /// - data can be NULL (uses existing data)
+/// - context can be NULL (uses existing context)
 /// - Caller must call json_eval_free_result when done
 #[no_mangle]
 pub unsafe extern "C" fn json_eval_compile_and_run_logic(
     handle: *mut JSONEvalHandle,
     logic_str: *const c_char,
     data: *const c_char,
+    context: *const c_char,
 ) -> FFIResult {
     if handle.is_null() || logic_str.is_null() {
         return FFIResult::error("Invalid pointer".to_string());
@@ -206,7 +208,18 @@ pub unsafe extern "C" fn json_eval_compile_and_run_logic(
         None
     };
 
-    match eval.compile_and_run_logic(logic, data_str) {
+    let context_str = if !context.is_null() {
+        match CStr::from_ptr(context).to_str() {
+            Ok(s) => Some(s),
+            Err(_) => {
+                return FFIResult::error("Invalid UTF-8 in context".to_string())
+            }
+        }
+    } else {
+        None
+    };
+
+    match eval.compile_and_run_logic(logic, data_str, context_str) {
         Ok(result) => {
             let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
             FFIResult::success(result_bytes)

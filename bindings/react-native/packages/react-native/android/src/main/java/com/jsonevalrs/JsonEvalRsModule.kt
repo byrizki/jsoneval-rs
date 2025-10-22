@@ -211,6 +211,26 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
         nativeValidatePathsAsync(handle, data, context ?: "", pathsJson, promise)
     }
 
+    @ReactMethod
+    fun resolveLayout(
+        handle: String,
+        evaluate: Boolean,
+        promise: Promise
+    ) {
+        nativeResolveLayoutAsync(handle, evaluate, promise)
+    }
+
+    @ReactMethod
+    fun compileAndRunLogic(
+        handle: String,
+        logicStr: String,
+        data: String?,
+        context: String?,
+        promise: Promise
+    ) {
+        nativeCompileAndRunLogicAsync(handle, logicStr, data ?: "", context ?: "", promise)
+    }
+
     // ========================================================================
     // Subform Methods
     // ========================================================================
@@ -371,6 +391,8 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     private external fun nativeClearCacheAsync(handle: String, promise: Promise)
     private external fun nativeCacheLenAsync(handle: String, promise: Promise)
     private external fun nativeValidatePathsAsync(handle: String, data: String, context: String, pathsJson: String, promise: Promise)
+    private external fun nativeResolveLayoutAsync(handle: String, evaluate: Boolean, promise: Promise)
+    private external fun nativeCompileAndRunLogicAsync(handle: String, logicStr: String, data: String, context: String, promise: Promise)
     
     // Subform native methods
     private external fun nativeEvaluateSubformAsync(handle: String, subformPath: String, data: String, context: String, promise: Promise)

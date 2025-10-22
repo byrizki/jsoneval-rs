@@ -531,17 +531,19 @@ export class JSONEval {
   /**
    * Compile and run JSON logic from a JSON logic string
    * @param logicStr - JSON logic expression as a string or object
-   * @param data - Optional data to evaluate against (uses existing data if not provided)
+   * @param data - Optional JSON data string or object (null to use existing data)
+   * @param context - Optional context data string or object (null to use existing context)
    * @returns Promise resolving to the result of the evaluation
    * @throws {Error} If compilation or evaluation fails
    */
-  async compileAndRunLogic(logicStr: string | object, data?: string | object): Promise<any> {
+  async compileAndRunLogic(logicStr: string | object, data?: string | object, context?: string | object): Promise<any> {
     this.throwIfDisposed();
     
     const logic = this.toJsonString(logicStr);
     const dataStr = data ? this.toJsonString(data) : null;
+    const contextStr = context ? this.toJsonString(context) : null;
     
-    const resultStr = await JsonEvalRs.compileAndRunLogic(this.handle, logic, dataStr);
+    const resultStr = await JsonEvalRs.compileAndRunLogic(this.handle, logic, dataStr, contextStr);
     return JSON.parse(resultStr);
   }
 

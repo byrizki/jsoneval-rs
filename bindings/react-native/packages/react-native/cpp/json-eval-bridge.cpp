@@ -28,7 +28,7 @@ extern "C" {
     FFIResult json_eval_get_evaluated_schema_without_params(JSONEvalHandle* handle, bool skip_layout);
     FFIResult json_eval_get_evaluated_schema_by_path(JSONEvalHandle* handle, const char* path, bool skip_layout);
     FFIResult json_eval_resolve_layout(JSONEvalHandle* handle, bool evaluate);
-    FFIResult json_eval_compile_and_run_logic(JSONEvalHandle* handle, const char* logic_str, const char* data);
+    FFIResult json_eval_compile_and_run_logic(JSONEvalHandle* handle, const char* logic_str, const char* data, const char* context);
     FFIResult json_eval_reload_schema(JSONEvalHandle* handle, const char* schema, const char* context, const char* data);
     FFIResult json_eval_reload_schema_msgpack(JSONEvalHandle* handle, const uint8_t* schema_msgpack, size_t schema_len, const char* context, const char* data);
     FFIResult json_eval_reload_schema_from_cache(JSONEvalHandle* handle, const char* cache_key, const char* context, const char* data);
@@ -641,9 +641,10 @@ void JsonEvalBridge::compileAndRunLogicAsync(
     const std::string& handleId,
     const std::string& logicStr,
     const std::string& data,
+    const std::string& context,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, logicStr, data]() -> std::string {
+    runAsync([handleId, logicStr, data, context]() -> std::string {
         std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
@@ -651,7 +652,8 @@ void JsonEvalBridge::compileAndRunLogicAsync(
         }
         
         const char* dataPtr = data.empty() ? nullptr : data.c_str();
-        FFIResult result = json_eval_compile_and_run_logic(it->second, logicStr.c_str(), dataPtr);
+        const char* contextPtr = context.empty() ? nullptr : context.c_str();
+        FFIResult result = json_eval_compile_and_run_logic(it->second, logicStr.c_str(), dataPtr, contextPtr);
         
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";

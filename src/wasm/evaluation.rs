@@ -112,27 +112,23 @@ impl JSONEvalWasm {
         }
     }
 
-    /// Compile and run JSON logic from a string
-    /// 
-    /// @param logicStr - JSON logic string
+    /// Compile and run JSON logic from a JSON logic string
+    /// @param logic_str - JSON logic expression as a string
     /// @param data - Optional JSON data string
+    /// @param context - Optional JSON context string
     /// @returns Result as JavaScript object
     #[wasm_bindgen(js_name = compileAndRunLogic)]
-    pub fn compile_and_run_logic(&mut self, logic_str: &str, data: Option<String>) -> Result<JsValue, JsValue> {
+    pub fn compile_and_run_logic(&mut self, logic_str: &str, data: Option<String>, context: Option<String>) -> Result<JsValue, JsValue> {
         let data_str = data.as_deref();
+        let context_str = context.as_deref();
         
-        match self.inner.compile_and_run_logic(logic_str, data_str) {
+        match self.inner.compile_and_run_logic(logic_str, data_str, context_str) {
             Ok(result) => serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| {
                     let error_msg = format!("Failed to convert logic result: {}", e);
-                    console_log(&format!("[WASM ERROR] {}", error_msg));
                     JsValue::from_str(&error_msg)
                 }),
-            Err(e) => {
-                let error_msg = format!("Logic execution failed: {}", e);
-                console_log(&format!("[WASM ERROR] {}", error_msg));
-                Err(JsValue::from_str(&error_msg))
-            }
+            Err(e) => Err(JsValue::from_str(&e)),
         }
     }
 }

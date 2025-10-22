@@ -634,9 +634,10 @@ namespace JsonEvalRs
         /// </summary>
         /// <param name="logicStr">JSON logic expression as a string</param>
         /// <param name="data">Optional JSON data string (null to use existing data)</param>
+        /// <param name="context">Optional context data string (null to use existing context)</param>
         /// <returns>Result as JToken</returns>
         /// <throws>JsonEvalException if compilation or evaluation fails</throws>
-        public JToken CompileAndRunLogic(string logicStr, string? data = null)
+        public JToken CompileAndRunLogic(string logicStr, string? data = null, string? context = null)
         {
             ThrowIfDisposed();
 
@@ -644,9 +645,9 @@ namespace JsonEvalRs
                 throw new ArgumentNullException(nameof(logicStr));
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_compile_and_run_logic(_handle, logicStr, data);
+            var result = Native.json_eval_compile_and_run_logic(_handle, logicStr, data, context);
 #else
-            var result = Native.json_eval_compile_and_run_logic(_handle, Native.ToUTF8Bytes(logicStr), Native.ToUTF8Bytes(data));
+            var result = Native.json_eval_compile_and_run_logic(_handle, Native.ToUTF8Bytes(logicStr), Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context));
 #endif
             
             try
