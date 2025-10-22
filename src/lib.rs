@@ -16,6 +16,9 @@ pub mod table_evaluate;
 pub mod table_metadata;
 pub mod topo_sort;
 pub mod parse_schema;
+
+pub mod parsed_schema;
+pub mod parsed_schema_cache;
 pub mod json_parser;
 pub mod path_utils;
 pub mod eval_data;
@@ -41,6 +44,8 @@ pub use table_metadata::TableMetadata;
 pub use path_utils::ArrayMetadata;
 pub use eval_data::EvalData;
 pub use eval_cache::{EvalCache, CacheKey, CacheStats};
+pub use parsed_schema::ParsedSchema;
+pub use parsed_schema_cache::{ParsedSchemaCache, ParsedSchemaCacheStats, PARSED_SCHEMA_CACHE};
 use serde::de::Error as _;
 use serde_json::{Value};
 
@@ -48,7 +53,7 @@ use serde_json::{Value};
 use rayon::prelude::*;
 
 use std::mem;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 /// Get the library version
 pub fn version() -> &'static str {
@@ -96,7 +101,7 @@ pub struct DependentItem {
 
 pub struct JSONEval {
     pub schema: Value,
-    pub engine: RLogic,
+    pub engine: Arc<RLogic>,
     pub evaluations: IndexMap<String, LogicId>,
     pub tables: IndexMap<String, Value>,
     /// Pre-compiled table metadata (computed at parse time for zero-copy evaluation)
@@ -134,6 +139,34 @@ pub struct JSONEval {
     cached_msgpack_schema: Option<Vec<u8>>,
 }
 
+impl Clone for JSONEval {
+    fn clone(&self) -> Self {
+        Self {
+            schema: self.schema.clone(),
+            engine: self.engine.clone(),
+            evaluations: self.evaluations.clone(),
+            tables: self.tables.clone(),
+            table_metadata: self.table_metadata.clone(),
+            dependencies: self.dependencies.clone(),
+            sorted_evaluations: self.sorted_evaluations.clone(),
+            dependents_evaluations: self.dependents_evaluations.clone(),
+            rules_evaluations: self.rules_evaluations.clone(),
+            others_evaluations: self.others_evaluations.clone(),
+            value_evaluations: self.value_evaluations.clone(),
+            layout_paths: self.layout_paths.clone(),
+            options_templates: self.options_templates.clone(),
+            subforms: self.subforms.clone(),
+            context: self.context.clone(),
+            data: self.data.clone(),
+            evaluated_schema: self.evaluated_schema.clone(),
+            eval_data: self.eval_data.clone(),
+            eval_cache: EvalCache::new(), // Create fresh cache for the clone
+            eval_lock: Mutex::new(()), // Create fresh mutex for the clone
+            cached_msgpack_schema: self.cached_msgpack_schema.clone(),
+        }
+    }
+}
+
 impl JSONEval {
     pub fn new(
         schema: &str,
@@ -162,7 +195,7 @@ impl JSONEval {
             layout_paths: Vec::new(),
             options_templates: Vec::new(),
             subforms: IndexMap::new(),
-            engine: RLogic::with_config(engine_config),
+            engine: Arc::new(RLogic::with_config(engine_config)),
             context: context.clone(),
             data: data.clone(),
             evaluated_schema: evaluated_schema.clone(),
@@ -171,7 +204,7 @@ impl JSONEval {
             eval_lock: Mutex::new(()),
             cached_msgpack_schema: None, // JSON initialization, no MessagePack cache
         };
-        parse_schema::parse_schema(&mut instance).map_err(serde_json::Error::custom)?;
+        parse_schema::legacy::parse_schema(&mut instance).map_err(serde_json::Error::custom)?;
         Ok(instance)
     }
 
@@ -219,7 +252,7 @@ impl JSONEval {
             layout_paths: Vec::new(),
             options_templates: Vec::new(),
             subforms: IndexMap::new(),
-            engine: RLogic::with_config(engine_config),
+            engine: Arc::new(RLogic::with_config(engine_config)),
             context: context.clone(),
             data: data.clone(),
             evaluated_schema: evaluated_schema.clone(),
@@ -228,7 +261,90 @@ impl JSONEval {
             eval_lock: Mutex::new(()),
             cached_msgpack_schema: Some(cached_msgpack), // Store for zero-copy retrieval
         };
-        parse_schema::parse_schema(&mut instance)?;
+        parse_schema::legacy::parse_schema(&mut instance)?;
+        Ok(instance)
+    }
+
+    /// Create a new JSONEval instance from a pre-parsed ParsedSchema
+    /// 
+    /// This enables schema caching: parse once, reuse across multiple evaluations with different data/context.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `parsed` - Arc-wrapped pre-parsed schema (can be cloned and cached)
+    /// * `context` - Optional JSON context string
+    /// * `data` - Optional JSON data string
+    /// 
+    /// # Returns
+    /// 
+    /// A Result containing the JSONEval instance or an error
+    /// 
+    /// # Example
+    /// 
+    /// ```ignore
+    /// use std::sync::Arc;
+    /// 
+    /// // Parse schema once and wrap in Arc for caching
+    /// let parsed = Arc::new(ParsedSchema::parse(schema_str)?);
+    /// cache.insert(schema_key, parsed.clone());
+    /// 
+    /// // Reuse across multiple evaluations (Arc::clone is cheap)
+    /// let eval1 = JSONEval::with_parsed_schema(parsed.clone(), Some(context1), Some(data1))?;
+    /// let eval2 = JSONEval::with_parsed_schema(parsed.clone(), Some(context2), Some(data2))?;
+    /// ```
+    pub fn with_parsed_schema(
+        parsed: Arc<ParsedSchema>,
+        context: Option<&str>,
+        data: Option<&str>,
+    ) -> Result<Self, String> {
+        let context: Value = json_parser::parse_json_str(context.unwrap_or("{}"))
+            .map_err(|e| format!("Failed to parse context: {}", e))?;
+        let data: Value = json_parser::parse_json_str(data.unwrap_or("{}"))
+            .map_err(|e| format!("Failed to parse data: {}", e))?;
+        
+        let evaluated_schema = parsed.schema.clone();
+        
+        // Share the engine Arc (cheap pointer clone, not data clone)
+        // Multiple JSONEval instances created from the same ParsedSchema will share the compiled RLogic
+        let engine = parsed.engine.clone();
+        
+        // Convert Arc<ParsedSchema> subforms to Box<JSONEval> subforms
+        // This is a one-time conversion when creating JSONEval from ParsedSchema
+        let mut subforms = IndexMap::new();
+        for (path, subform_parsed) in &parsed.subforms {
+            // Create JSONEval from the cached ParsedSchema
+            let subform_eval = JSONEval::with_parsed_schema(
+                subform_parsed.clone(),
+                Some("{}"),
+                None
+            )?;
+            subforms.insert(path.clone(), Box::new(subform_eval));
+        }
+        
+        let instance = Self {
+            schema: parsed.schema.clone(),
+            evaluations: parsed.evaluations.clone(),
+            tables: parsed.tables.clone(),
+            table_metadata: parsed.table_metadata.clone(),
+            dependencies: parsed.dependencies.clone(),
+            sorted_evaluations: parsed.sorted_evaluations.clone(),
+            dependents_evaluations: parsed.dependents_evaluations.clone(),
+            rules_evaluations: parsed.rules_evaluations.clone(),
+            others_evaluations: parsed.others_evaluations.clone(),
+            value_evaluations: parsed.value_evaluations.clone(),
+            layout_paths: parsed.layout_paths.clone(),
+            options_templates: parsed.options_templates.clone(),
+            subforms,
+            engine,
+            context: context.clone(),
+            data: data.clone(),
+            evaluated_schema: evaluated_schema.clone(),
+            eval_data: EvalData::with_schema_data_context(&evaluated_schema, &data, &context),
+            eval_cache: EvalCache::new(),
+            eval_lock: Mutex::new(()),
+            cached_msgpack_schema: None, // No MessagePack cache for parsed schema
+        };
+        
         Ok(instance)
     }
 
@@ -246,7 +362,7 @@ impl JSONEval {
         self.context = context.clone();
         self.data = data.clone();
         self.evaluated_schema = self.schema.clone();
-        self.engine = RLogic::new();
+        self.engine = Arc::new(RLogic::new());
         self.dependents_evaluations.clear();
         self.rules_evaluations.clear();
         self.others_evaluations.clear();
@@ -254,7 +370,7 @@ impl JSONEval {
         self.layout_paths.clear();
         self.options_templates.clear();
         self.subforms.clear();
-        parse_schema::parse_schema(self)?;
+        parse_schema::legacy::parse_schema(self)?;
         
         // Re-initialize eval_data with new schema, data, and context
         self.eval_data = EvalData::with_schema_data_context(&self.evaluated_schema, &data, &context);
@@ -1113,7 +1229,7 @@ impl JSONEval {
                     // Process clear
                     if let Some(clear_val) = &dep_item.clear {
                         let clear_val_clone = clear_val.clone();
-                        let should_clear = Self::evaluate_dependent_value_static(&mut self.engine, &self.evaluations, &self.eval_data, &clear_val_clone)?;
+                        let should_clear = Self::evaluate_dependent_value_static(&self.engine, &self.evaluations, &self.eval_data, &clear_val_clone)?;
                         let clear_bool = match should_clear {
                             Value::Bool(b) => b,
                             _ => false,
@@ -1133,7 +1249,7 @@ impl JSONEval {
                     // Process value
                     if let Some(value_val) = &dep_item.value {
                         let value_val_clone = value_val.clone();
-                        let computed_value = Self::evaluate_dependent_value_static(&mut self.engine, &self.evaluations, &self.eval_data, &value_val_clone)?;
+                        let computed_value = Self::evaluate_dependent_value_static(&self.engine, &self.evaluations, &self.eval_data, &value_val_clone)?;
                         let cleaned_val = clean_float_noise(computed_value.clone());
                         
                         // Set the value
@@ -1160,7 +1276,7 @@ impl JSONEval {
     
     /// Helper to evaluate a dependent value - uses pre-compiled eval keys for fast lookup
     fn evaluate_dependent_value_static(
-        engine: &mut RLogic,
+        engine: &RLogic,
         evaluations: &IndexMap<String, LogicId>,
         eval_data: &EvalData,
         value: &Value
@@ -1178,15 +1294,10 @@ impl JSONEval {
                     Ok(value.clone())
                 }
             }
-            // For backwards compatibility: compile $evaluation on-the-fly (shouldn't happen anymore)
+            // For backwards compatibility: compile $evaluation on-the-fly
+            // This shouldn't happen with properly parsed schemas
             Value::Object(map) if map.contains_key("$evaluation") => {
-                let logic_value = map.get("$evaluation").unwrap();
-                let logic_id = engine
-                    .compile(logic_value)
-                    .map_err(|e| format!("Failed to compile dependent evaluation: {}", e))?;
-                let result = engine.run(&logic_id, eval_data.data())
-                    .map_err(|e| format!("Failed to evaluate dependent logic: {}", e))?;
-                Ok(result)
+                Err("Dependent evaluation contains unparsed $evaluation - schema was not properly parsed".to_string())
             }
             // Primitive value - return as-is
             _ => Ok(value.clone()),

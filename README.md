@@ -228,26 +228,82 @@ function ValidationForm() {
 - **SIMD JSON**: Uses `simd-json` for ultra-fast JSON parsing
 - **Smart Dependencies**: Only re-evaluates fields when their dependencies change
 
-## 🔧 CLI Tool
+## 🔧 Examples & CLI Tool
 
-The library includes a powerful CLI tool for testing and benchmarking:
+The library includes comprehensive examples demonstrating various use cases:
+
+### Basic Example
+Simple evaluation with automatic scenario discovery:
 
 ```bash
-# Install the CLI
-cargo build --bin json-eval-cli --release
-
 # Run all scenarios
-cargo run --bin json-eval-cli
+cargo run --example basic
 
 # Run specific scenario
-cargo run --bin json-eval-cli zcc
+cargo run --example basic zcc
 
-# Benchmark with 1000 iterations
-cargo run --bin json-eval-cli -- -i 1000 zcc
-
-# Show help
-cargo run --bin json-eval-cli -- --help
+# Enable comparison with expected results
+cargo run --example basic --compare
 ```
+
+### Benchmark Example
+Advanced benchmarking with ParsedSchema caching and concurrent testing:
+
+```bash
+# Run with 100 iterations
+cargo run --example benchmark -- -i 100 zcc
+
+# Use ParsedSchema for efficient caching
+cargo run --release --example benchmark -- --parsed -i 100 zcc
+
+# Test concurrent evaluations (4 threads, 10 iterations each)
+cargo run --example benchmark -- --parsed --concurrent 4 -i 10
+
+# Full benchmarking suite with comparison
+cargo run --release --example benchmark -- --parsed -i 100 --compare
+```
+
+For more details, see **[examples/README.md](examples/README.md)**.
+
+### CLI Tool
+A powerful CLI tool for direct schema evaluation with parsed schema inspection:
+
+```bash
+# Simple evaluation
+cargo run --bin json-eval-cli -- schema.json -d data.json
+
+# With comparison and ParsedSchema
+cargo run --bin json-eval-cli -- schema.json -d data.json \
+  -c expected.json --parsed -i 100
+
+# Inspect parsed schema structure
+cargo run --bin json-eval-cli -- schema.json -d data.json \
+  --parsed --no-output \
+  --print-sorted-evaluations \
+  --print-dependencies
+
+# All parsed schema information
+cargo run --bin json-eval-cli -- schema.json -d data.json \
+  --parsed --print-all
+
+# Full options with MessagePack support
+cargo run --bin json-eval-cli -- schema.bform \
+  --data data.bform \
+  --compare expected.json \
+  --compare-path "$.$params.others" \
+  --parsed \
+  --iterations 100 \
+  --output result.json
+```
+
+**Parsed Schema Inspection Flags:**
+- `--print-sorted-evaluations` - Show evaluation batches for parallel execution
+- `--print-dependencies` - Show dependency graph between evaluations
+- `--print-tables` - Show table definitions
+- `--print-evaluations` - Show all compiled logic expressions
+- `--print-all` - Show all parsed schema information
+
+Run `cargo run --bin json-eval-cli -- --help` for full documentation.
 
 ### Example Output
 
