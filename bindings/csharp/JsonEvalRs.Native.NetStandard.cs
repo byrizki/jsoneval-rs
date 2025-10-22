@@ -57,6 +57,21 @@ namespace JsonEvalRs
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern IntPtr json_eval_new_from_cache(
+            byte[]? cacheKey,
+            byte[]? context,
+            byte[]? data
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern IntPtr json_eval_new_from_cache_with_error(
+            byte[]? cacheKey,
+            byte[]? context,
+            byte[]? data,
+            out IntPtr errorPtr
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_evaluate(
             IntPtr handle,
             byte[]? data,

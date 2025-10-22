@@ -32,6 +32,7 @@ extern "C" {
     FFIResult json_eval_reload_schema(JSONEvalHandle* handle, const char* schema, const char* context, const char* data);
     FFIResult json_eval_reload_schema_msgpack(JSONEvalHandle* handle, const uint8_t* schema_msgpack, size_t schema_len, const char* context, const char* data);
     FFIResult json_eval_reload_schema_from_cache(JSONEvalHandle* handle, const char* cache_key, const char* context, const char* data);
+    JSONEvalHandle* json_eval_new_from_cache(const char* cache_key, const char* context, const char* data);
     FFIResult json_eval_cache_stats(JSONEvalHandle* handle);
     FFIResult json_eval_clear_cache(JSONEvalHandle* handle);
     FFIResult json_eval_cache_len(JSONEvalHandle* handle);
@@ -100,6 +101,31 @@ std::string JsonEvalBridge::createFromMsgpack(
     
     if (handle == nullptr) {
         throw std::runtime_error("Failed to create JSONEval instance from MessagePack");
+    }
+    
+    std::lock_guard<std::mutex> lock(handlesMutex);
+    std::string handleId = "handle_" + std::to_string(handleCounter++);
+    handles[handleId] = handle;
+    
+    return handleId;
+}
+
+std::string JsonEvalBridge::createFromCache(
+    const std::string& cacheKey,
+    const std::string& context,
+    const std::string& data
+) {
+    const char* ctx = context.empty() ? nullptr : context.c_str();
+    const char* dt = data.empty() ? nullptr : data.c_str();
+    
+    JSONEvalHandle* handle = json_eval_new_from_cache(
+        cacheKey.c_str(),
+        ctx,
+        dt
+    );
+    
+    if (handle == nullptr) {
+        throw std::runtime_error("Failed to create JSONEval instance from cache");
     }
     
     std::lock_guard<std::mutex> lock(handlesMutex);

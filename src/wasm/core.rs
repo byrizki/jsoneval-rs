@@ -73,6 +73,37 @@ impl JSONEvalWasm {
             }
         }
     }
+
+    /// Create a new JSONEval instance from a cached ParsedSchema
+    /// 
+    /// @param cacheKey - Cache key to lookup in the global ParsedSchemaCache
+    /// @param context - Optional context data JSON string
+    /// @param data - Optional initial data JSON string
+    #[wasm_bindgen(js_name = newFromCache)]
+    pub fn new_from_cache(cache_key: &str, context: Option<String>, data: Option<String>) -> Result<JSONEvalWasm, JsValue> {
+        console_error_panic_hook::set_once();
+        
+        let ctx = context.as_deref();
+        let dt = data.as_deref();
+        
+        // Get the cached ParsedSchema
+        let parsed = crate::PARSED_SCHEMA_CACHE.get(cache_key)
+            .ok_or_else(|| {
+                let error_msg = format!("Schema '{}' not found in cache", cache_key);
+                log(&format!("[WASM ERROR] {}", error_msg));
+                JsValue::from_str(&error_msg)
+            })?;
+        
+        // Create JSONEval from the cached ParsedSchema
+        match JSONEval::with_parsed_schema(parsed, ctx, dt) {
+            Ok(eval) => Ok(JSONEvalWasm { inner: eval }),
+            Err(e) => {
+                let error_msg = format!("Failed to create JSONEval from cache: {}", e);
+                log(&format!("[WASM ERROR] {}", error_msg));
+                Err(JsValue::from_str(&error_msg))
+            }
+        }
+    }
 }
 
 // Make log available for other modules

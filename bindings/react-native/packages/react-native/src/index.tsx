@@ -229,14 +229,40 @@ export interface GetEvaluatedSchemaByPathSubformOptions {
  */
 export class JSONEval {
   private handle: string;
-  private disposed = false;
+  private disposed: boolean = false;
 
   /**
-   * Create a new JSONEval instance
-   * @param options - Configuration options
-   * @throws {Error} If schema is invalid
+   * Creates a new JSON evaluator instance from a cached ParsedSchema
+   * @param cacheKey - Cache key to lookup in the global ParsedSchemaCache
+   * @param context - Optional context data
+   * @param data - Optional initial data
+   * @returns New JSONEval instance
+   * @throws {Error} If schema not found in cache or creation fails
    */
-  constructor(options: JSONEvalOptions) {
+  static fromCache(
+    cacheKey: string,
+    context?: string | object | null,
+    data?: string | object | null
+  ): JSONEval {
+    const contextStr = context ? (typeof context === 'string' ? context : JSON.stringify(context)) : null;
+    const dataStr = data ? (typeof data === 'string' ? data : JSON.stringify(data)) : null;
+    
+    const handle = JsonEvalRs.createFromCache(cacheKey, contextStr, dataStr);
+    return new JSONEval({ schema: {}, _handle: handle });
+  }
+
+  /**
+   * Creates a new JSON evaluator instance
+   * @param options - Configuration options with schema, context, and data
+   * @throws {Error} If creation fails
+   */
+  constructor(options: JSONEvalOptions & { _handle?: string }) {
+    // If handle is provided (from static factory), use it directly
+    if (options._handle) {
+      this.handle = options._handle;
+      return;
+    }
+    
     const { schema, context, data } = options;
     
     try {

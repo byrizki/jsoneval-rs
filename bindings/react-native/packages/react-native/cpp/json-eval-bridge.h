@@ -27,7 +27,7 @@ public:
     );
 
     /**
-     * Create a new JSONEval instance from MessagePack-encoded schema
+     * Create instance from MessagePack
      * @param schemaMsgpack MessagePack-encoded schema bytes
      * @param context Optional context data
      * @param data Optional initial data
@@ -35,6 +35,19 @@ public:
      */
     static std::string createFromMsgpack(
         const std::vector<uint8_t>& schemaMsgpack,
+        const std::string& context,
+        const std::string& data
+    );
+
+    /**
+     * Create instance from ParsedSchemaCache
+     * @param cacheKey Cache key to lookup in ParsedSchemaCache
+     * @param context Optional context data
+     * @param data Optional initial data
+     * @return Handle string or error
+     */
+    static std::string createFromCache(
+        const std::string& cacheKey,
         const std::string& context,
         const std::string& data
     );

@@ -373,6 +373,174 @@ pub unsafe extern "C" fn json_eval_reload_schema_msgpack(
     }
 }
 
+/// Create a new JSONEval instance from a cached ParsedSchema
+/// 
+/// # Safety
+/// 
+/// - cache_key must be a valid null-terminated UTF-8 string
+/// - context and data can be NULL
+/// - Returns non-null handle on success, null on failure
+/// - Caller must call json_eval_free when done
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_new_from_cache(
+    cache_key: *const c_char,
+    context: *const c_char,
+    data: *const c_char,
+) -> *mut JSONEvalHandle {
+    if cache_key.is_null() {
+        eprintln!("[FFI ERROR] json_eval_new_from_cache: cache_key pointer is null");
+        return ptr::null_mut();
+    }
+
+    let key_str = match CStr::from_ptr(cache_key).to_str() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("[FFI ERROR] json_eval_new_from_cache: invalid UTF-8 in cache_key: {}", e);
+            return ptr::null_mut();
+        }
+    };
+
+    let context_str = if !context.is_null() {
+        match CStr::from_ptr(context).to_str() {
+            Ok(s) => Some(s),
+            Err(e) => {
+                eprintln!("[FFI ERROR] json_eval_new_from_cache: invalid UTF-8 in context: {}", e);
+                return ptr::null_mut();
+            }
+        }
+    } else {
+        None
+    };
+
+    let data_str = if !data.is_null() {
+        match CStr::from_ptr(data).to_str() {
+            Ok(s) => Some(s),
+            Err(e) => {
+                eprintln!("[FFI ERROR] json_eval_new_from_cache: invalid UTF-8 in data: {}", e);
+                return ptr::null_mut();
+            }
+        }
+    } else {
+        None
+    };
+
+    // Get the cached ParsedSchema
+    let parsed = match crate::PARSED_SCHEMA_CACHE.get(key_str) {
+        Some(p) => p,
+        None => {
+            eprintln!("[FFI ERROR] json_eval_new_from_cache: schema '{}' not found in cache", key_str);
+            return ptr::null_mut();
+        }
+    };
+
+    // Create JSONEval from the cached ParsedSchema
+    match crate::JSONEval::with_parsed_schema(parsed, context_str, data_str) {
+        Ok(eval) => {
+            let handle = Box::new(JSONEvalHandle { inner: Box::new(eval) });
+            Box::into_raw(handle)
+        }
+        Err(e) => {
+            let error_msg = format!("Failed to create JSONEval instance from cache: {}", e);
+            eprintln!("[FFI ERROR] json_eval_new_from_cache: {}", error_msg);
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Create a new JSONEval instance from cache with detailed error reporting
+/// 
+/// # Safety
+/// 
+/// - cache_key must be a valid null-terminated UTF-8 string
+/// - context and data can be NULL
+/// - error_out must be a valid pointer to store error message (caller owns the string)
+/// - Returns non-null handle on success, null on failure (check error_out for details)
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_new_from_cache_with_error(
+    cache_key: *const c_char,
+    context: *const c_char,
+    data: *const c_char,
+    error_out: *mut *mut c_char,
+) -> *mut JSONEvalHandle {
+    if cache_key.is_null() {
+        if !error_out.is_null() {
+            *error_out = CString::new("cache_key pointer is null").unwrap().into_raw();
+        }
+        return ptr::null_mut();
+    }
+
+    let key_str = match CStr::from_ptr(cache_key).to_str() {
+        Ok(s) => s,
+        Err(e) => {
+            if !error_out.is_null() {
+                let error_msg = format!("Invalid UTF-8 in cache_key: {}", e);
+                *error_out = CString::new(error_msg).unwrap().into_raw();
+            }
+            return ptr::null_mut();
+        }
+    };
+
+    let context_str = if !context.is_null() {
+        match CStr::from_ptr(context).to_str() {
+            Ok(s) => Some(s),
+            Err(e) => {
+                if !error_out.is_null() {
+                    let error_msg = format!("Invalid UTF-8 in context: {}", e);
+                    *error_out = CString::new(error_msg).unwrap().into_raw();
+                }
+                return ptr::null_mut();
+            }
+        }
+    } else {
+        None
+    };
+
+    let data_str = if !data.is_null() {
+        match CStr::from_ptr(data).to_str() {
+            Ok(s) => Some(s),
+            Err(e) => {
+                if !error_out.is_null() {
+                    let error_msg = format!("Invalid UTF-8 in data: {}", e);
+                    *error_out = CString::new(error_msg).unwrap().into_raw();
+                }
+                return ptr::null_mut();
+            }
+        }
+    } else {
+        None
+    };
+
+    // Get the cached ParsedSchema
+    let parsed = match crate::PARSED_SCHEMA_CACHE.get(key_str) {
+        Some(p) => p,
+        None => {
+            if !error_out.is_null() {
+                let error_msg = format!("Schema '{}' not found in cache", key_str);
+                *error_out = CString::new(error_msg).unwrap().into_raw();
+            }
+            return ptr::null_mut();
+        }
+    };
+
+    // Create JSONEval from the cached ParsedSchema
+    match crate::JSONEval::with_parsed_schema(parsed, context_str, data_str) {
+        Ok(eval) => {
+            if !error_out.is_null() {
+                *error_out = ptr::null_mut(); // No error
+            }
+            let handle = Box::new(JSONEvalHandle { inner: Box::new(eval) });
+            Box::into_raw(handle)
+        }
+        Err(e) => {
+            if !error_out.is_null() {
+                let error_msg = format!("Failed to create JSONEval from cache: {}", e);
+                *error_out = CString::new(error_msg).unwrap().into_raw();
+            }
+            ptr::null_mut()
+        }
+    }
+}
+
 /// Reload schema from ParsedSchemaCache using a cache key
 /// 
 /// # Safety

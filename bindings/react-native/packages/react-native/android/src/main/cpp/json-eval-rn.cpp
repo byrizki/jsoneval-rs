@@ -71,6 +71,54 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeCreate(
     }
 }
 
+JNIEXPORT jstring JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeCreateFromMsgpack(
+    JNIEnv* env,
+    jobject /* this */,
+    jbyteArray schemaMsgpack,
+    jstring context,
+    jstring data
+) {
+    try {
+        std::string contextStr = jstringToString(env, context);
+        std::string dataStr = jstringToString(env, data);
+        
+        // Convert jbyteArray to std::vector<uint8_t>
+        jsize len = env->GetArrayLength(schemaMsgpack);
+        std::vector<uint8_t> msgpackBytes(len);
+        env->GetByteArrayRegion(schemaMsgpack, 0, len, reinterpret_cast<jbyte*>(msgpackBytes.data()));
+        
+        std::string handle = JsonEvalBridge::createFromMsgpack(msgpackBytes, contextStr, dataStr);
+        return stringToJstring(env, handle);
+    } catch (const std::exception& e) {
+        jclass exClass = env->FindClass("java/lang/RuntimeException");
+        env->ThrowNew(exClass, e.what());
+        return nullptr;
+    }
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeCreateFromCache(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring cacheKey,
+    jstring context,
+    jstring data
+) {
+    try {
+        std::string cacheKeyStr = jstringToString(env, cacheKey);
+        std::string contextStr = jstringToString(env, context);
+        std::string dataStr = jstringToString(env, data);
+        
+        std::string handle = JsonEvalBridge::createFromCache(cacheKeyStr, contextStr, dataStr);
+        return stringToJstring(env, handle);
+    } catch (const std::exception& e) {
+        jclass exClass = env->FindClass("java/lang/RuntimeException");
+        env->ThrowNew(exClass, e.what());
+        return nullptr;
+    }
+}
+
 JNIEXPORT void JNICALL
 Java_com_jsonevalrs_JsonEvalRsModule_nativeEvaluateAsync(
     JNIEnv* env,

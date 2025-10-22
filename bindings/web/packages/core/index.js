@@ -41,11 +41,12 @@ export class JSONEvalCore {
   /**
    * @param {any} wasmModule - WASM module (injected by wrapper package)
    * @param {object} options
-   * @param {object|Uint8Array} options.schema - JSON schema or MessagePack bytes
+   * @param {object|Uint8Array|string} options.schema - JSON schema, MessagePack bytes, or cache key
    * @param {object} [options.context] - Optional context data
    * @param {object} [options.data] - Optional initial data
+   * @param {boolean} [options.fromCache] - If true, schema is treated as a cache key
    */
-  constructor(wasmModule, { schema, context, data }) {
+  constructor(wasmModule, { schema, context, data, fromCache = false }) {
     this._schema = schema;
     this._wasmModule = wasmModule;
     this._context = context;
@@ -53,6 +54,7 @@ export class JSONEvalCore {
     this._instance = null;
     this._ready = false;
     this._isMsgpackSchema = schema instanceof Uint8Array;
+    this._isFromCache = fromCache;
   }
 
   /**
@@ -74,8 +76,14 @@ export class JSONEvalCore {
     try {
       const { JSONEvalWasm } = this._wasmModule;
       
-      // Create instance from MessagePack or JSON
-      if (this._isMsgpackSchema) {
+      // Create instance from cache, MessagePack, or JSON
+      if (this._isFromCache) {
+        this._instance = JSONEvalWasm.newFromCache(
+          this._schema, // cache key
+          this._context ? JSON.stringify(this._context) : null,
+          this._data ? JSON.stringify(this._data) : null
+        );
+      } else if (this._isMsgpackSchema) {
         this._instance = JSONEvalWasm.newFromMsgpack(
           this._schema,
           this._context ? JSON.stringify(this._context) : null,
@@ -92,6 +100,25 @@ export class JSONEvalCore {
     } catch (error) {
       throw new Error(`Failed to create JSONEval instance: ${error.message || error}`);
     }
+  }
+
+  /**
+   * Create a new JSONEval instance from a cached ParsedSchema
+   * Static factory method for convenience
+   * 
+   * @param {any} wasmModule - WASM module
+   * @param {string} cacheKey - Cache key to lookup in ParsedSchemaCache
+   * @param {object} [context] - Optional context data
+   * @param {object} [data] - Optional initial data
+   * @returns {JSONEvalCore} New instance
+   */
+  static fromCache(wasmModule, cacheKey, context, data) {
+    return new JSONEvalCore(wasmModule, {
+      schema: cacheKey,
+      context,
+      data,
+      fromCache: true
+    });
   }
 
   /**

@@ -13,6 +13,22 @@ export class JSONEval extends JSONEvalCore {
   constructor(options) {
     super(wasm, options);
   }
+
+  /**
+   * Create a new JSONEval instance from a cached ParsedSchema
+   * @param {string} cacheKey - Cache key to lookup in ParsedSchemaCache
+   * @param {object} [context] - Optional context data
+   * @param {object} [data] - Optional initial data
+   * @returns {JSONEval} New instance
+   */
+  static fromCache(cacheKey, context, data) {
+    return new JSONEval({
+      schema: cacheKey,
+      context,
+      data,
+      fromCache: true
+    });
+  }
 }
 
 /**

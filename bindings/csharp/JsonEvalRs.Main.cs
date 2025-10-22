@@ -40,6 +40,73 @@ namespace JsonEvalRs
         }
 
         /// <summary>
+        /// Creates a new JSON evaluator instance from a cached ParsedSchema
+        /// </summary>
+        /// <param name="cacheKey">Cache key to lookup in the global ParsedSchemaCache</param>
+        /// <param name="context">Optional context data (can be null)</param>
+        /// <param name="data">Optional initial data (can be null)</param>
+        /// <returns>New JSONEval instance using the cached schema</returns>
+        /// <exception cref="ArgumentNullException">If cacheKey is null or empty</exception>
+        /// <exception cref="JsonEvalException">If schema not found in cache or creation fails</exception>
+        public static JSONEval FromCache(string cacheKey, string? context = null, string? data = null)
+        {
+            if (string.IsNullOrEmpty(cacheKey))
+                throw new ArgumentNullException(nameof(cacheKey));
+
+            // Test if library can be loaded
+            try
+            {
+                var version = Version;
+            }
+            catch (Exception ex)
+            {
+                throw new JsonEvalException(
+                    $"Failed to load native library 'json_eval_rs'. Make sure the native library is in the correct location. " +
+                    $"Platform: {RuntimeInformation.OSDescription}, " +
+                    $"Architecture: {RuntimeInformation.ProcessArchitecture}. " +
+                    $"Error: {ex.Message}", ex);
+            }
+
+            // Use the new error-reporting function
+            IntPtr errorPtr;
+            IntPtr handle;
+#if NETCOREAPP || NET5_0_OR_GREATER
+            handle = Native.json_eval_new_from_cache_with_error(cacheKey, context, data, out errorPtr);
+#else
+            handle = Native.json_eval_new_from_cache_with_error(
+                Native.ToUTF8Bytes(cacheKey)!,
+                Native.ToUTF8Bytes(context),
+                Native.ToUTF8Bytes(data),
+                out errorPtr
+            );
+#endif
+            
+            if (handle == IntPtr.Zero)
+            {
+                string errorMessage = $"Failed to create JSONEval from cache key '{cacheKey}'";
+                if (errorPtr != IntPtr.Zero)
+                {
+                    try
+                    {
+#if NETCOREAPP || NET5_0_OR_GREATER
+                        errorMessage = Marshal.PtrToStringUTF8(errorPtr) ?? errorMessage;
+#else
+                        errorMessage = Native.PtrToStringUTF8(errorPtr) ?? errorMessage;
+#endif
+                    }
+                    finally
+                    {
+                        Native.json_eval_free_string(errorPtr);
+                    }
+                }
+                throw new JsonEvalException(errorMessage);
+            }
+
+            // Create instance with the handle
+            return new JSONEval(handle);
+        }
+
+        /// <summary>
         /// Creates a new JSON evaluator instance
         /// </summary>
         /// <param name="schema">JSON schema string</param>
@@ -154,6 +221,15 @@ namespace JsonEvalRs
             {
                 throw new JsonEvalException("Failed to create JSONEval instance from MessagePack schema");
             }
+        }
+
+        /// <summary>
+        /// Private constructor that wraps an existing handle
+        /// Used by static factory methods like FromCache()
+        /// </summary>
+        private JSONEval(IntPtr handle)
+        {
+            _handle = handle;
         }
 
         /// <summary>

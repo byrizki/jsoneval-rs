@@ -105,6 +105,7 @@ export interface GetEvaluatedSchemaByPathSubformOptions {
 
 export class JSONEval {
   constructor(options: JSONEvalOptions);
+  static fromCache(cacheKey: string, context?: any, data?: any): JSONEval;
   init(): Promise<void>;
   validate(options: ValidateOptions): Promise<ValidationResult>;
   evaluate(options: EvaluateOptions): Promise<any>;

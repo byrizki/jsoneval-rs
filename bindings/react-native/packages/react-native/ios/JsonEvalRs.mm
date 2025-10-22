@@ -44,6 +44,36 @@ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(create:(NSString *)schema
     return [self stringFromStdString:handle];
 }
 
+RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(createFromMsgpack:(NSArray *)schemaMsgpack
+                                       context:(NSString *)context
+                                       data:(NSString *)data)
+{
+    std::string contextStr = [self stdStringFromNSString:context];
+    std::string dataStr = [self stdStringFromNSString:data];
+    
+    // Convert NSArray to std::vector<uint8_t>
+    std::vector<uint8_t> msgpackBytes;
+    msgpackBytes.reserve([schemaMsgpack count]);
+    for (NSNumber *num in schemaMsgpack) {
+        msgpackBytes.push_back([num unsignedCharValue]);
+    }
+    
+    std::string handle = JsonEvalBridge::createFromMsgpack(msgpackBytes, contextStr, dataStr);
+    return [self stringFromStdString:handle];
+}
+
+RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(createFromCache:(NSString *)cacheKey
+                                       context:(NSString *)context
+                                       data:(NSString *)data)
+{
+    std::string cacheKeyStr = [self stdStringFromNSString:cacheKey];
+    std::string contextStr = [self stdStringFromNSString:context];
+    std::string dataStr = [self stdStringFromNSString:data];
+    
+    std::string handle = JsonEvalBridge::createFromCache(cacheKeyStr, contextStr, dataStr);
+    return [self stringFromStdString:handle];
+}
+
 RCT_EXPORT_METHOD(evaluate:(NSString *)handle
                   data:(NSString *)data
                   context:(NSString *)context

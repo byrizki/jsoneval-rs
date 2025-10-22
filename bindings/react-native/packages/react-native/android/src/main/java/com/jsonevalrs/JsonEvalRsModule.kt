@@ -141,6 +141,41 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun createFromMsgpack(
+        schemaMsgpack: ReadableArray,
+        context: String?,
+        data: String?,
+        promise: Promise
+    ) {
+        try {
+            // Convert ReadableArray to ByteArray
+            val byteArray = ByteArray(schemaMsgpack.size())
+            for (i in 0 until schemaMsgpack.size()) {
+                byteArray[i] = schemaMsgpack.getInt(i).toByte()
+            }
+            val handle = nativeCreateFromMsgpack(byteArray, context ?: "", data ?: "")
+            promise.resolve(handle)
+        } catch (e: Exception) {
+            promise.reject("CREATE_FROM_MSGPACK_ERROR", e.message, e)
+        }
+    }
+
+    @ReactMethod
+    fun createFromCache(
+        cacheKey: String,
+        context: String?,
+        data: String?,
+        promise: Promise
+    ) {
+        try {
+            val handle = nativeCreateFromCache(cacheKey, context ?: "", data ?: "")
+            promise.resolve(handle)
+        } catch (e: Exception) {
+            promise.reject("CREATE_FROM_CACHE_ERROR", e.message, e)
+        }
+    }
+
+    @ReactMethod
     fun cacheStats(
         handle: String,
         promise: Promise
@@ -313,6 +348,8 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
 
     // Native methods
     private external fun nativeCreate(schema: String, context: String, data: String): String
+    private external fun nativeCreateFromMsgpack(schemaMsgpack: ByteArray, context: String, data: String): String
+    private external fun nativeCreateFromCache(cacheKey: String, context: String, data: String): String
     private external fun nativeEvaluateAsync(handle: String, data: String, context: String, promise: Promise)
     private external fun nativeValidateAsync(handle: String, data: String, context: String, promise: Promise)
     private external fun nativeEvaluateDependentsAsync(

@@ -78,7 +78,7 @@ namespace JsonEvalRs
             [MarshalAs(UnmanagedType.LPUTF8Str)] string schema,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string? data,
-            out IntPtr errorOut
+            out IntPtr errorPtr
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
@@ -87,6 +87,21 @@ namespace JsonEvalRs
             UIntPtr schemaLen,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string? data
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern IntPtr json_eval_new_from_cache(
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string cacheKey,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? data
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern IntPtr json_eval_new_from_cache_with_error(
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string cacheKey,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? data,
+            out IntPtr errorPtr
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]

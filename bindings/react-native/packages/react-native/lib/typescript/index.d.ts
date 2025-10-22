@@ -197,11 +197,22 @@ export declare class JSONEval {
     private handle;
     private disposed;
     /**
-     * Create a new JSONEval instance
-     * @param options - Configuration options
-     * @throws {Error} If schema is invalid
+     * Creates a new JSON evaluator instance from a cached ParsedSchema
+     * @param cacheKey - Cache key to lookup in the global ParsedSchemaCache
+     * @param context - Optional context data
+     * @param data - Optional initial data
+     * @returns New JSONEval instance
+     * @throws {Error} If schema not found in cache or creation fails
      */
-    constructor(options: JSONEvalOptions);
+    static fromCache(cacheKey: string, context?: string | object | null, data?: string | object | null): JSONEval;
+    /**
+     * Creates a new JSON evaluator instance
+     * @param options - Configuration options with schema, context, and data
+     * @throws {Error} If creation fails
+     */
+    constructor(options: JSONEvalOptions & {
+        _handle?: string;
+    });
     private throwIfDisposed;
     /**
      * Convert value to JSON string
@@ -264,6 +275,22 @@ export declare class JSONEval {
      * @throws {Error} If reload fails
      */
     reloadSchema(options: JSONEvalOptions): Promise<void>;
+    /**
+     * Reload schema from MessagePack bytes
+     * @param schemaMsgpack - MessagePack-encoded schema bytes (Uint8Array or number array)
+     * @param context - Optional context data
+     * @param data - Optional initial data
+     * @throws {Error} If reload fails
+     */
+    reloadSchemaMsgpack(schemaMsgpack: Uint8Array | number[], context?: string | object | null, data?: string | object | null): Promise<void>;
+    /**
+     * Reload schema from ParsedSchemaCache using a cache key
+     * @param cacheKey - Cache key to lookup in the global ParsedSchemaCache
+     * @param context - Optional context data
+     * @param data - Optional initial data
+     * @throws {Error} If reload fails or schema not found in cache
+     */
+    reloadSchemaFromCache(cacheKey: string, context?: string | object | null, data?: string | object | null): Promise<void>;
     /**
      * Get cache statistics
      * @returns Promise resolving to cache statistics
