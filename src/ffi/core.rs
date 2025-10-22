@@ -320,3 +320,110 @@ pub unsafe extern "C" fn json_eval_reload_schema(
         Err(e) => FFIResult::error(e),
     }
 }
+
+/// Reload schema from MessagePack-encoded bytes
+/// 
+/// # Safety
+/// 
+/// - handle must be a valid pointer from json_eval_new
+/// - schema_msgpack must be a valid pointer to MessagePack bytes
+/// - schema_len must be the exact length of the MessagePack data
+/// - context and data can be NULL
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_reload_schema_msgpack(
+    handle: *mut JSONEvalHandle,
+    schema_msgpack: *const u8,
+    schema_len: usize,
+    context: *const c_char,
+    data: *const c_char,
+) -> FFIResult {
+    if handle.is_null() || schema_msgpack.is_null() || schema_len == 0 {
+        return FFIResult::error("Invalid handle, schema pointer, or length".to_string());
+    }
+
+    let eval = &mut (*handle).inner;
+
+    let schema_bytes = std::slice::from_raw_parts(schema_msgpack, schema_len);
+
+    let context_str = if !context.is_null() {
+        match CStr::from_ptr(context).to_str() {
+            Ok(s) => Some(s),
+            Err(_) => {
+                return FFIResult::error("Invalid UTF-8 in context".to_string())
+            }
+        }
+    } else {
+        None
+    };
+
+    let data_str = if !data.is_null() {
+        match CStr::from_ptr(data).to_str() {
+            Ok(s) => Some(s),
+            Err(_) => {
+                return FFIResult::error("Invalid UTF-8 in data".to_string())
+            }
+        }
+    } else {
+        None
+    };
+
+    match eval.reload_schema_msgpack(schema_bytes, context_str, data_str) {
+        Ok(_) => FFIResult::success(Vec::new()),
+        Err(e) => FFIResult::error(e),
+    }
+}
+
+/// Reload schema from ParsedSchemaCache using a cache key
+/// 
+/// # Safety
+/// 
+/// - handle must be a valid pointer from json_eval_new
+/// - cache_key must be a valid UTF-8 string
+/// - context and data can be NULL
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_reload_schema_from_cache(
+    handle: *mut JSONEvalHandle,
+    cache_key: *const c_char,
+    context: *const c_char,
+    data: *const c_char,
+) -> FFIResult {
+    if handle.is_null() || cache_key.is_null() {
+        return FFIResult::error("Invalid handle or cache_key".to_string());
+    }
+
+    let eval = &mut (*handle).inner;
+
+    let key_str = match CStr::from_ptr(cache_key).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            return FFIResult::error("Invalid UTF-8 in cache_key".to_string())
+        }
+    };
+
+    let context_str = if !context.is_null() {
+        match CStr::from_ptr(context).to_str() {
+            Ok(s) => Some(s),
+            Err(_) => {
+                return FFIResult::error("Invalid UTF-8 in context".to_string())
+            }
+        }
+    } else {
+        None
+    };
+
+    let data_str = if !data.is_null() {
+        match CStr::from_ptr(data).to_str() {
+            Ok(s) => Some(s),
+            Err(_) => {
+                return FFIResult::error("Invalid UTF-8 in data".to_string())
+            }
+        }
+    } else {
+        None
+    };
+
+    match eval.reload_schema_from_cache(key_str, context_str, data_str) {
+        Ok(_) => FFIResult::success(Vec::new()),
+        Err(e) => FFIResult::error(e),
+    }
+}

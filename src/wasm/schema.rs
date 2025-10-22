@@ -120,4 +120,40 @@ impl JSONEvalWasm {
                 JsValue::from_str(&error_msg)
             })
     }
+
+    /// Reload schema from MessagePack-encoded bytes
+    /// 
+    /// @param schemaMsgpack - MessagePack-encoded schema bytes (Uint8Array)
+    /// @param context - Optional context data JSON string
+    /// @param data - Optional initial data JSON string
+    #[wasm_bindgen(js_name = reloadSchemaMsgpack)]
+    pub fn reload_schema_msgpack(&mut self, schema_msgpack: &[u8], context: Option<String>, data: Option<String>) -> Result<(), JsValue> {
+        let ctx = context.as_deref();
+        let dt = data.as_deref();
+        
+        self.inner.reload_schema_msgpack(schema_msgpack, ctx, dt)
+            .map_err(|e| {
+                let error_msg = format!("Failed to reload schema from MessagePack: {}", e);
+                console_log(&format!("[WASM ERROR] {}", error_msg));
+                JsValue::from_str(&error_msg)
+            })
+    }
+
+    /// Reload schema from ParsedSchemaCache using a cache key
+    /// 
+    /// @param cacheKey - Cache key to lookup in the global ParsedSchemaCache
+    /// @param context - Optional context data JSON string
+    /// @param data - Optional initial data JSON string
+    #[wasm_bindgen(js_name = reloadSchemaFromCache)]
+    pub fn reload_schema_from_cache(&mut self, cache_key: &str, context: Option<String>, data: Option<String>) -> Result<(), JsValue> {
+        let ctx = context.as_deref();
+        let dt = data.as_deref();
+        
+        self.inner.reload_schema_from_cache(cache_key, ctx, dt)
+            .map_err(|e| {
+                let error_msg = format!("Failed to reload schema from cache: {}", e);
+                console_log(&format!("[WASM ERROR] {}", error_msg));
+                JsValue::from_str(&error_msg)
+            })
+    }
 }

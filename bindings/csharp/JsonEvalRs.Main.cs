@@ -367,6 +367,87 @@ namespace JsonEvalRs
         }
 
         /// <summary>
+        /// Reloads the schema from MessagePack-encoded bytes
+        /// </summary>
+        /// <param name="schemaMsgpack">MessagePack-encoded schema bytes</param>
+        /// <param name="context">Optional context data</param>
+        /// <param name="data">Optional initial data</param>
+        public void ReloadSchemaMsgpack(byte[] schemaMsgpack, string? context = null, string? data = null)
+        {
+            ThrowIfDisposed();
+
+            if (schemaMsgpack == null || schemaMsgpack.Length == 0)
+                throw new ArgumentNullException(nameof(schemaMsgpack));
+
+            // Pin the array and get pointer
+            var handle = GCHandle.Alloc(schemaMsgpack, GCHandleType.Pinned);
+            try
+            {
+                IntPtr ptr = handle.AddrOfPinnedObject();
+                
+#if NETCOREAPP || NET5_0_OR_GREATER
+                var result = Native.json_eval_reload_schema_msgpack(_handle, ptr, (UIntPtr)schemaMsgpack.Length, context, data);
+#else
+                var result = Native.json_eval_reload_schema_msgpack(_handle, ptr, (UIntPtr)schemaMsgpack.Length, Native.ToUTF8Bytes(context), Native.ToUTF8Bytes(data));
+#endif
+                if (!result.Success)
+                {
+#if NETCOREAPP || NET5_0_OR_GREATER
+                    string error = result.Error != IntPtr.Zero
+                        ? Marshal.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                        : "Unknown error";
+#else
+                    string error = result.Error != IntPtr.Zero
+                        ? Native.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                        : "Unknown error";
+#endif
+                    Native.json_eval_free_result(result);
+                    throw new JsonEvalException(error);
+                }
+                Native.json_eval_free_result(result);
+            }
+            finally
+            {
+                handle.Free();
+            }
+        }
+
+        /// <summary>
+        /// Reloads the schema from ParsedSchemaCache using a cache key
+        /// </summary>
+        /// <param name="cacheKey">Cache key to lookup in ParsedSchemaCache</param>
+        /// <param name="context">Optional context data</param>
+        /// <param name="data">Optional initial data</param>
+        public void ReloadSchemaFromCache(string cacheKey, string? context = null, string? data = null)
+        {
+            ThrowIfDisposed();
+
+            if (string.IsNullOrEmpty(cacheKey))
+                throw new ArgumentNullException(nameof(cacheKey));
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+            var result = Native.json_eval_reload_schema_from_cache(_handle, cacheKey, context, data);
+#else
+            var result = Native.json_eval_reload_schema_from_cache(_handle, Native.ToUTF8Bytes(cacheKey)!, Native.ToUTF8Bytes(context), Native.ToUTF8Bytes(data));
+#endif
+            if (!result.Success)
+            {
+#if NETCOREAPP || NET5_0_OR_GREATER
+                string error = result.Error != IntPtr.Zero
+                    ? Marshal.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                    : "Unknown error";
+#else
+                string error = result.Error != IntPtr.Zero
+                    ? Native.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                    : "Unknown error";
+#endif
+                Native.json_eval_free_result(result);
+                throw new JsonEvalException(error);
+            }
+            Native.json_eval_free_result(result);
+        }
+
+        /// <summary>
         /// Gets cache statistics
         /// </summary>
         /// <returns>Cache statistics</returns>

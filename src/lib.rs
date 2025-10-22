@@ -384,6 +384,150 @@ impl JSONEval {
         Ok(())
     }
 
+    /// Reload schema from MessagePack-encoded bytes
+    /// 
+    /// # Arguments
+    /// 
+    /// * `schema_msgpack` - MessagePack-encoded schema bytes
+    /// * `context` - Optional context data JSON string
+    /// * `data` - Optional initial data JSON string
+    /// 
+    /// # Returns
+    /// 
+    /// A `Result` indicating success or an error message
+    pub fn reload_schema_msgpack(
+        &mut self,
+        schema_msgpack: &[u8],
+        context: Option<&str>,
+        data: Option<&str>,
+    ) -> Result<(), String> {
+        // Deserialize MessagePack to Value
+        let schema_val: Value = rmp_serde::from_slice(schema_msgpack)
+            .map_err(|e| format!("failed to deserialize MessagePack schema: {e}"))?;
+        
+        let context: Value = json_parser::parse_json_str(context.unwrap_or("{}"))?;
+        let data: Value = json_parser::parse_json_str(data.unwrap_or("{}"))?;
+        
+        self.schema = schema_val;
+        self.context = context.clone();
+        self.data = data.clone();
+        self.evaluated_schema = self.schema.clone();
+        self.engine = Arc::new(RLogic::new());
+        self.dependents_evaluations.clear();
+        self.rules_evaluations.clear();
+        self.others_evaluations.clear();
+        self.value_evaluations.clear();
+        self.layout_paths.clear();
+        self.options_templates.clear();
+        self.subforms.clear();
+        parse_schema::legacy::parse_schema(self)?;
+        
+        // Re-initialize eval_data
+        self.eval_data = EvalData::with_schema_data_context(&self.evaluated_schema, &data, &context);
+        
+        // Clear cache when schema changes
+        self.eval_cache.clear();
+        
+        // Cache the MessagePack for future retrievals
+        self.cached_msgpack_schema = Some(schema_msgpack.to_vec());
+
+        Ok(())
+    }
+
+    /// Reload schema from a cached ParsedSchema
+    /// 
+    /// This is the most efficient way to reload as it reuses pre-parsed schema compilation.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `parsed` - Arc reference to a cached ParsedSchema
+    /// * `context` - Optional context data JSON string
+    /// * `data` - Optional initial data JSON string
+    /// 
+    /// # Returns
+    /// 
+    /// A `Result` indicating success or an error message
+    pub fn reload_schema_parsed(
+        &mut self,
+        parsed: Arc<ParsedSchema>,
+        context: Option<&str>,
+        data: Option<&str>,
+    ) -> Result<(), String> {
+        let context: Value = json_parser::parse_json_str(context.unwrap_or("{}"))?;
+        let data: Value = json_parser::parse_json_str(data.unwrap_or("{}"))?;
+        
+        // Share all the pre-compiled data from ParsedSchema
+        self.schema = parsed.schema.clone();
+        self.evaluations = parsed.evaluations.clone();
+        self.tables = parsed.tables.clone();
+        self.table_metadata = parsed.table_metadata.clone();
+        self.dependencies = parsed.dependencies.clone();
+        self.sorted_evaluations = parsed.sorted_evaluations.clone();
+        self.dependents_evaluations = parsed.dependents_evaluations.clone();
+        self.rules_evaluations = parsed.rules_evaluations.clone();
+        self.others_evaluations = parsed.others_evaluations.clone();
+        self.value_evaluations = parsed.value_evaluations.clone();
+        self.layout_paths = parsed.layout_paths.clone();
+        self.options_templates = parsed.options_templates.clone();
+        
+        // Share the engine Arc (cheap pointer clone, not data clone)
+        self.engine = parsed.engine.clone();
+        
+        // Convert Arc<ParsedSchema> subforms to Box<JSONEval> subforms
+        let mut subforms = IndexMap::new();
+        for (path, subform_parsed) in &parsed.subforms {
+            let subform_eval = JSONEval::with_parsed_schema(
+                subform_parsed.clone(),
+                Some("{}"),
+                None
+            )?;
+            subforms.insert(path.clone(), Box::new(subform_eval));
+        }
+        self.subforms = subforms;
+        
+        self.context = context.clone();
+        self.data = data.clone();
+        self.evaluated_schema = self.schema.clone();
+        
+        // Re-initialize eval_data
+        self.eval_data = EvalData::with_schema_data_context(&self.evaluated_schema, &data, &context);
+        
+        // Clear cache when schema changes
+        self.eval_cache.clear();
+        
+        // Clear MessagePack cache since we're loading from ParsedSchema
+        self.cached_msgpack_schema = None;
+
+        Ok(())
+    }
+
+    /// Reload schema from ParsedSchemaCache using a cache key
+    /// 
+    /// This is the recommended way for cross-platform cached schema reloading.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `cache_key` - Key to lookup in the global ParsedSchemaCache
+    /// * `context` - Optional context data JSON string
+    /// * `data` - Optional initial data JSON string
+    /// 
+    /// # Returns
+    /// 
+    /// A `Result` indicating success or an error message
+    pub fn reload_schema_from_cache(
+        &mut self,
+        cache_key: &str,
+        context: Option<&str>,
+        data: Option<&str>,
+    ) -> Result<(), String> {
+        // Get the cached ParsedSchema from global cache
+        let parsed = PARSED_SCHEMA_CACHE.get(cache_key)
+            .ok_or_else(|| format!("Schema '{}' not found in cache", cache_key))?;
+        
+        // Use reload_schema_parsed with the cached schema
+        self.reload_schema_parsed(parsed, context, data)
+    }
+
     /// Evaluate the schema with the given data and context.
     ///
     /// # Arguments

@@ -207,6 +207,58 @@ RCT_EXPORT_METHOD(reloadSchema:(NSString *)handle
     );
 }
 
+RCT_EXPORT_METHOD(reloadSchemaMsgpack:(NSString *)handle
+                  schemaMsgpack:(NSArray *)schemaMsgpack
+                  context:(NSString *)context
+                  data:(NSString *)data
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    std::string contextStr = [self stdStringFromNSString:context];
+    std::string dataStr = [self stdStringFromNSString:data];
+    
+    // Convert NSArray to std::vector<uint8_t>
+    std::vector<uint8_t> msgpackBytes;
+    msgpackBytes.reserve([schemaMsgpack count]);
+    for (NSNumber *num in schemaMsgpack) {
+        msgpackBytes.push_back([num unsignedCharValue]);
+    }
+    
+    JsonEvalBridge::reloadSchemaMsgpackAsync(handleStr, msgpackBytes, contextStr, dataStr,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"RELOAD_MSGPACK_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_METHOD(reloadSchemaFromCache:(NSString *)handle
+                  cacheKey:(NSString *)cacheKey
+                  context:(NSString *)context
+                  data:(NSString *)data
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    std::string cacheKeyStr = [self stdStringFromNSString:cacheKey];
+    std::string contextStr = [self stdStringFromNSString:context];
+    std::string dataStr = [self stdStringFromNSString:data];
+    
+    JsonEvalBridge::reloadSchemaFromCacheAsync(handleStr, cacheKeyStr, contextStr, dataStr,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"RELOAD_CACHE_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
 RCT_EXPORT_METHOD(cacheStats:(NSString *)handle
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)

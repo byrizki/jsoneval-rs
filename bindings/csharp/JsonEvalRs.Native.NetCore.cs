@@ -127,6 +127,23 @@ namespace JsonEvalRs
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_reload_schema_msgpack(
+            IntPtr handle,
+            IntPtr schemaMsgpack,
+            UIntPtr schemaLen,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? data
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_reload_schema_from_cache(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string cacheKey,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? data
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_validate_paths(
             IntPtr handle,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string data,

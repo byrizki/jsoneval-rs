@@ -239,6 +239,71 @@ export class JSONEvalCore {
   }
 
   /**
+   * Reload schema from MessagePack bytes
+   * @param {Uint8Array} schemaMsgpack - MessagePack-encoded schema bytes
+   * @param {object} [context] - Optional new context
+   * @param {object} [data] - Optional new data
+   * @returns {Promise<void>}
+   */
+  async reloadSchemaMsgpack(schemaMsgpack, context, data) {
+    if (!this._instance) {
+      throw new Error('Instance not initialized. Call init() first.');
+    }
+
+    if (!(schemaMsgpack instanceof Uint8Array)) {
+      throw new Error('schemaMsgpack must be a Uint8Array');
+    }
+
+    try {
+      await this._instance.reloadSchemaMsgpack(
+        schemaMsgpack,
+        context ? JSON.stringify(context) : null,
+        data ? JSON.stringify(data) : null
+      );
+
+      // Update internal state
+      this._schema = schemaMsgpack;
+      this._context = context;
+      this._data = data;
+      this._isMsgpackSchema = true;
+    } catch (error) {
+      throw new Error(`Failed to reload schema from MessagePack: ${error.message || error}`);
+    }
+  }
+
+  /**
+   * Reload schema from ParsedSchemaCache using a cache key
+   * @param {string} cacheKey - Cache key to lookup in the global ParsedSchemaCache
+   * @param {object} [context] - Optional new context
+   * @param {object} [data] - Optional new data
+   * @returns {Promise<void>}
+   */
+  async reloadSchemaFromCache(cacheKey, context, data) {
+    if (!this._instance) {
+      throw new Error('Instance not initialized. Call init() first.');
+    }
+
+    if (typeof cacheKey !== 'string' || !cacheKey) {
+      throw new Error('cacheKey must be a non-empty string');
+    }
+
+    try {
+      await this._instance.reloadSchemaFromCache(
+        cacheKey,
+        context ? JSON.stringify(context) : null,
+        data ? JSON.stringify(data) : null
+      );
+
+      // Update internal state
+      this._context = context;
+      this._data = data;
+      // Note: schema is not updated as we don't have access to it from the cache key
+    } catch (error) {
+      throw new Error(`Failed to reload schema from cache: ${error.message || error}`);
+    }
+  }
+
+  /**
    * Get cache statistics
    * @returns {Promise<{hits: number, misses: number, entries: number}>}
    */

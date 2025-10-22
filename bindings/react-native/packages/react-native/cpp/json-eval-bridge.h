@@ -160,6 +160,38 @@ public:
     );
 
     /**
+     * Reload schema from MessagePack (async)
+     * @param handle Instance handle
+     * @param schemaMsgpack MessagePack-encoded schema bytes
+     * @param context Optional context data
+     * @param data Optional initial data
+     * @param callback Result callback
+     */
+    static void reloadSchemaMsgpackAsync(
+        const std::string& handle,
+        const std::vector<uint8_t>& schemaMsgpack,
+        const std::string& context,
+        const std::string& data,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Reload schema from ParsedSchemaCache (async)
+     * @param handle Instance handle
+     * @param cacheKey Cache key to lookup in ParsedSchemaCache
+     * @param context Optional context data
+     * @param data Optional initial data
+     * @param callback Result callback
+     */
+    static void reloadSchemaFromCacheAsync(
+        const std::string& handle,
+        const std::string& cacheKey,
+        const std::string& context,
+        const std::string& data,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
      * Get cache stats (async)
      * @param handle Instance handle
      * @param callback Result callback

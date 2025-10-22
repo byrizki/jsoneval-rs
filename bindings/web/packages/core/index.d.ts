@@ -114,6 +114,8 @@ export class JSONEval {
   getEvaluatedSchemaWithoutParams(options?: GetEvaluatedSchemaOptions): Promise<any>;
   getValueByPath(options: GetValueByPathOptions): Promise<any | null>;
   reloadSchema(options: ReloadSchemaOptions): Promise<void>;
+  reloadSchemaMsgpack(schemaMsgpack: Uint8Array, context?: any, data?: any): Promise<void>;
+  reloadSchemaFromCache(cacheKey: string, context?: any, data?: any): Promise<void>;
   cacheStats(): Promise<CacheStats>;
   clearCache(): Promise<void>;
   cacheLen(): Promise<number>;

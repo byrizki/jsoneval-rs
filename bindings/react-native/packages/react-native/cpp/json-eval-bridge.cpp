@@ -30,6 +30,8 @@ extern "C" {
     FFIResult json_eval_resolve_layout(JSONEvalHandle* handle, bool evaluate);
     FFIResult json_eval_compile_and_run_logic(JSONEvalHandle* handle, const char* logic_str, const char* data);
     FFIResult json_eval_reload_schema(JSONEvalHandle* handle, const char* schema, const char* context, const char* data);
+    FFIResult json_eval_reload_schema_msgpack(JSONEvalHandle* handle, const uint8_t* schema_msgpack, size_t schema_len, const char* context, const char* data);
+    FFIResult json_eval_reload_schema_from_cache(JSONEvalHandle* handle, const char* cache_key, const char* context, const char* data);
     FFIResult json_eval_cache_stats(JSONEvalHandle* handle);
     FFIResult json_eval_clear_cache(JSONEvalHandle* handle);
     FFIResult json_eval_cache_len(JSONEvalHandle* handle);
@@ -417,6 +419,75 @@ void JsonEvalBridge::reloadSchemaAsync(
         const char* ctx = context.empty() ? nullptr : context.c_str();
         const char* dt = data.empty() ? nullptr : data.c_str();
         FFIResult result = json_eval_reload_schema(it->second, schema.c_str(), ctx, dt);
+        
+        if (!result.success) {
+            std::string error = result.error ? result.error : "Unknown error";
+            json_eval_free_result(result);
+            throw std::runtime_error(error);
+        }
+        
+        json_eval_free_result(result);
+        return "{}";
+    }, callback);
+}
+
+void JsonEvalBridge::reloadSchemaMsgpackAsync(
+    const std::string& handleId,
+    const std::vector<uint8_t>& schemaMsgpack,
+    const std::string& context,
+    const std::string& data,
+    std::function<void(const std::string&, const std::string&)> callback
+) {
+    runAsync([handleId, schemaMsgpack, context, data]() -> std::string {
+        std::lock_guard<std::mutex> lock(handlesMutex);
+        auto it = handles.find(handleId);
+        if (it == handles.end()) {
+            throw std::runtime_error("Invalid handle");
+        }
+        
+        const char* ctx = context.empty() ? nullptr : context.c_str();
+        const char* dt = data.empty() ? nullptr : data.c_str();
+        FFIResult result = json_eval_reload_schema_msgpack(
+            it->second,
+            schemaMsgpack.data(),
+            schemaMsgpack.size(),
+            ctx,
+            dt
+        );
+        
+        if (!result.success) {
+            std::string error = result.error ? result.error : "Unknown error";
+            json_eval_free_result(result);
+            throw std::runtime_error(error);
+        }
+        
+        json_eval_free_result(result);
+        return "{}";
+    }, callback);
+}
+
+void JsonEvalBridge::reloadSchemaFromCacheAsync(
+    const std::string& handleId,
+    const std::string& cacheKey,
+    const std::string& context,
+    const std::string& data,
+    std::function<void(const std::string&, const std::string&)> callback
+) {
+    runAsync([handleId, cacheKey, context, data]() -> std::string {
+        std::lock_guard<std::mutex> lock(handlesMutex);
+        auto it = handles.find(handleId);
+        if (it == handles.end()) {
+            throw std::runtime_error("Invalid handle");
+        }
+        
+        const char* ctx = context.empty() ? nullptr : context.c_str();
+        const char* dt = data.empty() ? nullptr : data.c_str();
+        FFIResult result = json_eval_reload_schema_from_cache(
+            it->second,
+            cacheKey.c_str(),
+            ctx,
+            dt
+        );
         
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";

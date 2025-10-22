@@ -339,6 +339,82 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeReloadSchemaAsync(
 }
 
 JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeReloadSchemaMsgpackAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jbyteArray schemaMsgpack,
+    jstring context,
+    jstring data,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    std::string contextStr = jstringToString(env, context);
+    std::string dataStr = jstringToString(env, data);
+    
+    // Convert jbyteArray to std::vector<uint8_t>
+    jsize len = env->GetArrayLength(schemaMsgpack);
+    std::vector<uint8_t> msgpackBytes(len);
+    env->GetByteArrayRegion(schemaMsgpack, 0, len, reinterpret_cast<jbyte*>(msgpackBytes.data()));
+    
+    JavaVM* jvm;
+    env->GetJavaVM(&jvm);
+    jobject globalPromise = env->NewGlobalRef(promise);
+    
+    JsonEvalBridge::reloadSchemaMsgpackAsync(handleStr, msgpackBytes, contextStr, dataStr,
+        [jvm, globalPromise](const std::string& result, const std::string& error) {
+            JNIEnv* env = nullptr;
+            jvm->AttachCurrentThread(&env, nullptr);
+            
+            if (error.empty()) {
+                resolvePromise(env, globalPromise, result);
+            } else {
+                rejectPromise(env, globalPromise, "RELOAD_MSGPACK_ERROR", error);
+            }
+            
+            env->DeleteGlobalRef(globalPromise);
+            jvm->DetachCurrentThread();
+        }
+    );
+}
+
+JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeReloadSchemaFromCacheAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jstring cacheKey,
+    jstring context,
+    jstring data,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    std::string cacheKeyStr = jstringToString(env, cacheKey);
+    std::string contextStr = jstringToString(env, context);
+    std::string dataStr = jstringToString(env, data);
+    
+    JavaVM* jvm;
+    env->GetJavaVM(&jvm);
+    jobject globalPromise = env->NewGlobalRef(promise);
+    
+    JsonEvalBridge::reloadSchemaFromCacheAsync(handleStr, cacheKeyStr, contextStr, dataStr,
+        [jvm, globalPromise](const std::string& result, const std::string& error) {
+            JNIEnv* env = nullptr;
+            jvm->AttachCurrentThread(&env, nullptr);
+            
+            if (error.empty()) {
+                resolvePromise(env, globalPromise, result);
+            } else {
+                rejectPromise(env, globalPromise, "RELOAD_CACHE_ERROR", error);
+            }
+            
+            env->DeleteGlobalRef(globalPromise);
+            jvm->DetachCurrentThread();
+        }
+    );
+}
+
+JNIEXPORT void JNICALL
 Java_com_jsonevalrs_JsonEvalRsModule_nativeCacheStatsAsync(
     JNIEnv* env,
     jobject /* this */,

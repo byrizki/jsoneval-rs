@@ -114,6 +114,33 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun reloadSchemaMsgpack(
+        handle: String,
+        schemaMsgpack: ReadableArray,
+        context: String?,
+        data: String?,
+        promise: Promise
+    ) {
+        // Convert ReadableArray to ByteArray
+        val byteArray = ByteArray(schemaMsgpack.size())
+        for (i in 0 until schemaMsgpack.size()) {
+            byteArray[i] = schemaMsgpack.getInt(i).toByte()
+        }
+        nativeReloadSchemaMsgpackAsync(handle, byteArray, context ?: "", data ?: "", promise)
+    }
+
+    @ReactMethod
+    fun reloadSchemaFromCache(
+        handle: String,
+        cacheKey: String,
+        context: String?,
+        data: String?,
+        promise: Promise
+    ) {
+        nativeReloadSchemaFromCacheAsync(handle, cacheKey, context ?: "", data ?: "", promise)
+    }
+
+    @ReactMethod
     fun cacheStats(
         handle: String,
         promise: Promise
@@ -301,6 +328,8 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     private external fun nativeGetEvaluatedSchemaWithoutParamsAsync(handle: String, skipLayout: Boolean, promise: Promise)
     private external fun nativeGetEvaluatedSchemaByPathAsync(handle: String, path: String, skipLayout: Boolean, promise: Promise)
     private external fun nativeReloadSchemaAsync(handle: String, schema: String, context: String, data: String, promise: Promise)
+    private external fun nativeReloadSchemaMsgpackAsync(handle: String, schemaMsgpack: ByteArray, context: String, data: String, promise: Promise)
+    private external fun nativeReloadSchemaFromCacheAsync(handle: String, cacheKey: String, context: String, data: String, promise: Promise)
     private external fun nativeCacheStatsAsync(handle: String, promise: Promise)
     private external fun nativeClearCacheAsync(handle: String, promise: Promise)
     private external fun nativeCacheLenAsync(handle: String, promise: Promise)

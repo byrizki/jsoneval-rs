@@ -449,7 +449,7 @@ let cache = Arc::new(ParsedSchemaCache::new());
 
 ## Changelog
 
-### v0.0.10
+### v0.0.11
 - ✅ Initial release of `ParsedSchemaCache`
 - ✅ Thread-safe Arc-based caching
 - ✅ Global `PARSED_SCHEMA_CACHE` instance

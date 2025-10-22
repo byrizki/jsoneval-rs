@@ -406,6 +406,61 @@ export class JSONEval {
   }
 
   /**
+   * Reload schema from MessagePack bytes
+   * @param schemaMsgpack - MessagePack-encoded schema bytes (Uint8Array or number array)
+   * @param context - Optional context data
+   * @param data - Optional initial data
+   * @throws {Error} If reload fails
+   */
+  async reloadSchemaMsgpack(
+    schemaMsgpack: Uint8Array | number[],
+    context?: string | object | null,
+    data?: string | object | null
+  ): Promise<void> {
+    this.throwIfDisposed();
+    
+    try {
+      // Convert Uint8Array to number array if needed
+      const msgpackArray = schemaMsgpack instanceof Uint8Array 
+        ? Array.from(schemaMsgpack) 
+        : schemaMsgpack;
+      
+      const contextStr = context ? (typeof context === 'string' ? context : JSON.stringify(context)) : null;
+      const dataStr = data ? (typeof data === 'string' ? data : JSON.stringify(data)) : null;
+      
+      await JsonEvalRs.reloadSchemaMsgpack(this.handle, msgpackArray, contextStr, dataStr);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to reload schema from MessagePack: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Reload schema from ParsedSchemaCache using a cache key
+   * @param cacheKey - Cache key to lookup in the global ParsedSchemaCache
+   * @param context - Optional context data
+   * @param data - Optional initial data
+   * @throws {Error} If reload fails or schema not found in cache
+   */
+  async reloadSchemaFromCache(
+    cacheKey: string,
+    context?: string | object | null,
+    data?: string | object | null
+  ): Promise<void> {
+    this.throwIfDisposed();
+    
+    try {
+      const contextStr = context ? (typeof context === 'string' ? context : JSON.stringify(context)) : null;
+      const dataStr = data ? (typeof data === 'string' ? data : JSON.stringify(data)) : null;
+      
+      await JsonEvalRs.reloadSchemaFromCache(this.handle, cacheKey, contextStr, dataStr);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to reload schema from cache: ${errorMessage}`);
+    }
+  }
+
+  /**
    * Get cache statistics
    * @returns Promise resolving to cache statistics
    * @throws {Error} If operation fails
