@@ -1192,6 +1192,12 @@ impl JSONEval {
                 map.insert("condition".to_string(), Value::Object(condition));
             }
             
+            // Update $parentHide flag if element has it (came from $ref resolution)
+            // Only update if the element already has the field (to avoid adding it to non-ref elements)
+            if map.contains_key("$parentHide") {
+                map.insert("$parentHide".to_string(), Value::Bool(parent_hidden));
+            }
+            
             // Recursively process children if elements array exists
             if let Some(Value::Array(elements)) = map.get("elements") {
                 let mut updated_children = Vec::with_capacity(elements.len());
@@ -1266,15 +1272,36 @@ impl JSONEval {
             Value::Object(mut map) => {
                 // Check if element has $ref
                 if let Some(Value::String(ref_path)) = map.get("$ref").cloned() {
-                    // Inject metadata fields first
-                    map.insert("$fullpath".to_string(), Value::String(ref_path.clone()));
-                    if let Some(last_segment) = ref_path.split('.').last() {
-                        map.insert("$path".to_string(), Value::String(last_segment.to_string()));
-                    }
-                    map.insert("$parentHide".to_string(), Value::Bool(false));
-                    map.insert("path".to_string(), Value::String(ref_path.clone()));
+                    // Convert ref_path to dotted notation for metadata storage
+                    let dotted_path = path_utils::pointer_to_dot_notation(&ref_path);
                     
-                    let normalized_path = path_utils::normalize_to_json_pointer(&ref_path);
+                    // Extract last segment for $path and path fields
+                    let last_segment = dotted_path.split('.').last().unwrap_or(&dotted_path);
+                    
+                    // Inject metadata fields with dotted notation
+                    map.insert("$fullpath".to_string(), Value::String(dotted_path.clone()));
+                    map.insert("$path".to_string(), Value::String(last_segment.to_string()));
+                    map.insert("$parentHide".to_string(), Value::Bool(false));
+                    
+                    // Normalize to JSON pointer for actual lookup
+                    // Try different path formats to find the referenced value
+                    let normalized_path = if ref_path.starts_with('#') || ref_path.starts_with('/') {
+                        // Already a pointer, normalize it
+                        path_utils::normalize_to_json_pointer(&ref_path)
+                    } else {
+                        // Try as schema path first (for paths like "illustration.insured.name")
+                        let schema_pointer = path_utils::dot_notation_to_schema_pointer(&ref_path);
+                        let schema_path = path_utils::normalize_to_json_pointer(&schema_pointer);
+                        
+                        // Check if it exists
+                        if self.evaluated_schema.pointer(&schema_path).is_some() {
+                            schema_path
+                        } else {
+                            // Try with /properties/ prefix (for simple refs like "parent_container")
+                            let with_properties = format!("/properties/{}", ref_path.replace('.', "/properties/"));
+                            with_properties
+                        }
+                    };
                     
                     // Get the referenced value
                     if let Some(referenced_value) = self.evaluated_schema.pointer(&normalized_path) {

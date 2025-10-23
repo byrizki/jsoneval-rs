@@ -202,23 +202,28 @@ fn test_layout_metadata_injection() {
         Some(false),
         "$parentHide should be false initially"
     );
-    
-    assert!(
-        first_element.get("path").is_some(),
-        "Element should have path field"
-    );
 }
 
 #[test]
 fn test_layout_metadata_parent_hidden() {
-    // Test that parent hidden state is propagated
+    // Test that $parentHide flag is properly propagated to children
     let schema = json!({
         "type": "object",
         "properties": {
-            "field": {
+            "child_field": {
                 "type": "string",
+                "title": "Child Field"
+            },
+            "parent_container": {
+                "type": "object",
                 "condition": {
-                    "hidden": true
+                    "hidden": true  // Parent is hidden
+                },
+                "properties": {
+                    "nested_field": {
+                        "type": "string",
+                        "title": "Nested Field"
+                    }
                 }
             },
             "form": {
@@ -226,10 +231,91 @@ fn test_layout_metadata_parent_hidden() {
                     "type": "VerticalLayout",
                     "elements": [
                         {
-                            "$ref": "field",
-                            "condition": {
-                                "hidden": false
+                            "$ref": "child_field"
+                        },
+                        {
+                            "$ref": "parent_container",
+                            "elements": [
+                                {
+                                    "$ref": "parent_container.nested_field"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        }
+    });
+
+    let schema_str = serde_json::to_string(&schema).unwrap();
+    let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
+    
+    let data = json!({});
+    let data_str = serde_json::to_string(&data).unwrap();
+    eval.evaluate(&data_str, None).unwrap();
+    
+    let evaluated = eval.get_evaluated_schema(false);
+    
+    // Test 1: Child at root level should have $parentHide = false
+    let root_element = evaluated
+        .pointer("/properties/form/$layout/elements/0")
+        .expect("Root level element should exist");
+    
+    assert_eq!(
+        root_element.get("$parentHide").and_then(|v| v.as_bool()),
+        Some(false),
+        "$parentHide should be false at root level"
+    );
+    
+    // Test 2: Parent container should have $parentHide = false (no parent above it is hidden)
+    let parent_element = evaluated
+        .pointer("/properties/form/$layout/elements/1")
+        .expect("Parent element should exist");
+    
+    assert_eq!(
+        parent_element.get("$parentHide").and_then(|v| v.as_bool()),
+        Some(false),
+        "$parentHide should be false for parent element at root"
+    );
+    
+    // Test 3: Child of hidden parent should have $parentHide = true
+    let child_of_hidden = evaluated
+        .pointer("/properties/form/$layout/elements/1/elements/0")
+        .expect("Child of hidden parent should exist");
+    
+    assert_eq!(
+        child_of_hidden.get("$parentHide").and_then(|v| v.as_bool()),
+        Some(true),
+        "$parentHide should be true when parent is hidden"
+    );
+}
+
+#[test]
+fn test_json_pointer_ref_conversion() {
+    // Test that JSON pointer format $ref is converted to dotted notation in metadata
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "illustration": {
+                "type": "object",
+                "properties": {
+                    "insured": {
+                        "type": "object",
+                        "properties": {
+                            "ins_corrname": {
+                                "type": "string",
+                                "title": "Insured Name"
                             }
+                        }
+                    }
+                }
+            },
+            "form": {
+                "$layout": {
+                    "type": "VerticalLayout",
+                    "elements": [
+                        {
+                            "$ref": "#/illustration/properties/insured/properties/ins_corrname"
                         }
                     ]
                 }
@@ -250,11 +336,18 @@ fn test_layout_metadata_parent_hidden() {
         .pointer("/properties/form/$layout/elements/0")
         .expect("Layout element should exist");
     
-    // Element should have $parentHide set to false (no parent is hidden)
+    // $fullpath should be converted to dotted notation
     assert_eq!(
-        element.get("$parentHide").and_then(|v| v.as_bool()),
-        Some(false),
-        "$parentHide should be false at root level"
+        element.get("$fullpath").and_then(|v| v.as_str()),
+        Some("illustration.properties.insured.properties.ins_corrname"),
+        "$fullpath should be in dotted notation"
+    );
+    
+    // $path should be the last segment only
+    assert_eq!(
+        element.get("$path").and_then(|v| v.as_str()),
+        Some("ins_corrname"),
+        "$path should be the last segment"
     );
 }
 

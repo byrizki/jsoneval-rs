@@ -79,6 +79,40 @@ pub fn dot_notation_to_schema_pointer(path: &str) -> String {
     result
 }
 
+/// Convert JSON pointer or schema pointer to dotted notation
+/// 
+/// This converts various pointer formats back to dotted notation:
+/// 
+/// Examples:
+/// - "#/illustration/properties/insured/properties/ins_corrname" -> "illustration.properties.insured.properties.ins_corrname"
+/// - "/user/name" -> "user.name"
+/// - "person.name" -> "person.name" (already dotted, no change)
+#[inline]
+pub fn pointer_to_dot_notation(path: &str) -> String {
+    if path.is_empty() {
+        return String::new();
+    }
+    
+    // If already dotted notation (no # or / prefix), return as-is
+    if !path.starts_with('#') && !path.starts_with('/') {
+        return path.to_string();
+    }
+    
+    // Remove leading # or /
+    let clean_path = if path.starts_with("#/") {
+        &path[2..]
+    } else if path.starts_with('/') {
+        &path[1..]
+    } else if path.starts_with('#') {
+        &path[1..]
+    } else {
+        path
+    };
+    
+    // Convert slashes to dots
+    clean_path.replace('/', ".")
+}
+
 /// Fast JSON pointer-based value access using serde's native implementation
 /// 
 /// This is significantly faster than manual path traversal for deeply nested objects

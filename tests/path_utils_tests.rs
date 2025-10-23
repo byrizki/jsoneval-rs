@@ -1,4 +1,4 @@
-use json_eval_rs::path_utils::{normalize_to_json_pointer, get_value_by_pointer, dot_notation_to_schema_pointer};
+use json_eval_rs::path_utils::{normalize_to_json_pointer, get_value_by_pointer, dot_notation_to_schema_pointer, pointer_to_dot_notation};
 use serde_json::json;
 
 #[test]
@@ -68,5 +68,53 @@ fn test_dot_notation_to_schema_pointer() {
     assert_eq!(
         dot_notation_to_schema_pointer("/illustration/properties/insured"),
         "/illustration/properties/insured"
+    );
+}
+
+#[test]
+fn test_pointer_to_dot_notation() {
+    // JSON Schema pointer to dotted notation
+    assert_eq!(
+        pointer_to_dot_notation("#/illustration/properties/insured/properties/ins_corrname"),
+        "illustration.properties.insured.properties.ins_corrname"
+    );
+    
+    assert_eq!(
+        pointer_to_dot_notation("#/header/properties/form_number"),
+        "header.properties.form_number"
+    );
+    
+    // JSON pointer (without #) to dotted notation
+    assert_eq!(
+        pointer_to_dot_notation("/user/name"),
+        "user.name"
+    );
+    
+    assert_eq!(
+        pointer_to_dot_notation("/items/0"),
+        "items.0"
+    );
+    
+    // Already in dotted notation - should return as-is
+    assert_eq!(
+        pointer_to_dot_notation("person.name"),
+        "person.name"
+    );
+    
+    assert_eq!(
+        pointer_to_dot_notation("illustration.insured.age"),
+        "illustration.insured.age"
+    );
+    
+    // Single field
+    assert_eq!(
+        pointer_to_dot_notation("field"),
+        "field"
+    );
+    
+    // Empty
+    assert_eq!(
+        pointer_to_dot_notation(""),
+        ""
     );
 }
