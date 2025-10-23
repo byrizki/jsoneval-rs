@@ -1648,6 +1648,24 @@ impl JSONEval {
                     
                     self.validate_object(prop_schema, prop_data, &next_path, errors, filter_paths);
                 }
+            } else if current_path.is_empty() {
+                // Handle root-level fields (schema without 'properties' wrapper)
+                // Look for fields that might be properties (not meta fields like $schema, $params)
+                for (key, value) in schema_map {
+                    // Skip meta fields that start with $ or are known non-property keys
+                    if key.starts_with('$') || key == "type" || key == "title" || key == "rules" {
+                        continue;
+                    }
+                    
+                    // This is likely a property field
+                    let prop_data = if let Value::Object(data_map) = data {
+                        data_map.get(key).unwrap_or(&Value::Null)
+                    } else {
+                        &Value::Null
+                    };
+                    
+                    self.validate_object(value, prop_data, key, errors, filter_paths);
+                }
             }
         }
     }

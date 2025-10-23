@@ -82,16 +82,21 @@ fn test_validate_required_field_missing() {
     let validation = eval.validate(&data_str, None, None)
         .expect("Validation failed");
 
-    // Name field doesn't have required rule in minimal_form.json, so skip this test
-    // or just verify validation works
-    println!("Validation result: has_error={}, errors={:?}", validation.has_error, validation.errors);
+    // The name field has a required rule in minimal_form.json
+    assert!(validation.has_error, "Should have validation error for missing required field");
+    assert!(validation.errors.contains_key("illustration.insured.name"), 
+            "Should have error for missing name field");
+    
+    let error = &validation.errors["illustration.insured.name"];
+    assert_eq!(error.rule_type, "required", "Error should be for required rule");
+    assert_eq!(error.message, "Name is required", "Error message should match schema");
 }
 
 #[test]
 fn test_validate_min_max_value() {
     let schema = create_test_schema();
     
-    // Test validation with boundary values
+    // Test 1: Age below minimum (0 < 1)
     let mut data_min = get_minimal_form_data();
     data_min["illustration"]["insured"]["age"] = json!(0);
     let data_min_str = data_min.to_string();
@@ -102,10 +107,15 @@ fn test_validate_min_max_value() {
     let validation = eval.validate(&data_min_str, None, None)
         .expect("Validation failed");
 
-    // Just verify validation runs - actual rules enforcement depends on schema
-    println!("Validation for age=0: has_error={}, errors={:?}", validation.has_error, validation.errors);
+    assert!(validation.has_error, "Should have validation error for age below minimum");
+    assert!(validation.errors.contains_key("illustration.insured.age"), 
+            "Should have error for age field");
     
-    // Test max value
+    let error = &validation.errors["illustration.insured.age"];
+    assert_eq!(error.rule_type, "minValue", "Error should be for minValue rule");
+    assert_eq!(error.message, "Age must be at least 1", "Error message should match schema");
+    
+    // Test 2: Age above maximum (101 > 100)
     let mut data_max = get_minimal_form_data();
     data_max["illustration"]["insured"]["age"] = json!(101);
     let data_max_str = data_max.to_string();
@@ -116,7 +126,28 @@ fn test_validate_min_max_value() {
     let validation2 = eval2.validate(&data_max_str, None, None)
         .expect("Validation failed");
 
-    println!("Validation for age=101: has_error={}, errors={:?}", validation2.has_error, validation2.errors);
+    assert!(validation2.has_error, "Should have validation error for age above maximum");
+    assert!(validation2.errors.contains_key("illustration.insured.age"), 
+            "Should have error for age field");
+    
+    let error2 = &validation2.errors["illustration.insured.age"];
+    assert_eq!(error2.rule_type, "maxValue", "Error should be for maxValue rule");
+    assert_eq!(error2.message, "Age must be at most 100", "Error message should match schema");
+    
+    // Test 3: Age within valid range (should pass)
+    let mut data_valid = get_minimal_form_data();
+    data_valid["illustration"]["insured"]["age"] = json!(50);
+    let data_valid_str = data_valid.to_string();
+
+    let eval3 = JSONEval::new(&schema, None, Some(&data_valid_str))
+        .expect("Failed to create JSONEval");
+
+    let validation3 = eval3.validate(&data_valid_str, None, None)
+        .expect("Validation failed");
+
+    assert!(!validation3.has_error, "Should have no validation error for valid age");
+    assert!(!validation3.errors.contains_key("illustration.insured.age"), 
+            "Should have no error for age field when value is valid");
 }
 
 
@@ -141,19 +172,36 @@ fn test_validate_skip_hidden_fields() {
 fn test_validate_with_path_filter() {
     let schema = create_test_schema();
     let mut data = get_minimal_form_data();
-    // Make age field invalid (below min)
+    // Make age field invalid (below min) and remove required name field
     data["illustration"]["insured"]["age"] = json!(0);
+    data["illustration"]["insured"].as_object_mut().unwrap().remove("name");
     let data_str = data.to_string();
 
     let eval = JSONEval::new(&schema, None, Some(&data_str))
         .expect("Failed to create JSONEval");
 
-    // Test path filtering - validate all fields first
+    // Test 1: Validate all fields - should find both errors
     let validation_all = eval.validate(&data_str, None, None)
         .expect("Validation failed");
     
-    // Verify path filter works by checking validation runs
-    println!("Validation with filter: has_error={}, errors={:?}", validation_all.has_error, validation_all.errors);
+    assert!(validation_all.has_error, "Should have validation errors");
+    assert_eq!(validation_all.errors.len(), 2, "Should have 2 errors (age and name)");
+    assert!(validation_all.errors.contains_key("illustration.insured.age"), 
+            "Should have error for age");
+    assert!(validation_all.errors.contains_key("illustration.insured.name"), 
+            "Should have error for name");
+    
+    // Test 2: Validate only age field using path filter
+    let paths = vec!["illustration.insured.age".to_string()];
+    let validation_filtered = eval.validate(&data_str, None, Some(&paths))
+        .expect("Validation failed");
+    
+    assert!(validation_filtered.has_error, "Should have validation error for age");
+    assert_eq!(validation_filtered.errors.len(), 1, "Should have only 1 error when filtered");
+    assert!(validation_filtered.errors.contains_key("illustration.insured.age"), 
+            "Should have error for age");
+    assert!(!validation_filtered.errors.contains_key("illustration.insured.name"), 
+            "Should not have error for name when filtered to age only");
 }
 
 #[test]
@@ -184,11 +232,17 @@ fn test_evaluate_dependents_basic() {
     assert!(result.is_array(), "Result should be an array");
     let changes = result.as_array().unwrap();
     
-    // Verify dependents were triggered
-    println!("Dependents result: {} changes", changes.len());
-    if changes.len() > 0 {
-        println!("First change: {:?}", changes[0]);
-    }
+    // Verify dependents were triggered - age should be recalculated
+    assert_eq!(changes.len(), 1, "Should have exactly 1 dependent change (age)");
+    
+    let age_change = &changes[0];
+    assert!(age_change["$ref"].as_str().unwrap().contains("age"),
+            "Dependent should be age field");
+    assert_eq!(age_change["transitive"].as_bool(), Some(false),
+               "Direct dependent should not be marked as transitive");
+    // Age calculation result should be present (value may be null or calculated)
+    assert!(age_change.get("value").is_some() || age_change.get("$field").is_some(),
+            "Change should have value or $field information");
 }
 
 #[test]
@@ -219,11 +273,26 @@ fn test_evaluate_dependents_with_clear() {
 
     let changes = result.as_array().unwrap();
     
-    // Verify dependents were triggered
-    println!("Clear dependents result: {} changes", changes.len());
-    for change in changes {
-        println!("Change: $ref={}, clear={:?}, value={:?}", 
-                 change["$ref"], change["clear"], change.get("value"));
+    // Verify clear dependents were triggered
+    assert!(changes.len() >= 1, "Should have at least 1 dependent triggered");
+    
+    // Find the coverage_type change
+    let coverage_type_change = changes.iter()
+        .find(|c| c["$ref"].as_str().unwrap().contains("coverage_type"))
+        .expect("Should have coverage_type in dependents");
+    
+    // Verify the change contains field information
+    assert!(coverage_type_change.get("$field").is_some(),
+            "coverage_type change should have $field information");
+    assert_eq!(coverage_type_change["transitive"].as_bool(), Some(false),
+               "coverage_type should be direct dependent (not transitive)");
+    
+    // The dependent should have clear logic in its dependents (coverage_details)
+    let field = &coverage_type_change["$field"];
+    if let Some(deps) = field.get("dependents") {
+        assert!(deps.is_array(), "Field should have dependents array");
+        assert!(deps.as_array().unwrap().len() > 0, 
+                "Field should have at least one dependent with clear logic");
     }
 }
 
@@ -257,14 +326,28 @@ fn test_evaluate_dependents_transitive() {
     let changes = result.as_array().unwrap();
     
     // Verify transitive dependents were triggered
-    println!("Transitive dependents result: {} changes", changes.len());
-    for (i, change) in changes.iter().enumerate() {
-        println!("Change {}: $ref={}, value={:?}, transitive={}", 
-                 i, change["$ref"], change.get("value"), change["transitive"]);
-    }
+    // occupation -> occupation_class (direct) -> risk_category (transitive)
+    assert!(changes.len() >= 2, "Should have at least 2 changes (occupation_class + risk_category)");
     
-    // Verify at least one dependent was triggered
-    assert!(changes.len() >= 1, "Should have at least 1 dependent change");
+    // Find occupation_class change (direct dependent)
+    let occ_class_change = changes.iter()
+        .find(|c| c["$ref"].as_str().unwrap().contains("occupation_class"))
+        .expect("Should have occupation_class in dependents");
+    
+    assert_eq!(occ_class_change["transitive"].as_bool(), Some(false),
+               "occupation_class should be direct dependent (not transitive)");
+    assert_eq!(occ_class_change.get("value").and_then(|v| v.as_str()), Some("3"),
+               "occupation_class should be set to '3' for MANUAL occupation");
+    
+    // Find risk_category change (transitive dependent)
+    let risk_change = changes.iter()
+        .find(|c| c["$ref"].as_str().unwrap().contains("risk_category"))
+        .expect("Should have risk_category in dependents");
+    
+    assert_eq!(risk_change["transitive"].as_bool(), Some(true),
+               "risk_category should be transitive dependent");
+    assert_eq!(risk_change.get("value").and_then(|v| v.as_str()), Some("High"),
+               "risk_category should be set to 'High' for occupation_class 3");
 }
 
 #[test]
