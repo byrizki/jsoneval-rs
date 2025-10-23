@@ -291,6 +291,208 @@ fn test_layout_metadata_parent_hidden() {
 }
 
 #[test]
+fn test_hide_layout_propagation() {
+    // Test that hideLayout.all is propagated to children of direct layout elements
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "field1": {
+                "type": "string",
+                "title": "Field 1"
+            },
+            "field2": {
+                "type": "string",
+                "title": "Field 2"
+            },
+            "form": {
+                "$layout": {
+                    "type": "VerticalLayout",
+                    "elements": [
+                        {
+                            "type": "HorizontalLayout",
+                            "hideLayout": {
+                                "all": true
+                            },
+                            "elements": [
+                                {
+                                    "$ref": "field1"
+                                },
+                                {
+                                    "type": "FlexLayout",
+                                    "elements": [
+                                        {
+                                            "$ref": "field2"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        }
+    });
+
+    let schema_str = serde_json::to_string(&schema).unwrap();
+    let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
+    
+    let data = json!({});
+    let data_str = serde_json::to_string(&data).unwrap();
+    eval.evaluate(&data_str, None).unwrap();
+    
+    let evaluated = eval.get_evaluated_schema(false);
+    
+    // Test 1: Parent HorizontalLayout has hideLayout.all = true
+    let parent_layout = evaluated
+        .pointer("/properties/form/$layout/elements/0")
+        .expect("Parent layout should exist");
+    
+    assert_eq!(
+        parent_layout.get("hideLayout")
+            .and_then(|h| h.get("all"))
+            .and_then(|v| v.as_bool()),
+        Some(true),
+        "Parent should have hideLayout.all = true"
+    );
+    
+    // Test 2: Field child should have condition.hidden = true
+    let field_child = evaluated
+        .pointer("/properties/form/$layout/elements/0/elements/0")
+        .expect("Field child should exist");
+    
+    assert_eq!(
+        field_child.get("condition")
+            .and_then(|c| c.get("hidden"))
+            .and_then(|v| v.as_bool()),
+        Some(true),
+        "Field child should have condition.hidden = true (inherited from parent)"
+    );
+    
+    assert_eq!(
+        field_child.get("$parentHide").and_then(|v| v.as_bool()),
+        Some(true),
+        "Field child should have $parentHide = true"
+    );
+    
+    // Test 3: Nested FlexLayout should have hideLayout.all = true
+    let nested_layout = evaluated
+        .pointer("/properties/form/$layout/elements/0/elements/1")
+        .expect("Nested layout should exist");
+    
+    assert_eq!(
+        nested_layout.get("hideLayout")
+            .and_then(|h| h.get("all"))
+            .and_then(|v| v.as_bool()),
+        Some(true),
+        "Nested layout should have hideLayout.all = true (inherited from parent)"
+    );
+    
+    // Test 4: Deeply nested field should have condition.hidden = true
+    let nested_field = evaluated
+        .pointer("/properties/form/$layout/elements/0/elements/1/elements/0")
+        .expect("Nested field should exist");
+    
+    assert_eq!(
+        nested_field.get("condition")
+            .and_then(|c| c.get("hidden"))
+            .and_then(|v| v.as_bool()),
+        Some(true),
+        "Nested field should have condition.hidden = true (inherited from parent)"
+    );
+    
+    assert_eq!(
+        nested_field.get("$parentHide").and_then(|v| v.as_bool()),
+        Some(true),
+        "Nested field should have $parentHide = true"
+    );
+}
+
+#[test]
+fn test_direct_layout_elements_have_metadata() {
+    // Test that direct layout elements (without $ref) also get metadata fields
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "field1": {
+                "type": "string",
+                "title": "Field 1"
+            },
+            "field2": {
+                "type": "string",
+                "title": "Field 2"
+            },
+            "form": {
+                "$layout": {
+                    "type": "VerticalLayout",
+                    "elements": [
+                        {
+                            "type": "FlexLayout",
+                            "elements": [
+                                {
+                                    "$ref": "field1"
+                                },
+                                {
+                                    "$ref": "field2"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        }
+    });
+
+    let schema_str = serde_json::to_string(&schema).unwrap();
+    let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
+    
+    let data = json!({});
+    let data_str = serde_json::to_string(&data).unwrap();
+    eval.evaluate(&data_str, None).unwrap();
+    
+    let evaluated = eval.get_evaluated_schema(false);
+    
+    // Check the FlexLayout container (which has no $ref)
+    let flex_container = evaluated
+        .pointer("/properties/form/$layout/elements/0")
+        .expect("FlexLayout container should exist");
+    
+    // Direct layout elements should have metadata fields
+    assert!(
+        flex_container.get("$parentHide").is_some(),
+        "Direct layout elements should have $parentHide"
+    );
+    
+    assert!(
+        flex_container.get("$path").is_some(),
+        "Direct layout elements should have $path"
+    );
+    
+    assert!(
+        flex_container.get("$fullpath").is_some(),
+        "Direct layout elements should have $fullpath"
+    );
+    
+    // Values should be defaults for non-$ref elements
+    assert_eq!(
+        flex_container.get("$parentHide").and_then(|v| v.as_bool()),
+        Some(false),
+        "$parentHide should default to false"
+    );
+    
+    assert_eq!(
+        flex_container.get("$path").and_then(|v| v.as_str()),
+        Some(""),
+        "$path should be empty string for non-$ref elements"
+    );
+    
+    assert_eq!(
+        flex_container.get("$fullpath").and_then(|v| v.as_str()),
+        Some(""),
+        "$fullpath should be empty string for non-$ref elements"
+    );
+}
+
+#[test]
 fn test_json_pointer_ref_conversion() {
     // Test that JSON pointer format $ref is converted to dotted notation in metadata
     let schema = json!({

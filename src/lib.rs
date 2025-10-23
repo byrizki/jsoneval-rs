@@ -1165,6 +1165,7 @@ impl JSONEval {
             let mut element_hidden = parent_hidden;
             let mut element_disabled = parent_disabled;
             
+            // Check condition field (used by field elements with $ref)
             if let Some(Value::Object(condition)) = map.get("condition") {
                 if let Some(Value::Bool(hidden)) = condition.get("hidden") {
                     element_hidden = element_hidden || *hidden;
@@ -1174,22 +1175,48 @@ impl JSONEval {
                 }
             }
             
-            // Update condition to include parent state
+            // Check hideLayout field (used by direct layout elements without $ref)
+            if let Some(Value::Object(hide_layout)) = map.get("hideLayout") {
+                // Check hideLayout.all
+                if let Some(Value::Bool(all_hidden)) = hide_layout.get("all") {
+                    if *all_hidden {
+                        element_hidden = true;
+                    }
+                }
+            }
+            
+            // Update condition to include parent state (for field elements)
             if parent_hidden || parent_disabled {
-                let mut condition = if let Some(Value::Object(c)) = map.get("condition") {
-                    c.clone()
-                } else {
-                    serde_json::Map::new()
-                };
-                
-                if parent_hidden {
-                    condition.insert("hidden".to_string(), Value::Bool(true));
+                // Update condition field if it exists or if this is a field element
+                if map.contains_key("condition") || map.contains_key("$ref") || map.contains_key("$fullpath") {
+                    let mut condition = if let Some(Value::Object(c)) = map.get("condition") {
+                        c.clone()
+                    } else {
+                        serde_json::Map::new()
+                    };
+                    
+                    if parent_hidden {
+                        condition.insert("hidden".to_string(), Value::Bool(true));
+                    }
+                    if parent_disabled {
+                        condition.insert("disabled".to_string(), Value::Bool(true));
+                    }
+                    
+                    map.insert("condition".to_string(), Value::Object(condition));
                 }
-                if parent_disabled {
-                    condition.insert("disabled".to_string(), Value::Bool(true));
-                }
                 
-                map.insert("condition".to_string(), Value::Object(condition));
+                // Update hideLayout for direct layout elements
+                if parent_hidden && (map.contains_key("hideLayout") || map.contains_key("type")) {
+                    let mut hide_layout = if let Some(Value::Object(h)) = map.get("hideLayout") {
+                        h.clone()
+                    } else {
+                        serde_json::Map::new()
+                    };
+                    
+                    // Set hideLayout.all to true when parent is hidden
+                    hide_layout.insert("all".to_string(), Value::Bool(true));
+                    map.insert("hideLayout".to_string(), Value::Object(hide_layout));
+                }
             }
             
             // Update $parentHide flag if element has it (came from $ref resolution)
@@ -1251,6 +1278,17 @@ impl JSONEval {
         
         // Then recursively resolve any nested elements arrays
         if let Value::Object(mut map) = resolved {
+            // Ensure all layout elements have metadata fields, even if they don't have $ref
+            if !map.contains_key("$parentHide") {
+                map.insert("$parentHide".to_string(), Value::Bool(false));
+            }
+            if !map.contains_key("$path") {
+                map.insert("$path".to_string(), Value::String(String::new()));
+            }
+            if !map.contains_key("$fullpath") {
+                map.insert("$fullpath".to_string(), Value::String(String::new()));
+            }
+            
             // Check if this object has an "elements" array
             if let Some(Value::Array(elements)) = map.get("elements") {
                 let mut resolved_nested = Vec::with_capacity(elements.len());
