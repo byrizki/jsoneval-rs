@@ -34,7 +34,7 @@
 
 ```toml
 [dependencies]
-json-eval-rs = "0.0.16"
+json-eval-rs = "0.0.17"
 ```
 
 ### C# / .NET
@@ -477,6 +477,12 @@ match eval.validate(data, None, None) {
 ```
 
 ## 📈 Changelog
+
+### [0.0.17] - 2025-10-23
+
+**Fixed**
+- [layout] Flag $path, $fullpath, hideLayout on direct layout mapping
+- [android] Fix multiple duplicate so files
 
 ### [0.0.16] - 2025-10-23
 
