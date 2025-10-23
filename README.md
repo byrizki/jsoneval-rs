@@ -34,7 +34,7 @@
 
 ```toml
 [dependencies]
-json-eval-rs = "0.0.19"
+json-eval-rs = "0.0.20"
 ```
 
 ### C# / .NET
@@ -478,10 +478,8 @@ match eval.validate(data, None, None) {
 
 ## 📈 Changelog
 
-### [0.0.19] - 2025-10-23
+### [0.0.20] - 2025-10-23
 
-**Fixed**
-- [validation] Fix minValue/maxValue validation for schemas without root properties wrapper
 
 **Added**
 - [validation] Support for custom evaluation rules with `$evaluation` expressions
@@ -508,6 +506,11 @@ match eval.validate(data, None, None) {
   - Validates only fields that have rules: O(fields_with_rules) vs O(all_fields)
   - Removed 40+ lines of runtime tree-walking code
   - Significant performance improvement for large schemas with few validated fields
+  
+### [0.0.19] - 2025-10-23
+
+**Fixed**
+- [validation] Fix minValue/maxValue validation for schemas without root properties wrapper
 
 ### [0.0.18] - 2025-10-23
 
