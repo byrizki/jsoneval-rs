@@ -472,23 +472,24 @@ fn test_direct_layout_elements_have_metadata() {
         "Direct layout elements should have $fullpath"
     );
     
-    // Values should be defaults for non-$ref elements
+    // Values should reflect position in layout hierarchy for non-$ref elements
     assert_eq!(
         flex_container.get("$parentHide").and_then(|v| v.as_bool()),
         Some(false),
         "$parentHide should default to false"
     );
     
+    // Direct layout elements should have path based on their position
     assert_eq!(
         flex_container.get("$path").and_then(|v| v.as_str()),
-        Some(""),
-        "$path should be empty string for non-$ref elements"
+        Some("0"),
+        "$path should be element index for direct layout elements"
     );
     
     assert_eq!(
         flex_container.get("$fullpath").and_then(|v| v.as_str()),
-        Some(""),
-        "$fullpath should be empty string for non-$ref elements"
+        Some("properties.form.$layout.elements.0"),
+        "$fullpath should show full path in layout hierarchy for direct layout elements"
     );
 }
 

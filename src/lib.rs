@@ -1258,10 +1258,21 @@ impl JSONEval {
             return;
         };
         
+        // Extract the parent path from normalized_path (e.g., "/properties/form/$layout/elements" -> "form.$layout")
+        let parent_path = normalized_path
+            .trim_start_matches('/')
+            .replace("/elements", "")
+            .replace('/', ".");
+        
         // Process elements (now we can borrow self immutably)
         let mut resolved_elements = Vec::with_capacity(elements.len());
-        for element in elements {
-            let resolved = self.resolve_element_ref_recursive(element);
+        for (index, element) in elements.iter().enumerate() {
+            let element_path = if parent_path.is_empty() {
+                format!("elements.{}", index)
+            } else {
+                format!("{}.elements.{}", parent_path, index)
+            };
+            let resolved = self.resolve_element_ref_recursive(element.clone(), &element_path);
             resolved_elements.push(resolved);
         }
         
@@ -1272,28 +1283,37 @@ impl JSONEval {
     }
     
     /// Recursively resolve $ref in an element and its nested elements
-    fn resolve_element_ref_recursive(&self, element: Value) -> Value {
+    /// path_context: The dotted path to the current element (e.g., "form.$layout.elements.0")
+    fn resolve_element_ref_recursive(&self, element: Value, path_context: &str) -> Value {
         // First resolve the current element's $ref
         let resolved = self.resolve_element_ref(element);
         
         // Then recursively resolve any nested elements arrays
         if let Value::Object(mut map) = resolved {
-            // Ensure all layout elements have metadata fields, even if they don't have $ref
+            // Ensure all layout elements have metadata fields
+            // For elements with $ref, these were already set by resolve_element_ref
+            // For direct layout elements without $ref, set them based on path_context
             if !map.contains_key("$parentHide") {
                 map.insert("$parentHide".to_string(), Value::Bool(false));
             }
-            if !map.contains_key("$path") {
-                map.insert("$path".to_string(), Value::String(String::new()));
-            }
+            
+            // Set path metadata for direct layout elements (without $ref)
             if !map.contains_key("$fullpath") {
-                map.insert("$fullpath".to_string(), Value::String(String::new()));
+                map.insert("$fullpath".to_string(), Value::String(path_context.to_string()));
+            }
+            
+            if !map.contains_key("$path") {
+                // Extract last segment from path_context
+                let last_segment = path_context.split('.').last().unwrap_or(path_context);
+                map.insert("$path".to_string(), Value::String(last_segment.to_string()));
             }
             
             // Check if this object has an "elements" array
             if let Some(Value::Array(elements)) = map.get("elements") {
                 let mut resolved_nested = Vec::with_capacity(elements.len());
-                for nested_element in elements {
-                    resolved_nested.push(self.resolve_element_ref_recursive(nested_element.clone()));
+                for (index, nested_element) in elements.iter().enumerate() {
+                    let nested_path = format!("{}.elements.{}", path_context, index);
+                    resolved_nested.push(self.resolve_element_ref_recursive(nested_element.clone(), &nested_path));
                 }
                 map.insert("elements".to_string(), Value::Array(resolved_nested));
             }

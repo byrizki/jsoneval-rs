@@ -139,3 +139,81 @@ fn test_zlw_like_structure_metadata() {
     
     println!("✅ ZLW-like structure test passed!");
 }
+
+#[test]
+fn test_direct_layout_path_values() {
+    // Test to verify actual path values for direct layout elements
+    let schema = json!({
+        "type": "object",
+        "illustration": {
+            "type": "object",
+            "properties": {
+                "insured": {
+                    "type": "object",
+                    "title": "Tertanggung",
+                    "$layout": {
+                        "type": "VerticalLayout",
+                        "elements": [
+                            {
+                                "$ref": "#/illustration/properties/insured/properties/ins_corrname"
+                            },
+                            {
+                                "type": "FlexLayout",
+                                "elements": [
+                                    {
+                                        "$ref": "#/illustration/properties/insured/properties/ins_dob"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "properties": {
+                        "ins_corrname": {
+                            "type": "string",
+                            "title": "Nama Tertanggung"
+                        },
+                        "ins_dob": {
+                            "type": "string",
+                            "title": "Tanggal Lahir"
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    let schema_str = serde_json::to_string(&schema).unwrap();
+    let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
+    
+    let data = json!({});
+    let data_str = serde_json::to_string(&data).unwrap();
+    eval.evaluate(&data_str, None).unwrap();
+    
+    let evaluated = eval.get_evaluated_schema(false);
+    
+    // Test FlexLayout container paths
+    let flex_layout = evaluated
+        .pointer("/illustration/properties/insured/$layout/elements/1")
+        .expect("FlexLayout should exist");
+    
+    let fullpath = flex_layout.get("$fullpath").and_then(|v| v.as_str()).unwrap();
+    let path = flex_layout.get("$path").and_then(|v| v.as_str()).unwrap();
+    
+    println!("FlexLayout $fullpath: {}", fullpath);
+    println!("FlexLayout $path: {}", path);
+    
+    // Verify FlexLayout has proper path
+    assert_eq!(
+        fullpath,
+        "illustration.properties.insured.$layout.elements.1",
+        "FlexLayout should have full hierarchical path"
+    );
+    
+    assert_eq!(
+        path,
+        "1",
+        "FlexLayout $path should be its index"
+    );
+    
+    println!("✅ Direct layout path values test passed!");
+}
