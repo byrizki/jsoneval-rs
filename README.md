@@ -34,7 +34,7 @@
 
 ```toml
 [dependencies]
-json-eval-rs = "0.0.20"
+json-eval-rs = "0.0.21"
 ```
 
 ### C# / .NET
@@ -478,8 +478,14 @@ match eval.validate(data, None, None) {
 
 ## 📈 Changelog
 
-### [0.0.20] - 2025-10-23
+### [0.0.21] - 2025-10-24
 
+**Changed**
+- [core] Refactored `evalDepends` to accept multiple evaluation paths and an option to trigger evaluation automatically from latest data
+- [core] Fixed date operations and `evalDepends` path
+- [android] Fixed JNI calls in `evaluateDependents`
+
+### [0.0.20] - 2025-10-23
 
 **Added**
 - [validation] Support for custom evaluation rules with `$evaluation` expressions

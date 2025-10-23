@@ -1,6 +1,6 @@
 {
   "name": "json-eval-rs-react-native-monorepo",
-  "version": "0.0.20",
+  "version": "0.0.21",
   "private": true,
   "description": "JSON Eval RS React Native Bindings - Monorepo",
   "workspaces": [
