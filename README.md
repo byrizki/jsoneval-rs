@@ -34,7 +34,7 @@
 
 ```toml
 [dependencies]
-json-eval-rs = "0.0.15"
+json-eval-rs = "0.0.16"
 ```
 
 ### C# / .NET
@@ -477,6 +477,11 @@ match eval.validate(data, None, None) {
 ```
 
 ## 📈 Changelog
+
+### [0.0.16] - 2025-10-23
+
+**Fixed**
+- [layout] Flag $parentHide, $path with dot annotation
 
 ### [0.0.15] - 2025-10-23
 
