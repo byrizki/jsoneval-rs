@@ -71,6 +71,10 @@ pub fn dot_notation_to_schema_pointer(path: &str) -> String {
     // First part is root-level field, rest are under /properties/
     let mut result = String::from("#/");
     for (i, part) in parts.iter().enumerate() {
+        if part.eq(&"properties") {
+            continue;
+        }
+
         if i > 0 {
             result.push_str("/properties/");
         }

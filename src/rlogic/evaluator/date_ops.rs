@@ -17,12 +17,43 @@ impl Evaluator {
     }
 
     /// Parse date string with fallback formats
+    /// Supports multiple common date formats including ISO 8601, US, European, and slash/dot separators
     #[inline]
     pub(super) fn parse_date(&self, date_str: &str) -> Option<chrono::NaiveDate> {
         use chrono::NaiveDate;
-        NaiveDate::parse_from_str(date_str, "%Y-%m-%dT%H:%M:%S%.fZ")
-            .ok()
-            .or_else(|| NaiveDate::parse_from_str(date_str, "%Y-%m-%d").ok())
+        
+        // Try formats in order of specificity (most specific first)
+        let formats = [
+            // ISO 8601 formats (most common)
+            "%Y-%m-%dT%H:%M:%S%.fZ",      // 2024-01-15T10:30:45.123Z
+            "%Y-%m-%dT%H:%M:%SZ",         // 2024-01-15T10:30:45Z
+            "%Y-%m-%dT%H:%M:%S%.f",       // 2024-01-15T10:30:45.123
+            "%Y-%m-%dT%H:%M:%S",          // 2024-01-15T10:30:45
+            "%Y-%m-%dT%H:%M:%S%z",        // 2024-01-15T10:30:45+00:00
+            "%Y-%m-%dT%H:%M:%S%#z",       // 2024-01-15T10:30:45+0000
+            // Date with time (space separator)
+            "%Y-%m-%d %H:%M:%S",          // 2024-01-15 10:30:45
+            "%Y-%m-%d %H:%M",             // 2024-01-15 10:30
+            // Simple date formats
+            "%Y-%m-%d",                   // 2024-01-15
+            "%Y/%m/%d",                   // 2024/01/15
+            "%Y.%m.%d",                   // 2024.01.15
+            // US format (MM/DD/YYYY)
+            "%m/%d/%Y",                   // 01/15/2024
+            "%m-%d-%Y",                   // 01-15-2024
+            // European format (DD/MM/YYYY)
+            "%d/%m/%Y",                   // 15/01/2024
+            "%d-%m-%Y",                   // 15-01-2024
+            "%d.%m.%Y",                   // 15.01.2024
+        ];
+        
+        for format in &formats {
+            if let Ok(date) = NaiveDate::parse_from_str(date_str, format) {
+                return Some(date);
+            }
+        }
+        
+        None
     }
 
     /// Extract date component (year/month/day) - ZERO-COPY
@@ -53,7 +84,7 @@ impl Evaluator {
     /// Evaluate Now operation
     pub(super) fn eval_now(&self) -> Result<Value, String> {
         let now = chrono::Utc::now();
-        Ok(Value::String(now.to_rfc3339()))
+        Ok(Value::String(now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)))
     }
 
     /// Evaluate Days operation - ZERO-COPY
