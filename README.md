@@ -34,7 +34,7 @@
 
 ```toml
 [dependencies]
-json-eval-rs = "0.0.18"
+json-eval-rs = "0.0.19"
 ```
 
 ### C# / .NET
@@ -477,6 +477,11 @@ match eval.validate(data, None, None) {
 ```
 
 ## 📈 Changelog
+
+### [0.0.19] - 2025-10-23
+
+**Fixed**
+- [validation] Fix minValue/maxValue validation for schemas without root properties wrapper
 
 ### [0.0.18] - 2025-10-23
 
