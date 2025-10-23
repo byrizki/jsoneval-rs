@@ -96,8 +96,6 @@ export interface EvaluateDependentsOptions {
   data: string | object;
   /** Optional context data (string or object) */
   context?: string | object;
-  /** Whether to recursively follow dependency chains */
-  nested?: boolean;
 }
 
 /**
@@ -344,7 +342,7 @@ export class JSONEval {
     this.throwIfDisposed();
     
     try {
-      const { changedPaths, data, context, nested = true } = options;
+      const { changedPaths, data, context } = options;
       const dataStr = this.toJsonString(data);
       const contextStr = context ? this.toJsonString(context) : null;
       
@@ -352,8 +350,7 @@ export class JSONEval {
         this.handle,
         changedPaths,
         dataStr,
-        contextStr,
-        nested
+        contextStr
       );
       return JSON.parse(resultStr);
     } catch (error) {

@@ -70,8 +70,6 @@ export interface EvaluateDependentsOptions {
     data: string | object;
     /** Optional context data (string or object) */
     context?: string | object;
-    /** Whether to recursively follow dependency chains */
-    nested?: boolean;
 }
 /**
  * Options for evaluating a subform
@@ -319,11 +317,12 @@ export declare class JSONEval {
     /**
      * Compile and run JSON logic from a JSON logic string
      * @param logicStr - JSON logic expression as a string or object
-     * @param data - Optional data to evaluate against (uses existing data if not provided)
+     * @param data - Optional JSON data string or object (null to use existing data)
+     * @param context - Optional context data string or object (null to use existing context)
      * @returns Promise resolving to the result of the evaluation
      * @throws {Error} If compilation or evaluation fails
      */
-    compileAndRunLogic(logicStr: string | object, data?: string | object): Promise<any>;
+    compileAndRunLogic(logicStr: string | object, data?: string | object, context?: string | object): Promise<any>;
     /**
      * Validate data against schema rules with optional path filtering
      * @param options - Validation options with optional path filtering

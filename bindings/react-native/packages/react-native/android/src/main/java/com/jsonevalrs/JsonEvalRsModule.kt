@@ -59,11 +59,10 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
         changedPaths: ReadableArray,
         data: String,
         context: String?,
-        nested: Boolean,
         promise: Promise
     ) {
         val pathsJson = arrayToJsonString(changedPaths)
-        nativeEvaluateDependentsAsync(handle, pathsJson, data, context ?: "", nested, promise)
+        nativeEvaluateDependentsAsync(handle, pathsJson, data, context ?: "", promise)
     }
 
     @ReactMethod
@@ -377,7 +376,6 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
         changedPathsJson: String,
         data: String,
         context: String,
-        nested: Boolean,
         promise: Promise
     )
     private external fun nativeGetEvaluatedSchemaAsync(handle: String, skipLayout: Boolean, promise: Promise)
