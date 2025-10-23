@@ -2,6 +2,7 @@
 
 use std::ffi::CStr;
 use std::os::raw::c_char;
+use serde_json::json;
 use super::types::{FFIResult, JSONEvalHandle};
 
 /// Evaluate a subform with data
