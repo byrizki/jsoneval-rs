@@ -1,6 +1,6 @@
 {
   "name": "@json-eval-rs/react-native",
-  "version": "0.0.17",
+  "version": "0.0.18",
   "description": "High-performance JSON Logic evaluator with schema validation for React Native",
   "main": "lib/commonjs/index",
   "module": "lib/module/index",
