@@ -305,7 +305,7 @@ namespace JsonEvalRs
             if (changedPaths == null || changedPaths.Length == 0)
                 throw new ArgumentNullException(nameof(changedPaths));
 
-            var changedPathsJson = System.Text.Json.JsonSerializer.Serialize(changedPaths);
+            var changedPathsJson = JsonConvert.SerializeObject(changedPaths);
 
 #if NETCOREAPP || NET5_0_OR_GREATER
             var result = Native.json_eval_evaluate_dependents(_handle, changedPathsJson, data, context, reEvaluate ? 1 : 0);

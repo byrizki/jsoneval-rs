@@ -196,18 +196,20 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeEvaluateDependentsAsync(
     jstring changedPath,
     jstring data,
     jstring context,
+    jboolean reEvaluate,
     jobject promise
 ) {
     std::string handleStr = jstringToString(env, handle);
     std::string pathStr = jstringToString(env, changedPath);
     std::string dataStr = jstringToString(env, data);
     std::string contextStr = jstringToString(env, context);
+    bool reEval = static_cast<bool>(reEvaluate);
     
     JavaVM* jvm;
     env->GetJavaVM(&jvm);
     jobject globalPromise = env->NewGlobalRef(promise);
     
-    JsonEvalBridge::evaluateDependentsAsync(handleStr, pathStr, dataStr, contextStr,
+    JsonEvalBridge::evaluateDependentsAsync(handleStr, pathStr, dataStr, contextStr, reEval,
         [jvm, globalPromise](const std::string& result, const std::string& error) {
             JNIEnv* env = nullptr;
             jvm->AttachCurrentThread(&env, nullptr);

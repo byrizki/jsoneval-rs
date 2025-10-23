@@ -22,7 +22,7 @@ extern "C" {
     FFIResult json_eval_evaluate(JSONEvalHandle* handle, const char* data, const char* context);
     FFIResult json_eval_get_evaluated_schema_msgpack(JSONEvalHandle* handle, bool skip_layout);
     FFIResult json_eval_validate(JSONEvalHandle* handle, const char* data, const char* context);
-    FFIResult json_eval_evaluate_dependents(JSONEvalHandle* handle, const char* changed_path, const char* data, const char* context);
+    FFIResult json_eval_evaluate_dependents(JSONEvalHandle* handle, const char* changed_path, const char* data, const char* context, int re_evaluate);
     FFIResult json_eval_get_evaluated_schema(JSONEvalHandle* handle, bool skip_layout);
     FFIResult json_eval_get_schema_value(JSONEvalHandle* handle);
     FFIResult json_eval_get_evaluated_schema_without_params(JSONEvalHandle* handle, bool skip_layout);
