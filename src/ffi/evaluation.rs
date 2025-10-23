@@ -94,11 +94,26 @@ pub unsafe extern "C" fn json_eval_validate(
             let result_json = serde_json::json!({
                 "hasError": validation_result.has_error,
                 "errors": validation_result.errors.iter().map(|(k, v)| {
-                    serde_json::json!({
+                    let mut error_obj = serde_json::json!({
                         "path": k,
-                        "ruleType": v.rule_type,
+                        "type": v.rule_type,
                         "message": v.message
-                    })
+                    });
+                    
+                    if let Some(code) = &v.code {
+                        error_obj["code"] = json!(code);
+                    }
+                    if let Some(pattern) = &v.pattern {
+                        error_obj["pattern"] = json!(pattern);
+                    }
+                    if let Some(field_value) = &v.field_value {
+                        error_obj["fieldValue"] = json!(field_value);
+                    }
+                    if let Some(data) = &v.data {
+                        error_obj["data"] = data.clone();
+                    }
+                    
+                    error_obj
                 }).collect::<Vec<_>>()
             });
             

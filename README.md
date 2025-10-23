@@ -483,6 +483,32 @@ match eval.validate(data, None, None) {
 **Fixed**
 - [validation] Fix minValue/maxValue validation for schemas without root properties wrapper
 
+**Added**
+- [validation] Support for custom evaluation rules with `$evaluation` expressions
+  - Rules can have `value.$evaluation` that dynamically evaluates validation logic
+  - Supports `message.$evaluation` for dynamic error messages
+  - Supports `data[key].$evaluation` for computed error data
+  - Supports array format: `"evaluation": [{ "code": "...", "message": "...", "$evaluation": {...} }]`
+  - Falsy evaluation results (false, 0, null, empty) trigger validation errors with type "evaluation"
+
+**Changed**
+- [validation] Enhanced ValidationError structure to match JS version with additional fields:
+  - `type` (renamed from `ruleType`, with backwards compatibility in C#)
+  - `code` - error code (defaults to `{path}.{ruleName}` if not specified)
+  - `pattern` - regex pattern (for pattern rule only)
+  - `fieldValue` - actual field value (for pattern rule only)
+  - `data` - additional data (for evaluation rules)
+- [bindings] Updated C# and FFI bindings to expose new validation error fields
+
+**Performance**
+- [validation] Major validation optimization: moved heavy operations to schema parse time
+  - Fields with rules are collected during schema parsing (one-time cost)
+  - Rules with `$evaluation` are evaluated during `evaluate()` so values are available in `evaluated_schema`
+  - No tree walking during validation - uses pre-parsed field list
+  - Validates only fields that have rules: O(fields_with_rules) vs O(all_fields)
+  - Removed 40+ lines of runtime tree-walking code
+  - Significant performance improvement for large schemas with few validated fields
+
 ### [0.0.18] - 2025-10-23
 
 **Fixed**

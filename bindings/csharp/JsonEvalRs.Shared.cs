@@ -12,11 +12,31 @@ namespace JsonEvalRs
         [JsonProperty("path")]
         public string Path { get; set; } = string.Empty;
 
-        [JsonProperty("ruleType")]
-        public string RuleType { get; set; } = string.Empty;
+        [JsonProperty("type")]
+        public string Type { get; set; } = string.Empty;
 
         [JsonProperty("message")]
         public string Message { get; set; } = string.Empty;
+
+        [JsonProperty("code")]
+        public string? Code { get; set; }
+
+        [JsonProperty("pattern")]
+        public string? Pattern { get; set; }
+
+        [JsonProperty("fieldValue")]
+        public string? FieldValue { get; set; }
+
+        [JsonProperty("data")]
+        public object? Data { get; set; }
+        
+        // Backwards compatibility - RuleType maps to Type
+        [JsonIgnore]
+        public string RuleType 
+        {
+            get => Type;
+            set => Type = value;
+        }
     }
 
     /// <summary>

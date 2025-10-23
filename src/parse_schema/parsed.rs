@@ -23,6 +23,7 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
         dependents: &mut IndexMap<String, Vec<crate::DependentItem>>,
         options_templates: &mut Vec<(String, String, String)>,
         subforms: &mut Vec<(String, serde_json::Map<String, Value>, Value)>,
+        fields_with_rules: &mut Vec<String>,
     ) -> Result<(), String> {
         match value {
             Value::Object(map) => {
@@ -100,6 +101,22 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                     if let Some(Value::Array(_)) = layout_obj.get("elements") {
                         let layout_elements_path = format!("{}/$layout/elements", path);
                         layout_paths.push(layout_elements_path);
+                    }
+                }
+                
+                // Check for rules object - collect field path for efficient validation
+                if map.contains_key("rules") && !path.is_empty() && !path.starts_with("#/$") {
+                    // Convert JSON pointer path to dotted notation for validation
+                    // E.g., "#/properties/form/properties/name" -> "form.name"
+                    let field_path = path
+                        .trim_start_matches('#')
+                        .replace("/properties/", ".")
+                        .trim_start_matches('/')
+                        .trim_start_matches('.')
+                        .to_string();
+                    
+                    if !field_path.is_empty() && !field_path.starts_with("$") {
+                        fields_with_rules.push(field_path);
                     }
                 }
 
@@ -210,7 +227,7 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                     }
                     
                     // Recurse into all children (including $ keys like $table, $datas, etc.)
-                    walk(val, &next_path, engine, evaluations, tables, deps, value_fields, layout_paths, dependents, options_templates, subforms)?;
+                    walk(val, &next_path, engine, evaluations, tables, deps, value_fields, layout_paths, dependents, options_templates, subforms, fields_with_rules)?;
                 })
             }
             Value::Array(arr) => Ok(for (index, item) in arr.iter().enumerate() {
@@ -219,7 +236,7 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                 } else {
                     format!("{path}/{index}")
                 };
-                walk(item, &next_path, engine, evaluations, tables, deps, value_fields, layout_paths, dependents, options_templates, subforms)?;
+                walk(item, &next_path, engine, evaluations, tables, deps, value_fields, layout_paths, dependents, options_templates, subforms, fields_with_rules)?;
             }),
             _ => Ok(()),
         }
@@ -274,6 +291,8 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
     let engine = Arc::get_mut(&mut parsed.engine)
         .ok_or("Cannot get mutable reference to engine - ParsedSchema is shared")?;
     
+    let mut fields_with_rules = Vec::new();
+    
     walk(
         &parsed.schema,
         "#",
@@ -286,6 +305,7 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
         &mut dependents_evaluations,
         &mut options_templates,
         &mut subforms_data,
+        &mut fields_with_rules,
     )?;
     
     parsed.evaluations = evaluations;
@@ -294,6 +314,7 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
     parsed.layout_paths = layout_paths;
     parsed.dependents_evaluations = dependents_evaluations;
     parsed.options_templates = options_templates;
+    parsed.fields_with_rules = fields_with_rules;
     
     // Build subforms from collected data (after walk completes)
     parsed.subforms = build_subforms_from_data_parsed(subforms_data, parsed)?;

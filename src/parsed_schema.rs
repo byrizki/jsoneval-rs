@@ -57,6 +57,9 @@ pub struct ParsedSchema {
     /// Rules: evaluations with "/rules/" in path
     pub rules_evaluations: Vec<String>,
     
+    /// Fields with rules: dotted paths of all fields that have rules (for efficient validation)
+    pub fields_with_rules: Vec<String>,
+    
     /// Others: all other evaluations not in sorted_evaluations (for evaluated_schema output)
     pub others_evaluations: Vec<String>,
     
@@ -113,6 +116,7 @@ impl ParsedSchema {
             sorted_evaluations: Vec::new(),
             dependents_evaluations: IndexMap::new(),
             rules_evaluations: Vec::new(),
+            fields_with_rules: Vec::new(),
             others_evaluations: Vec::new(),
             value_evaluations: Vec::new(),
             layout_paths: Vec::new(),

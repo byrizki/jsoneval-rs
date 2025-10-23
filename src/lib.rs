@@ -115,6 +115,8 @@ pub struct JSONEval {
     pub dependents_evaluations: IndexMap<String, Vec<DependentItem>>,
     /// Rules: evaluations with "/rules/" in path
     pub rules_evaluations: Vec<String>,
+    /// Fields with rules: dotted paths of all fields that have rules (for efficient validation)
+    pub fields_with_rules: Vec<String>,
     /// Others: all other evaluations not in sorted_evaluations (for evaluated_schema output)
     pub others_evaluations: Vec<String>,
     /// Value: evaluations ending with ".value" in path
@@ -151,6 +153,7 @@ impl Clone for JSONEval {
             sorted_evaluations: self.sorted_evaluations.clone(),
             dependents_evaluations: self.dependents_evaluations.clone(),
             rules_evaluations: self.rules_evaluations.clone(),
+            fields_with_rules: self.fields_with_rules.clone(),
             others_evaluations: self.others_evaluations.clone(),
             value_evaluations: self.value_evaluations.clone(),
             layout_paths: self.layout_paths.clone(),
@@ -190,6 +193,7 @@ impl JSONEval {
             sorted_evaluations: Vec::new(),
             dependents_evaluations: IndexMap::new(),
             rules_evaluations: Vec::new(),
+            fields_with_rules: Vec::new(),
             others_evaluations: Vec::new(),
             value_evaluations: Vec::new(),
             layout_paths: Vec::new(),
@@ -247,6 +251,7 @@ impl JSONEval {
             sorted_evaluations: Vec::new(),
             dependents_evaluations: IndexMap::new(),
             rules_evaluations: Vec::new(),
+            fields_with_rules: Vec::new(),
             others_evaluations: Vec::new(),
             value_evaluations: Vec::new(),
             layout_paths: Vec::new(),
@@ -330,6 +335,7 @@ impl JSONEval {
             sorted_evaluations: parsed.sorted_evaluations.clone(),
             dependents_evaluations: parsed.dependents_evaluations.clone(),
             rules_evaluations: parsed.rules_evaluations.clone(),
+            fields_with_rules: parsed.fields_with_rules.clone(),
             others_evaluations: parsed.others_evaluations.clone(),
             value_evaluations: parsed.value_evaluations.clone(),
             layout_paths: parsed.layout_paths.clone(),
@@ -365,6 +371,7 @@ impl JSONEval {
         self.engine = Arc::new(RLogic::new());
         self.dependents_evaluations.clear();
         self.rules_evaluations.clear();
+        self.fields_with_rules.clear();
         self.others_evaluations.clear();
         self.value_evaluations.clear();
         self.layout_paths.clear();
@@ -415,6 +422,7 @@ impl JSONEval {
         self.engine = Arc::new(RLogic::new());
         self.dependents_evaluations.clear();
         self.rules_evaluations.clear();
+        self.fields_with_rules.clear();
         self.others_evaluations.clear();
         self.value_evaluations.clear();
         self.layout_paths.clear();
@@ -465,6 +473,7 @@ impl JSONEval {
         self.sorted_evaluations = parsed.sorted_evaluations.clone();
         self.dependents_evaluations = parsed.dependents_evaluations.clone();
         self.rules_evaluations = parsed.rules_evaluations.clone();
+        self.fields_with_rules = parsed.fields_with_rules.clone();
         self.others_evaluations = parsed.others_evaluations.clone();
         self.value_evaluations = parsed.value_evaluations.clone();
         self.layout_paths = parsed.layout_paths.clone();
@@ -916,6 +925,7 @@ impl JSONEval {
         self.evaluate_options_templates();
         
         // Step 2: Evaluate "rules" and "others" categories with caching
+        // Rules are evaluated here so their values are available in evaluated_schema
         let combined_count = self.rules_evaluations.len() + self.others_evaluations.len();
         if combined_count == 0 {
             return;
@@ -952,6 +962,8 @@ impl JSONEval {
             // Write results to evaluated_schema
             for (result_path, value) in combined_results.into_inner().unwrap() {
                 if let Some(pointer_value) = self.evaluated_schema.pointer_mut(&result_path) {
+                    // Special handling for rules with $evaluation
+                    // This includes both direct rules and array items: /rules/evaluation/0/$evaluation
                     if !result_path.starts_with("$") && result_path.contains("/rules/") && !result_path.ends_with("/value") {
                         match pointer_value.as_object_mut() {
                             Some(pointer_obj) => {
@@ -1581,8 +1593,18 @@ impl JSONEval {
         
         let mut errors: IndexMap<String, ValidationError> = IndexMap::new();
         
-        // Walk through schema and validate rules
-        self.validate_object(&self.evaluated_schema, &data_value, "", &mut errors, paths);
+        // Use pre-parsed fields_with_rules from schema parsing (no runtime collection needed)
+        // This list was collected during schema parse and contains all fields with rules
+        for field_path in &self.fields_with_rules {
+            // Check if we should validate this path (path filtering)
+            if let Some(filter_paths) = paths {
+                if !filter_paths.is_empty() && !filter_paths.iter().any(|p| field_path.starts_with(p.as_str()) || p.starts_with(field_path.as_str())) {
+                    continue;
+                }
+            }
+            
+            self.validate_field(field_path, &data_value, &mut errors);
+        }
         
         let has_error = !errors.is_empty();
         
@@ -1592,82 +1614,84 @@ impl JSONEval {
         })
     }
     
-    /// Recursively validate an object against its schema
-    fn validate_object(
+    /// Validate a single field that has rules
+    fn validate_field(
         &self,
-        schema: &Value,
+        field_path: &str,
         data: &Value,
-        current_path: &str,
-        errors: &mut IndexMap<String, ValidationError>,
-        filter_paths: Option<&[String]>
+        errors: &mut IndexMap<String, ValidationError>
     ) {
-        if let Value::Object(schema_map) = schema {
-            // Check if this field has rules
-            if let Some(Value::Object(rules)) = schema_map.get("rules") {
-                // Check if we should validate this path
-                if let Some(paths) = filter_paths {
-                    if !paths.is_empty() && !paths.iter().any(|p| current_path.starts_with(p) || p.starts_with(current_path)) {
-                        return;
-                    }
+        // Skip if already has error
+        if errors.contains_key(field_path) {
+            return;
+        }
+        
+        // Get schema for this field
+        let schema_path = path_utils::dot_notation_to_schema_pointer(field_path);
+        
+        // Remove leading "#" from path for pointer lookup
+        let pointer_path = schema_path.trim_start_matches('#');
+        
+        // Try to get schema, if not found, try with /properties/ prefix for standard JSON Schema
+        let field_schema = match self.evaluated_schema.pointer(pointer_path) {
+            Some(s) => s,
+            None => {
+                // Try with /properties/ prefix (for standard JSON Schema format)
+                let alt_path = format!("/properties{}", pointer_path);
+                match self.evaluated_schema.pointer(&alt_path) {
+                    Some(s) => s,
+                    None => return,
                 }
-                
-                // Check if field is hidden (skip validation if hidden)
-                if let Some(Value::Object(condition)) = schema_map.get("condition") {
-                    if let Some(Value::Bool(true)) = condition.get("hidden") {
-                        return;
-                    }
-                }
-                
-                // Validate each rule
-                for (rule_name, rule_value) in rules {
-                    self.validate_rule(
-                        current_path,
-                        rule_name,
-                        rule_value,
-                        data,
-                        schema_map,
-                        errors
-                    );
+            }
+        };
+        
+        // Check if field is hidden (skip validation)
+        if let Value::Object(schema_map) = field_schema {
+            if let Some(Value::Object(condition)) = schema_map.get("condition") {
+                if let Some(Value::Bool(true)) = condition.get("hidden") {
+                    return;
                 }
             }
             
-            // Recurse into properties
-            if let Some(Value::Object(properties)) = schema_map.get("properties") {
-                for (prop_name, prop_schema) in properties {
-                    let next_path = if current_path.is_empty() {
-                        prop_name.clone()
-                    } else {
-                        format!("{}.{}", current_path, prop_name)
-                    };
-                    
-                    let prop_data = if let Value::Object(data_map) = data {
-                        data_map.get(prop_name).unwrap_or(&Value::Null)
-                    } else {
-                        &Value::Null
-                    };
-                    
-                    self.validate_object(prop_schema, prop_data, &next_path, errors, filter_paths);
-                }
-            } else if current_path.is_empty() {
-                // Handle root-level fields (schema without 'properties' wrapper)
-                // Look for fields that might be properties (not meta fields like $schema, $params)
-                for (key, value) in schema_map {
-                    // Skip meta fields that start with $ or are known non-property keys
-                    if key.starts_with('$') || key == "type" || key == "title" || key == "rules" {
-                        continue;
-                    }
-                    
-                    // This is likely a property field
-                    let prop_data = if let Value::Object(data_map) = data {
-                        data_map.get(key).unwrap_or(&Value::Null)
-                    } else {
-                        &Value::Null
-                    };
-                    
-                    self.validate_object(value, prop_data, key, errors, filter_paths);
-                }
+            // Get rules object
+            let rules = match schema_map.get("rules") {
+                Some(Value::Object(r)) => r,
+                _ => return,
+            };
+            
+            // Get field data
+            let field_data = self.get_field_data(field_path, data);
+            
+            // Validate each rule
+            for (rule_name, rule_value) in rules {
+                self.validate_rule(
+                    field_path,
+                    rule_name,
+                    rule_value,
+                    &field_data,
+                    schema_map,
+                    field_schema,
+                    errors
+                );
             }
         }
+    }
+    
+    /// Get data value for a field path
+    fn get_field_data(&self, field_path: &str, data: &Value) -> Value {
+        let parts: Vec<&str> = field_path.split('.').collect();
+        let mut current = data;
+        
+        for part in parts {
+            match current {
+                Value::Object(map) => {
+                    current = map.get(part).unwrap_or(&Value::Null);
+                }
+                _ => return Value::Null,
+            }
+        }
+        
+        current.clone()
     }
     
     /// Validate a single rule
@@ -1677,7 +1701,8 @@ impl JSONEval {
         rule_name: &str,
         rule_value: &Value,
         field_data: &Value,
-        schema: &serde_json::Map<String, Value>,
+        schema_map: &serde_json::Map<String, Value>,
+        _schema: &Value,
         errors: &mut IndexMap<String, ValidationError>
     ) {
         // Skip if already has error
@@ -1686,23 +1711,75 @@ impl JSONEval {
         }
         
         // Check if disabled
-        if let Some(Value::Object(condition)) = schema.get("condition") {
+        if let Some(Value::Object(condition)) = schema_map.get("condition") {
             if let Some(Value::Bool(true)) = condition.get("disabled") {
                 return;
             }
         }
         
-        // Extract rule object
-        let (rule_active, rule_message) = match rule_value {
+        // Get the evaluated rule from evaluated_schema (which has $evaluation already processed)
+        // Convert field_path to schema path
+        let schema_path = path_utils::dot_notation_to_schema_pointer(field_path);
+        let rule_path = format!("{}/rules/{}", schema_path.trim_start_matches('#'), rule_name);
+        
+        // Look up the evaluated rule from evaluated_schema
+        let evaluated_rule = if let Some(eval_rule) = self.evaluated_schema.pointer(&rule_path) {
+            eval_rule.clone()
+        } else {
+            rule_value.clone()
+        };
+        
+        // Extract rule object (after evaluation)
+        let (rule_active, rule_message, rule_code, rule_data) = match &evaluated_rule {
             Value::Object(rule_obj) => {
                 let active = rule_obj.get("value").unwrap_or(&Value::Bool(false));
-                let message = rule_obj.get("message")
-                    .and_then(|m| m.as_str())
-                    .unwrap_or("Validation failed");
-                (active.clone(), message.to_string())
+                
+                // Handle message - could be string or object with "value"
+                let message = match rule_obj.get("message") {
+                    Some(Value::String(s)) => s.clone(),
+                    Some(Value::Object(msg_obj)) if msg_obj.contains_key("value") => {
+                        msg_obj.get("value")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("Validation failed")
+                            .to_string()
+                    }
+                    Some(msg_val) => msg_val.as_str().unwrap_or("Validation failed").to_string(),
+                    None => "Validation failed".to_string()
+                };
+                
+                let code = rule_obj.get("code")
+                    .and_then(|c| c.as_str())
+                    .map(|s| s.to_string());
+                
+                // Handle data - extract "value" from objects with $evaluation
+                let data = rule_obj.get("data").map(|d| {
+                    if let Value::Object(data_obj) = d {
+                        let mut cleaned_data = serde_json::Map::new();
+                        for (key, value) in data_obj {
+                            // If value is an object with only "value" key, extract it
+                            if let Value::Object(val_obj) = value {
+                                if val_obj.len() == 1 && val_obj.contains_key("value") {
+                                    cleaned_data.insert(key.clone(), val_obj["value"].clone());
+                                } else {
+                                    cleaned_data.insert(key.clone(), value.clone());
+                                }
+                            } else {
+                                cleaned_data.insert(key.clone(), value.clone());
+                            }
+                        }
+                        Value::Object(cleaned_data)
+                    } else {
+                        d.clone()
+                    }
+                });
+                
+                (active.clone(), message, code, data)
             }
-            _ => (rule_value.clone(), "Validation failed".to_string())
+            _ => (evaluated_rule.clone(), "Validation failed".to_string(), None, None)
         };
+        
+        // Generate default code if not provided
+        let error_code = rule_code.or_else(|| Some(format!("{}.{}", field_path, rule_name)));
         
         let is_empty = matches!(field_data, Value::Null) || 
                        (field_data.is_string() && field_data.as_str().unwrap_or("").is_empty()) ||
@@ -1715,6 +1792,10 @@ impl JSONEval {
                         errors.insert(field_path.to_string(), ValidationError {
                             rule_type: "required".to_string(),
                             message: rule_message,
+                            code: error_code.clone(),
+                            pattern: None,
+                            field_value: None,
+                            data: None,
                         });
                     }
                 }
@@ -1731,6 +1812,10 @@ impl JSONEval {
                             errors.insert(field_path.to_string(), ValidationError {
                                 rule_type: "minLength".to_string(),
                                 message: rule_message,
+                                code: error_code.clone(),
+                                pattern: None,
+                                field_value: None,
+                                data: None,
                             });
                         }
                     }
@@ -1748,6 +1833,10 @@ impl JSONEval {
                             errors.insert(field_path.to_string(), ValidationError {
                                 rule_type: "maxLength".to_string(),
                                 message: rule_message,
+                                code: error_code.clone(),
+                                pattern: None,
+                                field_value: None,
+                                data: None,
                             });
                         }
                     }
@@ -1761,6 +1850,10 @@ impl JSONEval {
                                 errors.insert(field_path.to_string(), ValidationError {
                                     rule_type: "minValue".to_string(),
                                     message: rule_message,
+                                    code: error_code.clone(),
+                                    pattern: None,
+                                    field_value: None,
+                                    data: None,
                                 });
                             }
                         }
@@ -1775,6 +1868,10 @@ impl JSONEval {
                                 errors.insert(field_path.to_string(), ValidationError {
                                     rule_type: "maxValue".to_string(),
                                     message: rule_message,
+                                    code: error_code.clone(),
+                                    pattern: None,
+                                    field_value: None,
+                                    data: None,
                                 });
                             }
                         }
@@ -1790,6 +1887,10 @@ impl JSONEval {
                                     errors.insert(field_path.to_string(), ValidationError {
                                         rule_type: "pattern".to_string(),
                                         message: rule_message,
+                                        code: error_code.clone(),
+                                        pattern: Some(pattern.to_string()),
+                                        field_value: Some(text.to_string()),
+                                        data: None,
                                     });
                                 }
                             }
@@ -1797,7 +1898,81 @@ impl JSONEval {
                     }
                 }
             }
-            _ => {}
+            "evaluation" => {
+                // Handle array of evaluation rules
+                // Format: "evaluation": [{ "code": "...", "message": "...", "$evaluation": {...} }]
+                if let Value::Array(eval_array) = &evaluated_rule {
+                    for (idx, eval_item) in eval_array.iter().enumerate() {
+                        if let Value::Object(eval_obj) = eval_item {
+                            // Get the evaluated value (should be in "value" key after evaluation)
+                            let eval_result = eval_obj.get("value").unwrap_or(&Value::Bool(true));
+                            
+                            // Check if result is falsy
+                            let is_falsy = match eval_result {
+                                Value::Bool(false) => true,
+                                Value::Null => true,
+                                Value::Number(n) => n.as_f64() == Some(0.0),
+                                Value::String(s) => s.is_empty(),
+                                Value::Array(a) => a.is_empty(),
+                                _ => false,
+                            };
+                            
+                            if is_falsy {
+                                let eval_code = eval_obj.get("code")
+                                    .and_then(|c| c.as_str())
+                                    .map(|s| s.to_string())
+                                    .or_else(|| Some(format!("{}.evaluation.{}", field_path, idx)));
+                                
+                                let eval_message = eval_obj.get("message")
+                                    .and_then(|m| m.as_str())
+                                    .unwrap_or("Validation failed")
+                                    .to_string();
+                                
+                                let eval_data = eval_obj.get("data").cloned();
+                                
+                                errors.insert(field_path.to_string(), ValidationError {
+                                    rule_type: "evaluation".to_string(),
+                                    message: eval_message,
+                                    code: eval_code,
+                                    pattern: None,
+                                    field_value: None,
+                                    data: eval_data,
+                                });
+                                
+                                // Stop at first failure
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {
+                // Custom evaluation rules
+                // In JS: if (!opt.rule.value) then error
+                // This handles rules with $evaluation that return false/falsy values
+                if !is_empty {
+                    // Check if rule_active is falsy (false, 0, null, empty string, empty array)
+                    let is_falsy = match &rule_active {
+                        Value::Bool(false) => true,
+                        Value::Null => true,
+                        Value::Number(n) => n.as_f64() == Some(0.0),
+                        Value::String(s) => s.is_empty(),
+                        Value::Array(a) => a.is_empty(),
+                        _ => false,
+                    };
+                    
+                    if is_falsy {
+                        errors.insert(field_path.to_string(), ValidationError {
+                            rule_type: "evaluation".to_string(),
+                            message: rule_message,
+                            code: error_code.clone(),
+                            pattern: None,
+                            field_value: None,
+                            data: rule_data,
+                        });
+                    }
+                }
+            }
         }
     }
 }
@@ -1805,8 +1980,17 @@ impl JSONEval {
 /// Validation error for a field
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidationError {
+    #[serde(rename = "type")]
     pub rule_type: String,
     pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub field_value: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<Value>,
 }
 
 /// Result of validation
