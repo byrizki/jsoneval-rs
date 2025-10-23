@@ -35,14 +35,15 @@ impl JSONEval {
     pub fn evaluate_dependents_subform(
         &mut self,
         subform_path: &str,
-        changed_path: &str,
+        changed_paths: &[String],
         data: Option<&str>,
         context: Option<&str>,
+        re_evaluate: bool,
     ) -> Result<Value, String> {
         let subform = self.subforms.get_mut(subform_path)
             .ok_or_else(|| format!("Subform not found: {}", subform_path))?;
         
-        subform.evaluate_dependents(changed_path, data, context)
+        subform.evaluate_dependents(changed_paths, data, context, re_evaluate)
     }
     
     /// Resolve layout for subform

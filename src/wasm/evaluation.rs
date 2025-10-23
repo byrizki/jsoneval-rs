@@ -83,21 +83,31 @@ impl JSONEvalWasm {
 
     /// Evaluate dependents and return as JavaScript object
     /// 
-    /// @param changedPath - Path of the field that changed
+    /// @param changedPathsJson - JSON array of field paths that changed
     /// @param data - Optional updated JSON data string
     /// @param context - Optional context data JSON string
+    /// @param reEvaluate - If true, performs full evaluation after processing dependents
     /// @returns Array of dependent change objects as JavaScript object
     #[wasm_bindgen(js_name = evaluateDependentsJS)]
     pub fn evaluate_dependents_js(
         &mut self,
-        changed_path: &str,
+        changed_paths_json: &str,
         data: Option<String>,
         context: Option<String>,
+        re_evaluate: bool,
     ) -> Result<JsValue, JsValue> {
+        // Parse JSON array of paths
+        let paths: Vec<String> = serde_json::from_str(changed_paths_json)
+            .map_err(|e| {
+                let error_msg = format!("Failed to parse paths JSON: {}", e);
+                console_log(&format!("[WASM ERROR] {}", error_msg));
+                JsValue::from_str(&error_msg)
+            })?;
+        
         let data_str = data.as_deref();
         let ctx = context.as_deref();
         
-        match self.inner.evaluate_dependents(changed_path, data_str, ctx) {
+        match self.inner.evaluate_dependents(&paths, data_str, ctx, re_evaluate) {
             Ok(result) => serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| {
                     let error_msg = format!("Failed to serialize dependents: {}", e);

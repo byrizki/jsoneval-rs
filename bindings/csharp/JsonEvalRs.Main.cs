@@ -290,24 +290,27 @@ namespace JsonEvalRs
         }
 
         /// <summary>
-        /// Re-evaluates fields that depend on the changed path (processes transitively)
+        /// Re-evaluates fields that depend on the changed paths (processes transitively)
         /// </summary>
-        /// <param name="changedPath">Field path that changed (e.g., "#/properties/field")</param>
+        /// <param name="changedPaths">Array of field paths that changed (e.g., ["#/properties/field1", "field2"])</param>
         /// <param name="data">Optional updated JSON data string (null to use existing data)</param>
         /// <param name="context">Optional context data</param>
+        /// <param name="reEvaluate">If true, performs full evaluation after processing dependents</param>
         /// <returns>Array of dependent change objects as JArray</returns>
-        public JArray EvaluateDependents(string changedPath, string? data = null, 
-            string? context = null)
+        public JArray EvaluateDependents(string[] changedPaths, string? data = null, 
+            string? context = null, bool reEvaluate = false)
         {
             ThrowIfDisposed();
 
-            if (string.IsNullOrEmpty(changedPath))
-                throw new ArgumentNullException(nameof(changedPath));
+            if (changedPaths == null || changedPaths.Length == 0)
+                throw new ArgumentNullException(nameof(changedPaths));
+
+            var changedPathsJson = System.Text.Json.JsonSerializer.Serialize(changedPaths);
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_evaluate_dependents(_handle, changedPath, data, context);
+            var result = Native.json_eval_evaluate_dependents(_handle, changedPathsJson, data, context, reEvaluate ? 1 : 0);
 #else
-            var result = Native.json_eval_evaluate_dependents(_handle, Native.ToUTF8Bytes(changedPath), Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context));
+            var result = Native.json_eval_evaluate_dependents(_handle, Native.ToUTF8Bytes(changedPathsJson)!, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), reEvaluate ? 1 : 0);
 #endif
             return ProcessResultAsArray(result);
         }

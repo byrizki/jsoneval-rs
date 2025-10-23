@@ -38,9 +38,10 @@ export interface EvaluateOptions {
 }
 
 export interface EvaluateDependentsOptions {
-  changedPath: string;
+  changedPaths: string[];
   data?: any;
   context?: any;
+  reEvaluate?: boolean;
 }
 
 export interface GetEvaluatedSchemaOptions {

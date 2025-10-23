@@ -93,9 +93,11 @@ export interface EvaluateDependentsOptions {
   /** Array of field paths that changed */
   changedPaths: string[];
   /** Updated JSON data (string or object) */
-  data: string | object;
+  data?: string | object;
   /** Optional context data (string or object) */
   context?: string | object;
+  /** If true, performs full evaluation after processing dependents */
+  reEvaluate?: boolean;
 }
 
 /**
@@ -333,24 +335,26 @@ export class JSONEval {
   }
 
   /**
-   * Re-evaluate fields that depend on changed paths
+   * Re-evaluate fields that depend on a changed path
    * @param options - Dependent evaluation options
-   * @returns Promise resolving to updated evaluated schema object
+   * @returns Promise resolving to array of dependent field changes
    * @throws {Error} If evaluation fails
    */
   async evaluateDependents(options: EvaluateDependentsOptions): Promise<any> {
     this.throwIfDisposed();
     
     try {
-      const { changedPaths, data, context } = options;
-      const dataStr = this.toJsonString(data);
+      const { changedPaths, data, context, reEvaluate = false } = options;
+      const changedPathsJson = JSON.stringify(changedPaths);
+      const dataStr = data ? this.toJsonString(data) : null;
       const contextStr = context ? this.toJsonString(context) : null;
       
       const resultStr = await JsonEvalRs.evaluateDependents(
         this.handle,
-        changedPaths,
+        changedPathsJson,
         dataStr,
-        contextStr
+        contextStr,
+        reEvaluate
       );
       return JSON.parse(resultStr);
     } catch (error) {

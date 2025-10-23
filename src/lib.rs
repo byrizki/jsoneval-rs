@@ -548,16 +548,23 @@ impl JSONEval {
     ///
     /// A `Result` indicating success or an error message.
     pub fn evaluate(&mut self, data: &str, context: Option<&str>) -> Result<(), String> {
-        // Acquire lock for synchronous execution
-        let _lock = self.eval_lock.lock().unwrap();
-        
         // Use SIMD-accelerated JSON parsing
         let data: Value = json_parser::parse_json_str(data)?;
         let context: Value = json_parser::parse_json_str(context.unwrap_or("{}"))?;
-        
+            
         self.data = data.clone();
         // Replace data and context in existing eval_data
         self.eval_data.replace_data_and_context(data, context);
+        
+        // Call internal evaluate (uses existing data if not provided)
+        self.evaluate_internal()
+    }
+    
+    /// Internal evaluate that can be called when data is already set
+    /// This avoids double-locking and unnecessary data cloning for re-evaluation from evaluate_dependents
+    fn evaluate_internal(&mut self) -> Result<(), String> {
+        // Acquire lock for synchronous execution
+        let _lock = self.eval_lock.lock().unwrap();
 
         // Clone sorted_evaluations (batches) to avoid borrow checker issues
         let eval_batches: Vec<Vec<String>> = self.sorted_evaluations.clone();
@@ -1429,18 +1436,22 @@ impl JSONEval {
 
     /// Evaluate fields that depend on a changed path
     /// This processes all dependent fields transitively when a source field changes
-    pub fn evaluate_dependents(
+    /// 
+    /// # Arguments
+    /// * `changed_paths` - Array of field paths that changed (supports dot notation or schema pointers)
+    /// * `data` - Optional JSON data to update before processing
+    /// * `context` - Optional context data
+    /// * `re_evaluate` - If true, performs full evaluation after processing dependents
+    pub fn 
+    evaluate_dependents(
         &mut self,
-        changed_path: &str,
+        changed_paths: &[String],
         data: Option<&str>,
         context: Option<&str>,
+        re_evaluate: bool,
     ) -> Result<Value, String> {
         // Acquire lock for synchronous execution
         let _lock = self.eval_lock.lock().unwrap();
-        
-        // Normalize changed_path to support dot notation (e.g., "illustration.insured.name")
-        // Converts: "illustration.insured.name" -> "#/illustration/properties/insured/properties/name"
-        let normalized_path = path_utils::dot_notation_to_schema_pointer(changed_path);
         
         // Update data if provided
         if let Some(data_str) = data {
@@ -1455,7 +1466,13 @@ impl JSONEval {
         
         let mut result = Vec::new();
         let mut processed = IndexSet::new();
-        let mut to_process: Vec<(String, bool)> = vec![(normalized_path, false)]; // (path, is_transitive)
+        
+        // Normalize all changed paths and add to processing queue
+        // Converts: "illustration.insured.name" -> "#/illustration/properties/insured/properties/name"
+        let mut to_process: Vec<(String, bool)> = changed_paths
+            .iter()
+            .map(|path| (path_utils::dot_notation_to_schema_pointer(path), false))
+            .collect(); // (path, is_transitive)
         
         // Process dependents recursively (always nested/transitive)
         while let Some((current_path, is_transitive)) = to_process.pop() {
@@ -1464,6 +1481,15 @@ impl JSONEval {
             }
             processed.insert(current_path.clone());
             
+            // Get the value of the changed field for $value context
+            let current_data_path = path_utils::normalize_to_json_pointer(&current_path)
+                .replace("/properties/", "/")
+                .trim_start_matches('#')
+                .to_string();
+            let current_value = self.eval_data.data().pointer(&current_data_path)
+                .cloned()
+                .unwrap_or(Value::Null);
+            
             // Find dependents for this path
             if let Some(dependent_items) = self.dependents_evaluations.get(&current_path) {
                 for dep_item in dependent_items {
@@ -1471,22 +1497,31 @@ impl JSONEval {
                     let pointer_path = path_utils::normalize_to_json_pointer(ref_path);
                     // Data paths don't include /properties/, strip it for data access
                     let data_path = pointer_path.replace("/properties/", "/");
+
+                    let current_ref_value = self.eval_data.data().pointer(&data_path)
+                        .cloned()
+                        .unwrap_or(Value::Null);
                     
                     // Get field and parent field from schema
                     let field = self.evaluated_schema.pointer(&pointer_path).cloned();
                     
                     // Get parent field - skip /properties/ to get actual parent object
-                    let parent_path_data = if let Some(last_slash) = data_path.rfind('/') {
-                        &data_path[..last_slash]
+                    let parent_path = if let Some(last_slash) = pointer_path.rfind("/properties") {
+                        &pointer_path[..last_slash]
                     } else {
                         "/"
                     };
-                    let parent_field = if parent_path_data.is_empty() || parent_path_data == "/" {
-                        self.eval_data.data().clone()
+                    let mut parent_field = if parent_path.is_empty() || parent_path == "/" {
+                        self.evaluated_schema.clone()
                     } else {
-                        self.eval_data.data().pointer(parent_path_data).cloned()
+                        self.evaluated_schema.pointer(parent_path).cloned()
                             .unwrap_or_else(|| Value::Object(serde_json::Map::new()))
                     };
+
+                    // omit properties to minimize size of parent field
+                    if let Value::Object(ref mut map) = parent_field {
+                        map.remove("properties");
+                    }
                     
                     let mut change_obj = serde_json::Map::new();
                     change_obj.insert("$ref".to_string(), Value::String(ref_path.clone()));
@@ -1500,7 +1535,7 @@ impl JSONEval {
                     // Process clear
                     if let Some(clear_val) = &dep_item.clear {
                         let clear_val_clone = clear_val.clone();
-                        let should_clear = Self::evaluate_dependent_value_static(&self.engine, &self.evaluations, &self.eval_data, &clear_val_clone)?;
+                        let should_clear = Self::evaluate_dependent_value_static(&self.engine, &self.evaluations, &self.eval_data, &clear_val_clone, &current_value, &current_ref_value)?;
                         let clear_bool = match should_clear {
                             Value::Bool(b) => b,
                             _ => false,
@@ -1509,9 +1544,6 @@ impl JSONEval {
                         if clear_bool {
                             // Clear the field
                             self.eval_data.set(&data_path, Value::Null);
-                            if let Some(schema_value) = self.evaluated_schema.pointer_mut(&pointer_path) {
-                                *schema_value = Value::Null;
-                            }
                             change_obj.insert("clear".to_string(), Value::Bool(true));
                             add_transitive = true;
                         }
@@ -1520,14 +1552,11 @@ impl JSONEval {
                     // Process value
                     if let Some(value_val) = &dep_item.value {
                         let value_val_clone = value_val.clone();
-                        let computed_value = Self::evaluate_dependent_value_static(&self.engine, &self.evaluations, &self.eval_data, &value_val_clone)?;
+                        let computed_value = Self::evaluate_dependent_value_static(&self.engine, &self.evaluations, &self.eval_data, &value_val_clone, &current_value, &current_ref_value)?;
                         let cleaned_val = clean_float_noise(computed_value.clone());
                         
                         // Set the value
                         self.eval_data.set(&data_path, cleaned_val.clone());
-                        if let Some(schema_value) = self.evaluated_schema.pointer_mut(&pointer_path) {
-                            *schema_value = cleaned_val.clone();
-                        }
                         change_obj.insert("value".to_string(), cleaned_val);
                         add_transitive = true;
                     }
@@ -1542,6 +1571,14 @@ impl JSONEval {
             }
         }
         
+        // If re_evaluate is true, perform full evaluation with the mutated eval_data
+        // Use evaluate_internal to avoid serialization overhead
+        // We need to drop the lock first since evaluate_internal acquires its own lock
+        if re_evaluate {
+            drop(_lock);  // Release the evaluate_dependents lock
+            self.evaluate_internal()?;
+        }
+        
         Ok(Value::Array(result))
     }
     
@@ -1550,14 +1587,22 @@ impl JSONEval {
         engine: &RLogic,
         evaluations: &IndexMap<String, LogicId>,
         eval_data: &EvalData,
-        value: &Value
+        value: &Value,
+        changed_field_value: &Value,
+        changed_field_ref_value: &Value
     ) -> Result<Value, String> {
         match value {
             // If it's a String, check if it's an eval key reference
             Value::String(eval_key) => {
                 if let Some(logic_id) = evaluations.get(eval_key) {
-                    // It's a pre-compiled evaluation - run it
-                    let result = engine.run(logic_id, eval_data.data())
+                    // It's a pre-compiled evaluation - run it with scoped context
+                    // Create internal context with $value and $refValue
+                    let mut internal_context = serde_json::Map::new();
+                    internal_context.insert("$value".to_string(), changed_field_value.clone());
+                    internal_context.insert("$refValue".to_string(), changed_field_ref_value.clone());
+                    let context_value = Value::Object(internal_context);
+                    
+                    let result = engine.run_with_context(logic_id, eval_data.data(), &context_value)
                         .map_err(|e| format!("Failed to evaluate dependent logic '{}': {}", eval_key, e))?;
                     Ok(result)
                 } else {

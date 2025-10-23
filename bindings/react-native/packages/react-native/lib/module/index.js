@@ -216,22 +216,22 @@ export class JSONEval {
   }
 
   /**
-   * Re-evaluate fields that depend on changed paths
+   * Re-evaluate fields that depend on a changed path
    * @param options - Dependent evaluation options
-   * @returns Promise resolving to updated evaluated schema object
+   * @returns Promise resolving to array of dependent field changes
    * @throws {Error} If evaluation fails
    */
   async evaluateDependents(options) {
     this.throwIfDisposed();
     try {
       const {
-        changedPaths,
+        changedPath,
         data,
         context
       } = options;
-      const dataStr = this.toJsonString(data);
+      const dataStr = data ? this.toJsonString(data) : null;
       const contextStr = context ? this.toJsonString(context) : null;
-      const resultStr = await JsonEvalRs.evaluateDependents(this.handle, changedPaths, dataStr, contextStr);
+      const resultStr = await JsonEvalRs.evaluateDependents(this.handle, changedPath, dataStr, contextStr);
       return JSON.parse(resultStr);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

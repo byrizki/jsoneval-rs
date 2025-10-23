@@ -64,10 +64,10 @@ export interface CacheStats {
  * Options for evaluating dependents
  */
 export interface EvaluateDependentsOptions {
-    /** Array of field paths that changed */
-    changedPaths: string[];
+    /** Field path that changed */
+    changedPath: string;
     /** Updated JSON data (string or object) */
-    data: string | object;
+    data?: string | object;
     /** Optional context data (string or object) */
     context?: string | object;
 }
@@ -233,9 +233,9 @@ export declare class JSONEval {
      */
     validate(options: EvaluateOptions): Promise<ValidationResult>;
     /**
-     * Re-evaluate fields that depend on changed paths
+     * Re-evaluate fields that depend on a changed path
      * @param options - Dependent evaluation options
-     * @returns Promise resolving to updated evaluated schema object
+     * @returns Promise resolving to array of dependent field changes
      * @throws {Error} If evaluation fails
      */
     evaluateDependents(options: EvaluateDependentsOptions): Promise<any>;

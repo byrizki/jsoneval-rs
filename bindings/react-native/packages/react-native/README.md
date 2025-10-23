@@ -181,9 +181,9 @@ function Calculator() {
     const updateTotal = async () => {
       const data = { quantity, price };
       const result = await eval.evaluateDependents({
-        changedPaths: ['quantity', 'price'],
+        changedPaths: ['quantity'],  // Array of changed field paths
         data,
-        nested: true
+        reEvaluate: false  // Optional: re-evaluate entire schema after dependents
       });
       
       setTotal(result.total);
@@ -266,15 +266,38 @@ interface ValidationError {
 
 ##### evaluateDependents(options)
 
-Re-evaluates fields that depend on changed paths.
+Re-evaluates fields that depend on changed paths (processes transitively).
 
 ```typescript
 async evaluateDependents(options: {
-  changedPaths: string[];
-  data: string | object;
-  context?: string | object;
-  nested?: boolean;
-}): Promise<any>
+  changedPaths: string[];      // Array of field paths that changed
+  data?: string | object;       // Optional updated data
+  context?: string | object;    // Optional context
+  reEvaluate?: boolean;         // If true, performs full evaluation after dependents
+}): Promise<any[]>
+```
+
+**Parameters:**
+- `changedPaths`: Array of field paths that changed (e.g., `['field1', 'nested.field2']`)
+- `data`: Optional JSON data (string or object). If provided, replaces current data
+- `context`: Optional context data
+- `reEvaluate`: If `true`, performs full schema evaluation after processing dependents (default: `false`)
+
+**Returns:** Array of dependent field change objects with `$ref`, `value`, `$field`, `$parentField`, and `transitive` properties.
+
+**Example:**
+```typescript
+// Update multiple fields and get their dependents
+const result = await eval.evaluateDependents({
+  changedPaths: ['illustration.insured.ins_dob', 'illustration.product_code'],
+  data: updatedData,
+  reEvaluate: true  // Re-run full evaluation after dependents
+});
+
+// Process the changes
+result.forEach(change => {
+  console.log(`Field ${change.$ref} changed:`, change.value);
+});
 ```
 
 ##### dispose()

@@ -229,12 +229,13 @@ void JsonEvalBridge::validateAsync(
 
 void JsonEvalBridge::evaluateDependentsAsync(
     const std::string& handleId,
-    const std::string& changedPath,
+    const std::string& changedPathsJson,
     const std::string& data,
     const std::string& context,
+    bool reEvaluate,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, changedPath, data, context]() -> std::string {
+    runAsync([handleId, changedPathsJson, data, context, reEvaluate]() -> std::string {
         std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
@@ -245,9 +246,10 @@ void JsonEvalBridge::evaluateDependentsAsync(
         const char* ctx = context.empty() ? nullptr : context.c_str();
         FFIResult result = json_eval_evaluate_dependents(
             it->second, 
-            changedPath.c_str(), 
+            changedPathsJson.c_str(), 
             dataPtr, 
-            ctx
+            ctx,
+            reEvaluate ? 1 : 0
         );
         
         if (!result.success) {

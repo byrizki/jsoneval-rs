@@ -125,31 +125,41 @@ pub unsafe extern "C" fn json_eval_validate(
     }
 }
 
-/// Evaluate dependents (fields that depend on a changed path)
+/// Evaluate dependents (fields that depend on changed paths)
 /// 
 /// # Safety
 /// 
 /// - handle must be a valid pointer from json_eval_new
-/// - changed_path must be a valid null-terminated UTF-8 string
+/// - changed_paths_json must be a valid null-terminated UTF-8 string containing a JSON array of paths
 /// - data can be null (uses existing data)
+/// - re_evaluate: 0 = false, non-zero = true
 /// - Caller must call json_eval_free_result when done
 #[no_mangle]
 pub unsafe extern "C" fn json_eval_evaluate_dependents(
     handle: *mut JSONEvalHandle,
-    changed_path: *const c_char,
+    changed_paths_json: *const c_char,
     data: *const c_char,
     context: *const c_char,
+    re_evaluate: i32,
 ) -> FFIResult {
-    if handle.is_null() || changed_path.is_null() {
+    if handle.is_null() || changed_paths_json.is_null() {
         return FFIResult::error("Invalid pointer".to_string());
     }
 
     let eval = &mut (*handle).inner;
 
-    let path_str = match CStr::from_ptr(changed_path).to_str() {
+    let paths_json_str = match CStr::from_ptr(changed_paths_json).to_str() {
         Ok(s) => s,
         Err(_) => {
-            return FFIResult::error("Invalid UTF-8 in path".to_string())
+            return FFIResult::error("Invalid UTF-8 in paths".to_string())
+        }
+    };
+
+    // Parse JSON array of paths
+    let paths: Vec<String> = match serde_json::from_str(paths_json_str) {
+        Ok(p) => p,
+        Err(e) => {
+            return FFIResult::error(format!("Failed to parse paths JSON: {}", e))
         }
     };
 
@@ -175,7 +185,7 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents(
         None
     };
 
-    match eval.evaluate_dependents(path_str, data_str, context_str) {
+    match eval.evaluate_dependents(&paths, data_str, context_str, re_evaluate != 0) {
         Ok(result) => {
             let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
             FFIResult::success(result_bytes)

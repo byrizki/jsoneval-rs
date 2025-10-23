@@ -83,16 +83,18 @@ public:
     /**
      * Evaluate dependents (async) - processes transitively
      * @param handle Instance handle
-     * @param changedPath Single field path that changed
+     * @param changedPathsJson JSON array of field paths that changed
      * @param data Optional updated JSON data string (empty to use existing)
      * @param context Optional context data
+     * @param reEvaluate If true, performs full evaluation after processing dependents
      * @param callback Result callback
      */
     static void evaluateDependentsAsync(
         const std::string& handle,
-        const std::string& changedPath,
+        const std::string& changedPathsJson,
         const std::string& data,
         const std::string& context,
+        bool reEvaluate,
         std::function<void(const std::string&, const std::string&)> callback
     );
 

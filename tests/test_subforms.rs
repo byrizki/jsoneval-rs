@@ -267,9 +267,10 @@ fn test_evaluate_dependents_subform() {
     // Evaluate dependents when base changes
     let result = eval.evaluate_dependents_subform(
         "#/calculations",
-        "#/calculations/properties/base",
+        &[String::from("#/calculations/properties/base")],
         Some(&data_str),
-        None
+        None,
+        false
     );
     
     assert!(result.is_ok(), "Should successfully evaluate dependents");

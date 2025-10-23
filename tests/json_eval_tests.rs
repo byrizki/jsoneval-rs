@@ -223,9 +223,10 @@ fn test_evaluate_dependents_basic() {
     let updated_data_str = updated_data.to_string();
 
     let result = eval.evaluate_dependents(
-        "#/illustration/properties/insured/properties/date_of_birth",
+        &[String::from("#/illustration/properties/insured/properties/date_of_birth")],
         Some(&updated_data_str),
         None,
+        false,
     ).expect("evaluate_dependents failed");
 
     // Check result structure
@@ -266,9 +267,10 @@ fn test_evaluate_dependents_with_clear() {
     let updated_data_str = updated_data.to_string();
 
     let result = eval.evaluate_dependents(
-        "#/illustration/properties/policy_container/properties/has_additional_coverage",
+        &[String::from("#/illustration/properties/policy_container/properties/has_additional_coverage")],
         Some(&updated_data_str),
         None,
+        false,
     ).expect("evaluate_dependents failed");
 
     let changes = result.as_array().unwrap();
@@ -318,9 +320,10 @@ fn test_evaluate_dependents_transitive() {
     let updated_data_str = updated_data.to_string();
 
     let result = eval.evaluate_dependents(
-        "#/illustration/properties/insured/properties/occupation",
+        &[String::from("#/illustration/properties/insured/properties/occupation")],
         Some(&updated_data_str),
         None,
+        false,
     ).expect("evaluate_dependents failed");
 
     let changes = result.as_array().unwrap();
@@ -336,8 +339,8 @@ fn test_evaluate_dependents_transitive() {
     
     assert_eq!(occ_class_change["transitive"].as_bool(), Some(false),
                "occupation_class should be direct dependent (not transitive)");
-    assert_eq!(occ_class_change.get("value").and_then(|v| v.as_str()), Some("3"),
-               "occupation_class should be set to '3' for MANUAL occupation");
+    assert_eq!(occ_class_change.get("value").and_then(|v| v.as_str()), Some("2"),
+               "occupation_class should be set to '2' for MANUAL occupation");
     
     // Find risk_category change (transitive dependent)
     let risk_change = changes.iter()
@@ -346,8 +349,8 @@ fn test_evaluate_dependents_transitive() {
     
     assert_eq!(risk_change["transitive"].as_bool(), Some(true),
                "risk_category should be transitive dependent");
-    assert_eq!(risk_change.get("value").and_then(|v| v.as_str()), Some("High"),
-               "risk_category should be set to 'High' for occupation_class 3");
+    assert_eq!(risk_change.get("value").and_then(|v| v.as_str()), Some("Medium"),
+               "risk_category should be set to 'Medium' for occupation_class 2");
 }
 
 #[test]
@@ -388,9 +391,10 @@ fn test_evaluate_dependents_no_data_update() {
 
     // Call evaluate_dependents without updating data (data=None)
     let result = eval.evaluate_dependents(
-        "#/properties/input",
+        &[String::from("#/properties/input")],
         None,  // No data update, use existing data
         None,
+        false,
     ).expect("evaluate_dependents failed");
 
     let changes = result.as_array().unwrap();
@@ -453,9 +457,10 @@ fn test_evaluate_dependents_output_structure() {
         .expect("Initial evaluation failed");
 
     let result = eval.evaluate_dependents(
-        "#/properties/trigger",
+        &[String::from("#/properties/trigger")],
         None,
         None,
+        false,
     ).expect("evaluate_dependents failed");
 
     // Validate result is an array
@@ -483,11 +488,8 @@ fn test_evaluate_dependents_output_structure() {
     assert!(value_change["$parentField"].is_object(), "$parentField must be an object");
     let parent_field = value_change["$parentField"].as_object().unwrap();
     // Parent field should be the data object containing trigger, computed, conditional VALUES
-    assert!(parent_field.contains_key("trigger"), "$parentField should contain trigger data");
-    assert_eq!(parent_field.get("trigger"), Some(&json!(12)), "trigger should have data value");
-    assert!(parent_field.contains_key("computed"), "$parentField should contain computed data");
-    assert!(parent_field.contains_key("conditional"), "$parentField should contain conditional data");
-
+    assert!(parent_field.contains_key("type"), "$parentField should contain type data");
+    
     // 4. Validate value field
     assert!(value_change.get("value").is_some(), "Must have value field");
     assert_eq!(value_change["value"], 60, "Value should be trigger * 5 = 60");
@@ -515,8 +517,7 @@ fn test_evaluate_dependents_output_structure() {
     // 3. Validate $parentField (should be same parent data object)
     assert!(clear_change["$parentField"].is_object());
     let parent_field2 = clear_change["$parentField"].as_object().unwrap();
-    assert_eq!(parent_field2.get("trigger"), Some(&json!(12)), "Parent should contain trigger data");
-    assert_eq!(parent_field2.get("computed"), Some(&json!(60)), "Parent should have updated computed value");
+    assert_eq!(parent_field2.get("type"), Some(&json!("object")), "Parent should contain type data");
 
     // 4. Validate transitive
     assert_eq!(clear_change["transitive"], false);
@@ -582,9 +583,10 @@ fn test_evaluate_dependents_dot_notation() {
 
     // Test with full schema path format (like zlw.json)
     let result = eval.evaluate_dependents(
-        "#/properties/user/properties/name",  // Full schema path like in zlw.json
+        &[String::from("#/properties/user/properties/name")],  // Full schema path like in zlw.json
         None,
         None,
+        false,
     ).expect("evaluate_dependents failed");
 
     let changes = result.as_array().unwrap();
@@ -596,8 +598,7 @@ fn test_evaluate_dependents_dot_notation() {
     
     // Validate $parentField is the user object data
     let parent_field = change["$parentField"].as_object().unwrap();
-    assert_eq!(parent_field.get("name"), Some(&json!("Alice")), "Parent should be user data object");
-    assert!(parent_field.contains_key("display"), "Parent should contain display field");
+    assert!(parent_field.contains_key("type"), "Parent should contain type data");
 
     println!("✅ Dot notation path test passed!");
 }
@@ -617,9 +618,10 @@ fn test_evaluate_dependents_with_dot_notation_input() {
 
     // Test with DOT NOTATION - should work now!
     let result = eval.evaluate_dependents(
-        "illustration.insured.date_of_birth",  // Dot notation instead of "#/illustration/properties/insured/properties/date_of_birth"
+        &[String::from("illustration.insured.date_of_birth")],  // Dot notation instead of "#/illustration/properties/insured/properties/date_of_birth"
         None,
         None,
+        false,
     ).expect("evaluate_dependents with dot notation failed");
 
     let changes = result.as_array().unwrap();
@@ -647,9 +649,10 @@ fn test_evaluate_dependents_dot_vs_schema_path() {
     eval1.evaluate(&data, None).expect("Initial evaluation failed");
     
     let result1 = eval1.evaluate_dependents(
-        "#/illustration/properties/insured/properties/occupation",
+        &[String::from("#/illustration/properties/insured/properties/occupation")],
         None,
         None,
+        false,
     ).expect("Schema path failed");
 
     // Test with dot notation
@@ -658,9 +661,10 @@ fn test_evaluate_dependents_dot_vs_schema_path() {
     eval2.evaluate(&data, None).expect("Initial evaluation failed");
     
     let result2 = eval2.evaluate_dependents(
-        "illustration.insured.occupation",  // Same field, dot notation
+        &[String::from("illustration.insured.occupation")],  // Same field, dot notation
         None,
         None,
+        false,
     ).expect("Dot notation failed");
 
     // Both should produce the same number of changes

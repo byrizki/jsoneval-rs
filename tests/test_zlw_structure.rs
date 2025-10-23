@@ -217,3 +217,183 @@ fn test_direct_layout_path_values() {
     
     println!("✅ Direct layout path values test passed!");
 }
+
+#[test]
+fn test_evaluate_dependents_ins_dob_to_insage() {
+    // Test ins_dob dependent evaluation to calculate insage using DATEDIF
+    // This mimics the actual zlw.json structure where ins_dob updates insage
+    let schema = json!({
+        "illustration": {
+            "type": "object",
+            "properties": {
+                "insured": {
+                    "type": "object",
+                    "title": "Tertanggung",
+                    "properties": {
+                        "ins_dob": {
+                            "type": "string",
+                            "title": "Tanggal Lahir Tertanggung",
+                            "fieldType": "datepicker",
+                            "rules": {
+                                "required": {
+                                    "value": true,
+                                    "message": "VALIDATION_REQUIRED"
+                                }
+                            },
+                            "dependents": [
+                                {
+                                    "$ref": "#/illustration/properties/insured/properties/insage",
+                                    "value": {
+                                        "$evaluation": {
+                                            "DATEDIF": [
+                                                {
+                                                    "$ref": "$value"
+                                                },
+                                                {
+                                                    "NOW": []
+                                                },
+                                                "Y"
+                                            ]
+                                        }
+                                    }
+                                },
+                                {
+                                    "$ref": "#/illustration/properties/product_benefit/properties/benefit_type/properties/prem_pay_period",
+                                    "clear": {
+                                        "$evaluation": true
+                                    }
+                                },
+                                {
+                                    "$ref": "#/illustration/properties/signature",
+                                    "clear": {
+                                        "$evaluation": true
+                                    }
+                                }
+                            ]
+                        },
+                        "insage": {
+                            "type": "number",
+                            "title": "Usia Tertanggung"
+                        }
+                    }
+                },
+                "product_benefit": {
+                    "type": "object",
+                    "properties": {
+                        "benefit_type": {
+                            "type": "object",
+                            "properties": {
+                                "prem_pay_period": {
+                                    "type": "string",
+                                    "title": "Premium Payment Period"
+                                }
+                            }
+                        }
+                    }
+                },
+                "signature": {
+                    "type": "string",
+                    "title": "Signature"
+                }
+            }
+        }
+    });
+
+    // Initial data with a date of birth
+    let initial_data = json!({
+        "illustration": {
+            "insured": {
+                "ins_dob": "1990-01-15",
+                "insage": null
+            },
+            "product_benefit": {
+                "benefit_type": {
+                    "prem_pay_period": "10"
+                }
+            },
+            "signature": "Initial Signature"
+        }
+    });
+
+    let schema_str = serde_json::to_string(&schema).unwrap();
+    let initial_data_str = serde_json::to_string(&initial_data).unwrap();
+
+    let mut eval = JSONEval::new(&schema_str, None, Some(&initial_data_str))
+        .expect("Failed to create JSONEval");
+
+    // Perform initial evaluation
+    eval.evaluate(&initial_data_str, None)
+        .expect("Initial evaluation failed");
+
+    // Update ins_dob to trigger dependent evaluation
+    let mut updated_data = initial_data.clone();
+    updated_data["illustration"]["insured"]["ins_dob"] = json!("2003-10-23T00:00:00.000Z");
+    let updated_data_str = serde_json::to_string(&updated_data).unwrap();
+
+    // Call evaluate_dependents for ins_dob field
+    let result = eval.evaluate_dependents(
+        &[String::from("#/illustration/properties/insured/properties/ins_dob")],
+        Some(&updated_data_str),
+        None,
+        false, // Don't re-evaluate
+    ).expect("evaluate_dependents failed");
+
+    // Verify result structure
+    assert!(result.is_array(), "Result should be an array");
+    let changes = result.as_array().unwrap();
+    
+    // Should have at least 3 dependents (insage, prem_pay_period, signature)
+    assert!(changes.len() >= 3, "Should have at least 3 dependent changes");
+
+    // Find the insage change
+    let insage_change = changes.iter()
+        .find(|c| {
+            c["$ref"].as_str()
+                .map(|s| s.contains("insage"))
+                .unwrap_or(false)
+        })
+        .expect("Should have insage in dependents");
+
+    println!("insage_change: {:#?}", insage_change);
+    // Verify insage change structure
+    assert!(
+        insage_change.get("value").is_some(),
+        "insage change should have a value field"
+    );
+
+    // Verify the value is a number (age calculation result)
+    let age_value = &insage_change["value"];
+    assert!(
+        age_value.is_number(),
+        "insage value should be a number, got: {:?}",
+        age_value
+    );
+
+    // If the value is a number, verify it's reasonable (between 0 and 150)
+    if let Some(age) = age_value.as_i64() {
+        assert!(
+            age >= 0 && age <= 150,
+            "Age should be reasonable (0-150), got: {}",
+            age
+        );
+        println!("Calculated age from DATEDIF: {}", age);
+    }
+
+    // Verify transitive flag
+    assert_eq!(
+        insage_change["transitive"].as_bool(),
+        Some(false),
+        "insage should be a direct dependent (not transitive)"
+    );
+
+    // Verify $ref points to the correct field
+    let ref_path = insage_change["$ref"].as_str().unwrap();
+    assert!(
+        ref_path.contains("insage") || ref_path == "illustration.insured.insage",
+        "Reference should point to insage field, got: {}",
+        ref_path
+    );
+
+    println!("✅ ins_dob -> insage dependent evaluation test passed!");
+    println!("   Dependents returned: {}", changes.len());
+}
