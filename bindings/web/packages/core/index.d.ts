@@ -79,9 +79,10 @@ export interface ValidateSubformOptions {
 
 export interface EvaluateDependentsSubformOptions {
   subformPath: string;
-  changedPath: string;
+  changedPaths: string[];
   data?: any;
   context?: any;
+  reEvaluate?: boolean;
 }
 
 export interface ResolveLayoutSubformOptions {

@@ -130,12 +130,14 @@ export interface ValidateSubformOptions {
 export interface EvaluateDependentsSubformOptions {
   /** Path to the subform */
   subformPath: string;
-  /** Path of the field that changed */
-  changedPath: string;
+  /** Array of field paths that changed */
+  changedPaths: string[];
   /** Optional updated JSON data (string or object) */
   data?: string | object;
   /** Optional context data (string or object) */
   context?: string | object;
+  /** If true, performs full evaluation after processing dependents */
+  reEvaluate?: boolean;
 }
 
 /**
@@ -601,8 +603,8 @@ export class JSONEval {
   }
 
   /**
-   * Evaluate dependents in subform when a field changes
-   * @param options - Options including subform path, changed path, and optional data
+   * Evaluate dependents in a subform when fields change
+   * @param options - Options including subform path, changed paths array, and optional data
    * @returns Promise resolving to dependent evaluation results
    * @throws {Error} If evaluation fails
    */
@@ -612,10 +614,13 @@ export class JSONEval {
     const dataStr = options.data ? this.toJsonString(options.data) : null;
     const contextStr = options.context ? this.toJsonString(options.context) : null;
     
+    // For now, pass the first path since native bridge expects single path (wraps internally)
+    const changedPath = options.changedPaths[0] || '';
+    
     const resultStr = await JsonEvalRs.evaluateDependentsSubform(
       this.handle,
       options.subformPath,
-      options.changedPath,
+      changedPath,
       dataStr,
       contextStr
     );

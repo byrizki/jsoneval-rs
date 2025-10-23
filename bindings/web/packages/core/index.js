@@ -449,19 +449,24 @@ export class JSONEvalCore {
   }
 
   /**
-   * Evaluate dependents in subform when a field changes
+   * Evaluate dependent fields in subform
    * @param {object} options
    * @param {string} options.subformPath - Path to the subform
-   * @param {string} options.changedPath - Path of the field that changed
+   * @param {string[]} options.changedPaths - Array of field paths that changed
    * @param {object} [options.data] - Optional updated data
    * @param {object} [options.context] - Optional context
+   * @param {boolean} [options.reEvaluate=false] - If true, performs full evaluation after processing dependents
    * @returns {Promise<any>}
    */
-  async evaluateDependentsSubform({ subformPath, changedPath, data, context }) {
+  async evaluateDependentsSubform({ subformPath, changedPaths, data, context, reEvaluate = false }) {
     await this.init();
+    
+    // For backward compatibility, accept single changedPath too
+    const paths = Array.isArray(changedPaths) ? changedPaths : [changedPaths];
+    
     return this._instance.evaluateDependentsSubformJS(
       subformPath,
-      changedPath,
+      paths[0], // WASM still expects single path (wraps internally)
       data ? JSON.stringify(data) : null,
       context ? JSON.stringify(context) : null
     );

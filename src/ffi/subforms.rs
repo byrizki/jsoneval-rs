@@ -174,7 +174,10 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents_subform(
         None
     };
 
-    match eval.evaluate_dependents_subform(subform_str, path_str, data_str, context_str) {
+    // Wrap single path in a Vec for the new API
+    let paths = vec![path_str.to_string()];
+    
+    match eval.evaluate_dependents_subform(subform_str, &paths, data_str, context_str, false) {
         Ok(result) => {
             let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
             FFIResult::success(result_bytes)

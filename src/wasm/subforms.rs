@@ -64,7 +64,10 @@ impl JSONEvalWasm {
         let data_str = data.as_deref();
         let ctx = context.as_deref();
         
-        match self.inner.evaluate_dependents_subform(subform_path, changed_path, data_str, ctx) {
+        // Wrap single path in a Vec for the new API
+        let paths = vec![changed_path.to_string()];
+        
+        match self.inner.evaluate_dependents_subform(subform_path, &paths, data_str, ctx, false) {
             Ok(result) => serde_json::to_string(&result)
                 .map_err(|e| JsValue::from_str(&e.to_string())),
             Err(e) => Err(JsValue::from_str(&e)),
@@ -89,7 +92,10 @@ impl JSONEvalWasm {
         let data_str = data.as_deref();
         let ctx = context.as_deref();
         
-        match self.inner.evaluate_dependents_subform(subform_path, changed_path, data_str, ctx) {
+        // Wrap single path in a Vec for the new API
+        let paths = vec![changed_path.to_string()];
+        
+        match self.inner.evaluate_dependents_subform(subform_path, &paths, data_str, ctx, false) {
             Ok(result) => serde_wasm_bindgen::to_value(&result)
                 .map_err(|e| JsValue::from_str(&e.to_string())),
             Err(e) => Err(JsValue::from_str(&e)),
