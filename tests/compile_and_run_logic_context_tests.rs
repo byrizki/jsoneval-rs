@@ -144,13 +144,17 @@ fn test_compile_and_run_logic_nested_context_refs() {
             "config": {
                 "maxAttempts": 3,
                 "timeout": 30
-            }
+            },
+            "table_data": ["AP","AG"]
         },
         "properties": {}
     }).to_string();
 
     let data = json!({}).to_string();
     let context = json!({
+        "agentProfile": {
+            "sob": "AP"
+        },
         "session": {
             "attempts": 2,
             "settings": {
@@ -164,6 +168,19 @@ fn test_compile_and_run_logic_nested_context_refs() {
 
     eval.evaluate(&data, Some(&context))
         .expect("Failed to evaluate");
+
+
+    let logic = json!({
+        "in": [
+            {"$ref": "$context.agentProfile.sob"},
+            {"$ref": "#/$params/table_data"}
+        ]
+    }).to_string();
+
+    let result = eval.compile_and_run_logic(&logic, None, None)
+        .expect("Failed to compile and run logic with nested refs");
+
+    assert_eq!(result, json!(true));
 
     // Test nested $ref access
     let logic = json!({

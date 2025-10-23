@@ -34,7 +34,7 @@
 
 ```toml
 [dependencies]
-json-eval-rs = "0.0.14"
+json-eval-rs = "0.0.15"
 ```
 
 ### C# / .NET
@@ -477,6 +477,11 @@ match eval.validate(data, None, None) {
 ```
 
 ## 📈 Changelog
+
+### [0.0.15] - 2025-10-23
+
+**Fixed**
+- Enable Parallel on Native
 
 ### [0.0.14] - 2025-10-22
 
