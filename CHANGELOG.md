@@ -1,3 +1,9 @@
+### [0.0.23] - 2025-10-24
+
+**Changed**
+- [core] toggle on/off evaluation cache
+- [core] enhance evaluation cache to be smart, purging caches per-changed data key only
+
 ### [0.0.22] - 2025-10-24
 
 **Changed**
