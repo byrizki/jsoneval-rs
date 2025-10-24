@@ -262,6 +262,9 @@ impl Evaluator {
             CompiledLogic::SplitText(value_expr, sep_expr, index_expr) => self.eval_split_text(value_expr, sep_expr, index_expr, user_data, internal_context, depth),
             CompiledLogic::Concat(items) => self.concat_strings(items, user_data, internal_context, depth),
             CompiledLogic::SplitValue(string_expr, sep_expr) => self.eval_split_value(string_expr, sep_expr, user_data, internal_context, depth),
+            CompiledLogic::StringFormat(value_expr, decimals, prefix, suffix, thousands_sep) => {
+                self.eval_string_format(value_expr, decimals, prefix, suffix, thousands_sep, user_data, internal_context, depth)
+            }
             CompiledLogic::Length(expr) => self.eval_length(expr, user_data, internal_context, depth),
             CompiledLogic::Len(expr) => self.eval_len(expr, user_data, internal_context, depth),
 
@@ -270,9 +273,13 @@ impl Evaluator {
             CompiledLogic::Max(items) => self.eval_min_max(items, true, user_data, internal_context, depth),
             CompiledLogic::Min(items) => self.eval_min_max(items, false, user_data, internal_context, depth),
             CompiledLogic::Pow(base_expr, exp_expr) => self.eval_pow(base_expr, exp_expr, user_data, internal_context, depth),
-            CompiledLogic::Round(expr) => self.apply_round(expr, 0, user_data, internal_context, depth),
-            CompiledLogic::RoundUp(expr) => self.apply_round(expr, 1, user_data, internal_context, depth),
-            CompiledLogic::RoundDown(expr) => self.apply_round(expr, 2, user_data, internal_context, depth),
+            CompiledLogic::Round(expr, decimals) => self.apply_round(expr, decimals, 0, user_data, internal_context, depth),
+            CompiledLogic::RoundUp(expr, decimals) => self.apply_round(expr, decimals, 1, user_data, internal_context, depth),
+            CompiledLogic::RoundDown(expr, decimals) => self.apply_round(expr, decimals, 2, user_data, internal_context, depth),
+            CompiledLogic::Ceiling(expr, significance) => self.eval_ceiling(expr, significance, user_data, internal_context, depth),
+            CompiledLogic::Floor(expr, significance) => self.eval_floor(expr, significance, user_data, internal_context, depth),
+            CompiledLogic::Trunc(expr, decimals) => self.eval_trunc(expr, decimals, user_data, internal_context, depth),
+            CompiledLogic::Mround(value_expr, multiple_expr) => self.eval_mround(value_expr, multiple_expr, user_data, internal_context, depth),
 
             // ========== Date Operations ==========
             CompiledLogic::Today => self.eval_today(),
@@ -282,6 +289,7 @@ impl Evaluator {
             CompiledLogic::Month(expr) => self.extract_date_component(expr, "month", user_data, internal_context, depth),
             CompiledLogic::Day(expr) => self.extract_date_component(expr, "day", user_data, internal_context, depth),
             CompiledLogic::Date(year_expr, month_expr, day_expr) => self.eval_date(year_expr, month_expr, day_expr, user_data, internal_context, depth),
+            CompiledLogic::DateFormat(date_expr, format_expr) => self.eval_date_format(date_expr, format_expr, user_data, internal_context, depth),
             CompiledLogic::YearFrac(start_expr, end_expr, basis_expr) => self.eval_year_frac(start_expr, end_expr, basis_expr, user_data, internal_context, depth),
             CompiledLogic::DateDif(start_expr, end_expr, unit_expr) => self.eval_date_dif(start_expr, end_expr, unit_expr, user_data, internal_context, depth),
 

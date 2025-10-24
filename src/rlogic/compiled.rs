@@ -68,9 +68,13 @@ pub enum CompiledLogic {
     Max(Vec<CompiledLogic>),
     Min(Vec<CompiledLogic>),
     Pow(Box<CompiledLogic>, Box<CompiledLogic>),
-    Round(Box<CompiledLogic>),
-    RoundUp(Box<CompiledLogic>),
-    RoundDown(Box<CompiledLogic>),
+    Round(Box<CompiledLogic>, Option<Box<CompiledLogic>>), // value, decimals
+    RoundUp(Box<CompiledLogic>, Option<Box<CompiledLogic>>), // value, decimals
+    RoundDown(Box<CompiledLogic>, Option<Box<CompiledLogic>>), // value, decimals
+    Ceiling(Box<CompiledLogic>, Option<Box<CompiledLogic>>), // value, significance (Excel CEILING)
+    Floor(Box<CompiledLogic>, Option<Box<CompiledLogic>>), // value, significance (Excel FLOOR)
+    Trunc(Box<CompiledLogic>, Option<Box<CompiledLogic>>), // value, decimals (Excel TRUNC)
+    Mround(Box<CompiledLogic>, Box<CompiledLogic>), // value, multiple (Excel MROUND)
     
     // Custom operators - String
     Length(Box<CompiledLogic>),
@@ -82,6 +86,7 @@ pub enum CompiledLogic {
     SplitText(Box<CompiledLogic>, Box<CompiledLogic>, Option<Box<CompiledLogic>>), // value, separator, index
     Concat(Vec<CompiledLogic>),
     SplitValue(Box<CompiledLogic>, Box<CompiledLogic>), // string, separator
+    StringFormat(Box<CompiledLogic>, Option<Box<CompiledLogic>>, Option<Box<CompiledLogic>>, Option<Box<CompiledLogic>>, Option<Box<CompiledLogic>>), // value, decimals, prefix, suffix, thousands_sep
     
     // Custom operators - Logical
     Xor(Box<CompiledLogic>, Box<CompiledLogic>),
@@ -97,6 +102,7 @@ pub enum CompiledLogic {
     Month(Box<CompiledLogic>),
     Day(Box<CompiledLogic>),
     Date(Box<CompiledLogic>, Box<CompiledLogic>, Box<CompiledLogic>), // year, month, day
+    DateFormat(Box<CompiledLogic>, Option<Box<CompiledLogic>>), // date, format
     
     // Custom operators - Array/Table
     Sum(Box<CompiledLogic>, Option<Box<CompiledLogic>>, Option<Box<CompiledLogic>>), // array/value, optional field name, optional index threshold
@@ -379,9 +385,79 @@ impl CompiledLogic {
                 Ok(CompiledLogic::Min(compiled?))
             }
             "pow" | "**" => Self::compile_binary(args, |a, b| CompiledLogic::Pow(a, b)),
-            "round" | "ROUND" => Ok(CompiledLogic::Round(Box::new(Self::compile(args)?))),
-            "roundup" | "ROUNDUP" => Ok(CompiledLogic::RoundUp(Box::new(Self::compile(args)?))),
-            "rounddown" | "ROUNDDOWN" => Ok(CompiledLogic::RoundDown(Box::new(Self::compile(args)?))),
+            "round" | "ROUND" => {
+                if let Value::Array(arr) = args {
+                    let decimals = if arr.len() > 1 {
+                        Some(Box::new(Self::compile(&arr[1])?))
+                    } else {
+                        None
+                    };
+                    Ok(CompiledLogic::Round(Box::new(Self::compile(&arr[0])?), decimals))
+                } else {
+                    Ok(CompiledLogic::Round(Box::new(Self::compile(args)?), None))
+                }
+            }
+            "roundup" | "ROUNDUP" => {
+                if let Value::Array(arr) = args {
+                    let decimals = if arr.len() > 1 {
+                        Some(Box::new(Self::compile(&arr[1])?))
+                    } else {
+                        None
+                    };
+                    Ok(CompiledLogic::RoundUp(Box::new(Self::compile(&arr[0])?), decimals))
+                } else {
+                    Ok(CompiledLogic::RoundUp(Box::new(Self::compile(args)?), None))
+                }
+            }
+            "rounddown" | "ROUNDDOWN" => {
+                if let Value::Array(arr) = args {
+                    let decimals = if arr.len() > 1 {
+                        Some(Box::new(Self::compile(&arr[1])?))
+                    } else {
+                        None
+                    };
+                    Ok(CompiledLogic::RoundDown(Box::new(Self::compile(&arr[0])?), decimals))
+                } else {
+                    Ok(CompiledLogic::RoundDown(Box::new(Self::compile(args)?), None))
+                }
+            }
+            "ceiling" | "CEILING" => {
+                if let Value::Array(arr) = args {
+                    let significance = if arr.len() > 1 {
+                        Some(Box::new(Self::compile(&arr[1])?))
+                    } else {
+                        None
+                    };
+                    Ok(CompiledLogic::Ceiling(Box::new(Self::compile(&arr[0])?), significance))
+                } else {
+                    Ok(CompiledLogic::Ceiling(Box::new(Self::compile(args)?), None))
+                }
+            }
+            "floor" | "FLOOR" => {
+                if let Value::Array(arr) = args {
+                    let significance = if arr.len() > 1 {
+                        Some(Box::new(Self::compile(&arr[1])?))
+                    } else {
+                        None
+                    };
+                    Ok(CompiledLogic::Floor(Box::new(Self::compile(&arr[0])?), significance))
+                } else {
+                    Ok(CompiledLogic::Floor(Box::new(Self::compile(args)?), None))
+                }
+            }
+            "trunc" | "TRUNC" => {
+                if let Value::Array(arr) = args {
+                    let decimals = if arr.len() > 1 {
+                        Some(Box::new(Self::compile(&arr[1])?))
+                    } else {
+                        None
+                    };
+                    Ok(CompiledLogic::Trunc(Box::new(Self::compile(&arr[0])?), decimals))
+                } else {
+                    Ok(CompiledLogic::Trunc(Box::new(Self::compile(args)?), None))
+                }
+            }
+            "mround" | "MROUND" => Self::compile_binary(args, |a, b| CompiledLogic::Mround(a, b)),
             
             // Custom operators - String
             "length" => Ok(CompiledLogic::Length(Box::new(Self::compile(args)?))),
@@ -459,6 +535,39 @@ impl CompiledLogic {
                 Ok(CompiledLogic::Concat(compiled?))
             }
             "splitvalue" | "SPLITVALUE" => Self::compile_binary(args, |a, b| CompiledLogic::SplitValue(a, b)),
+            "stringformat" | "STRINGFORMAT" => {
+                let arr = args.as_array().ok_or("stringformat requires array")?;
+                if arr.is_empty() {
+                    return Err("stringformat requires at least 1 argument".to_string());
+                }
+                let decimals = if arr.len() > 1 {
+                    Some(Box::new(Self::compile(&arr[1])?))
+                } else {
+                    None
+                };
+                let prefix = if arr.len() > 2 {
+                    Some(Box::new(Self::compile(&arr[2])?))
+                } else {
+                    None
+                };
+                let suffix = if arr.len() > 3 {
+                    Some(Box::new(Self::compile(&arr[3])?))
+                } else {
+                    None
+                };
+                let thousands_sep = if arr.len() > 4 {
+                    Some(Box::new(Self::compile(&arr[4])?))
+                } else {
+                    None
+                };
+                Ok(CompiledLogic::StringFormat(
+                    Box::new(Self::compile(&arr[0])?),
+                    decimals,
+                    prefix,
+                    suffix,
+                    thousands_sep,
+                ))
+            }
             
             // Custom operators - Logical
             "xor" => Self::compile_binary(args, |a, b| CompiledLogic::Xor(a, b)),
@@ -483,6 +592,21 @@ impl CompiledLogic {
                     Box::new(Self::compile(&arr[1])?),
                     Box::new(Self::compile(&arr[2])?),
                 ))
+            }
+            "dateformat" | "DATEFORMAT" => {
+                if let Value::Array(arr) = args {
+                    if arr.is_empty() {
+                        return Err("dateformat requires at least 1 argument".to_string());
+                    }
+                    let format = if arr.len() > 1 {
+                        Some(Box::new(Self::compile(&arr[1])?))
+                    } else {
+                        None
+                    };
+                    Ok(CompiledLogic::DateFormat(Box::new(Self::compile(&arr[0])?), format))
+                } else {
+                    Ok(CompiledLogic::DateFormat(Box::new(Self::compile(args)?), None))
+                }
             }
             
             // Custom operators - Array/Table
@@ -919,10 +1043,22 @@ impl CompiledLogic {
             | CompiledLogic::Divides(items) => {
                 items.iter().any(|item| item.check_forward_reference())
             }
-            CompiledLogic::Not(a) | CompiledLogic::Abs(a) | CompiledLogic::Round(a)
-            | CompiledLogic::RoundUp(a) | CompiledLogic::RoundDown(a)
+            CompiledLogic::Not(a) | CompiledLogic::Abs(a)
             | CompiledLogic::Length(a) | CompiledLogic::Len(a) | CompiledLogic::IsEmpty(a)
             | CompiledLogic::Year(a) | CompiledLogic::Month(a) | CompiledLogic::Day(a) => a.check_forward_reference(),
+            CompiledLogic::Round(a, decimals) | CompiledLogic::RoundUp(a, decimals) | CompiledLogic::RoundDown(a, decimals)
+            | CompiledLogic::Ceiling(a, decimals) | CompiledLogic::Floor(a, decimals) | CompiledLogic::Trunc(a, decimals)
+            | CompiledLogic::DateFormat(a, decimals) => {
+                a.check_forward_reference() || decimals.as_ref().map_or(false, |d| d.check_forward_reference())
+            }
+            CompiledLogic::StringFormat(a, decimals, prefix, suffix, sep) => {
+                a.check_forward_reference() 
+                || decimals.as_ref().map_or(false, |d| d.check_forward_reference())
+                || prefix.as_ref().map_or(false, |p| p.check_forward_reference())
+                || suffix.as_ref().map_or(false, |s| s.check_forward_reference())
+                || sep.as_ref().map_or(false, |s| s.check_forward_reference())
+            }
+            CompiledLogic::Mround(a, b) => a.check_forward_reference() || b.check_forward_reference(),
             CompiledLogic::Return(_) => false, // Raw values don't have forward references
             CompiledLogic::If(cond, then_val, else_val) => {
                 cond.check_forward_reference() || then_val.check_forward_reference() || else_val.check_forward_reference()
@@ -1062,11 +1198,29 @@ impl CompiledLogic {
                     item.collect_vars(vars);
                 }
             }
-            CompiledLogic::Not(a) | CompiledLogic::Abs(a) | CompiledLogic::Round(a)
-            | CompiledLogic::RoundUp(a) | CompiledLogic::RoundDown(a)
+            CompiledLogic::Not(a) | CompiledLogic::Abs(a)
             | CompiledLogic::Length(a) | CompiledLogic::Len(a) | CompiledLogic::IsEmpty(a)
             | CompiledLogic::Year(a) | CompiledLogic::Month(a) | CompiledLogic::Day(a) => {
                 a.collect_vars(vars);
+            }
+            CompiledLogic::Round(a, decimals) | CompiledLogic::RoundUp(a, decimals) | CompiledLogic::RoundDown(a, decimals)
+            | CompiledLogic::Ceiling(a, decimals) | CompiledLogic::Floor(a, decimals) | CompiledLogic::Trunc(a, decimals)
+            | CompiledLogic::DateFormat(a, decimals) => {
+                a.collect_vars(vars);
+                if let Some(d) = decimals {
+                    d.collect_vars(vars);
+                }
+            }
+            CompiledLogic::StringFormat(a, decimals, prefix, suffix, sep) => {
+                a.collect_vars(vars);
+                if let Some(d) = decimals { d.collect_vars(vars); }
+                if let Some(p) = prefix { p.collect_vars(vars); }
+                if let Some(s) = suffix { s.collect_vars(vars); }
+                if let Some(s) = sep { s.collect_vars(vars); }
+            }
+            CompiledLogic::Mround(a, b) => {
+                a.collect_vars(vars);
+                b.collect_vars(vars);
             }
             CompiledLogic::Return(_) => {} // Raw values don't contain vars
             CompiledLogic::If(cond, then_val, else_val) => {

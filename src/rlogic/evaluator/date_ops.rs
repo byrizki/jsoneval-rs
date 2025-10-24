@@ -250,4 +250,63 @@ impl Evaluator {
             Ok(Value::Null)
         }
     }
+
+    /// Format date with specified format (Excel-like TEXT function for dates)
+    /// Supports prebuilt formats: "short", "long", "iso", "us", "eu", or custom strftime format
+    pub(super) fn eval_date_format(
+        &self,
+        date_expr: &CompiledLogic,
+        format_expr: &Option<Box<CompiledLogic>>,
+        user_data: &Value,
+        internal_context: &Value,
+        depth: usize,
+    ) -> Result<Value, String> {
+        let date_val = self.evaluate_with_context(date_expr, user_data, internal_context, depth + 1)?;
+        let date_val = Self::unwrap_array(date_val);
+        
+        // Parse the date
+        let date = if let Value::String(date_str) = &date_val {
+            self.parse_date(date_str)
+        } else {
+            None
+        };
+        
+        if date.is_none() {
+            return Ok(Value::Null);
+        }
+        let date = date.unwrap();
+        
+        // Get format string (default "iso")
+        let format_str = if let Some(fmt_expr) = format_expr {
+            let fmt_val = self.evaluate_with_context(fmt_expr, user_data, internal_context, depth + 1)?;
+            super::helpers::to_string(&fmt_val)
+        } else {
+            "iso".to_string()
+        };
+        
+        // Apply prebuilt or custom format
+        let formatted = match format_str.to_lowercase().as_str() {
+            "short" => date.format("%m/%d/%Y").to_string(),           // 01/15/2024
+            "long" => date.format("%B %d, %Y").to_string(),           // January 15, 2024
+            "iso" => date.format("%Y-%m-%d").to_string(),             // 2024-01-15
+            "us" => date.format("%m/%d/%Y").to_string(),              // 01/15/2024
+            "eu" => date.format("%d/%m/%Y").to_string(),              // 15/01/2024
+            "full" => date.format("%A, %B %d, %Y").to_string(),       // Monday, January 15, 2024
+            "monthday" => date.format("%B %d").to_string(),           // January 15
+            "yearmonth" => date.format("%Y-%m").to_string(),          // 2024-01
+            "ddmmyyyy" => date.format("%d/%m/%Y").to_string(),        // 15/01/2024
+            "mmddyyyy" => date.format("%m/%d/%Y").to_string(),        // 01/15/2024
+            "yyyymmdd" => date.format("%Y-%m-%d").to_string(),        // 2024-01-15
+            "dd-mm-yyyy" => date.format("%d-%m-%Y").to_string(),      // 15-01-2024
+            "mm-dd-yyyy" => date.format("%m-%d-%Y").to_string(),      // 01-15-2024
+            "yyyy-mm-dd" => date.format("%Y-%m-%d").to_string(),      // 2024-01-15
+            "dd.mm.yyyy" => date.format("%d.%m.%Y").to_string(),      // 15.01.2024
+            _ => {
+                // Custom format using strftime
+                date.format(&format_str).to_string()
+            }
+        };
+        
+        Ok(Value::String(formatted))
+    }
 }
