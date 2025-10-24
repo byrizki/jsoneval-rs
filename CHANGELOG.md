@@ -1,3 +1,8 @@
+### [0.0.24] - 2025-10-24
+
+**Fixed**
+- [bindings] fix C# & RN FFI binding
+
 ### [0.0.23] - 2025-10-24
 
 **Changed**
