@@ -93,6 +93,23 @@ impl EvalData {
     pub fn data(&self) -> &Value {
         &*self.data
     }
+
+    /// Clone a Value without certain keys
+    #[inline(always)]
+    pub fn clone_data_without(&self, exclude: &[&str]) -> Value {
+        match &*self.data {
+            Value::Object(map) => {
+                let mut new_map = Map::new();
+                for (k, v) in map {
+                    if !exclude.contains(&k.as_str()) {
+                        new_map.insert(k.clone(), v.clone());
+                    }
+                }
+                Value::Object(new_map)
+            }
+            other => other.clone(),
+        }
+    }
     
     /// Set a field value and increment version
     /// Accepts both dotted notation (user.name) and JSON pointer format (/user/name)

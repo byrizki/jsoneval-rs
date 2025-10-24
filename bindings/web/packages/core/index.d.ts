@@ -109,6 +109,12 @@ export interface GetEvaluatedSchemaByPathSubformOptions {
   skipLayout?: boolean;
 }
 
+export interface CompileAndRunLogicOptions {
+  logicStr: string | object;
+  data?: any;
+  context?: any;
+}
+
 export class JSONEval {
   constructor(options: JSONEvalOptions);
   static fromCache(cacheKey: string, context?: any, data?: any): JSONEval;
@@ -116,6 +122,9 @@ export class JSONEval {
   validate(options: ValidateOptions): Promise<ValidationResult>;
   evaluate(options: EvaluateOptions): Promise<any>;
   evaluateDependents(options: EvaluateDependentsOptions): Promise<any>;
+  compileAndRunLogic(options: CompileAndRunLogicOptions): Promise<any>;
+  compileLogic(logicStr: string | object): Promise<number>;
+  runLogic(logicId: number, data?: any, context?: any): Promise<any>;
   getEvaluatedSchema(options?: GetEvaluatedSchemaOptions): Promise<any>;
   getSchemaValue(): Promise<any>;
   getEvaluatedSchemaWithoutParams(options?: GetEvaluatedSchemaOptions): Promise<any>;

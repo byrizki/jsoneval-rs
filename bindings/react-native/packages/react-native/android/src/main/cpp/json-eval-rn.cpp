@@ -154,6 +154,61 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeEvaluateAsync(
     );
 }
 
+JNIEXPORT jdouble JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeCompileLogic(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jstring logicStr
+) {
+    try {
+        std::string handleStr = jstringToString(env, handle);
+        std::string logicStrCpp = jstringToString(env, logicStr);
+        uint64_t logicId = JsonEvalBridge::compileLogic(handleStr, logicStrCpp);
+        return static_cast<jdouble>(logicId);
+    } catch (const std::exception& e) {
+        jclass exClass = env->FindClass("java/lang/RuntimeException");
+        env->ThrowNew(exClass, e.what());
+        return 0.0;
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeRunLogicAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jdouble logicId,
+    jstring data,
+    jstring context,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    std::string dataStr = jstringToString(env, data);
+    std::string contextStr = jstringToString(env, context);
+    uint64_t logicIdValue = static_cast<uint64_t>(logicId);
+
+    JavaVM* jvm;
+    env->GetJavaVM(&jvm);
+    jobject globalPromise = env->NewGlobalRef(promise);
+
+    JsonEvalBridge::runLogicAsync(handleStr, logicIdValue, dataStr, contextStr,
+        [jvm, globalPromise](const std::string& result, const std::string& error) {
+            JNIEnv* env = nullptr;
+            jvm->AttachCurrentThread(&env, nullptr);
+
+            if (error.empty()) {
+                resolvePromise(env, globalPromise, result);
+            } else {
+                rejectPromise(env, globalPromise, "RUN_LOGIC_ERROR", error);
+            }
+
+            env->DeleteGlobalRef(globalPromise);
+            jvm->DetachCurrentThread();
+        }
+    );
+}
+
 JNIEXPORT void JNICALL
 Java_com_jsonevalrs_JsonEvalRsModule_nativeValidateAsync(
     JNIEnv* env,

@@ -596,6 +596,37 @@ export class JSONEval {
   }
 
   /**
+   * Compile JSON logic and return a global ID
+   * @param logicStr - JSON logic expression as a string or object
+   * @returns Promise resolving to the compiled logic ID
+   * @throws {Error} If compilation fails
+   */
+  async compileLogic(logicStr: string | object): Promise<number> {
+    this.throwIfDisposed();
+    
+    const logic = this.toJsonString(logicStr);
+    return await JsonEvalRs.compileLogic(this.handle, logic);
+  }
+
+  /**
+   * Run pre-compiled logic by ID
+   * @param logicId - Compiled logic ID from compileLogic
+   * @param data - Optional JSON data string or object (null to use existing data)
+   * @param context - Optional context data string or object (null to use existing context)
+   * @returns Promise resolving to the result of the evaluation
+   * @throws {Error} If execution fails
+   */
+  async runLogic(logicId: number, data?: string | object, context?: string | object): Promise<any> {
+    this.throwIfDisposed();
+    
+    const dataStr = data ? this.toJsonString(data) : null;
+    const contextStr = context ? this.toJsonString(context) : null;
+    
+    const resultStr = await JsonEvalRs.runLogic(this.handle, logicId, dataStr, contextStr);
+    return JSON.parse(resultStr);
+  }
+
+  /**
    * Validate data against schema rules with optional path filtering
    * @param options - Validation options with optional path filtering
    * @returns Promise resolving to ValidationResult

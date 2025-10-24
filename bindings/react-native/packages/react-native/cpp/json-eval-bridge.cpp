@@ -30,6 +30,8 @@ extern "C" {
     FFIResult json_eval_get_schema_by_path(JSONEvalHandle* handle, const char* path);
     FFIResult json_eval_resolve_layout(JSONEvalHandle* handle, bool evaluate);
     FFIResult json_eval_compile_and_run_logic(JSONEvalHandle* handle, const char* logic_str, const char* data, const char* context);
+    uint64_t json_eval_compile_logic(JSONEvalHandle* handle, const char* logic_str);
+    FFIResult json_eval_run_logic(JSONEvalHandle* handle, uint64_t logic_id, const char* data, const char* context);
     FFIResult json_eval_reload_schema(JSONEvalHandle* handle, const char* schema, const char* context, const char* data);
     FFIResult json_eval_reload_schema_msgpack(JSONEvalHandle* handle, const uint8_t* schema_msgpack, size_t schema_len, const char* context, const char* data);
     FFIResult json_eval_reload_schema_from_cache(JSONEvalHandle* handle, const char* cache_key, const char* context, const char* data);
@@ -193,6 +195,62 @@ void JsonEvalBridge::evaluateAsync(
             resultStr = "{}";
         }
         json_eval_free_result(schemaResult);
+        return resultStr;
+    }, callback);
+}
+
+uint64_t JsonEvalBridge::compileLogic(
+    const std::string& handleId,
+    const std::string& logicStr
+) {
+    std::lock_guard<std::mutex> lock(handlesMutex);
+    auto it = handles.find(handleId);
+    if (it == handles.end()) {
+        throw std::runtime_error("Invalid handle");
+    }
+
+    uint64_t logicId = json_eval_compile_logic(it->second, logicStr.c_str());
+    if (logicId == 0) {
+        throw std::runtime_error("Failed to compile logic (received ID 0)");
+    }
+
+    return logicId;
+}
+
+void JsonEvalBridge::runLogicAsync(
+    const std::string& handleId,
+    uint64_t logicId,
+    const std::string& data,
+    const std::string& context,
+    std::function<void(const std::string&, const std::string&)> callback
+) {
+    runAsync([handleId, logicId, data, context]() -> std::string {
+        std::lock_guard<std::mutex> lock(handlesMutex);
+        auto it = handles.find(handleId);
+        if (it == handles.end()) {
+            throw std::runtime_error("Invalid handle");
+        }
+
+        FFIResult result = json_eval_run_logic(
+            it->second,
+            logicId,
+            data.empty() ? nullptr : data.c_str(),
+            context.empty() ? nullptr : context.c_str()
+        );
+
+        if (!result.success) {
+            std::string error = result.error ? result.error : "Unknown error";
+            json_eval_free_result(result);
+            throw std::runtime_error(error);
+        }
+
+        std::string resultStr;
+        if (result.data_ptr && result.data_len > 0) {
+            resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+        } else {
+            resultStr = "{}";
+        }
+        json_eval_free_result(result);
         return resultStr;
     }, callback);
 }

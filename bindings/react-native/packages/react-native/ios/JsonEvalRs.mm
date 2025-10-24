@@ -97,6 +97,48 @@ RCT_EXPORT_METHOD(evaluate:(NSString *)handle
     );
 }
 
+RCT_EXPORT_METHOD(compileLogic:(NSString *)handle
+                  logicStr:(NSString *)logicStr
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    @try {
+        std::string handleStr = [self stdStringFromNSString:handle];
+        std::string logicStrCpp = [self stdStringFromNSString:logicStr];
+        uint64_t logicId = JsonEvalBridge::compileLogic(handleStr, logicStrCpp);
+        if (logicId == 0) {
+            reject(@"COMPILE_LOGIC_ERROR", @"Failed to compile logic", nil);
+        } else {
+            resolve(@(logicId));
+        }
+    } catch (const std::exception& e) {
+        reject(@"COMPILE_LOGIC_ERROR", [NSString stringWithUTF8String:e.what()], nil);
+    }
+}
+
+RCT_EXPORT_METHOD(runLogic:(NSString *)handle
+                  logicId:(nonnull NSNumber *)logicId
+                  data:(NSString *)data
+                  context:(NSString *)context
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    uint64_t logicIdValue = [logicId unsignedLongLongValue];
+    std::string dataStr = [self stdStringFromNSString:data];
+    std::string contextStr = [self stdStringFromNSString:context];
+
+    JsonEvalBridge::runLogicAsync(handleStr, logicIdValue, dataStr, contextStr,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"RUN_LOGIC_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
 RCT_EXPORT_METHOD(validate:(NSString *)handle
                   data:(NSString *)data
                   context:(NSString *)context

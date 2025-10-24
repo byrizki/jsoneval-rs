@@ -422,11 +422,42 @@ export class JSONEvalCore {
   async compileAndRunLogic({ logicStr, data, context }) {
     await this.init();
     const logic = typeof logicStr === 'string' ? logicStr : JSON.stringify(logicStr);
-    return this._instance.compileAndRunLogicJS(
+    const result = await this._instance.compileAndRunLogic(
       logic,
       data ? JSON.stringify(data) : null,
       context ? JSON.stringify(context) : null
     );
+    // Parse result if it's a string
+    return typeof result === 'string' ? JSON.parse(result) : result;
+  }
+
+  /**
+   * Compile JSON logic and return a global ID
+   * @param {string|object} logicStr - JSON logic expression as a string or object
+   * @returns {Promise<number>} Compiled logic ID
+   */
+  async compileLogic(logicStr) {
+    await this.init();
+    const logic = typeof logicStr === 'string' ? logicStr : JSON.stringify(logicStr);
+    return this._instance.compileLogic(logic);
+  }
+
+  /**
+   * Run pre-compiled logic by ID
+   * @param {number} logicId - Compiled logic ID from compileLogic
+   * @param {object} [data] - Optional data to evaluate against (uses existing data if not provided)
+   * @param {object} [context] - Optional context to use (uses existing context if not provided)
+   * @returns {Promise<any>} Result of the evaluation
+   */
+  async runLogic(logicId, data, context) {
+    await this.init();
+    const result = await this._instance.runLogic(
+      logicId,
+      data ? JSON.stringify(data) : null,
+      context ? JSON.stringify(context) : null
+    );
+    // Parse result if it's a string
+    return typeof result === 'string' ? JSON.parse(result) : result;
   }
 
   /**

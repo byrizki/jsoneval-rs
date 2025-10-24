@@ -181,6 +181,20 @@ namespace JsonEvalRs
             [MarshalAs(UnmanagedType.LPUTF8Str)] string? context
         );
 
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern ulong json_eval_compile_logic(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string logicStr
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_run_logic(
+            IntPtr handle,
+            ulong logicId,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? data,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context
+        );
+
         // Subform methods
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_evaluate_subform(

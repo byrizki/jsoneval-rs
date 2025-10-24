@@ -304,6 +304,33 @@ public:
     );
 
     /**
+     * Compile JSON logic expression and return global logic ID
+     * @param handle JSONEval instance handle
+     * @param logicStr JSON logic expression
+     * @return Compiled logic ID (global cache)
+     */
+    static uint64_t compileLogic(
+        const std::string& handle,
+        const std::string& logicStr
+    );
+
+    /**
+     * Run pre-compiled JSON logic expression by ID
+     * @param handle JSONEval instance handle
+     * @param logicId Global compiled logic ID
+     * @param data Optional JSON data string (empty to use existing data)
+     * @param context Optional context data string (empty to use existing context)
+     * @param callback Result callback
+     */
+    static void runLogicAsync(
+        const std::string& handle,
+        uint64_t logicId,
+        const std::string& data,
+        const std::string& context,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
      * Validate with paths (async)
      * @param handle Instance handle
      * @param data JSON data string

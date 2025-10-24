@@ -144,4 +144,52 @@ impl JSONEvalWasm {
             Err(e) => Err(JsValue::from_str(&e)),
         }
     }
+
+    /// Compile JSON logic and return a global ID
+    /// @param logic_str - JSON logic expression as a string
+    /// @returns Compiled logic ID as number (u64)
+    #[wasm_bindgen(js_name = compileLogic)]
+    pub fn compile_logic(&self, logic_str: &str) -> Result<f64, JsValue> {
+        match self.inner.compile_logic(logic_str) {
+            Ok(id) => Ok(id.as_u64() as f64), // JavaScript number
+            Err(e) => Err(JsValue::from_str(&e)),
+        }
+    }
+
+    /// Run pre-compiled logic by ID
+    /// @param logic_id - Compiled logic ID from compileLogic
+    /// @param data - Optional JSON data string
+    /// @param context - Optional JSON context string
+    /// @returns Result as JavaScript object
+    #[wasm_bindgen(js_name = runLogic)]
+    pub fn run_logic(&mut self, logic_id: f64, data: Option<String>, context: Option<String>) -> Result<JsValue, JsValue> {
+        let id = crate::CompiledLogicId::from_u64(logic_id as u64);
+        
+        let data_value = if let Some(data_str) = data {
+            match serde_json::from_str(&data_str) {
+                Ok(v) => Some(v),
+                Err(e) => return Err(JsValue::from_str(&format!("Failed to parse data: {}", e))),
+            }
+        } else {
+            None
+        };
+        
+        let context_value = if let Some(ctx_str) = context {
+            match serde_json::from_str(&ctx_str) {
+                Ok(v) => Some(v),
+                Err(e) => return Err(JsValue::from_str(&format!("Failed to parse context: {}", e))),
+            }
+        } else {
+            None
+        };
+        
+        match self.inner.run_logic(id, data_value.as_ref(), context_value.as_ref()) {
+            Ok(result) => serde_wasm_bindgen::to_value(&result)
+                .map_err(|e| {
+                    let error_msg = format!("Failed to convert logic result: {}", e);
+                    JsValue::from_str(&error_msg)
+                }),
+            Err(e) => Err(JsValue::from_str(&e)),
+        }
+    }
 }

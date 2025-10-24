@@ -10,6 +10,7 @@ pub mod cache;
 pub mod layout;
 pub mod subforms;
 pub mod parsed_cache;
+pub mod compiled_logic;
 
 // Re-export types for external use
 pub use types::{FFIResult, JSONEvalHandle};
@@ -23,3 +24,4 @@ pub use cache::*;
 pub use layout::*;
 pub use subforms::*;
 pub use parsed_cache::*;
+pub use compiled_logic::*;

@@ -1157,6 +1157,10 @@ impl CompiledLogic {
 }
 
 /// Storage for compiled logic expressions with dependency tracking
+/// 
+/// This store uses the global compiled logic cache to avoid recompiling
+/// the same logic across different instances. Each instance maintains
+/// its own local ID mapping to the global storage.
 pub struct CompiledLogicStore {
     next_id: u64,
     store: AHashMap<LogicId, CompiledLogic>,
@@ -1173,13 +1177,29 @@ impl CompiledLogicStore {
     }
     
     /// Compile and store a JSON Logic expression
+    /// 
+    /// Uses global storage to avoid recompiling the same logic across instances.
+    /// The logic is compiled once globally and reused, with this instance maintaining
+    /// its own local ID for tracking dependencies.
     pub fn compile(&mut self, logic: &Value) -> Result<LogicId, String> {
-        let compiled = CompiledLogic::compile(logic)?;
+        // Use global storage - compiles once and caches globally
+        let _global_id = super::compiled_logic_store::compile_logic_value(logic)?;
+        
+        // Get the compiled logic from global store (O(1) lookup)
+        let compiled = super::compiled_logic_store::get_compiled_logic(_global_id)
+            .ok_or_else(|| "Failed to retrieve compiled logic from global store".to_string())?;
+        
+        // Track dependencies locally
         let deps = compiled.referenced_vars();
+        
+        // Assign local ID for this instance
         let id = LogicId(self.next_id);
         self.next_id += 1;
+        
+        // Store locally with instance-specific ID
         self.store.insert(id, compiled);
         self.dependencies.insert(id, deps);
+        
         Ok(id)
     }
     

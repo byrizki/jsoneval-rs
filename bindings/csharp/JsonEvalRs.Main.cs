@@ -808,6 +808,87 @@ namespace JsonEvalRs
         }
 
         /// <summary>
+        /// Compiles JSON logic and returns a global ID
+        /// </summary>
+        /// <param name="logicStr">JSON logic expression as a string</param>
+        /// <returns>Compiled logic ID</returns>
+        /// <throws>JsonEvalException if compilation fails or returns 0 (error)</throws>
+        public ulong CompileLogic(string logicStr)
+        {
+            ThrowIfDisposed();
+
+            if (string.IsNullOrEmpty(logicStr))
+                throw new ArgumentNullException(nameof(logicStr));
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+            ulong logicId = Native.json_eval_compile_logic(_handle, logicStr);
+#else
+            ulong logicId = Native.json_eval_compile_logic(_handle, Native.ToUTF8Bytes(logicStr));
+#endif
+
+            if (logicId == 0)
+            {
+                throw new JsonEvalException("Failed to compile logic (returned ID 0)");
+            }
+
+            return logicId;
+        }
+
+        /// <summary>
+        /// Runs pre-compiled logic by ID
+        /// </summary>
+        /// <param name="logicId">Compiled logic ID from CompileLogic</param>
+        /// <param name="data">Optional JSON data string (null to use existing data)</param>
+        /// <param name="context">Optional context data string (null to use existing context)</param>
+        /// <returns>Result as JToken</returns>
+        /// <throws>JsonEvalException if execution fails</throws>
+        public JToken RunLogic(ulong logicId, string? data = null, string? context = null)
+        {
+            ThrowIfDisposed();
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+            var result = Native.json_eval_run_logic(_handle, logicId, data, context);
+#else
+            var result = Native.json_eval_run_logic(_handle, logicId, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context));
+#endif
+            
+            try
+            {
+                if (!result.Success)
+                {
+#if NETCOREAPP || NET5_0_OR_GREATER
+                    string error = result.Error != IntPtr.Zero
+                        ? Marshal.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                        : "Unknown error";
+#else
+                    string error = result.Error != IntPtr.Zero
+                        ? Native.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                        : "Unknown error";
+#endif
+                    throw new JsonEvalException(error);
+                }
+
+                if (result.DataPtr == IntPtr.Zero)
+                    throw new JsonEvalException("No data returned from native function");
+
+                int dataLen = (int)result.DataLen.ToUInt32();
+                if (dataLen == 0)
+                    throw new JsonEvalException("Empty result returned from native function");
+
+                // Zero-copy: read directly from Rust-owned memory
+                byte[] buffer = new byte[dataLen];
+                Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
+                
+                string json = Encoding.UTF8.GetString(buffer);
+                return JToken.Parse(json);
+            }
+            finally
+            {
+                Native.json_eval_free_result(result);
+            }
+        }
+
+        /// <summary>
         /// Validates data against schema rules with optional path filtering
         /// </summary>
         /// <param name="data">JSON data string</param>

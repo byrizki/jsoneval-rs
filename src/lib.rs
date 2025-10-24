@@ -38,6 +38,7 @@ use indexmap::{IndexMap, IndexSet};
 pub use rlogic::{
     CompiledLogic, CompiledLogicStore, Evaluator,
     LogicId, RLogic, RLogicConfig,
+    CompiledLogicId, CompiledLogicStoreStats,
 };
 use serde::{Deserialize, Serialize};
 pub use table_metadata::TableMetadata;
@@ -1220,61 +1221,119 @@ impl JSONEval {
         Ok(result)
     }
 
-    /// Compile and run JSON logic from a JSON logic string
+    /// Compile a logic expression from a JSON string and store it globally
+    /// 
+    /// Returns a CompiledLogicId that can be used with run_logic for zero-clone evaluation.
+    /// The compiled logic is stored in a global thread-safe cache and can be shared across
+    /// different JSONEval instances. If the same logic was compiled before, returns the existing ID.
+    /// 
+    /// For repeated evaluations with different data, compile once and run multiple times.
     ///
     /// # Arguments
     ///
     /// * `logic_str` - JSON logic expression as a string
+    ///
+    /// # Returns
+    ///
+    /// A CompiledLogicId that can be reused for multiple evaluations across instances
+    pub fn compile_logic(&self, logic_str: &str) -> Result<CompiledLogicId, String> {
+        rlogic::compiled_logic_store::compile_logic(logic_str)
+    }
+    
+    /// Compile a logic expression from a Value and store it globally
+    /// 
+    /// This is more efficient than compile_logic when you already have a parsed Value,
+    /// as it avoids the JSON string serialization/parsing overhead.
+    /// 
+    /// Returns a CompiledLogicId that can be used with run_logic for zero-clone evaluation.
+    /// The compiled logic is stored in a global thread-safe cache and can be shared across
+    /// different JSONEval instances. If the same logic was compiled before, returns the existing ID.
+    ///
+    /// # Arguments
+    ///
+    /// * `logic` - JSON logic expression as a Value
+    ///
+    /// # Returns
+    ///
+    /// A CompiledLogicId that can be reused for multiple evaluations across instances
+    pub fn compile_logic_value(&self, logic: &Value) -> Result<CompiledLogicId, String> {
+        rlogic::compiled_logic_store::compile_logic_value(logic)
+    }
+    
+    /// Run pre-compiled logic with zero-clone pattern
+    /// 
+    /// Uses references to avoid data cloning - similar to evaluate method.
+    /// This is the most efficient way to evaluate logic multiple times with different data.
+    /// The CompiledLogicId is retrieved from global storage, allowing the same compiled logic
+    /// to be used across different JSONEval instances.
+    ///
+    /// # Arguments
+    ///
+    /// * `logic_id` - Pre-compiled logic ID from compile_logic
     /// * `data` - Optional data to evaluate against (uses existing data if None)
     /// * `context` - Optional context to use (uses existing context if None)
     ///
     /// # Returns
     ///
     /// The result of the evaluation as a Value
-    pub fn compile_and_run_logic(&mut self, logic_str: &str, data: Option<&str>, context: Option<&str>) -> Result<Value, String> {
-        // Parse the logic string
-        let logic: Value = json_parser::parse_json_str(logic_str)?;
-        
-        // Parse context if provided
-        let context_value = if let Some(ctx_str) = context {
-            json_parser::parse_json_str(ctx_str)?
-        } else {
-            self.context.clone()
-        };
+    pub fn run_logic(&mut self, logic_id: CompiledLogicId, data: Option<&Value>, context: Option<&Value>) -> Result<Value, String> {
+        // Get compiled logic from global store
+        let compiled_logic = rlogic::compiled_logic_store::get_compiled_logic(logic_id)
+            .ok_or_else(|| format!("Compiled logic ID {:?} not found in store", logic_id))?;
         
         // Get the data to evaluate against
         // If custom data is provided, merge it with context and $params
         // Otherwise, use the existing eval_data which already has everything merged
-        let eval_data_value = if let Some(data_str) = data {
-            let input_data = json_parser::parse_json_str(data_str)?;
+        let eval_data_value = if let Some(input_data) = data {
+            let context_value = context.unwrap_or(&self.context);
             
-            // Create merged data structure similar to with_schema_data_context
-            let mut data_map = serde_json::Map::new();
-            
-            // Insert $params from evaluated_schema
-            if let Some(params) = self.evaluated_schema.get("$params") {
-                data_map.insert("$params".to_string(), params.clone());
-            }
-            
-            // Merge input_data into the root level
-            if let Value::Object(input_obj) = input_data {
-                for (key, value) in input_obj {
-                    data_map.insert(key, value);
-                }
-            }
-            
-            // Insert context (use provided context or existing)
-            data_map.insert("$context".to_string(), context_value);
-            
-            Value::Object(data_map)
+            self.eval_data.replace_data_and_context(input_data.clone(), context_value.clone());
+            self.eval_data.data()
         } else {
-            self.eval_data.data().clone()
+            self.eval_data.data()
         };
         
-        // Compile and evaluate the logic
-        let result = self.engine.evaluate(&logic, &eval_data_value)?;
+        // Create an evaluator and run the pre-compiled logic with zero-clone pattern
+        let evaluator = Evaluator::new();
+        let result = evaluator.evaluate(&compiled_logic, &eval_data_value)?;
         
         Ok(clean_float_noise(result))
+    }
+    
+    /// Compile and run JSON logic in one step (convenience method)
+    /// 
+    /// This is a convenience wrapper that combines compile_logic and run_logic.
+    /// For repeated evaluations with different data, use compile_logic once 
+    /// and run_logic multiple times for better performance.
+    ///
+    /// # Arguments
+    ///
+    /// * `logic_str` - JSON logic expression as a string
+    /// * `data` - Optional data JSON string to evaluate against (uses existing data if None)
+    /// * `context` - Optional context JSON string to use (uses existing context if None)
+    ///
+    /// # Returns
+    ///
+    /// The result of the evaluation as a Value
+    pub fn compile_and_run_logic(&mut self, logic_str: &str, data: Option<&str>, context: Option<&str>) -> Result<Value, String> {
+        // Parse the logic string and compile
+        let compiled_logic = self.compile_logic(logic_str)?;
+        
+        // Parse data and context if provided
+        let data_value = if let Some(data_str) = data {
+            Some(json_parser::parse_json_str(data_str)?)
+        } else {
+            None
+        };
+        
+        let context_value = if let Some(ctx_str) = context {
+            Some(json_parser::parse_json_str(ctx_str)?)
+        } else {
+            None
+        };
+        
+        // Run the compiled logic
+        self.run_logic(compiled_logic, data_value.as_ref(), context_value.as_ref())
     }
 
     /// Resolve layout references with optional evaluation
@@ -1615,7 +1674,7 @@ impl JSONEval {
         // Update data if provided
         if let Some(data_str) = data {
             // Save old data for comparison
-            let old_data = self.eval_data.data().clone();
+            let old_data = self.eval_data.clone_data_without(&["$params"]);
             
             let data_value = json_parser::parse_json_str(data_str)?;
             let context_value = if let Some(ctx) = context {
@@ -1821,7 +1880,7 @@ impl JSONEval {
         let _lock = self.eval_lock.lock().unwrap();
         
         // Save old data for comparison
-        let old_data = self.eval_data.data().clone();
+        let old_data = self.eval_data.clone_data_without(&["$params"]);
         
         // Parse data and context
         let data_value = json_parser::parse_json_str(data)?;

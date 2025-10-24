@@ -262,6 +262,35 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
         nativeCompileAndRunLogicAsync(handle, logicStr, data ?: "", context ?: "", promise)
     }
 
+    @ReactMethod
+    fun compileLogic(
+        handle: String,
+        logicStr: String,
+        promise: Promise
+    ) {
+        try {
+            val logicId = nativeCompileLogic(handle, logicStr)
+            if (logicId == 0.0) {
+                promise.reject("COMPILE_LOGIC_ERROR", "Failed to compile logic")
+            } else {
+                promise.resolve(logicId)
+            }
+        } catch (e: Exception) {
+            promise.reject("COMPILE_LOGIC_ERROR", e.message, e)
+        }
+    }
+
+    @ReactMethod
+    fun runLogic(
+        handle: String,
+        logicId: Double,
+        data: String?,
+        context: String?,
+        promise: Promise
+    ) {
+        nativeRunLogicAsync(handle, logicId, data ?: "", context ?: "", promise)
+    }
+
     // ========================================================================
     // Subform Methods
     // ========================================================================
@@ -428,6 +457,8 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     private external fun nativeValidatePathsAsync(handle: String, data: String, context: String, pathsJson: String, promise: Promise)
     private external fun nativeResolveLayoutAsync(handle: String, evaluate: Boolean, promise: Promise)
     private external fun nativeCompileAndRunLogicAsync(handle: String, logicStr: String, data: String, context: String, promise: Promise)
+    private external fun nativeCompileLogic(handle: String, logicStr: String): Double
+    private external fun nativeRunLogicAsync(handle: String, logicId: Double, data: String, context: String, promise: Promise)
     
     // Subform native methods
     private external fun nativeEvaluateSubformAsync(handle: String, subformPath: String, data: String, context: String, promise: Promise)

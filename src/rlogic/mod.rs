@@ -5,16 +5,19 @@
 //! - Mutation tracking via proxy-like data wrapper (EvalData)
 //! - All data mutations gated through EvalData for safety
 //! - Zero external dependencies (uses only standard library and serde_json)
+//! - Global compiled logic storage for cross-instance sharing
 
 pub mod compiled;
 pub mod evaluator;
 pub mod config;
+pub mod compiled_logic_store;
 
 use serde_json::Value;
 
 pub use compiled::{CompiledLogic, CompiledLogicStore, LogicId};
 pub use evaluator::Evaluator;
 pub use config::RLogicConfig;
+pub use compiled_logic_store::{CompiledLogicId, CompiledLogicStoreStats};
 
 /// Main RLogic engine combining compilation and evaluation
 pub struct RLogic {
