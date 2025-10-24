@@ -654,6 +654,77 @@ namespace JsonEvalRs
         }
 
         /// <summary>
+        /// Enable evaluation caching.
+        /// Useful for reusing JSONEval instances with different data.
+        /// </summary>
+        public void EnableCache()
+        {
+            ThrowIfDisposed();
+            var result = Native.json_eval_enable_cache(_handle);
+            try
+            {
+                if (!result.Success)
+                {
+#if NETCOREAPP || NET5_0_OR_GREATER
+                    string error = result.Error != IntPtr.Zero
+                        ? Marshal.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                        : "Unknown error";
+#else
+                    string error = result.Error != IntPtr.Zero
+                        ? Native.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                        : "Unknown error";
+#endif
+                    throw new JsonEvalException(error);
+                }
+            }
+            finally
+            {
+                Native.json_eval_free_result(result);
+            }
+        }
+
+        /// <summary>
+        /// Disable evaluation caching.
+        /// Useful for web API usage where each request creates a new JSONEval instance.
+        /// Improves performance by skipping cache operations that have no benefit for single-use instances.
+        /// </summary>
+        public void DisableCache()
+        {
+            ThrowIfDisposed();
+            var result = Native.json_eval_disable_cache(_handle);
+            try
+            {
+                if (!result.Success)
+                {
+#if NETCOREAPP || NET5_0_OR_GREATER
+                    string error = result.Error != IntPtr.Zero
+                        ? Marshal.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                        : "Unknown error";
+#else
+                    string error = result.Error != IntPtr.Zero
+                        ? Native.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                        : "Unknown error";
+#endif
+                    throw new JsonEvalException(error);
+                }
+            }
+            finally
+            {
+                Native.json_eval_free_result(result);
+            }
+        }
+
+        /// <summary>
+        /// Check if evaluation caching is enabled.
+        /// </summary>
+        /// <returns>True if caching is enabled, false otherwise</returns>
+        public bool IsCacheEnabled()
+        {
+            ThrowIfDisposed();
+            return Native.json_eval_is_cache_enabled(_handle) != 0;
+        }
+
+        /// <summary>
         /// Resolves layout with optional evaluation
         /// </summary>
         /// <param name="evaluate">If true, runs evaluation before resolving layout</param>

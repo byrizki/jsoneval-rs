@@ -65,6 +65,15 @@ namespace JsonEvalRs
         internal static extern FFIResult json_eval_cache_len(IntPtr handle);
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_enable_cache(IntPtr handle);
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_disable_cache(IntPtr handle);
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int json_eval_is_cache_enabled(IntPtr handle);
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_get_subform_paths(IntPtr handle);
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
