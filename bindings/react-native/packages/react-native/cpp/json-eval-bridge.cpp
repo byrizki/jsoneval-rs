@@ -37,6 +37,9 @@ extern "C" {
     FFIResult json_eval_cache_stats(JSONEvalHandle* handle);
     FFIResult json_eval_clear_cache(JSONEvalHandle* handle);
     FFIResult json_eval_cache_len(JSONEvalHandle* handle);
+    FFIResult json_eval_enable_cache(JSONEvalHandle* handle);
+    FFIResult json_eval_disable_cache(JSONEvalHandle* handle);
+    int json_eval_is_cache_enabled(JSONEvalHandle* handle);
     FFIResult json_eval_validate_paths(JSONEvalHandle* handle, const char* data, const char* context, const char* paths_json);
     
     // Subform FFI methods
