@@ -401,7 +401,7 @@ fn test_evaluate_dependents_no_data_update() {
     assert!(changes.len() > 0, "Should have changes");
 
     let change = &changes[0];
-    assert_eq!(change["$ref"], "#/properties/output");
+    assert_eq!(change["$ref"], "output");
     assert_eq!(change["value"], 21, "Should compute using existing data: 7 * 3 = 21");
 }
 
@@ -474,7 +474,7 @@ fn test_evaluate_dependents_output_structure() {
     // 1. Validate $ref field
     assert!(value_change.get("$ref").is_some(), "Must have $ref field");
     assert!(value_change["$ref"].is_string(), "$ref must be a string");
-    assert_eq!(value_change["$ref"], "#/properties/computed");
+    assert_eq!(value_change["$ref"], "computed");
 
     // 2. Validate $field (the target field schema)
     assert!(value_change.get("$field").is_some(), "Must have $field");
@@ -506,7 +506,7 @@ fn test_evaluate_dependents_output_structure() {
     let clear_change = &changes[1];
     
     // 1. Validate $ref field
-    assert_eq!(clear_change["$ref"], "#/properties/conditional");
+    assert_eq!(clear_change["$ref"], "conditional");
 
     // 2. Validate $field
     assert!(clear_change["$field"].is_object());
@@ -593,7 +593,7 @@ fn test_evaluate_dependents_dot_notation() {
     assert!(changes.len() > 0, "Should have changes");
 
     let change = &changes[0];
-    assert_eq!(change["$ref"], "#/properties/user/properties/display");
+    assert_eq!(change["$ref"], "user.display");
     assert_eq!(change["value"], "Hello, Alice");
     
     // Validate $parentField is the user object data
