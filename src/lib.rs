@@ -1545,7 +1545,7 @@ impl JSONEval {
                     }
                     
                     let mut change_obj = serde_json::Map::new();
-                    change_obj.insert("$ref".to_string(), Value::String(ref_path.clone()));
+                    change_obj.insert("$ref".to_string(), Value::String(path_utils::pointer_to_dot_notation(&data_path)));
                     if let Some(f) = field {
                         change_obj.insert("$field".to_string(), f);
                     }
@@ -1576,10 +1576,12 @@ impl JSONEval {
                         let computed_value = Self::evaluate_dependent_value_static(&self.engine, &self.evaluations, &self.eval_data, &value_val_clone, &current_value, &current_ref_value)?;
                         let cleaned_val = clean_float_noise(computed_value.clone());
                         
-                        // Set the value
-                        self.eval_data.set(&data_path, cleaned_val.clone());
-                        change_obj.insert("value".to_string(), cleaned_val);
-                        add_transitive = true;
+                        if cleaned_val != current_ref_value {   
+                            // Set the value
+                            self.eval_data.set(&data_path, cleaned_val.clone());
+                            change_obj.insert("value".to_string(), cleaned_val);
+                            add_transitive = true;
+                        }
                     }
                     
                     result.push(Value::Object(change_obj));
