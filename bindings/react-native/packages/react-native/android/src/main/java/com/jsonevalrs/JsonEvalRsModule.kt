@@ -208,6 +208,29 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun enableCache(
+        handle: String,
+        promise: Promise
+    ) {
+        nativeEnableCacheAsync(handle, promise)
+    }
+
+    @ReactMethod
+    fun disableCache(
+        handle: String,
+        promise: Promise
+    ) {
+        nativeDisableCacheAsync(handle, promise)
+    }
+
+    @ReactMethod(isBlockingSynchronousMethod = true)
+    fun isCacheEnabled(
+        handle: String
+    ): Boolean {
+        return nativeIsCacheEnabled(handle)
+    }
+
+    @ReactMethod
     fun validatePaths(
         handle: String,
         data: String,
@@ -399,6 +422,9 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     private external fun nativeCacheStatsAsync(handle: String, promise: Promise)
     private external fun nativeClearCacheAsync(handle: String, promise: Promise)
     private external fun nativeCacheLenAsync(handle: String, promise: Promise)
+    private external fun nativeEnableCacheAsync(handle: String, promise: Promise)
+    private external fun nativeDisableCacheAsync(handle: String, promise: Promise)
+    private external fun nativeIsCacheEnabled(handle: String): Boolean
     private external fun nativeValidatePathsAsync(handle: String, data: String, context: String, pathsJson: String, promise: Promise)
     private external fun nativeResolveLayoutAsync(handle: String, evaluate: Boolean, promise: Promise)
     private external fun nativeCompileAndRunLogicAsync(handle: String, logicStr: String, data: String, context: String, promise: Promise)

@@ -19,13 +19,13 @@ impl JSONEval {
     
     /// Validate subform data against its schema rules
     pub fn validate_subform(
-        &self,
+        &mut self,
         subform_path: &str,
         data: &str,
         context: Option<&str>,
         paths: Option<&[String]>,
     ) -> Result<crate::ValidationResult, String> {
-        let subform = self.subforms.get(subform_path)
+        let subform = self.subforms.get_mut(subform_path)
             .ok_or_else(|| format!("Subform not found: {}", subform_path))?;
         
         subform.validate(data, context, paths)

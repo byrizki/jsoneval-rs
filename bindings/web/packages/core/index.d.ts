@@ -128,6 +128,9 @@ export class JSONEval {
   cacheStats(): Promise<CacheStats>;
   clearCache(): Promise<void>;
   cacheLen(): Promise<number>;
+  enableCache(): Promise<void>;
+  disableCache(): Promise<void>;
+  isCacheEnabled(): boolean;
   
   // Subform methods
   evaluateSubform(options: EvaluateSubformOptions): Promise<void>;

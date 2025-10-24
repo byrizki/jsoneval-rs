@@ -33,4 +33,27 @@ impl JSONEvalWasm {
     pub fn cache_len(&self) -> usize {
         self.inner.cache_len()
     }
+
+    /// Enable evaluation caching
+    /// Useful for reusing JSONEval instances with different data
+    #[wasm_bindgen(js_name = enableCache)]
+    pub fn enable_cache(&mut self) {
+        self.inner.enable_cache();
+    }
+
+    /// Disable evaluation caching
+    /// Useful for web API usage where each request creates a new JSONEval instance
+    /// Improves performance by skipping cache operations that have no benefit for single-use instances
+    #[wasm_bindgen(js_name = disableCache)]
+    pub fn disable_cache(&mut self) {
+        self.inner.disable_cache();
+    }
+
+    /// Check if evaluation caching is enabled
+    /// 
+    /// @returns true if caching is enabled, false otherwise
+    #[wasm_bindgen(js_name = isCacheEnabled)]
+    pub fn is_cache_enabled(&self) -> bool {
+        self.inner.is_cache_enabled()
+    }
 }

@@ -249,6 +249,33 @@ public:
     );
 
     /**
+     * Enable evaluation caching (async)
+     * @param handle Instance handle
+     * @param callback Result callback
+     */
+    static void enableCacheAsync(
+        const std::string& handle,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Disable evaluation caching (async)
+     * @param handle Instance handle
+     * @param callback Result callback
+     */
+    static void disableCacheAsync(
+        const std::string& handle,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Check if caching is enabled (synchronous)
+     * @param handle Instance handle
+     * @returns true if caching is enabled, false otherwise
+     */
+    static bool isCacheEnabled(const std::string& handle);
+
+    /**
      * Resolve layout with optional evaluation (async)
      * @param handle Instance handle
      * @param evaluate If true, runs evaluation before resolving layout

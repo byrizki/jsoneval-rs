@@ -31,7 +31,7 @@ impl JSONEvalWasm {
     /// @param context - Optional context data JSON string
     /// @returns ValidationResult
     #[wasm_bindgen(js_name = validateSubform)]
-    pub fn validate_subform(&self, subform_path: &str, data: &str, context: Option<String>) -> Result<ValidationResult, JsValue> {
+    pub fn validate_subform(&mut self, subform_path: &str, data: &str, context: Option<String>) -> Result<ValidationResult, JsValue> {
         let ctx = context.as_deref();
         
         match self.inner.validate_subform(subform_path, data, ctx, None) {

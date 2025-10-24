@@ -371,6 +371,36 @@ export class JSONEvalCore {
   }
 
   /**
+   * Enable evaluation caching
+   * Useful for reusing JSONEval instances with different data
+   * @returns {Promise<void>}
+   */
+  async enableCache() {
+    await this.init();
+    this._instance.enableCache();
+  }
+
+  /**
+   * Disable evaluation caching
+   * Useful for web API usage where each request creates a new JSONEval instance
+   * Improves performance by skipping cache operations that have no benefit for single-use instances
+   * @returns {Promise<void>}
+   */
+  async disableCache() {
+    await this.init();
+    this._instance.disableCache();
+  }
+
+  /**
+   * Check if evaluation caching is enabled
+   * @returns {boolean}
+   */
+  isCacheEnabled() {
+    if (!this._instance) return true; // Default is enabled
+    return this._instance.isCacheEnabled();
+  }
+
+  /**
    * Resolve layout with optional evaluation
    * @param {object} [options]
    * @param {boolean} [options.evaluate=false] - If true, runs evaluation before resolving layout

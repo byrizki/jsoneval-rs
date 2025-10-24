@@ -194,7 +194,7 @@ fn test_validate_subform() {
     });
 
     let schema_str = serde_json::to_string(&schema).unwrap();
-    let eval = JSONEval::new(&schema_str, None, None).unwrap();
+    let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
     
     // Valid data
     let valid_data = json!({

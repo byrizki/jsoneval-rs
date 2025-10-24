@@ -533,6 +533,39 @@ export class JSONEval {
   }
 
   /**
+   * Enable evaluation caching
+   * Useful for reusing JSONEval instances with different data
+   * @returns Promise that resolves when cache is enabled
+   * @throws {Error} If operation fails
+   */
+  async enableCache(): Promise<void> {
+    this.throwIfDisposed();
+    await JsonEvalRs.enableCache(this.handle);
+  }
+
+  /**
+   * Disable evaluation caching
+   * Useful for web API usage where each request creates a new JSONEval instance
+   * Improves performance by skipping cache operations that have no benefit for single-use instances
+   * @returns Promise that resolves when cache is disabled
+   * @throws {Error} If operation fails
+   */
+  async disableCache(): Promise<void> {
+    this.throwIfDisposed();
+    await JsonEvalRs.disableCache(this.handle);
+  }
+
+  /**
+   * Check if evaluation caching is enabled
+   * @returns Boolean indicating if caching is enabled
+   * @throws {Error} If operation fails
+   */
+  isCacheEnabled(): boolean {
+    this.throwIfDisposed();
+    return JsonEvalRs.isCacheEnabled(this.handle);
+  }
+
+  /**
    * Resolve layout with optional evaluation
    * @param evaluate - If true, runs evaluation before resolving layout (default: false)
    * @returns Promise that resolves when layout resolution is complete

@@ -647,6 +647,65 @@ void JsonEvalBridge::cacheLenAsync(
     }, callback);
 }
 
+void JsonEvalBridge::enableCacheAsync(
+    const std::string& handleId,
+    std::function<void(const std::string&, const std::string&)> callback
+) {
+    runAsync([handleId]() -> std::string {
+        std::lock_guard<std::mutex> lock(handlesMutex);
+        auto it = handles.find(handleId);
+        if (it == handles.end()) {
+            throw std::runtime_error("Invalid handle");
+        }
+        
+        FFIResult result = json_eval_enable_cache(it->second);
+        
+        if (!result.success) {
+            std::string error = result.error ? result.error : "Unknown error";
+            json_eval_free_result(result);
+            throw std::runtime_error(error);
+        }
+        
+        json_eval_free_result(result);
+        return "";
+    }, callback);
+}
+
+void JsonEvalBridge::disableCacheAsync(
+    const std::string& handleId,
+    std::function<void(const std::string&, const std::string&)> callback
+) {
+    runAsync([handleId]() -> std::string {
+        std::lock_guard<std::mutex> lock(handlesMutex);
+        auto it = handles.find(handleId);
+        if (it == handles.end()) {
+            throw std::runtime_error("Invalid handle");
+        }
+        
+        FFIResult result = json_eval_disable_cache(it->second);
+        
+        if (!result.success) {
+            std::string error = result.error ? result.error : "Unknown error";
+            json_eval_free_result(result);
+            throw std::runtime_error(error);
+        }
+        
+        json_eval_free_result(result);
+        return "";
+    }, callback);
+}
+
+bool JsonEvalBridge::isCacheEnabled(const std::string& handleId) {
+    std::lock_guard<std::mutex> lock(handlesMutex);
+    auto it = handles.find(handleId);
+    if (it == handles.end()) {
+        return false;
+    }
+    
+    int result = json_eval_is_cache_enabled(it->second);
+    return result != 0;
+}
+
 void JsonEvalBridge::resolveLayoutAsync(
     const std::string& handleId,
     bool evaluate,

@@ -640,6 +640,77 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeValidatePathsAsync(
 }
 
 JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeEnableCacheAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    
+    JavaVM* jvm;
+    env->GetJavaVM(&jvm);
+    jobject globalPromise = env->NewGlobalRef(promise);
+    
+    JsonEvalBridge::enableCacheAsync(handleStr,
+        [jvm, globalPromise](const std::string& result, const std::string& error) {
+            JNIEnv* env = nullptr;
+            jvm->AttachCurrentThread(&env, nullptr);
+            
+            if (error.empty()) {
+                resolvePromise(env, globalPromise, "");
+            } else {
+                rejectPromise(env, globalPromise, "ENABLE_CACHE_ERROR", error);
+            }
+            
+            env->DeleteGlobalRef(globalPromise);
+            jvm->DetachCurrentThread();
+        }
+    );
+}
+
+JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeDisableCacheAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    
+    JavaVM* jvm;
+    env->GetJavaVM(&jvm);
+    jobject globalPromise = env->NewGlobalRef(promise);
+    
+    JsonEvalBridge::disableCacheAsync(handleStr,
+        [jvm, globalPromise](const std::string& result, const std::string& error) {
+            JNIEnv* env = nullptr;
+            jvm->AttachCurrentThread(&env, nullptr);
+            
+            if (error.empty()) {
+                resolvePromise(env, globalPromise, "");
+            } else {
+                rejectPromise(env, globalPromise, "DISABLE_CACHE_ERROR", error);
+            }
+            
+            env->DeleteGlobalRef(globalPromise);
+            jvm->DetachCurrentThread();
+        }
+    );
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeIsCacheEnabled(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle
+) {
+    std::string handleStr = jstringToString(env, handle);
+    bool enabled = JsonEvalBridge::isCacheEnabled(handleStr);
+    return enabled ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
 Java_com_jsonevalrs_JsonEvalRsModule_nativeDispose(
     JNIEnv* env,
     jobject /* this */,

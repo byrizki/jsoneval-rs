@@ -134,6 +134,9 @@ pub struct JSONEval {
     pub eval_data: EvalData,
     /// Evaluation cache with content-based hashing and zero-copy storage
     pub eval_cache: EvalCache,
+    /// Flag to enable/disable evaluation caching
+    /// Set to false for web API usage where each request creates a new JSONEval instance
+    pub cache_enabled: bool,
     /// Mutex for synchronous execution of evaluate and evaluate_dependents
     eval_lock: Mutex<()>,
     /// Cached MessagePack bytes for zero-copy schema retrieval
@@ -144,6 +147,7 @@ pub struct JSONEval {
 impl Clone for JSONEval {
     fn clone(&self) -> Self {
         Self {
+            cache_enabled: self.cache_enabled,
             schema: Arc::clone(&self.schema),
             engine: Arc::clone(&self.engine),
             evaluations: self.evaluations.clone(),
@@ -205,6 +209,7 @@ impl JSONEval {
             evaluated_schema: evaluated_schema.clone(),
             eval_data: EvalData::with_schema_data_context(&evaluated_schema, &data, &context),
             eval_cache: EvalCache::new(),
+            cache_enabled: true, // Caching enabled by default
             eval_lock: Mutex::new(()),
             cached_msgpack_schema: None, // JSON initialization, no MessagePack cache
         };
@@ -263,6 +268,7 @@ impl JSONEval {
             evaluated_schema: evaluated_schema.clone(),
             eval_data: EvalData::with_schema_data_context(&evaluated_schema, &data, &context),
             eval_cache: EvalCache::new(),
+            cache_enabled: true, // Caching enabled by default
             eval_lock: Mutex::new(()),
             cached_msgpack_schema: Some(cached_msgpack), // Store for zero-copy retrieval
         };
@@ -347,6 +353,7 @@ impl JSONEval {
             evaluated_schema: (*evaluated_schema).clone(),
             eval_data: EvalData::with_schema_data_context(&evaluated_schema, &data, &context),
             eval_cache: EvalCache::new(),
+            cache_enabled: true, // Caching enabled by default
             eval_lock: Mutex::new(()),
             cached_msgpack_schema: None, // No MessagePack cache for parsed schema
         };
@@ -553,8 +560,20 @@ impl JSONEval {
         let context: Value = json_parser::parse_json_str(context.unwrap_or("{}"))?;
             
         self.data = data.clone();
+        
+        // Collect top-level data keys to selectively purge cache
+        let changed_data_paths: Vec<String> = if let Some(obj) = data.as_object() {
+            obj.keys().map(|k| k.clone()).collect()
+        } else {
+            Vec::new()
+        };
+        
         // Replace data and context in existing eval_data
         self.eval_data.replace_data_and_context(data, context);
+        
+        // Selectively purge cache entries that depend on changed top-level data keys
+        // This is more efficient than clearing entire cache
+        self.purge_cache_for_changed_data(&changed_data_paths);
         
         // Call internal evaluate (uses existing data if not provided)
         self.evaluate_internal()
@@ -871,8 +890,13 @@ impl JSONEval {
     }
 
     /// Helper: Try to get cached result for an evaluation (thread-safe)
-    /// Returns Some(value) if cache hit, None if cache miss
+    /// Helper: Try to get cached result (zero-copy via Arc)
     fn try_get_cached(&self, eval_key: &str, eval_data: &EvalData) -> Option<Value> {
+        // Skip cache lookup if caching is disabled
+        if !self.cache_enabled {
+            return None;
+        }
+        
         // Get dependencies for this evaluation
         let deps = self.dependencies.get(eval_key)?;
         
@@ -904,6 +928,11 @@ impl JSONEval {
     
     /// Helper: Store evaluation result in cache (thread-safe)
     fn cache_result(&self, eval_key: &str, value: Value, eval_data: &EvalData) {
+        // Skip cache insertion if caching is disabled
+        if !self.cache_enabled {
+            return;
+        }
+        
         // Get dependencies for this evaluation
         let deps = match self.dependencies.get(eval_key) {
             Some(d) => d,
@@ -933,6 +962,97 @@ impl JSONEval {
         self.eval_cache.insert(cache_key, value);
     }
 
+    /// Selectively purge cache entries that depend on changed data paths
+    /// Only removes cache entries whose dependencies intersect with changed_paths
+    /// Compares old vs new values and only purges if values actually changed
+    fn purge_cache_for_changed_data_with_comparison(
+        &self, 
+        changed_data_paths: &[String],
+        old_data: &Value,
+        new_data: &Value
+    ) {
+        if changed_data_paths.is_empty() {
+            return;
+        }
+        
+        // Check which paths actually have different values
+        let mut actually_changed_paths = Vec::new();
+        for path in changed_data_paths {
+            let old_val = old_data.pointer(path);
+            let new_val = new_data.pointer(path);
+            
+            // Only add to changed list if values differ
+            if old_val != new_val {
+                actually_changed_paths.push(path.clone());
+            }
+        }
+        
+        // If no values actually changed, no need to purge
+        if actually_changed_paths.is_empty() {
+            return;
+        }
+        
+        // Find all eval_keys that depend on the actually changed data paths
+        let mut affected_eval_keys = IndexSet::new();
+        
+        for (eval_key, deps) in self.dependencies.iter() {
+            // Check if this evaluation depends on any of the changed paths
+            let is_affected = deps.iter().any(|dep| {
+                // Check if the dependency matches any changed path
+                actually_changed_paths.iter().any(|changed_path| {
+                    // Exact match or prefix match (for nested fields)
+                    dep == changed_path || 
+                    dep.starts_with(&format!("{}/", changed_path)) ||
+                    changed_path.starts_with(&format!("{}/", dep))
+                })
+            });
+            
+            if is_affected {
+                affected_eval_keys.insert(eval_key.clone());
+            }
+        }
+        
+        // Remove all cache entries for affected eval_keys using retain
+        // Keep entries whose eval_key is NOT in the affected set
+        self.eval_cache.retain(|cache_key, _| {
+            !affected_eval_keys.contains(&cache_key.eval_key)
+        });
+    }
+    
+    /// Selectively purge cache entries that depend on changed data paths
+    /// Simpler version without value comparison for cases where we don't have old data
+    fn purge_cache_for_changed_data(&self, changed_data_paths: &[String]) {
+        if changed_data_paths.is_empty() {
+            return;
+        }
+        
+        // Find all eval_keys that depend on the changed data paths
+        let mut affected_eval_keys = IndexSet::new();
+        
+        for (eval_key, deps) in self.dependencies.iter() {
+            // Check if this evaluation depends on any of the changed paths
+            let is_affected = deps.iter().any(|dep| {
+                // Check if the dependency matches any changed path
+                changed_data_paths.iter().any(|changed_path| {
+                    // Exact match or prefix match (for nested fields)
+                    dep == changed_path || 
+                    dep.starts_with(&format!("{}/", changed_path)) ||
+                    changed_path.starts_with(&format!("{}/", dep))
+                })
+            });
+            
+            if is_affected {
+                affected_eval_keys.insert(eval_key.clone());
+            }
+        }
+        
+        // Remove all cache entries for affected eval_keys using retain
+        // Keep entries whose eval_key is NOT in the affected set
+        self.eval_cache.retain(|cache_key, _| {
+            !affected_eval_keys.contains(&cache_key.eval_key)
+        });
+    }
+
     /// Get cache statistics
     pub fn cache_stats(&self) -> CacheStats {
         self.eval_cache.stats()
@@ -946,6 +1066,25 @@ impl JSONEval {
     /// Get number of cached entries
     pub fn cache_len(&self) -> usize {
         self.eval_cache.len()
+    }
+    
+    /// Enable evaluation caching
+    /// Useful for reusing JSONEval instances with different data
+    pub fn enable_cache(&mut self) {
+        self.cache_enabled = true;
+    }
+    
+    /// Disable evaluation caching
+    /// Useful for web API usage where each request creates a new JSONEval instance
+    /// Improves performance by skipping cache operations that have no benefit for single-use instances
+    pub fn disable_cache(&mut self) {
+        self.cache_enabled = false;
+        self.eval_cache.clear(); // Clear any existing cache entries
+    }
+    
+    /// Check if caching is enabled
+    pub fn is_cache_enabled(&self) -> bool {
+        self.cache_enabled
     }
 
     fn evaluate_others(&mut self) {
@@ -1463,8 +1602,7 @@ impl JSONEval {
     /// * `data` - Optional JSON data to update before processing
     /// * `context` - Optional context data
     /// * `re_evaluate` - If true, performs full evaluation after processing dependents
-    pub fn 
-    evaluate_dependents(
+    pub fn evaluate_dependents(
         &mut self,
         changed_paths: &[String],
         data: Option<&str>,
@@ -1476,13 +1614,28 @@ impl JSONEval {
         
         // Update data if provided
         if let Some(data_str) = data {
+            // Save old data for comparison
+            let old_data = self.eval_data.data().clone();
+            
             let data_value = json_parser::parse_json_str(data_str)?;
             let context_value = if let Some(ctx) = context {
                 json_parser::parse_json_str(ctx)?
             } else {
                 Value::Object(serde_json::Map::new())
             };
-            self.eval_data.replace_data_and_context(data_value, context_value);
+            self.eval_data.replace_data_and_context(data_value.clone(), context_value);
+            
+            // Selectively purge cache entries that depend on changed data
+            // Only purge if values actually changed
+            // Convert changed_paths to data pointer format for cache purging
+            let data_paths: Vec<String> = changed_paths
+                .iter()
+                .map(|path| {
+                    // Convert "illustration.insured.ins_dob" to "/illustration/insured/ins_dob"
+                    format!("/{}", path.replace('.', "/"))
+                })
+                .collect();
+            self.purge_cache_for_changed_data_with_comparison(&data_paths, &old_data, &data_value);
         }
         
         let mut result = Vec::new();
@@ -1507,7 +1660,7 @@ impl JSONEval {
                 .replace("/properties/", "/")
                 .trim_start_matches('#')
                 .to_string();
-            let current_value = self.eval_data.data().pointer(&current_data_path)
+            let mut current_value = self.eval_data.data().pointer(&current_data_path)
                 .cloned()
                 .unwrap_or(Value::Null);
             
@@ -1542,6 +1695,7 @@ impl JSONEval {
                     // omit properties to minimize size of parent field
                     if let Value::Object(ref mut map) = parent_field {
                         map.remove("properties");
+                        map.remove("$layout");
                     }
                     
                     let mut change_obj = serde_json::Map::new();
@@ -1553,6 +1707,7 @@ impl JSONEval {
                     change_obj.insert("transitive".to_string(), Value::Bool(is_transitive));
                     
                     let mut add_transitive = false;
+                    let mut add_deps = false;
                     // Process clear
                     if let Some(clear_val) = &dep_item.clear {
                         let clear_val_clone = clear_val.clone();
@@ -1564,9 +1719,13 @@ impl JSONEval {
                         
                         if clear_bool {
                             // Clear the field
+                            if data_path == current_data_path {
+                                current_value = Value::Null;
+                            }
                             self.eval_data.set(&data_path, Value::Null);
                             change_obj.insert("clear".to_string(), Value::Bool(true));
                             add_transitive = true;
+                            add_deps = true;
                         }
                     }
                     
@@ -1576,15 +1735,22 @@ impl JSONEval {
                         let computed_value = Self::evaluate_dependent_value_static(&self.engine, &self.evaluations, &self.eval_data, &value_val_clone, &current_value, &current_ref_value)?;
                         let cleaned_val = clean_float_noise(computed_value.clone());
                         
-                        if cleaned_val != current_ref_value {   
+                        if cleaned_val != current_ref_value && cleaned_val != Value::Null {   
                             // Set the value
+                            if data_path == current_data_path {
+                                current_value = cleaned_val.clone();
+                            }
                             self.eval_data.set(&data_path, cleaned_val.clone());
                             change_obj.insert("value".to_string(), cleaned_val);
                             add_transitive = true;
+                            add_deps = true;
                         }
                     }
                     
-                    result.push(Value::Object(change_obj));
+                    // add only when has clear / value
+                    if add_deps {
+                        result.push(Value::Object(change_obj));
+                    }
                     
                     // Add this dependent to queue for transitive processing
                     if add_transitive {
@@ -1646,18 +1812,46 @@ impl JSONEval {
     /// Validate form data against schema rules
     /// Returns validation errors for fields that don't meet their rules
     pub fn validate(
-        &self,
+        &mut self,
         data: &str,
         context: Option<&str>,
         paths: Option<&[String]>
     ) -> Result<ValidationResult, String> {
+        // Acquire lock for synchronous execution
+        let _lock = self.eval_lock.lock().unwrap();
+        
+        // Save old data for comparison
+        let old_data = self.eval_data.data().clone();
+        
         // Parse data and context
         let data_value = json_parser::parse_json_str(data)?;
-        let _context_value = if let Some(ctx) = context {
+        let context_value = if let Some(ctx) = context {
             json_parser::parse_json_str(ctx)?
         } else {
             Value::Object(serde_json::Map::new())
         };
+        
+        // Update eval_data with new data/context
+        self.eval_data.replace_data_and_context(data_value.clone(), context_value);
+        
+        // Selectively purge cache for rule evaluations that depend on changed data
+        // Collect all top-level data keys as potentially changed paths
+        let changed_data_paths: Vec<String> = if let Some(obj) = data_value.as_object() {
+            obj.keys().map(|k| format!("/{}", k)).collect()
+        } else {
+            Vec::new()
+        };
+        self.purge_cache_for_changed_data_with_comparison(&changed_data_paths, &old_data, &data_value);
+        
+        // Drop lock before calling evaluate_others which needs mutable access
+        drop(_lock);
+        
+        // Re-evaluate rule evaluations to ensure fresh values
+        // This ensures all rule.$evaluation expressions are re-computed
+        self.evaluate_others();
+        
+        // Update evaluated_schema with fresh evaluations
+        self.evaluated_schema = self.get_evaluated_schema(false);
         
         let mut errors: IndexMap<String, ValidationError> = IndexMap::new();
         

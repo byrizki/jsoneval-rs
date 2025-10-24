@@ -71,3 +71,62 @@ pub unsafe extern "C" fn json_eval_cache_len(
     
     FFIResult::success(result_bytes)
 }
+
+/// Enable evaluation caching
+/// Useful for reusing JSONEval instances with different data
+/// 
+/// # Safety
+/// 
+/// - handle must be a valid pointer from json_eval_new
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_enable_cache(
+    handle: *mut JSONEvalHandle,
+) -> FFIResult {
+    if handle.is_null() {
+        return FFIResult::error("Invalid handle pointer".to_string());
+    }
+
+    let eval = &mut (*handle).inner;
+    eval.enable_cache();
+    
+    FFIResult::success(Vec::new())
+}
+
+/// Disable evaluation caching
+/// Useful for web API usage where each request creates a new JSONEval instance
+/// Improves performance by skipping cache operations that have no benefit for single-use instances
+/// 
+/// # Safety
+/// 
+/// - handle must be a valid pointer from json_eval_new
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_disable_cache(
+    handle: *mut JSONEvalHandle,
+) -> FFIResult {
+    if handle.is_null() {
+        return FFIResult::error("Invalid handle pointer".to_string());
+    }
+
+    let eval = &mut (*handle).inner;
+    eval.disable_cache();
+    
+    FFIResult::success(Vec::new())
+}
+
+/// Check if evaluation caching is enabled
+/// 
+/// # Safety
+/// 
+/// - handle must be a valid pointer from json_eval_new
+/// - Returns 1 if enabled, 0 if disabled
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_is_cache_enabled(
+    handle: *mut JSONEvalHandle,
+) -> i32 {
+    if handle.is_null() {
+        return 0;
+    }
+
+    let eval = &(*handle).inner;
+    if eval.is_cache_enabled() { 1 } else { 0 }
+}

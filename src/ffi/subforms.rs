@@ -69,7 +69,7 @@ pub unsafe extern "C" fn json_eval_validate_subform(
         return FFIResult::error("Invalid pointer".to_string());
     }
 
-    let eval = &(*handle).inner;
+    let eval = &mut (*handle).inner;
 
     let path_str = match CStr::from_ptr(subform_path).to_str() {
         Ok(s) => s,

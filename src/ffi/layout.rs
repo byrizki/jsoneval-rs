@@ -23,7 +23,7 @@ pub unsafe extern "C" fn json_eval_validate_paths(
         return FFIResult::error("Invalid handle or data pointer".to_string());
     }
 
-    let eval = &(*handle).inner;
+    let eval = &mut (*handle).inner;
 
     let data_str = match CStr::from_ptr(data).to_str() {
         Ok(s) => s,

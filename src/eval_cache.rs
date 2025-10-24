@@ -172,6 +172,15 @@ impl EvalCache {
     pub fn remove(&self, key: &CacheKey) -> Option<Arc<Value>> {
         self.cache.remove(key).map(|(_, v)| v)
     }
+    
+    /// Remove entries based on a predicate function
+    /// Predicate returns true to keep the entry, false to remove it
+    pub fn retain<F>(&self, predicate: F)
+    where
+        F: Fn(&CacheKey, &Arc<Value>) -> bool,
+    {
+        self.cache.retain(|k, v| predicate(k, v));
+    }
 
     /// Invalidate cache entries that depend on changed paths
     /// Efficiently removes only affected entries

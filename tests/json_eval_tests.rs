@@ -58,7 +58,7 @@ fn test_validate_all_rules_pass() {
     let schema = create_test_schema();
     let data = get_minimal_form_data().to_string();
 
-    let eval = JSONEval::new(&schema, None, Some(&data))
+    let mut eval = JSONEval::new(&schema, None, Some(&data))
         .expect("Failed to create JSONEval");
 
     let validation = eval.validate(&data, None, None)
@@ -76,7 +76,7 @@ fn test_validate_required_field_missing() {
     data["illustration"]["insured"].as_object_mut().unwrap().remove("name");
     let data_str = data.to_string();
 
-    let eval = JSONEval::new(&schema, None, Some(&data_str))
+    let mut eval = JSONEval::new(&schema, None, Some(&data_str))
         .expect("Failed to create JSONEval");
 
     let validation = eval.validate(&data_str, None, None)
@@ -101,7 +101,7 @@ fn test_validate_min_max_value() {
     data_min["illustration"]["insured"]["age"] = json!(0);
     let data_min_str = data_min.to_string();
 
-    let eval = JSONEval::new(&schema, None, Some(&data_min_str))
+    let mut eval = JSONEval::new(&schema, None, Some(&data_min_str))
         .expect("Failed to create JSONEval");
 
     let validation = eval.validate(&data_min_str, None, None)
@@ -120,7 +120,7 @@ fn test_validate_min_max_value() {
     data_max["illustration"]["insured"]["age"] = json!(101);
     let data_max_str = data_max.to_string();
 
-    let eval2 = JSONEval::new(&schema, None, Some(&data_max_str))
+    let mut eval2 = JSONEval::new(&schema, None, Some(&data_max_str))
         .expect("Failed to create JSONEval");
 
     let validation2 = eval2.validate(&data_max_str, None, None)
@@ -139,7 +139,7 @@ fn test_validate_min_max_value() {
     data_valid["illustration"]["insured"]["age"] = json!(50);
     let data_valid_str = data_valid.to_string();
 
-    let eval3 = JSONEval::new(&schema, None, Some(&data_valid_str))
+    let mut eval3 = JSONEval::new(&schema, None, Some(&data_valid_str))
         .expect("Failed to create JSONEval");
 
     let validation3 = eval3.validate(&data_valid_str, None, None)
@@ -159,7 +159,7 @@ fn test_validate_skip_hidden_fields() {
     data["illustration"]["policy_container"]["has_additional_coverage"] = json!(false);
     let data_str = data.to_string();
 
-    let eval = JSONEval::new(&schema, None, Some(&data_str))
+    let mut eval = JSONEval::new(&schema, None, Some(&data_str))
         .expect("Failed to create JSONEval");
 
     let validation = eval.validate(&data_str, None, None)
@@ -177,7 +177,7 @@ fn test_validate_with_path_filter() {
     data["illustration"]["insured"].as_object_mut().unwrap().remove("name");
     let data_str = data.to_string();
 
-    let eval = JSONEval::new(&schema, None, Some(&data_str))
+    let mut eval = JSONEval::new(&schema, None, Some(&data_str))
         .expect("Failed to create JSONEval");
 
     // Test 1: Validate all fields - should find both errors

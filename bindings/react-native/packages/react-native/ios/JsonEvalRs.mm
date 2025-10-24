@@ -361,6 +361,47 @@ RCT_EXPORT_METHOD(cacheLen:(NSString *)handle
     );
 }
 
+RCT_EXPORT_METHOD(enableCache:(NSString *)handle
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    
+    JsonEvalBridge::enableCacheAsync(handleStr,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve(nil);
+            } else {
+                reject(@"ENABLE_CACHE_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_METHOD(disableCache:(NSString *)handle
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    
+    JsonEvalBridge::disableCacheAsync(handleStr,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve(nil);
+            } else {
+                reject(@"DISABLE_CACHE_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(isCacheEnabled:(NSString *)handle)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    bool enabled = JsonEvalBridge::isCacheEnabled(handleStr);
+    return @(enabled);
+}
+
 RCT_EXPORT_METHOD(validatePaths:(NSString *)handle
                   data:(NSString *)data
                   context:(NSString *)context
