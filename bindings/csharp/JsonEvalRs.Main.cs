@@ -411,6 +411,53 @@ namespace JsonEvalRs
         }
 
         /// <summary>
+        /// Gets a value from the schema using dotted path notation
+        /// </summary>
+        /// <param name="path">Dotted path to the value (e.g., "properties.field.value")</param>
+        /// <returns>Value as JToken, or null if not found</returns>
+        public JToken? GetSchemaByPath(string path)
+        {
+            ThrowIfDisposed();
+
+            if (string.IsNullOrEmpty(path))
+                throw new ArgumentNullException(nameof(path));
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+            var result = Native.json_eval_get_schema_by_path(_handle, path);
+#else
+            var result = Native.json_eval_get_schema_by_path(_handle, Native.ToUTF8Bytes(path));
+#endif
+            
+            if (!result.Success)
+            {
+                // Path not found - return null instead of throwing
+                Native.json_eval_free_result(result);
+                return null;
+            }
+
+            try
+            {
+                if (result.DataPtr == IntPtr.Zero)
+                    return null;
+
+                int dataLen = (int)result.DataLen.ToUInt32();
+                if (dataLen == 0)
+                    return null;
+
+                // Zero-copy: read directly from Rust-owned memory
+                byte[] buffer = new byte[dataLen];
+                Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
+                
+                string json = Encoding.UTF8.GetString(buffer);
+                return JToken.Parse(json);
+            }
+            finally
+            {
+                Native.json_eval_free_result(result);
+            }
+        }
+
+        /// <summary>
         /// Reloads the schema with new data
         /// </summary>
         /// <param name="schema">New JSON schema string</param>

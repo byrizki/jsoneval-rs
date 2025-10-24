@@ -225,13 +225,15 @@ export class JSONEval {
     this.throwIfDisposed();
     try {
       const {
-        changedPath,
+        changedPaths,
         data,
-        context
+        context,
+        reEvaluate = false
       } = options;
+      const changedPathsJson = JSON.stringify(changedPaths);
       const dataStr = data ? this.toJsonString(data) : null;
       const contextStr = context ? this.toJsonString(context) : null;
-      const resultStr = await JsonEvalRs.evaluateDependents(this.handle, changedPath, dataStr, contextStr);
+      const resultStr = await JsonEvalRs.evaluateDependents(this.handle, changedPathsJson, dataStr, contextStr, reEvaluate);
       return JSON.parse(resultStr);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -284,6 +286,18 @@ export class JSONEval {
   async getEvaluatedSchemaByPath(path, skipLayout = false) {
     this.throwIfDisposed();
     const resultStr = await JsonEvalRs.getEvaluatedSchemaByPath(this.handle, path, skipLayout);
+    return resultStr ? JSON.parse(resultStr) : null;
+  }
+
+  /**
+   * Get a value from the schema using dotted path notation
+   * @param path - Dotted path to the value (e.g., "properties.field.value")
+   * @returns Promise resolving to the value at the path, or null if not found
+   * @throws {Error} If operation fails
+   */
+  async getSchemaByPath(path) {
+    this.throwIfDisposed();
+    const resultStr = await JsonEvalRs.getSchemaByPath(this.handle, path);
     return resultStr ? JSON.parse(resultStr) : null;
   }
 
@@ -456,8 +470,8 @@ export class JSONEval {
   }
 
   /**
-   * Evaluate dependents in subform when a field changes
-   * @param options - Options including subform path, changed path, and optional data
+   * Evaluate dependents in a subform when fields change
+   * @param options - Options including subform path, changed paths array, and optional data
    * @returns Promise resolving to dependent evaluation results
    * @throws {Error} If evaluation fails
    */
@@ -465,7 +479,10 @@ export class JSONEval {
     this.throwIfDisposed();
     const dataStr = options.data ? this.toJsonString(options.data) : null;
     const contextStr = options.context ? this.toJsonString(options.context) : null;
-    const resultStr = await JsonEvalRs.evaluateDependentsSubform(this.handle, options.subformPath, options.changedPath, dataStr, contextStr);
+
+    // For now, pass the first path since native bridge expects single path (wraps internally)
+    const changedPath = options.changedPaths[0] || '';
+    const resultStr = await JsonEvalRs.evaluateDependentsSubform(this.handle, options.subformPath, changedPath, dataStr, contextStr);
     return JSON.parse(resultStr);
   }
 

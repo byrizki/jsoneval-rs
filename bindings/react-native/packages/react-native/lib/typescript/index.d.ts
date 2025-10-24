@@ -64,12 +64,14 @@ export interface CacheStats {
  * Options for evaluating dependents
  */
 export interface EvaluateDependentsOptions {
-    /** Field path that changed */
-    changedPath: string;
+    /** Array of field paths that changed */
+    changedPaths: string[];
     /** Updated JSON data (string or object) */
     data?: string | object;
     /** Optional context data (string or object) */
     context?: string | object;
+    /** If true, performs full evaluation after processing dependents */
+    reEvaluate?: boolean;
 }
 /**
  * Options for evaluating a subform
@@ -99,12 +101,14 @@ export interface ValidateSubformOptions {
 export interface EvaluateDependentsSubformOptions {
     /** Path to the subform */
     subformPath: string;
-    /** Path of the field that changed */
-    changedPath: string;
+    /** Array of field paths that changed */
+    changedPaths: string[];
     /** Optional updated JSON data (string or object) */
     data?: string | object;
     /** Optional context data (string or object) */
     context?: string | object;
+    /** If true, performs full evaluation after processing dependents */
+    reEvaluate?: boolean;
 }
 /**
  * Options for resolving layout in a subform
@@ -268,6 +272,13 @@ export declare class JSONEval {
      */
     getEvaluatedSchemaByPath(path: string, skipLayout?: boolean): Promise<any | null>;
     /**
+     * Get a value from the schema using dotted path notation
+     * @param path - Dotted path to the value (e.g., "properties.field.value")
+     * @returns Promise resolving to the value at the path, or null if not found
+     * @throws {Error} If operation fails
+     */
+    getSchemaByPath(path: string): Promise<any | null>;
+    /**
      * Reload schema with new data
      * @param options - Configuration options with new schema, context, and data
      * @throws {Error} If reload fails
@@ -345,8 +356,8 @@ export declare class JSONEval {
      */
     validateSubform(options: ValidateSubformOptions): Promise<ValidationResult>;
     /**
-     * Evaluate dependents in subform when a field changes
-     * @param options - Options including subform path, changed path, and optional data
+     * Evaluate dependents in a subform when fields change
+     * @param options - Options including subform path, changed paths array, and optional data
      * @returns Promise resolving to dependent evaluation results
      * @throws {Error} If evaluation fails
      */

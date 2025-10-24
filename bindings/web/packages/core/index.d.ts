@@ -53,6 +53,10 @@ export interface GetValueByPathOptions {
   skipLayout?: boolean;
 }
 
+export interface GetSchemaByPathOptions {
+  path: string;
+}
+
 export interface ReloadSchemaOptions {
   schema: any;
   context?: any;
@@ -116,6 +120,8 @@ export class JSONEval {
   getSchemaValue(): Promise<any>;
   getEvaluatedSchemaWithoutParams(options?: GetEvaluatedSchemaOptions): Promise<any>;
   getValueByPath(options: GetValueByPathOptions): Promise<any | null>;
+  getEvaluatedSchemaByPath(options: GetValueByPathOptions): Promise<any | null>;
+  getSchemaByPath(options: GetSchemaByPathOptions): Promise<any | null>;
   reloadSchema(options: ReloadSchemaOptions): Promise<void>;
   reloadSchemaMsgpack(schemaMsgpack: Uint8Array, context?: any, data?: any): Promise<void>;
   reloadSchemaFromCache(cacheKey: string, context?: any, data?: any): Promise<void>;

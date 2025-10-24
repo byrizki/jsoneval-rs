@@ -100,7 +100,7 @@ pub struct DependentItem {
 }
 
 pub struct JSONEval {
-    pub schema: Value,
+    pub schema: Arc<Value>,
     pub engine: Arc<RLogic>,
     pub evaluations: IndexMap<String, LogicId>,
     pub tables: IndexMap<String, Value>,
@@ -144,8 +144,8 @@ pub struct JSONEval {
 impl Clone for JSONEval {
     fn clone(&self) -> Self {
         Self {
-            schema: self.schema.clone(),
-            engine: self.engine.clone(),
+            schema: Arc::clone(&self.schema),
+            engine: Arc::clone(&self.engine),
             evaluations: self.evaluations.clone(),
             tables: self.tables.clone(),
             table_metadata: self.table_metadata.clone(),
@@ -185,7 +185,7 @@ impl JSONEval {
         let engine_config = RLogicConfig::default();
 
         let mut instance = Self {
-            schema: schema_val,
+            schema: Arc::new(schema_val),
             evaluations: IndexMap::new(),
             tables: IndexMap::new(),
             table_metadata: IndexMap::new(),
@@ -243,7 +243,7 @@ impl JSONEval {
         let engine_config = RLogicConfig::default();
 
         let mut instance = Self {
-            schema: schema_val,
+            schema: Arc::new(schema_val),
             evaluations: IndexMap::new(),
             tables: IndexMap::new(),
             table_metadata: IndexMap::new(),
@@ -327,7 +327,7 @@ impl JSONEval {
         }
         
         let instance = Self {
-            schema: parsed.schema.clone(),
+            schema: Arc::clone(&parsed.schema),
             evaluations: parsed.evaluations.clone(),
             tables: parsed.tables.clone(),
             table_metadata: parsed.table_metadata.clone(),
@@ -344,7 +344,7 @@ impl JSONEval {
             engine,
             context: context.clone(),
             data: data.clone(),
-            evaluated_schema: evaluated_schema.clone(),
+            evaluated_schema: (*evaluated_schema).clone(),
             eval_data: EvalData::with_schema_data_context(&evaluated_schema, &data, &context),
             eval_cache: EvalCache::new(),
             eval_lock: Mutex::new(()),
@@ -364,10 +364,10 @@ impl JSONEval {
         let schema_val: Value = serde_json::from_str(schema).map_err(|e| format!("failed to parse schema: {e}"))?;
         let context: Value = json_parser::parse_json_str(context.unwrap_or("{}"))?;
         let data: Value = json_parser::parse_json_str(data.unwrap_or("{}"))?;
-        self.schema = schema_val;
+        self.schema = Arc::new(schema_val);
         self.context = context.clone();
         self.data = data.clone();
-        self.evaluated_schema = self.schema.clone();
+        self.evaluated_schema = (*self.schema).clone();
         self.engine = Arc::new(RLogic::new());
         self.dependents_evaluations.clear();
         self.rules_evaluations.clear();
@@ -415,10 +415,10 @@ impl JSONEval {
         let context: Value = json_parser::parse_json_str(context.unwrap_or("{}"))?;
         let data: Value = json_parser::parse_json_str(data.unwrap_or("{}"))?;
         
-        self.schema = schema_val;
+        self.schema = Arc::new(schema_val);
         self.context = context.clone();
         self.data = data.clone();
-        self.evaluated_schema = self.schema.clone();
+        self.evaluated_schema = (*self.schema).clone();
         self.engine = Arc::new(RLogic::new());
         self.dependents_evaluations.clear();
         self.rules_evaluations.clear();
@@ -465,7 +465,7 @@ impl JSONEval {
         let data: Value = json_parser::parse_json_str(data.unwrap_or("{}"))?;
         
         // Share all the pre-compiled data from ParsedSchema
-        self.schema = parsed.schema.clone();
+        self.schema = Arc::clone(&parsed.schema);
         self.evaluations = parsed.evaluations.clone();
         self.tables = parsed.tables.clone();
         self.table_metadata = parsed.table_metadata.clone();
@@ -496,7 +496,7 @@ impl JSONEval {
         
         self.context = context.clone();
         self.data = data.clone();
-        self.evaluated_schema = self.schema.clone();
+        self.evaluated_schema = (*self.schema).clone();
         
         // Re-initialize eval_data
         self.eval_data = EvalData::with_schema_data_context(&self.evaluated_schema, &data, &context);
@@ -835,6 +835,27 @@ impl JSONEval {
         };
         
         self.evaluated_schema.pointer(&pointer).cloned()
+    }
+
+    /// Get a value from the schema using dotted path notation.
+    /// Converts dotted notation (e.g., "properties.field.value") to JSON pointer format.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The dotted path to the value (e.g., "properties.field.value")
+    ///
+    /// # Returns
+    ///
+    /// The value at the specified path, or None if not found.
+    pub fn get_schema_by_path(&self, path: &str) -> Option<Value> {
+        // Convert dotted notation to JSON pointer
+        let pointer = if path.is_empty() {
+            "".to_string()
+        } else {
+            format!("/{}", path.replace(".", "/"))
+        };
+        
+        self.schema.pointer(&pointer).cloned()
     }
 
     /// Check if a dependency should be cached

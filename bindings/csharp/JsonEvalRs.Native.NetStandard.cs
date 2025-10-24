@@ -102,6 +102,12 @@ namespace JsonEvalRs
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_get_schema_by_path(
+            IntPtr handle,
+            byte[]? path
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_reload_schema(
             IntPtr handle,
             byte[]? schema,

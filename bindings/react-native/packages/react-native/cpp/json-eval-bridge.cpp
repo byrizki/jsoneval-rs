@@ -27,6 +27,7 @@ extern "C" {
     FFIResult json_eval_get_schema_value(JSONEvalHandle* handle);
     FFIResult json_eval_get_evaluated_schema_without_params(JSONEvalHandle* handle, bool skip_layout);
     FFIResult json_eval_get_evaluated_schema_by_path(JSONEvalHandle* handle, const char* path, bool skip_layout);
+    FFIResult json_eval_get_schema_by_path(JSONEvalHandle* handle, const char* path);
     FFIResult json_eval_resolve_layout(JSONEvalHandle* handle, bool evaluate);
     FFIResult json_eval_compile_and_run_logic(JSONEvalHandle* handle, const char* logic_str, const char* data, const char* context);
     FFIResult json_eval_reload_schema(JSONEvalHandle* handle, const char* schema, const char* context, const char* data);
@@ -411,6 +412,38 @@ void JsonEvalBridge::getEvaluatedSchemaByPathAsync(
         }
         
         FFIResult result = json_eval_get_evaluated_schema_by_path(it->second, path.c_str(), skipLayout);
+        
+        if (!result.success) {
+            std::string error = result.error ? result.error : "Unknown error";
+            json_eval_free_result(result);
+            throw std::runtime_error(error);
+        }
+        
+        // Zero-copy: construct string directly from raw pointer
+        std::string resultStr;
+        if (result.data_ptr && result.data_len > 0) {
+            resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+        } else {
+            resultStr = "null";
+        }
+        json_eval_free_result(result);
+        return resultStr;
+    }, callback);
+}
+
+void JsonEvalBridge::getSchemaByPathAsync(
+    const std::string& handleId,
+    const std::string& path,
+    std::function<void(const std::string&, const std::string&)> callback
+) {
+    runAsync([handleId, path]() -> std::string {
+        std::lock_guard<std::mutex> lock(handlesMutex);
+        auto it = handles.find(handleId);
+        if (it == handles.end()) {
+            throw std::runtime_error("Invalid handle");
+        }
+        
+        FFIResult result = json_eval_get_schema_by_path(it->second, path.c_str());
         
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";

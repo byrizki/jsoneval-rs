@@ -414,6 +414,18 @@ export class JSONEval {
   }
 
   /**
+   * Get a value from the schema using dotted path notation
+   * @param path - Dotted path to the value (e.g., "properties.field.value")
+   * @returns Promise resolving to the value at the path, or null if not found
+   * @throws {Error} If operation fails
+   */
+  async getSchemaByPath(path: string): Promise<any | null> {
+    this.throwIfDisposed();
+    const resultStr = await JsonEvalRs.getSchemaByPath(this.handle, path);
+    return resultStr ? JSON.parse(resultStr) : null;
+  }
+
+  /**
    * Reload schema with new data
    * @param options - Configuration options with new schema, context, and data
    * @throws {Error} If reload fails

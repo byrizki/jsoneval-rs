@@ -239,6 +239,17 @@ export class JSONEvalCore {
   }
 
   /**
+   * Get a value from the schema using dotted path notation
+   * @param {object} options
+   * @param {string} options.path - Dotted path to the value (e.g., "properties.field.value")
+   * @returns {Promise<any|null>} Value at the path, or null if not found
+   */
+  async getSchemaByPath({ path }) {
+    await this.init();
+    return this._instance.getSchemaByPathJS(path);
+  }
+
+  /**
    * Reload schema with new data
    * @param {object} options
    * @param {object} options.schema - New JSON schema

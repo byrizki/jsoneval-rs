@@ -102,6 +102,15 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun getSchemaByPath(
+        handle: String,
+        path: String,
+        promise: Promise
+    ) {
+        nativeGetSchemaByPathAsync(handle, path, promise)
+    }
+
+    @ReactMethod
     fun reloadSchema(
         handle: String,
         schema: String,
@@ -383,6 +392,7 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     private external fun nativeGetSchemaValueAsync(handle: String, promise: Promise)
     private external fun nativeGetEvaluatedSchemaWithoutParamsAsync(handle: String, skipLayout: Boolean, promise: Promise)
     private external fun nativeGetEvaluatedSchemaByPathAsync(handle: String, path: String, skipLayout: Boolean, promise: Promise)
+    private external fun nativeGetSchemaByPathAsync(handle: String, path: String, promise: Promise)
     private external fun nativeReloadSchemaAsync(handle: String, schema: String, context: String, data: String, promise: Promise)
     private external fun nativeReloadSchemaMsgpackAsync(handle: String, schemaMsgpack: ByteArray, context: String, data: String, promise: Promise)
     private external fun nativeReloadSchemaFromCacheAsync(handle: String, cacheKey: String, context: String, data: String, promise: Promise)

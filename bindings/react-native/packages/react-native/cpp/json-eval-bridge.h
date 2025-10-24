@@ -159,6 +159,18 @@ public:
     );
 
     /**
+     * Get a value from schema using dotted path notation (async)
+     * @param handle Instance handle
+     * @param path Dotted path to the value (e.g., "properties.field.value")
+     * @param callback Result callback
+     */
+    static void getSchemaByPathAsync(
+        const std::string& handle,
+        const std::string& path,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
      * Reload schema (async)
      * @param handle Instance handle
      * @param schema New JSON schema string

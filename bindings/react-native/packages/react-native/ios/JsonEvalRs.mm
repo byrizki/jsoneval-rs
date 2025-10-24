@@ -215,6 +215,25 @@ RCT_EXPORT_METHOD(getEvaluatedSchemaByPath:(NSString *)handle
     );
 }
 
+RCT_EXPORT_METHOD(getSchemaByPath:(NSString *)handle
+                  path:(NSString *)path
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    std::string pathStr = [self stdStringFromNSString:path];
+    
+    JsonEvalBridge::getSchemaByPathAsync(handleStr, pathStr,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"GET_SCHEMA_BY_PATH_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
 RCT_EXPORT_METHOD(reloadSchema:(NSString *)handle
                   schema:(NSString *)schema
                   context:(NSString *)context

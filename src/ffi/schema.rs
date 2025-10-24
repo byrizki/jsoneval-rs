@@ -136,3 +136,37 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_by_path(
         None => FFIResult::error("Path not found".to_string()),
     }
 }
+
+/// Get a value from the schema using dotted path notation
+/// 
+/// # Safety
+/// 
+/// - handle must be a valid pointer from json_eval_new
+/// - path must be a valid null-terminated UTF-8 string (dotted notation)
+/// - Caller must call json_eval_free_result when done
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_get_schema_by_path(
+    handle: *mut JSONEvalHandle,
+    path: *const c_char,
+) -> FFIResult {
+    if handle.is_null() || path.is_null() {
+        return FFIResult::error("Invalid handle or path pointer".to_string());
+    }
+
+    let eval = &(*handle).inner;
+
+    let path_str = match CStr::from_ptr(path).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            return FFIResult::error("Invalid UTF-8 in path".to_string())
+        }
+    };
+
+    match eval.get_schema_by_path(path_str) {
+        Some(value) => {
+            let result_bytes = serde_json::to_vec(&value).unwrap_or_default();
+            FFIResult::success(result_bytes)
+        }
+        None => FFIResult::error("Path not found".to_string()),
+    }
+}

@@ -103,6 +103,29 @@ impl JSONEvalWasm {
         }
     }
 
+    /// Get a value from the schema using dotted path notation
+    /// 
+    /// @param path - Dotted path to the value (e.g., "properties.field.value")
+    /// @returns Value as JSON string or null if not found
+    #[wasm_bindgen(js_name = getSchemaByPath)]
+    pub fn get_schema_by_path(&self, path: &str) -> Option<String> {
+        self.inner.get_schema_by_path(path)
+            .map(|v| serde_json::to_string(&v).unwrap_or_else(|_| "null".to_string()))
+    }
+
+    /// Get a value from the schema using dotted path notation as JavaScript object
+    /// 
+    /// @param path - Dotted path to the value (e.g., "properties.field.value")
+    /// @returns Value as JavaScript object or null if not found
+    #[wasm_bindgen(js_name = getSchemaByPathJS)]
+    pub fn get_schema_by_path_js(&self, path: &str) -> Result<JsValue, JsValue> {
+        match self.inner.get_schema_by_path(path) {
+            Some(value) => serde_wasm_bindgen::to_value(&value)
+                .map_err(|e| JsValue::from_str(&e.to_string())),
+            None => Ok(JsValue::NULL),
+        }
+    }
+
     /// Reload schema with new data
     /// 
     /// @param schema - New JSON schema string

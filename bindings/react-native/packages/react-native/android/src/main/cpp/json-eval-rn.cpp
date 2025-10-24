@@ -353,6 +353,38 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedSchemaByPathAsync(
 }
 
 JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeGetSchemaByPathAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jstring path,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    std::string pathStr = jstringToString(env, path);
+    
+    JavaVM* jvm;
+    env->GetJavaVM(&jvm);
+    jobject globalPromise = env->NewGlobalRef(promise);
+    
+    JsonEvalBridge::getSchemaByPathAsync(handleStr, pathStr,
+        [jvm, globalPromise](const std::string& result, const std::string& error) {
+            JNIEnv* env = nullptr;
+            jvm->AttachCurrentThread(&env, nullptr);
+            
+            if (error.empty()) {
+                resolvePromise(env, globalPromise, result);
+            } else {
+                rejectPromise(env, globalPromise, "GET_SCHEMA_BY_PATH_ERROR", error);
+            }
+            
+            env->DeleteGlobalRef(globalPromise);
+            jvm->DetachCurrentThread();
+        }
+    );
+}
+
+JNIEXPORT void JNICALL
 Java_com_jsonevalrs_JsonEvalRsModule_nativeReloadSchemaAsync(
     JNIEnv* env,
     jobject /* this */,

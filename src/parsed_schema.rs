@@ -27,8 +27,8 @@ use crate::{LogicId, RLogic, RLogicConfig, TableMetadata, DependentItem};
 /// let eval2 = JSONEval::with_parsed_schema(parsed.clone(), Some(context2), Some(data2))?;
 /// ```
 pub struct ParsedSchema {
-    /// The original schema Value
-    pub schema: Value,
+    /// The original schema Value (wrapped in Arc for efficient sharing)
+    pub schema: Arc<Value>,
     
     /// RLogic engine with all compiled logic expressions (wrapped in Arc for sharing)
     /// Multiple JSONEval instances created from the same ParsedSchema will share this engine
@@ -107,7 +107,7 @@ impl ParsedSchema {
         let engine_config = RLogicConfig::default();
         
         let mut parsed = Self {
-            schema: schema_val,
+            schema: Arc::new(schema_val),
             engine: Arc::new(RLogic::with_config(engine_config)),
             evaluations: IndexMap::new(),
             tables: IndexMap::new(),
@@ -149,6 +149,6 @@ impl ParsedSchema {
     
     /// Get a reference to the original schema
     pub fn schema(&self) -> &Value {
-        &self.schema
+        &*self.schema
     }
 }
