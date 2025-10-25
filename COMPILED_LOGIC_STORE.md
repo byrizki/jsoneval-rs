@@ -360,7 +360,7 @@ fn test_cross_instance_sharing() {
 
 ## Changelog
 
-### v0.0.24
+### v0.0.25
 
 - ✅ Initial implementation of global compiled logic store
 - ✅ Added `CompiledLogicId` type
