@@ -1,3 +1,9 @@
+---
+layout: page
+title: Comparison Operators
+permalink: /operators-comparison/
+---
+
 # Comparison Operators
 
 Value comparison operators that return boolean results.

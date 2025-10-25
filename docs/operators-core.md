@@ -1,3 +1,9 @@
+---
+layout: page
+title: Core Operators
+permalink: /operators-core/
+---
+
 # Core Operators
 
 Core operators for accessing data and defining literal values.

@@ -2,7 +2,7 @@ name: Build Bindings
 
 on:
   release:
-    types: [ created, edited ]
+    types: [ created, edited, released ]
 
 env:
   CARGO_TERM_COLOR: always

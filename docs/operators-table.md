@@ -1,3 +1,9 @@
+---
+layout: page
+title: Table/Lookup Operators
+permalink: /operators-table/
+---
+
 # Table/Lookup Operators
 
 Advanced table operations for data lookups, indexing, and queries.

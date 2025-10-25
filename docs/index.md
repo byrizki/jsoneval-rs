@@ -1,3 +1,8 @@
+---
+layout: home
+title: Home
+---
+
 # JSON-Eval-RS Operator Documentation
 
 Comprehensive documentation for all operators available in json-eval-rs.

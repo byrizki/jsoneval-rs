@@ -33,19 +33,17 @@ jobs:
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.1'
+          ruby-version: '3.2'
           bundler-cache: true
           working-directory: docs
 
       - name: Install dependencies
         working-directory: docs
-        run: |
-          bundle config set --local path vendor/bundle
-          bundle install --jobs 4 --retry 3
+        run: bundle install
 
       - name: Build with Jekyll
         working-directory: docs
-        run: bundle exec jekyll build --baseurl "/json-eval-rs"
+        run: JEKYLL_ENV=production bundle exec jekyll build --destination ./_site
         env:
           JEKYLL_ENV: production
 

@@ -1,3 +1,9 @@
+---
+layout: page
+title: String Operators
+permalink: /operators-string/
+---
+
 # String Operators
 
 Text manipulation and string processing operators.

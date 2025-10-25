@@ -1,3 +1,9 @@
+---
+layout: page
+title: Math Functions
+permalink: /operators-math/
+---
+
 # Math Functions
 
 Advanced mathematical functions and rounding operations.

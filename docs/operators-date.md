@@ -1,3 +1,9 @@
+---
+layout: page
+title: Date Functions
+permalink: /operators-date/
+---
+
 # Date Functions
 
 Date and time manipulation operators.

@@ -1,3 +1,9 @@
+---
+layout: page
+title: Operators Quick Reference
+permalink: /OPERATORS_SUMMARY/
+---
+
 # Operator Quick Reference
 
 Complete alphabetical reference of all operators in json-eval-rs.

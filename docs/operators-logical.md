@@ -1,3 +1,9 @@
+---
+layout: page
+title: Logical Operators
+permalink: /operators-logical/
+---
+
 # Logical Operators
 
 Boolean logic and conditional execution operators.

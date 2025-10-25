@@ -1,3 +1,9 @@
+---
+layout: page
+title: Arithmetic Operators
+permalink: /operators-arithmetic/
+---
+
 # Arithmetic Operators
 
 Mathematical operators for numeric calculations.

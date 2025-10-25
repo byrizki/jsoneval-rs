@@ -1,3 +1,9 @@
+---
+layout: page
+title: Array Operators
+permalink: /operators-array/
+---
+
 # Array Operators
 
 Array transformation, filtering, and aggregation operators.

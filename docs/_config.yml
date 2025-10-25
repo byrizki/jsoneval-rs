@@ -1,6 +1,6 @@
 # Jekyll Configuration for json-eval-rs Documentation
 
-title: json-eval-rs Documentation
+title: json-eval-rs
 tagline: High-performance JSON Logic evaluation library with 80+ operators
 description: >-
   json-eval-rs is a blazing-fast JSON Logic evaluator with comprehensive operator documentation,
@@ -12,26 +12,23 @@ baseurl: "/json-eval-rs"
 lang: en
 timezone: Asia/Jakarta
 
-remote_theme: "cotes2020/jekyll-theme-chirpy@v7.4.0"
-
-theme_mode: light
+theme: jekyll-theme-chirpy
 
 # Site metadata
-author: byrizki
-twitter:
-  username: byrizki
-  card: summary
+social:
+  name: byrizki
+  email: 
+  links:
+    - https://github.com/byrizki
+
 github:
   username: byrizki
-  repository: json-eval-rs
+
+twitter:
+  username: byrizki
 
 # Pagination & archive
 paginate: 10
-paginate_path: "/page:num/"
-collections:
-  operators:
-    output: true
-    permalink: /:collection/:name
 
 # Plugins
 plugins:
@@ -46,40 +43,46 @@ plugins:
 defaults:
   - scope:
       path: ""
+      type: posts
+    values:
+      layout: post
+      comments: false
+      toc: true
+      permalink: /posts/:title/
+  - scope:
+      path: "_tabs"
     values:
       layout: page
-      toc: true
-
-# Navigation tabs (displayed by Chirpy in the top bar)
-tabs:
-  - name: Home
-    path: /
-    icon: "fas fa-home"
-  - name: Quick Reference
-    path: /OPERATORS_SUMMARY
-    icon: "fas fa-book"
-  - name: Operators
-    path: /operators-core
-    icon: "fas fa-project-diagram"
+      permalink: /:title/
+  - scope:
+      path: ""
+    values:
+      layout: page
 
 # Include/Exclude
 include:
-  - README.md
-  - OPERATORS_SUMMARY.md
-  - operators-*.md
+  - _pages
 
 exclude:
+  - "*.gem"
+  - "*.gemspec"
+  - docs
+  - tools
+  - README.md
+  - LICENSE
+  - "*.config.js"
+  - package*.json
   - Gemfile
   - Gemfile.lock
   - node_modules
   - vendor
 
-# Analytics (set your provider IDs if available)
-google_analytics:
-  id:
-
-# Sitemap configuration for Chirpy
-sitemap:
-  exclude:
-    - /assets/
-    - /tabs/
+# Jekyll Archives
+jekyll-archives:
+  enabled: [categories, tags]
+  layouts:
+    category: category
+    tag: tag
+  permalinks:
+    tag: /tags/:name/
+    category: /categories/:name/
