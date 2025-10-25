@@ -1,7 +1,6 @@
 ---
-layout: page
+layout: default
 title: String Operators
-permalink: /operators-string/
 ---
 
 # String Operators

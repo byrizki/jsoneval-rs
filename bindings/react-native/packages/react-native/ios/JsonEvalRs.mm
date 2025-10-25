@@ -102,7 +102,7 @@ RCT_EXPORT_METHOD(compileLogic:(NSString *)handle
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 {
-    @try {
+    try {
         std::string handleStr = [self stdStringFromNSString:handle];
         std::string logicStrCpp = [self stdStringFromNSString:logicStr];
         uint64_t logicId = JsonEvalBridge::compileLogic(handleStr, logicStrCpp);

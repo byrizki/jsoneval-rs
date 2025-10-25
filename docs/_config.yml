@@ -1,93 +1,40 @@
 # Jekyll Configuration for json-eval-rs Documentation
 
 title: json-eval-rs
-tagline: High-performance JSON Logic evaluation library with 80+ operators
 description: >-
-  json-eval-rs is a blazing-fast JSON Logic evaluator with comprehensive operator documentation,
+  High-performance JSON Logic evaluation library with 80+ operators.
+  Blazing-fast evaluator built in Rust with comprehensive operator documentation,
   bindings, and deployment guides.
 
 url: "https://byrizki.github.io"
 baseurl: "/json-eval-rs"
 
-lang: en
-timezone: Asia/Jakarta
+theme: jekyll-theme-minimal
 
-theme: jekyll-theme-chirpy
-
-# Site metadata
-social:
-  name: byrizki
-  email: 
-  links:
-    - https://github.com/byrizki
-
+# GitHub repository
+show_downloads: true
 github:
-  username: byrizki
-
-twitter:
-  username: byrizki
-
-# Pagination & archive
-paginate: 10
+  is_project_page: true
+  repository_url: https://github.com/byrizki/json-eval-rs
+  owner_name: byrizki
+  owner_url: https://github.com/byrizki
 
 # Plugins
 plugins:
   - jekyll-feed
   - jekyll-seo-tag
   - jekyll-sitemap
-  - jekyll-include-cache
-  - jekyll-archives
-  - jekyll-paginate
 
 # Defaults
 defaults:
   - scope:
       path: ""
-      type: posts
     values:
-      layout: post
-      comments: false
-      toc: true
-      permalink: /posts/:title/
-  - scope:
-      path: "_tabs"
-    values:
-      layout: page
-      permalink: /:title/
-  - scope:
-      path: ""
-    values:
-      layout: page
+      layout: default
 
-# Assets configuration
-assets:
-  self_host:
-    enabled: false
-
-# Include/Exclude
-include:
-  - _pages
-
+# Exclude
 exclude:
-  - "*.gem"
-  - "*.gemspec"
-  - docs
-  - tools
-  - README.md
-  - LICENSE
-  - "*.config.js"
-  - package*.json
   - Gemfile
   - Gemfile.lock
   - node_modules
   - vendor
-
-# Jekyll Archives
-jekyll-archives:
-  enabled: [categories, tags]
-  layouts:
-    category: category
-    tag: tag
-  permalinks:
-    tag: /tags/:name/
-    category: /categories/:name/

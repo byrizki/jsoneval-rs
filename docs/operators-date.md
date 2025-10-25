@@ -1,7 +1,6 @@
 ---
-layout: page
+layout: default
 title: Date Functions
-permalink: /operators-date/
 ---
 
 # Date Functions

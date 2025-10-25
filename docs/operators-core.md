@@ -1,7 +1,6 @@
 ---
-layout: page
+layout: default
 title: Core Operators
-permalink: /operators-core/
 ---
 
 # Core Operators

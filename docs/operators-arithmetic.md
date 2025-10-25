@@ -1,7 +1,6 @@
 ---
-layout: page
+layout: default
 title: Arithmetic Operators
-permalink: /operators-arithmetic/
 ---
 
 # Arithmetic Operators

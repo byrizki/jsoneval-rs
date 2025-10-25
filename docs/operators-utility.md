@@ -1,7 +1,6 @@
 ---
-layout: page
+layout: default
 title: Utility Operators
-permalink: /operators-utility/
 ---
 
 # Utility Operators

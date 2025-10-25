@@ -1,7 +1,6 @@
 ---
-layout: page
+layout: default
 title: Table/Lookup Operators
-permalink: /operators-table/
 ---
 
 # Table/Lookup Operators

@@ -1,7 +1,6 @@
 ---
-layout: page
+layout: default
 title: Math Functions
-permalink: /operators-math/
 ---
 
 # Math Functions

@@ -1,7 +1,6 @@
 ---
-layout: page
+layout: default
 title: Array Operators
-permalink: /operators-array/
 ---
 
 # Array Operators

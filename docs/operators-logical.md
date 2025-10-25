@@ -1,7 +1,6 @@
 ---
-layout: page
+layout: default
 title: Logical Operators
-permalink: /operators-logical/
 ---
 
 # Logical Operators

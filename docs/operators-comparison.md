@@ -1,7 +1,6 @@
 ---
-layout: page
+layout: default
 title: Comparison Operators
-permalink: /operators-comparison/
 ---
 
 # Comparison Operators
