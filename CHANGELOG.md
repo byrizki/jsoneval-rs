@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.26] - 2025-10-25
+
+### Changed
+- [core] Optimize parallel evaluation 
+
 ## [0.0.25] - 2025-10-25
 
 ### Added
