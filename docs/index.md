@@ -1,6 +1,5 @@
 ---
 layout: default
-title: Home
 ---
 
 # json-eval-rs
@@ -12,11 +11,11 @@ title: Home
 
 ## Features
 
-- **🚀 High Performance** - Built in Rust for maximum speed
-- **📦 80+ Operators** - Comprehensive operator support
-- **🔌 Multiple Bindings** - C#, React Native, WASM, and Web
-- **🔒 Type Safety** - Strong typing with MessagePack support
-- **📚 Well Documented** - Extensive documentation and examples
+- 🚀 **High Performance** - Built in Rust for maximum speed
+- 📦 **80+ Operators** - Comprehensive operator support
+- 🔌 **Multiple Bindings** - C#, React Native, WASM, and Web
+- 🔒 **Type Safety** - Strong typing with MessagePack support
+- 📚 **Well Documented** - Extensive documentation and examples
 
 ## Quick Start
 
@@ -25,7 +24,6 @@ use json_eval_rs::eval;
 
 let logic = json!({
     "if": [
-        {"var": "user.age"},
         {">": [{"var": "user.age"}, 18]},
         "adult",
         "minor"
@@ -47,20 +45,20 @@ let result = eval(&logic, &data)?;
 
 ### Operator Categories
 
-- [**Core Operators**](operators-core) - Variables, references, and literals
-- [**Logical Operators**](operators-logical) - Boolean logic and conditionals  
-- [**Comparison Operators**](operators-comparison) - Value comparisons
-- [**Arithmetic Operators**](operators-arithmetic) - Mathematical operations
-- [**String Operators**](operators-string) - Text manipulation
-- [**Math Functions**](operators-math) - Advanced math operations
-- [**Date Functions**](operators-date) - Date and time operations
-- [**Array Operators**](operators-array) - Array transformations
-- [**Table Operators**](operators-table) - Data table operations
-- [**Utility Operators**](operators-utility) - Helper functions
+- [Core Operators](operators-core) - Variables, references, and literals
+- [Logical Operators](operators-logical) - Boolean logic and conditionals  
+- [Comparison Operators](operators-comparison) - Value comparisons
+- [Arithmetic Operators](operators-arithmetic) - Mathematical operations
+- [String Operators](operators-string) - Text manipulation
+- [Math Functions](operators-math) - Advanced math operations
+- [Date Functions](operators-date) - Date and time operations
+- [Array Operators](operators-array) - Array transformations
+- [Table Operators](operators-table) - Data table operations
+- [Utility Operators](operators-utility) - Helper functions
 
 ### Quick Reference
 
-See the [**Operators Summary**](OPERATORS_SUMMARY) for a complete alphabetical list of all available operators.
+See the [Operators Summary](OPERATORS_SUMMARY) for a complete alphabetical list of all available operators.
 
 ## Installation
 
@@ -85,12 +83,10 @@ npm install @json-eval-rs/bundler
 npm install @json-eval-rs/react-native
 ```
 
-## Links
+## Repository
 
-- [GitHub Repository](https://github.com/byrizki/json-eval-rs)
-- [Crates.io](https://crates.io/crates/json-eval-rs)
-- [Documentation](https://byrizki.github.io/json-eval-rs)
+[View on GitHub](https://github.com/byrizki/json-eval-rs)
 
 ## License
 
-MIT License - see [LICENSE](https://github.com/byrizki/json-eval-rs/blob/main/LICENSE) for details.
+MIT License

@@ -1,29 +1,20 @@
 # Jekyll Configuration for json-eval-rs Documentation
 
 title: json-eval-rs
+tagline: High-performance JSON Logic evaluation library
 description: >-
-  High-performance JSON Logic evaluation library with 80+ operators.
-  Blazing-fast evaluator built in Rust with comprehensive operator documentation,
-  bindings, and deployment guides.
+  Blazing-fast JSON Logic evaluator built in Rust with 80+ operators.
+  Comprehensive operator documentation, multiple language bindings, and deployment guides.
 
 url: "https://byrizki.github.io"
 baseurl: "/json-eval-rs"
 
-theme: jekyll-theme-minimal
+# Theme
+theme: jekyll-theme-cayman
 
 # GitHub repository
-show_downloads: true
 github:
-  is_project_page: true
   repository_url: https://github.com/byrizki/json-eval-rs
-  owner_name: byrizki
-  owner_url: https://github.com/byrizki
-
-# Plugins
-plugins:
-  - jekyll-feed
-  - jekyll-seo-tag
-  - jekyll-sitemap
 
 # Defaults
 defaults:
@@ -38,3 +29,4 @@ exclude:
   - Gemfile.lock
   - node_modules
   - vendor
+  - README.md
