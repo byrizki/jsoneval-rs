@@ -3,9 +3,9 @@ layout: default
 title: Home
 ---
 
-# JSON-Eval-RS Operator Documentation
+# JSONEval-Rs Operator Documentation
 
-Comprehensive documentation for all operators available in json-eval-rs.
+Comprehensive documentation for all operators available in JSONEval-Rs.
 
 ## 📚 Documentation Structure
 
@@ -100,7 +100,7 @@ Each operator documentation page includes:
 ## 💡 Key Concepts
 
 ### Path Notation
-json-eval-rs supports multiple path notations:
+JSONEval-Rs supports multiple path notations:
 - **Dot notation**: `"user.profile.name"`
 - **JSON Pointer**: `"/user/profile/name"`
 - **Array indices**: `"items.0"` or `"items[0]"`
@@ -114,7 +114,7 @@ Special variables available in certain contexts:
 - **Empty string `""`** - Refers to current context in map/filter
 
 ### Type Coercion
-json-eval-rs follows JavaScript-like type coercion rules:
+JSONEval-Rs follows JavaScript-like type coercion rules:
 - Numbers: `"123"` → `123`
 - Booleans: `0`, `null`, `""` → `false`; others → `true`
 - Strings: All values can be converted to strings

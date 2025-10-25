@@ -1,20 +1,20 @@
-# Jekyll Configuration for json-eval-rs Documentation
+# Jekyll Configuration for jsoneval-rs Documentation
 
-title: json-eval-rs
+title: jsoneval-rs
 tagline: High-performance JSON Logic evaluation library
 description: >-
   Blazing-fast JSON Logic evaluator built in Rust with 80+ operators.
   Comprehensive operator documentation, multiple language bindings, and deployment guides.
 
 url: "https://byrizki.github.io"
-baseurl: "/json-eval-rs"
+baseurl: "/jsoneval-rs"
 
 # Theme
 theme: jekyll-theme-cayman
 
 # GitHub repository
 github:
-  repository_url: https://github.com/byrizki/json-eval-rs
+  repository_url: https://github.com/byrizki/jsoneval-rs
 
 # Defaults
 defaults:

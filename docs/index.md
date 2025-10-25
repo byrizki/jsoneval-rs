@@ -2,7 +2,7 @@
 layout: default
 ---
 
-# json-eval-rs
+# JSONEval-Rs
 
 **High-performance JSON Logic evaluation library with 80+ operators**
 
@@ -85,7 +85,7 @@ npm install @json-eval-rs/react-native
 
 ## Repository
 
-[View on GitHub](https://github.com/byrizki/json-eval-rs)
+[View on GitHub](https://github.com/byrizki/jsoneval-rs)
 
 ## License
 

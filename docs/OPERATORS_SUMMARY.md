@@ -5,7 +5,7 @@ title: Operators Quick Reference
 
 # Operators Quick Reference
 
-Complete alphabetical reference of all operators in json-eval-rs.
+Complete alphabetical reference of all operators in JSONEval-Rs.
 
 ## Core & Variable Access
 
