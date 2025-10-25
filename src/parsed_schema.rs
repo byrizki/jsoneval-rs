@@ -148,6 +148,7 @@ impl ParsedSchema {
     }
     
     /// Get a reference to the original schema
+    #[inline(always)]
     pub fn schema(&self) -> &Value {
         &*self.schema
     }

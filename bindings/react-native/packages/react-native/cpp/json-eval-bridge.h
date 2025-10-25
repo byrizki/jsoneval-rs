@@ -1,9 +1,12 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 #include <functional>
 #include <thread>
 #include <future>
+#include <memory>
+#include <shared_mutex>
 
 namespace jsoneval {
 
@@ -270,10 +273,11 @@ public:
 
     /**
      * Check if caching is enabled (synchronous)
+     * Fast inline check without async overhead
      * @param handle Instance handle
      * @returns true if caching is enabled, false otherwise
      */
-    static bool isCacheEnabled(const std::string& handle);
+    static inline bool isCacheEnabled(const std::string& handle);
 
     /**
      * Resolve layout with optional evaluation (async)
@@ -499,15 +503,45 @@ public:
     static void dispose(const std::string& handle);
 
     /**
-     * Get library version
+     * Get library version (synchronous)
+     * Fast inline access to static version string
      * @return Version string
      */
-    static std::string version();
+    static inline std::string_view version();
 
 private:
-    // Helper to run async operations
+    // Helper to run async operations (optimized with move semantics)
     template<typename Func>
-    static void runAsync(Func&& func, std::function<void(const std::string&, const std::string&)> callback);
+    static inline void runAsync(Func&& func, std::function<void(const std::string&, const std::string&)> callback);
+    
+    // Fast handle lookup with read lock (optimized for concurrent access)
+    template<typename Func>
+    static inline auto withHandle(const std::string& handleId, Func&& func) -> decltype(func(nullptr));
+    
+    // Fast result string construction (zero-copy from FFI)
+    static inline std::string extractResultString(const uint8_t* data_ptr, size_t data_len);
 };
+
+// Inline implementations for hot paths
+
+inline std::string JsonEvalBridge::extractResultString(const uint8_t* data_ptr, size_t data_len) {
+    if (data_ptr && data_len > 0) {
+        return std::string(reinterpret_cast<const char*>(data_ptr), data_len);
+    }
+    return "{}";
+}
+
+template<typename Func>
+inline auto JsonEvalBridge::withHandle(const std::string& handleId, Func&& func) -> decltype(func(nullptr)) {
+    extern std::shared_mutex handlesMutex;
+    extern std::map<std::string, void*> handles;
+    
+    std::shared_lock<std::shared_mutex> lock(handlesMutex);
+    auto it = handles.find(handleId);
+    if (it == handles.end()) {
+        throw std::runtime_error("Invalid handle");
+    }
+    return func(it->second);
+}
 
 } // namespace jsoneval

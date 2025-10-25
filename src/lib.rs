@@ -607,7 +607,7 @@ impl JSONEval {
             
             // Parallelize only if batch has multiple items (overhead not worth it for single item)
             #[cfg(feature = "parallel")]
-            if batch.len() > 1 {
+            if batch.len() > 50 {
                 let results: Mutex<Vec<(String, String, Value)>> = Mutex::new(Vec::with_capacity(batch.len()));
                 batch.par_iter().for_each(|eval_key| {
                     let pointer_path = path_utils::normalize_to_json_pointer(eval_key);
@@ -880,7 +880,7 @@ impl JSONEval {
 
     /// Check if a dependency should be cached
     /// Caches everything except keys starting with $ (except $context)
-    #[inline]
+    #[inline(always)]
     fn should_cache_dependency(key: &str) -> bool {
         if key.starts_with("/$") || key.starts_with('$') {
             // Only cache $context, exclude other $ keys like $params
@@ -892,6 +892,7 @@ impl JSONEval {
 
     /// Helper: Try to get cached result for an evaluation (thread-safe)
     /// Helper: Try to get cached result (zero-copy via Arc)
+    #[inline]
     fn try_get_cached(&self, eval_key: &str, eval_data: &EvalData) -> Option<Value> {
         // Skip cache lookup if caching is disabled
         if !self.cache_enabled {
@@ -928,6 +929,7 @@ impl JSONEval {
     }
     
     /// Helper: Store evaluation result in cache (thread-safe)
+    #[inline]
     fn cache_result(&self, eval_key: &str, value: Value, eval_data: &EvalData) {
         // Skip cache insertion if caching is disabled
         if !self.cache_enabled {
@@ -1055,22 +1057,26 @@ impl JSONEval {
     }
 
     /// Get cache statistics
+    #[inline]
     pub fn cache_stats(&self) -> CacheStats {
         self.eval_cache.stats()
     }
     
     /// Clear evaluation cache
+    #[inline]
     pub fn clear_cache(&mut self) {
         self.eval_cache.clear();
     }
     
     /// Get number of cached entries
+    #[inline]
     pub fn cache_len(&self) -> usize {
         self.eval_cache.len()
     }
     
     /// Enable evaluation caching
     /// Useful for reusing JSONEval instances with different data
+    #[inline]
     pub fn enable_cache(&mut self) {
         self.cache_enabled = true;
     }
@@ -1078,12 +1084,14 @@ impl JSONEval {
     /// Disable evaluation caching
     /// Useful for web API usage where each request creates a new JSONEval instance
     /// Improves performance by skipping cache operations that have no benefit for single-use instances
+    #[inline]
     pub fn disable_cache(&mut self) {
         self.cache_enabled = false;
         self.eval_cache.clear(); // Clear any existing cache entries
     }
     
     /// Check if caching is enabled
+    #[inline(always)]
     pub fn is_cache_enabled(&self) -> bool {
         self.cache_enabled
     }

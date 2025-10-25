@@ -64,10 +64,10 @@ extern "C" {
 
 namespace jsoneval {
 
-// Handle storage
+// Handle storage with shared_mutex for better concurrent read performance
 static std::map<std::string, JSONEvalHandle*> handles;
-static std::mutex handlesMutex;
-static int handleCounter = 0;
+static std::shared_mutex handlesMutex;  // Allows multiple concurrent reads
+static std::atomic<int> handleCounter{0};  // Thread-safe counter
 
 std::string JsonEvalBridge::create(
     const std::string& schema,
@@ -83,8 +83,9 @@ std::string JsonEvalBridge::create(
         throw std::runtime_error("Failed to create JSONEval instance");
     }
     
-    std::lock_guard<std::mutex> lock(handlesMutex);
-    std::string handleId = "handle_" + std::to_string(handleCounter++);
+    // Use unique_lock for write operation
+    std::unique_lock<std::shared_mutex> lock(handlesMutex);
+    std::string handleId = "handle_" + std::to_string(handleCounter.fetch_add(1, std::memory_order_relaxed));
     handles[handleId] = handle;
     
     return handleId;
@@ -109,8 +110,9 @@ std::string JsonEvalBridge::createFromMsgpack(
         throw std::runtime_error("Failed to create JSONEval instance from MessagePack");
     }
     
-    std::lock_guard<std::mutex> lock(handlesMutex);
-    std::string handleId = "handle_" + std::to_string(handleCounter++);
+    // Use unique_lock for write operation
+    std::unique_lock<std::shared_mutex> lock(handlesMutex);
+    std::string handleId = "handle_" + std::to_string(handleCounter.fetch_add(1, std::memory_order_relaxed));
     handles[handleId] = handle;
     
     return handleId;
@@ -134,19 +136,21 @@ std::string JsonEvalBridge::createFromCache(
         throw std::runtime_error("Failed to create JSONEval instance from cache");
     }
     
-    std::lock_guard<std::mutex> lock(handlesMutex);
-    std::string handleId = "handle_" + std::to_string(handleCounter++);
+    // Use unique_lock for write operation
+    std::unique_lock<std::shared_mutex> lock(handlesMutex);
+    std::string handleId = "handle_" + std::to_string(handleCounter.fetch_add(1, std::memory_order_relaxed));
     handles[handleId] = handle;
     
     return handleId;
 }
 
+// Optimized async executor with move semantics
 template<typename Func>
 void JsonEvalBridge::runAsync(Func&& func, std::function<void(const std::string&, const std::string&)> callback) {
-    std::thread([func = std::forward<Func>(func), callback]() {
+    std::thread([func = std::forward<Func>(func), callback = std::move(callback)]() mutable {
         try {
             std::string result = func();
-            callback(result, "");
+            callback(std::move(result), "");
         } catch (const std::exception& e) {
             callback("", e.what());
         }
@@ -160,7 +164,8 @@ void JsonEvalBridge::evaluateAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, data, context]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
+        // Use shared_lock for read access (allows concurrent reads)
+        std::shared_lock<std::shared_mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -171,7 +176,7 @@ void JsonEvalBridge::evaluateAsync(
         FFIResult evalResult = json_eval_evaluate(it->second, data.c_str(), ctx);
         
         if (!evalResult.success) {
-            std::string error = evalResult.error ? evalResult.error : "Unknown error";
+            std::string error = evalResult.error ? std::string(evalResult.error) : "Unknown error";
             json_eval_free_result(evalResult);
             throw std::runtime_error(error);
         }
@@ -181,19 +186,16 @@ void JsonEvalBridge::evaluateAsync(
         FFIResult schemaResult = json_eval_get_evaluated_schema(it->second, true);
         
         if (!schemaResult.success) {
-            std::string error = schemaResult.error ? schemaResult.error : "Unknown error";
+            std::string error = schemaResult.error ? std::string(schemaResult.error) : "Unknown error";
             json_eval_free_result(schemaResult);
             throw std::runtime_error(error);
         }
         
-        // Zero-copy: construct string directly from raw pointer without intermediate copy
-        std::string resultStr;
-        if (schemaResult.data_ptr && schemaResult.data_len > 0) {
-            // Use string constructor that takes pointer + length (still copies, but single copy)
-            resultStr.assign(reinterpret_cast<const char*>(schemaResult.data_ptr), schemaResult.data_len);
-        } else {
-            resultStr = "{}";
-        }
+        // OPTIMIZED: Single string construction from raw pointer (one allocation)
+        std::string resultStr(reinterpret_cast<const char*>(schemaResult.data_ptr), 
+                             schemaResult.data_len > 0 ? schemaResult.data_len : 2);
+        if (schemaResult.data_len == 0) resultStr = "{}";
+        
         json_eval_free_result(schemaResult);
         return resultStr;
     }, callback);
@@ -203,7 +205,7 @@ uint64_t JsonEvalBridge::compileLogic(
     const std::string& handleId,
     const std::string& logicStr
 ) {
-    std::lock_guard<std::mutex> lock(handlesMutex);
+    std::shared_lock<std::shared_mutex> lock(handlesMutex);
     auto it = handles.find(handleId);
     if (it == handles.end()) {
         throw std::runtime_error("Invalid handle");
