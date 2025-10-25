@@ -3,6 +3,9 @@ name: Build Bindings
 on:
   release:
     types: [ created, edited, released ]
+  repository_dispatch:
+    types: [ release-created ]
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -727,7 +730,7 @@ jobs:
 
   # Upload artifacts to release
   upload-to-release:
-    if: github.event_name == 'release' || github.event_name == 'workflow_run'
+    if: github.event_name == 'release' || github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch'
     needs: [build-native, build-android-jni, build-ios-xcframework, build-csharp, build-web, build-react-native, test]
     runs-on: ubuntu-latest
     
@@ -739,8 +742,11 @@ jobs:
       run: |
         if [ "${{ github.event_name }}" = "release" ]; then
           echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+        elif [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+          # Get tag from client payload
+          echo "tag=${{ github.event.client_payload.tag }}" >> $GITHUB_OUTPUT
         else
-          # Get latest tag for workflow_run
+          # Get latest tag for workflow_run or workflow_dispatch
           TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
           echo "tag=$TAG" >> $GITHUB_OUTPUT
         fi

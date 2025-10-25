@@ -59,6 +59,11 @@ defaults:
     values:
       layout: page
 
+# Assets configuration
+assets:
+  self_host:
+    enabled: false
+
 # Include/Exclude
 include:
   - _pages
