@@ -9,7 +9,7 @@ description: >-
 url: "https://byrizki.github.io"
 baseurl: "/json-eval-rs"
 
-theme: jekyll-theme-minimal
+remote_theme: pages-themes/minimal@v0.2.0
 
 # GitHub repository
 show_downloads: true
@@ -21,6 +21,7 @@ github:
 
 # Plugins
 plugins:
+  - jekyll-remote-theme
   - jekyll-feed
   - jekyll-seo-tag
   - jekyll-sitemap
