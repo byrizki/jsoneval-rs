@@ -38,22 +38,14 @@ jobs:
           working-directory: docs
 
       - name: Install dependencies
+        working-directory: docs
         run: |
-          cd docs
-          cat > Gemfile << 'EOF'
-          source "https://rubygems.org"
-          gem "github-pages", group: :jekyll_plugins
-          gem "jekyll-feed"
-          gem "jekyll-seo-tag"
-          gem "jekyll-sitemap"
-          gem "jekyll-relative-links"
-          EOF
-          bundle install
+          bundle config set --local path vendor/bundle
+          bundle install --jobs 4 --retry 3
 
       - name: Build with Jekyll
-        run: |
-          cd docs
-          bundle exec jekyll build --baseurl "${{ steps.pages.outputs.base_path }}"
+        working-directory: docs
+        run: bundle exec jekyll build --baseurl "/json-eval-rs"
         env:
           JEKYLL_ENV: production
 

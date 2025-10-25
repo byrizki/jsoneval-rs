@@ -768,7 +768,13 @@ namespace JsonEvalRs
 #if NETCOREAPP || NET5_0_OR_GREATER
             var result = Native.json_eval_compile_and_run_logic(_handle, logicStr, data, context);
 #else
-            var result = Native.json_eval_compile_and_run_logic(_handle, Native.ToUTF8Bytes(logicStr), Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context));
+            var logicBytes = Native.ToUTF8Bytes(logicStr)
+                ?? throw new ArgumentNullException(nameof(logicStr));
+            var result = Native.json_eval_compile_and_run_logic(
+                _handle,
+                logicBytes,
+                Native.ToUTF8Bytes(data),
+                Native.ToUTF8Bytes(context));
 #endif
             
             try
@@ -823,7 +829,9 @@ namespace JsonEvalRs
 #if NETCOREAPP || NET5_0_OR_GREATER
             ulong logicId = Native.json_eval_compile_logic(_handle, logicStr);
 #else
-            ulong logicId = Native.json_eval_compile_logic(_handle, Native.ToUTF8Bytes(logicStr));
+            var logicBytes = Native.ToUTF8Bytes(logicStr)
+                ?? throw new ArgumentNullException(nameof(logicStr));
+            ulong logicId = Native.json_eval_compile_logic(_handle, logicBytes);
 #endif
 
             if (logicId == 0)

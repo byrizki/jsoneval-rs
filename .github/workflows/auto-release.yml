@@ -112,18 +112,10 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.get_version.outputs.tag }}
-          name: Release ${{ steps.get_version.outputs.tag }}
+          name: ${{ steps.get_version.outputs.tag }}
           body_path: changelog_body.md
           draft: false
           prerelease: false
           generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Trigger binding builds
-        if: success()
-        run: |
-          # Trigger the build-bindings workflow
-          gh workflow run build-bindings.yml --ref main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

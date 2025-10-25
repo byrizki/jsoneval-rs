@@ -1,35 +1,66 @@
 # Jekyll Configuration for json-eval-rs Documentation
 
-# Site settings
 title: json-eval-rs Documentation
-description: High-performance JSON Logic evaluation library with 80+ operators
-baseurl: "/json-eval-rs"
+tagline: High-performance JSON Logic evaluation library with 80+ operators
+description: >-
+  json-eval-rs is a blazing-fast JSON Logic evaluator with comprehensive operator documentation,
+  bindings, and deployment guides.
+
 url: "https://byrizki.github.io"
+baseurl: "/json-eval-rs"
 
-# Theme
-theme: jekyll-theme-cayman
-# Alternative themes: minima, jekyll-theme-minimal, jekyll-theme-slate, jekyll-theme-architect
+lang: en
+timezone: Asia/Jakarta
 
-# Build settings
-markdown: kramdown
-kramdown:
-  input: GFM
-  syntax_highlighter: rouge
-  syntax_highlighter_opts:
-    block:
-      line_numbers: false
+remote_theme: "cotes2020/jekyll-theme-chirpy@v6.7.0"
+
+theme_mode: light
+
+# Site metadata
+author: byrizki
+twitter:
+  username: byrizki
+  card: summary
+github:
+  username: byrizki
+  repository: json-eval-rs
+
+# Pagination & archive
+paginate: 10
+paginate_path: "/page:num/"
+collections:
+  operators:
+    output: true
+    permalink: /:collection/:name
 
 # Plugins
 plugins:
   - jekyll-feed
   - jekyll-seo-tag
   - jekyll-sitemap
-  - jekyll-relative-links
+  - jekyll-include-cache
+  - jekyll-archives
+  - jekyll-paginate
 
-# Relative links
-relative_links:
-  enabled: true
-  collections: false
+# Defaults
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: page
+      toc: true
+
+# Navigation tabs (displayed by Chirpy in the top bar)
+tabs:
+  - name: Home
+    path: /
+    icon: "fas fa-home"
+  - name: Quick Reference
+    path: /OPERATORS_SUMMARY
+    icon: "fas fa-book"
+  - name: Operators
+    path: /operators-core
+    icon: "fas fa-project-diagram"
 
 # Include/Exclude
 include:
@@ -43,57 +74,12 @@ exclude:
   - node_modules
   - vendor
 
-# Collections (optional, for future organization)
-collections:
-  operators:
-    output: true
-    permalink: /:collection/:name
+# Analytics (set your provider IDs if available)
+google_analytics:
+  id:
 
-# Defaults
-defaults:
-  - scope:
-      path: ""
-    values:
-      layout: default
-      toc: true
-
-# Navigation (optional, for themes that support it)
-navigation:
-  - title: Home
-    url: /
-  - title: Quick Reference
-    url: /OPERATORS_SUMMARY
-  - title: Operators
-    children:
-      - title: Core
-        url: /operators-core
-      - title: Logical
-        url: /operators-logical
-      - title: Comparison
-        url: /operators-comparison
-      - title: Arithmetic
-        url: /operators-arithmetic
-      - title: String
-        url: /operators-string
-      - title: Math
-        url: /operators-math
-      - title: Date
-        url: /operators-date
-      - title: Array
-        url: /operators-array
-      - title: Table
-        url: /operators-table
-      - title: Utility
-        url: /operators-utility
-
-# SEO
-author: byrizki
-twitter:
-  username: byrizki
-  card: summary
-
-# Google Analytics (uncomment and add your tracking ID)
-# google_analytics: UA-XXXXXXXX-X
-
-# Repository
-repository: byrizki/json-eval-rs
+# Sitemap configuration for Chirpy
+sitemap:
+  exclude:
+    - /assets/
+    - /tabs/
