@@ -1,0 +1,99 @@
+# Jekyll Configuration for json-eval-rs Documentation
+
+# Site settings
+title: json-eval-rs Documentation
+description: High-performance JSON Logic evaluation library with 80+ operators
+baseurl: "/json-eval-rs"
+url: "https://byrizki.github.io"
+
+# Theme
+theme: jekyll-theme-cayman
+# Alternative themes: minima, jekyll-theme-minimal, jekyll-theme-slate, jekyll-theme-architect
+
+# Build settings
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+  syntax_highlighter_opts:
+    block:
+      line_numbers: false
+
+# Plugins
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+  - jekyll-sitemap
+  - jekyll-relative-links
+
+# Relative links
+relative_links:
+  enabled: true
+  collections: false
+
+# Include/Exclude
+include:
+  - README.md
+  - OPERATORS_SUMMARY.md
+  - operators-*.md
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor
+
+# Collections (optional, for future organization)
+collections:
+  operators:
+    output: true
+    permalink: /:collection/:name
+
+# Defaults
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+      toc: true
+
+# Navigation (optional, for themes that support it)
+navigation:
+  - title: Home
+    url: /
+  - title: Quick Reference
+    url: /OPERATORS_SUMMARY
+  - title: Operators
+    children:
+      - title: Core
+        url: /operators-core
+      - title: Logical
+        url: /operators-logical
+      - title: Comparison
+        url: /operators-comparison
+      - title: Arithmetic
+        url: /operators-arithmetic
+      - title: String
+        url: /operators-string
+      - title: Math
+        url: /operators-math
+      - title: Date
+        url: /operators-date
+      - title: Array
+        url: /operators-array
+      - title: Table
+        url: /operators-table
+      - title: Utility
+        url: /operators-utility
+
+# SEO
+author: byrizki
+twitter:
+  username: byrizki
+  card: summary
+
+# Google Analytics (uncomment and add your tracking ID)
+# google_analytics: UA-XXXXXXXX-X
+
+# Repository
+repository: byrizki/json-eval-rs

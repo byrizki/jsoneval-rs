@@ -1,11 +1,13 @@
 name: Build Bindings
 
 on:
-  push:
-    branches: [ main, develop ]
   release:
     types: [ created ]
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Auto Release on Push"]
+    types:
+      - completed
 
 env:
   CARGO_TERM_COLOR: always
@@ -728,14 +730,25 @@ jobs:
         name: react-native-ios-build-logs
         path: ~/Library/Logs/xcodebuild/
 
-  # Create release with all artifacts
-  create-release:
-    if: github.event_name == 'release'
+  # Upload artifacts to release
+  upload-to-release:
+    if: github.event_name == 'release' || github.event_name == 'workflow_run'
     needs: [build-native, build-android-jni, build-ios-xcframework, build-csharp, build-web, build-react-native, test]
     runs-on: ubuntu-latest
     
     steps:
     - uses: actions/checkout@v4
+    
+    - name: Get release tag
+      id: get_tag
+      run: |
+        if [ "${{ github.event_name }}" = "release" ]; then
+          echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+        else
+          # Get latest tag for workflow_run
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+        fi
     
     - name: Download all artifacts
       uses: actions/download-artifact@v4
@@ -761,9 +774,10 @@ jobs:
           tar -czf ios-xcframework.tar.gz ios-xcframework/
         fi
     
-    - name: Upload release archives
+    - name: Upload artifacts to release
       uses: softprops/action-gh-release@v1
       with:
+        tag_name: ${{ steps.get_tag.outputs.tag }}
         files: |
           release-artifacts/*.tar.gz
           release-artifacts/nuget-package/*.nupkg

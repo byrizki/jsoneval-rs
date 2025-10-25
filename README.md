@@ -28,6 +28,22 @@
 - **Data Transformation**: Transform and validate large datasets efficiently
 - **UI Layout Resolution**: Resolve conditional layouts with `$ref` references
 
+## 📖 Documentation
+
+**[📚 Comprehensive Operator Documentation](docs/README.md)** - Complete guide to all 80+ available operators:
+
+- **[Quick Reference](docs/OPERATORS_SUMMARY.md)** - Alphabetical operator list
+- **[Core Operators](docs/operators-core.md)** - Variables and literals
+- **[Logical Operators](docs/operators-logical.md)** - Boolean logic (`and`, `or`, `if`, etc.)
+- **[Comparison Operators](docs/operators-comparison.md)** - Value comparisons (`==`, `<`, `>`, etc.)
+- **[Arithmetic Operators](docs/operators-arithmetic.md)** - Math operations (`+`, `-`, `*`, `/`, etc.)
+- **[String Operators](docs/operators-string.md)** - Text manipulation (`cat`, `substr`, `search`, etc.)
+- **[Math Functions](docs/operators-math.md)** - Advanced math (`round`, `abs`, `max`, etc.)
+- **[Date Functions](docs/operators-date.md)** - Date/time operations (`today`, `dateformat`, etc.)
+- **[Array Operators](docs/operators-array.md)** - Array transformations (`map`, `filter`, `reduce`, etc.)
+- **[Table Operators](docs/operators-table.md)** - Data lookups (`VALUEAT`, `INDEXAT`, etc.)
+- **[Utility Operators](docs/operators-utility.md)** - Helper functions (`missing`, `RANGEOPTIONS`, etc.)
+
 ## 📦 Installation
 
 ### Rust
