@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.27] - 2025-10-27
+
+### Changed
+- [core] Implement micro optimization 
+
 ## [0.0.26] - 2025-10-25
 
 ### Changed
