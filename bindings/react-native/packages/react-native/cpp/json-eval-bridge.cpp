@@ -144,6 +144,19 @@ std::string JsonEvalBridge::createFromCache(
     return handleId;
 }
 
+// Optimized async executor with move semantics
+template<typename Func>
+void JsonEvalBridge::runAsync(Func&& func, std::function<void(const std::string&, const std::string&)> callback) {
+    std::thread([func = std::forward<Func>(func), callback = std::move(callback)]() mutable {
+        try {
+            std::string result = func();
+            callback(std::move(result), "");
+        } catch (const std::exception& e) {
+            callback("", e.what());
+        }
+    }).detach();
+}
+
 void JsonEvalBridge::evaluateAsync(
     const std::string& handleId,
     const std::string& data,
@@ -214,7 +227,7 @@ void JsonEvalBridge::runLogicAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, logicId, data, context]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -251,7 +264,7 @@ void JsonEvalBridge::validateAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, data, context]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -287,7 +300,7 @@ void JsonEvalBridge::evaluateDependentsAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, changedPathsJson, data, context, reEvaluate]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -327,7 +340,7 @@ void JsonEvalBridge::getEvaluatedSchemaAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, skipLayout]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -359,7 +372,7 @@ void JsonEvalBridge::getEvaluatedSchemaMsgpackAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, skipLayout]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -390,7 +403,7 @@ void JsonEvalBridge::getSchemaValueAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -422,7 +435,7 @@ void JsonEvalBridge::getEvaluatedSchemaWithoutParamsAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, skipLayout]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -455,7 +468,7 @@ void JsonEvalBridge::getEvaluatedSchemaByPathAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, path, skipLayout]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -487,7 +500,7 @@ void JsonEvalBridge::getSchemaByPathAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, path]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -521,7 +534,7 @@ void JsonEvalBridge::reloadSchemaAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, schema, context, data]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -550,7 +563,7 @@ void JsonEvalBridge::reloadSchemaMsgpackAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, schemaMsgpack, context, data]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -585,7 +598,7 @@ void JsonEvalBridge::reloadSchemaFromCacheAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, cacheKey, context, data]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -616,7 +629,7 @@ void JsonEvalBridge::cacheStatsAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -647,7 +660,7 @@ void JsonEvalBridge::clearCacheAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -671,7 +684,7 @@ void JsonEvalBridge::cacheLenAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -702,7 +715,7 @@ void JsonEvalBridge::enableCacheAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -726,7 +739,7 @@ void JsonEvalBridge::disableCacheAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -746,7 +759,7 @@ void JsonEvalBridge::disableCacheAsync(
 }
 
 bool JsonEvalBridge::isCacheEnabled(const std::string& handleId) {
-    std::shared_lock<std::shared_mutex> lock(handlesMutex);
+    std::lock_guard<std::mutex> lock(handlesMutex);
     auto it = handles.find(handleId);
     if (it == handles.end()) {
         return false;
@@ -762,7 +775,7 @@ void JsonEvalBridge::resolveLayoutAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, evaluate]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -789,7 +802,7 @@ void JsonEvalBridge::compileAndRunLogicAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, logicStr, data, context]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -825,7 +838,7 @@ void JsonEvalBridge::validatePathsAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, data, context, pathsJson]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -865,7 +878,7 @@ void JsonEvalBridge::evaluateSubformAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, subformPath, data, context]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -893,7 +906,7 @@ void JsonEvalBridge::validateSubformAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, subformPath, data, context]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -928,7 +941,7 @@ void JsonEvalBridge::evaluateDependentsSubformAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, subformPath, changedPath, data, context]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -962,7 +975,7 @@ void JsonEvalBridge::resolveLayoutSubformAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, subformPath, evaluate]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -988,7 +1001,7 @@ void JsonEvalBridge::getEvaluatedSchemaSubformAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, subformPath, resolveLayout]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -1019,7 +1032,7 @@ void JsonEvalBridge::getSchemaValueSubformAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, subformPath]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -1051,7 +1064,7 @@ void JsonEvalBridge::getEvaluatedSchemaWithoutParamsSubformAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, subformPath, resolveLayout]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -1084,7 +1097,7 @@ void JsonEvalBridge::getEvaluatedSchemaByPathSubformAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, subformPath, schemaPath, skipLayout]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -1114,7 +1127,7 @@ void JsonEvalBridge::getSubformPathsAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -1145,7 +1158,7 @@ void JsonEvalBridge::hasSubformAsync(
     std::function<void(const std::string&, const std::string&)> callback
 ) {
     runAsync([handleId, subformPath]() -> std::string {
-        std::shared_lock<std::shared_mutex> lock(handlesMutex);
+        std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
@@ -1171,7 +1184,7 @@ void JsonEvalBridge::hasSubformAsync(
 }
 
 void JsonEvalBridge::dispose(const std::string& handleId) {
-    std::unique_lock<std::shared_mutex> lock(handlesMutex);
+    std::lock_guard<std::mutex> lock(handlesMutex);
     auto it = handles.find(handleId);
     if (it != handles.end()) {
         json_eval_free(it->second);
