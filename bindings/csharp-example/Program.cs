@@ -98,33 +98,45 @@ namespace JsonEvalBenchmark
             Console.ResetColor();
             Console.WriteLine("==================================================");
 
-            // Build both FFI library and CLI binary together to prevent clearing DLL
-            Console.WriteLine("🧠 Building Rust library and CLI binary (--release --features ffi)...");
-            if (!RunCommand("cargo", "build --release --features ffi --bins", _projectRoot!))
+            // Build FFI library and example (not CLI binary to avoid conflicts)
+            Console.WriteLine("🧠 Building Rust library (--release --features ffi)...");
+            if (!RunCommand("cargo", "build --release --features ffi", _projectRoot!))
             {
                 return false;
             }
 
-            // Ensure DLL is in the correct location for C# to find it
-            Console.WriteLine("📋 Ensuring DLL is accessible...");
-            string dllSource = Path.Combine(_projectRoot!, "target", "release", "json_eval_rs.dll");
-            string dllDest = Path.Combine(_projectRoot!, "bindings", "csharp-example", "bin", "Release", "net8.0", "json_eval_rs.dll");
+            // Determine library name based on platform
+            string libName = GetLibraryFileName("json_eval_rs");
+            string libSource = Path.Combine(_projectRoot!, "target", "release", libName);
+            string libDest = Path.Combine(_projectRoot!, "bindings", "csharp-example", "bin", "Release", "net8.0", libName);
             
-            if (File.Exists(dllSource))
+            Console.WriteLine($"📋 Ensuring library is accessible ({libName})...");
+            if (File.Exists(libSource))
             {
-                File.Copy(dllSource, dllDest, overwrite: true);
-                Console.WriteLine($"  Copied DLL to {dllDest}");
+                Directory.CreateDirectory(Path.GetDirectoryName(libDest)!);
+                File.Copy(libSource, libDest, overwrite: true);
+                Console.WriteLine($"  ✓ Copied {libName} to {libDest}");
             }
             else
             {
                 Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($"  ⚠️  DLL not found at {dllSource}");
+                Console.WriteLine($"  ⚠️  Library not found at {libSource}");
                 Console.ResetColor();
             }
 
             Console.WriteLine("✅ Build completed successfully!");
             Console.WriteLine();
             return true;
+        }
+
+        private static string GetLibraryFileName(string baseName)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                return $"{baseName}.dll";
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                return $"lib{baseName}.dylib";
+            else // Linux and other Unix-like
+                return $"lib{baseName}.so";
         }
 
         private static bool RunCommand(string fileName, string arguments, string workingDirectory)
@@ -344,29 +356,15 @@ namespace JsonEvalBenchmark
             Console.ResetColor();
             Console.WriteLine("==================================================");
 
-            // Run the pre-built binary directly to avoid cargo rebuilding and clearing the FFI DLL
-            string binaryName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) 
-                ? "json-eval-cli.exe" 
-                : "json-eval-cli";
-            string binaryPath = Path.Combine(_projectRoot!, "target", "release", binaryName);
-            
-            if (!File.Exists(binaryPath))
-            {
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($"⚠️  Binary not found at {binaryPath}");
-                Console.WriteLine("    Building CLI binary...");
-                Console.ResetColor();
-                
-                if (!RunCommand("cargo", "build --release --bin json-eval-cli", _projectRoot!))
-                {
-                    return new BenchmarkResult { Success = false, Scenario = scenario };
-                }
-            }
+            // Use cargo run --example basic with --compare flag
+            // This avoids building a separate binary and uses the example infrastructure
+            Console.WriteLine($"Running: cargo run --release --example basic -- {scenario} --compare");
+            Console.WriteLine();
 
             var startInfo = new ProcessStartInfo
             {
-                FileName = binaryPath,
-                Arguments = scenario,
+                FileName = "cargo",
+                Arguments = $"run --release --example basic -- {scenario} --compare",
                 WorkingDirectory = _projectRoot!,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -394,11 +392,13 @@ namespace JsonEvalBenchmark
                 return new BenchmarkResult { Success = false, Scenario = scenario };
             }
 
-            // Parse output to extract timings
-            // Rust Duration debug format: "123.456789ms" or "1.234567s" or "123.456µs" (no space between number and unit)
-            var parsingMatch = Regex.Match(output, @"Schema parsing & compilation:\s*([0-9.]+)(s|ms|µs|ns)", RegexOptions.IgnoreCase);
-            var evalMatch = Regex.Match(output, @"Evaluation:\s*([0-9.]+)(s|ms|µs|ns)", RegexOptions.IgnoreCase);
+            // Parse output to extract timings from basic example format
+            // Format: "⏱️  Execution time: 734.893826ms"
             var totalMatch = Regex.Match(output, @"Execution time:\s*([0-9.]+)(s|ms|µs|ns)", RegexOptions.IgnoreCase);
+            
+            // Try to extract component timings if available (may not be in basic output)
+            var parsingMatch = Regex.Match(output, @"(?:Schema parsing|Parsing).*?:\s*([0-9.]+)(s|ms|µs|ns)", RegexOptions.IgnoreCase);
+            var evalMatch = Regex.Match(output, @"Evaluation.*?:\s*([0-9.]+)(s|ms|µs|ns)", RegexOptions.IgnoreCase);
 
             double parsing = ParseDuration(parsingMatch);
             double evaluation = ParseDuration(evalMatch);
@@ -414,16 +414,40 @@ namespace JsonEvalBenchmark
             {
                 Console.ForegroundColor = ConsoleColor.Yellow;
                 Console.WriteLine("⚠️  Could not parse Rust benchmark output");
+                Console.WriteLine("Output:");
+                Console.WriteLine(output);
                 Console.ResetColor();
                 Console.WriteLine();
                 return new BenchmarkResult { Success = false, Scenario = scenario };
             }
 
-            Console.WriteLine($"  🔧 Schema parsing & compilation: {parsing:F3}ms");
-            Console.WriteLine($"  ⚡ Evaluation: {evaluation:F3}ms");
+            // Only show component timings if available
+            if (parsing > 0)
+            {
+                Console.WriteLine($"  🔧 Schema parsing & compilation: {parsing:F3}ms");
+            }
+            if (evaluation > 0)
+            {
+                Console.WriteLine($"  ⚡ Evaluation: {evaluation:F3}ms");
+            }
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine($"  ✅ Total execution time: {total:F3}ms");
             Console.ResetColor();
+            
+            // Check for comparison differences in output
+            var diffMatch = Regex.Match(output, @"(\d+) difference\(s\)");
+            if (diffMatch.Success)
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($"  ⚠️  {diffMatch.Groups[1].Value} difference(s) from baseline");
+                Console.ResetColor();
+            }
+            else if (output.Contains("differs from"))
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine("  ⚠️  Differences detected from baseline");
+                Console.ResetColor();
+            }
             Console.WriteLine();
 
             return new BenchmarkResult
@@ -491,11 +515,19 @@ namespace JsonEvalBenchmark
                     Console.WriteLine($"  Total:       {overhead:F1}% (faster!)");
                 }
 
-                double parsingOverhead = (csharpResult.ParsingMs / rustResult.ParsingMs - 1.0) * 100;
-                double evalOverhead = (csharpResult.EvaluationMs / rustResult.EvaluationMs - 1.0) * 100;
+                // Only calculate component overhead if both have component timings
+                if (rustResult.ParsingMs > 0 && csharpResult.ParsingMs > 0)
+                {
+                    double parsingOverhead = (csharpResult.ParsingMs / rustResult.ParsingMs - 1.0) * 100;
+                    Console.WriteLine($"  - Parsing:   {(parsingOverhead >= 0 ? "+" : "")}{parsingOverhead:F1}%");
+                }
                 
-                Console.WriteLine($"  - Parsing:   {(parsingOverhead >= 0 ? "+" : "")}{parsingOverhead:F1}%");
-                Console.WriteLine($"  - Evaluation: {(evalOverhead >= 0 ? "+" : "")}{evalOverhead:F1}%");
+                if (rustResult.EvaluationMs > 0 && csharpResult.EvaluationMs > 0)
+                {
+                    double evalOverhead = (csharpResult.EvaluationMs / rustResult.EvaluationMs - 1.0) * 100;
+                    Console.WriteLine($"  - Evaluation: {(evalOverhead >= 0 ? "+" : "")}{evalOverhead:F1}%");
+                }
+                
                 Console.ResetColor();
                 Console.WriteLine();
             }

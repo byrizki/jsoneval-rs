@@ -23,6 +23,7 @@
     <Copy SourceFiles="../../samples/zcc.json" DestinationFiles="$(OutputPath)samples/zcc.json" />
     <Copy SourceFiles="../../samples/zcc-data.json" DestinationFiles="$(OutputPath)samples/zcc-data.json" />
     <Copy SourceFiles="../../samples/zcc-evaluated-compare.json" DestinationFiles="$(OutputPath)samples/zcc-evaluated-compare.json" Condition="Exists('../../samples/zcc-evaluated-compare.json')" />
+    <Copy SourceFiles="../../target/release/libjson_eval_rs.so" DestinationFiles="$(OutputPath)libjson_eval_rs.so" />
   </Target>
 
 </Project>
