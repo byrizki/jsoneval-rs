@@ -102,6 +102,7 @@ impl CompiledLogicStore {
     #[allow(dead_code)]
     fn clear(&self) {
         self.store.clear();
+        self.id_map.clear();
         self.next_id.store(1, Ordering::SeqCst);
     }
 }
@@ -144,7 +145,7 @@ pub fn get_store_stats() -> CompiledLogicStoreStats {
 /// Clear all compiled logic from the global store
 /// 
 /// **Warning**: This will invalidate all existing CompiledLogicIds
-#[allow(dead_code)]
+#[cfg(test)]
 pub fn clear_store() {
     COMPILED_LOGIC_STORE.clear()
 }
@@ -152,9 +153,16 @@ pub fn clear_store() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+    
+    // Test mutex to serialize access to the global store during tests
+    static TEST_MUTEX: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_compile_and_get() {
+        let _lock = TEST_MUTEX.lock().unwrap();
+        clear_store(); // Ensure clean state
+        
         let logic = r#"{"==": [{"var": "x"}, 10]}"#;
         let id = compile_logic(logic).expect("Failed to compile");
         
@@ -164,6 +172,9 @@ mod tests {
     
     #[test]
     fn test_deduplication() {
+        let _lock = TEST_MUTEX.lock().unwrap();
+        clear_store(); // Ensure clean state
+        
         let logic = r#"{"*": [{"var": "a"}, 2]}"#;
         
         let id1 = compile_logic(logic).expect("Failed to compile");
@@ -175,6 +186,9 @@ mod tests {
     
     #[test]
     fn test_different_logic() {
+        let _lock = TEST_MUTEX.lock().unwrap();
+        clear_store(); // Ensure clean state
+        
         let logic1 = r#"{"*": [{"var": "a"}, 2]}"#;
         let logic2 = r#"{"*": [{"var": "b"}, 3]}"#;
         
@@ -187,8 +201,15 @@ mod tests {
     
     #[test]
     fn test_stats() {
+        let _lock = TEST_MUTEX.lock().unwrap();
+        clear_store(); // Ensure clean state
+        
+        // Compile some logic to populate the store
+        let logic = r#"{"+": [1, 2, 3]}"#;
+        let _ = compile_logic(logic).expect("Failed to compile");
+        
         let stats = get_store_stats();
-        // compiled_count is usize so always >= 0
-        assert!(stats.next_id >= 1);
+        assert_eq!(stats.compiled_count, 1);
+        assert_eq!(stats.next_id, 2);
     }
 }

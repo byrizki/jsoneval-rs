@@ -35,7 +35,7 @@ fn print_parsed_schema_info(
     if print_deps {
         println!("\n🔗 Dependencies:");
         println!("   {} evaluation(s) with dependencies", parsed_schema.dependencies.len());
-        for (eval_key, deps) in &parsed_schema.dependencies {
+        for (eval_key, deps) in parsed_schema.dependencies.iter() {
             if !deps.is_empty() {
                 println!("\n   {} depends on:", eval_key);
                 for dep in deps {
@@ -48,7 +48,7 @@ fn print_parsed_schema_info(
     if print_tables {
         println!("\n📊 Tables:");
         println!("   {} table(s) defined", parsed_schema.tables.len());
-        for (table_key, table_value) in &parsed_schema.tables {
+        for (table_key, table_value) in parsed_schema.tables.iter() {
             println!("\n   {}:", table_key);
             println!("     {}", serde_json::to_string_pretty(table_value).unwrap_or_default());
         }
@@ -57,7 +57,7 @@ fn print_parsed_schema_info(
     if print_evals {
         println!("\n⚙️  Evaluations:");
         println!("   {} evaluation(s) compiled", parsed_schema.evaluations.len());
-        for (eval_key, logic_id) in &parsed_schema.evaluations {
+        for (eval_key, logic_id) in parsed_schema.evaluations.iter() {
             println!("     {} → {:?}", eval_key, logic_id);
         }
     }

@@ -150,9 +150,9 @@ fn main() {
             .unwrap_or_else(|e| panic!("failed to write {}: {}", evaluated_path.display(), e));
 
         let mut metadata_obj = Map::new();
-        metadata_obj.insert("dependencies".to_string(), serde_json::to_value(&eval.dependencies).unwrap());
-        metadata_obj.insert("evaluations".to_string(), serde_json::to_value(&eval.evaluations).unwrap());
-        metadata_obj.insert("sorted_evaluations".to_string(), serde_json::to_value(&eval.sorted_evaluations).unwrap());
+        metadata_obj.insert("dependencies".to_string(), serde_json::to_value(&*eval.dependencies).unwrap());
+        metadata_obj.insert("evaluations".to_string(), serde_json::to_value(&*eval.evaluations).unwrap());
+        metadata_obj.insert("sorted_evaluations".to_string(), serde_json::to_value(&*eval.sorted_evaluations).unwrap());
 
         fs::write(&parsed_path, common::pretty_json(&Value::Object(metadata_obj)))
             .unwrap_or_else(|e| panic!("failed to write {}: {}", parsed_path.display(), e));
