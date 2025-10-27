@@ -76,8 +76,11 @@ void rejectPromise(JNIEnv* env, jobject promise, const std::string& code, const 
     env->DeleteLocalRef(jmsg);
 }
 
+} // extern "C"
+
 // Generic async helper to reduce code duplication
 // Encapsulates the JavaVM/thread attachment boilerplate pattern
+// Note: Template functions must have C++ linkage, not C linkage
 template<typename Func>
 void runAsyncWithPromise(
     JNIEnv* env,
@@ -103,6 +106,8 @@ void runAsyncWithPromise(
         jvm->DetachCurrentThread();
     });
 }
+
+extern "C" {
 
 JNIEXPORT jstring JNICALL
 Java_com_jsonevalrs_JsonEvalRsModule_nativeCreate(

@@ -3,7 +3,10 @@
 ## [0.0.27] - 2025-10-27
 
 ### Changed
-- [core] Implement micro optimization 
+- [core] Implement micro optimization
+
+### Fixed
+- [react-native] Fix Android build - moved template function outside `extern "C"` block (templates must have C++ linkage) 
 
 ## [0.0.26] - 2025-10-25
 
