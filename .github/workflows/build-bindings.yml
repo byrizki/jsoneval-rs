@@ -21,49 +21,49 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             artifact_name: libjson_eval_rs.so
-            build_features: ffi,parallel
+            build_features: ffi
           
           # Linux ARM64
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             artifact_name: libjson_eval_rs.so
-            build_features: ffi,parallel
+            build_features: ffi
           
           # Windows x86_64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact_name: json_eval_rs.dll
-            build_features: ffi,parallel
+            build_features: ffi
           
           # macOS x86_64
           - os: macos-latest
             target: x86_64-apple-darwin
             artifact_name: libjson_eval_rs.dylib
-            build_features: ffi,parallel
+            build_features: ffi
           
           # macOS ARM64
           - os: macos-latest
             target: aarch64-apple-darwin
             artifact_name: libjson_eval_rs.dylib
-            build_features: ffi,parallel
+            build_features: ffi
           
           # iOS ARM64 (device)
           - os: macos-latest
             target: aarch64-apple-ios
             artifact_name: libjson_eval_rs.a
-            build_features: ffi,parallel
+            build_features: ffi
           
           # iOS ARM64 (simulator - Apple Silicon Mac)
           - os: macos-latest
             target: aarch64-apple-ios-sim
             artifact_name: libjson_eval_rs.a
-            build_features: ffi,parallel
+            build_features: ffi
           
           # iOS x86_64 (simulator - Intel Mac)
           - os: macos-latest
             target: x86_64-apple-ios
             artifact_name: libjson_eval_rs.a
-            build_features: ffi,parallel
+            build_features: ffi
 
     runs-on: ${{ matrix.os }}
     

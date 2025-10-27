@@ -308,13 +308,13 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
         &mut fields_with_rules,
     )?;
     
-    parsed.evaluations = evaluations;
-    parsed.tables = tables;
-    parsed.dependencies = dependencies;
-    parsed.layout_paths = layout_paths;
-    parsed.dependents_evaluations = dependents_evaluations;
-    parsed.options_templates = options_templates;
-    parsed.fields_with_rules = fields_with_rules;
+    parsed.evaluations = Arc::new(evaluations);
+    parsed.tables = Arc::new(tables);
+    parsed.dependencies = Arc::new(dependencies);
+    parsed.layout_paths = Arc::new(layout_paths);
+    parsed.dependents_evaluations = Arc::new(dependents_evaluations);
+    parsed.options_templates = Arc::new(options_templates);
+    parsed.fields_with_rules = Arc::new(fields_with_rules);
     
     // Build subforms from collected data (after walk completes)
     parsed.subforms = build_subforms_from_data_parsed(subforms_data, parsed)?;
@@ -322,7 +322,7 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
     // Collect table-level dependencies by aggregating all column dependencies
     collect_table_dependencies_parsed(parsed);
     
-    parsed.sorted_evaluations = topo_sort::parsed::topological_sort_parsed(parsed)?;
+    parsed.sorted_evaluations = Arc::new(topo_sort::parsed::topological_sort_parsed(parsed)?);
     
     // Categorize evaluations for result handling
     categorize_evaluations_parsed(parsed);
@@ -411,11 +411,14 @@ fn create_subform_parsed(
 fn collect_table_dependencies_parsed(parsed: &mut ParsedSchema) {
     let table_keys: Vec<String> = parsed.tables.keys().cloned().collect();
     
+    // Clone the dependencies to a mutable map
+    let mut dependencies = (*parsed.dependencies).clone();
+    
     for table_key in table_keys {
         let mut table_deps = IndexSet::new();
         
         // Collect dependencies from all evaluations that belong to this table
-        for (eval_key, deps) in &parsed.dependencies {
+        for (eval_key, deps) in &dependencies {
             // Check if this evaluation is within the table
             if eval_key.starts_with(&table_key) && eval_key != &table_key {
                 // Add all dependencies from table cells/columns
@@ -430,9 +433,12 @@ fn collect_table_dependencies_parsed(parsed: &mut ParsedSchema) {
         
         // Store aggregated dependencies for the table
         if !table_deps.is_empty() {
-            parsed.dependencies.insert(table_key.clone(), table_deps);
+            dependencies.insert(table_key.clone(), table_deps);
         }
     }
+    
+    // Wrap the updated dependencies in Arc
+    parsed.dependencies = Arc::new(dependencies);
 }
 
 /// Categorize evaluations for different result handling (ParsedSchema version)
@@ -443,6 +449,9 @@ fn categorize_evaluations_parsed(parsed: &mut ParsedSchema) {
         .flatten()
         .cloned()
         .collect();
+    
+    let mut rules_evaluations = Vec::new();
+    let mut others_evaluations = Vec::new();
     
     // Find evaluations NOT in batches and categorize them
     for eval_key in parsed.evaluations.keys() {
@@ -458,19 +467,25 @@ fn categorize_evaluations_parsed(parsed: &mut ParsedSchema) {
 
         // Categorize based on path patterns
         if eval_key.contains("/rules/") {
-            parsed.rules_evaluations.push(eval_key.clone());
+            rules_evaluations.push(eval_key.clone());
         } else if !eval_key.contains("/dependents/") {
             // Don't add dependents to others_evaluations
-            parsed.others_evaluations.push(eval_key.clone());
+            others_evaluations.push(eval_key.clone());
         }
     }
+    
+    // Wrap in Arc
+    parsed.rules_evaluations = Arc::new(rules_evaluations);
+    parsed.others_evaluations = Arc::new(others_evaluations);
 }
 
 /// Process collected value fields (ParsedSchema version)
 fn process_value_fields_parsed(parsed: &mut ParsedSchema, value_fields: Vec<String>) {
+    let mut value_evaluations = Vec::new();
+    
     for path in value_fields {
         // Skip if already collected from evaluations in categorize_evaluations
-        if parsed.value_evaluations.contains(&path) {
+        if value_evaluations.contains(&path) {
             continue;
         }
         
@@ -479,20 +494,23 @@ fn process_value_fields_parsed(parsed: &mut ParsedSchema, value_fields: Vec<Stri
             continue;
         }
         
-        parsed.value_evaluations.push(path);
+        value_evaluations.push(path);
     }
+    
+    // Wrap in Arc
+    parsed.value_evaluations = Arc::new(value_evaluations);
 }
 
 /// Build pre-compiled table metadata (ParsedSchema version)
 fn build_table_metadata_parsed(parsed: &mut ParsedSchema) -> Result<(), String> {
     let mut table_metadata = IndexMap::new();
     
-    for (eval_key, table) in &parsed.tables {
+    for (eval_key, table) in parsed.tables.iter() {
         let metadata = compile_table_metadata_parsed(parsed, eval_key, table)?;
-        table_metadata.insert(eval_key.clone(), metadata);
+        table_metadata.insert(eval_key.to_string(), metadata);
     }
     
-    parsed.table_metadata = table_metadata;
+    parsed.table_metadata = Arc::new(table_metadata);
     Ok(())
 }
 

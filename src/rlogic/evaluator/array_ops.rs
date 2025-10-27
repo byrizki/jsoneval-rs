@@ -7,7 +7,7 @@ use super::helpers;
 use rayon::prelude::*;
 
 #[cfg(feature = "parallel")]
-const PARALLEL_THRESHOLD: usize = 100; // Parallelize arrays with 10+ elements for better performance
+const PARALLEL_THRESHOLD: usize = 1000; // Parallelize arrays with 10+ elements for better performance
 
 impl Evaluator {
     /// Execute array quantifier (all/some/none) - ZERO-COPY

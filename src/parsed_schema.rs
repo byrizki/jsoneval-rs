@@ -34,43 +34,43 @@ pub struct ParsedSchema {
     /// Multiple JSONEval instances created from the same ParsedSchema will share this engine
     pub engine: Arc<RLogic>,
     
-    /// Map of evaluation keys to compiled logic IDs
-    pub evaluations: IndexMap<String, LogicId>,
+    /// Map of evaluation keys to compiled logic IDs (wrapped in Arc for zero-copy sharing)
+    pub evaluations: Arc<IndexMap<String, LogicId>>,
     
-    /// Table definitions (rows, datas, skip, clear)
-    pub tables: IndexMap<String, Value>,
+    /// Table definitions (rows, datas, skip, clear) (wrapped in Arc for zero-copy sharing)
+    pub tables: Arc<IndexMap<String, Value>>,
     
     /// Pre-compiled table metadata (computed at parse time for zero-copy evaluation)
-    pub table_metadata: IndexMap<String, TableMetadata>,
+    pub table_metadata: Arc<IndexMap<String, TableMetadata>>,
     
-    /// Dependencies map (evaluation key -> set of dependency paths)
-    pub dependencies: IndexMap<String, IndexSet<String>>,
+    /// Dependencies map (evaluation key -> set of dependency paths) (wrapped in Arc for zero-copy sharing)
+    pub dependencies: Arc<IndexMap<String, IndexSet<String>>>,
     
-    /// Evaluations grouped into parallel-executable batches
+    /// Evaluations grouped into parallel-executable batches (wrapped in Arc for zero-copy sharing)
     /// Each inner Vec contains evaluations that can run concurrently
-    pub sorted_evaluations: Vec<Vec<String>>,
+    pub sorted_evaluations: Arc<Vec<Vec<String>>>,
     
-    /// Evaluations categorized for result handling
+    /// Evaluations categorized for result handling (wrapped in Arc for zero-copy sharing)
     /// Dependents: map from source field to list of dependent items
-    pub dependents_evaluations: IndexMap<String, Vec<DependentItem>>,
+    pub dependents_evaluations: Arc<IndexMap<String, Vec<DependentItem>>>,
     
-    /// Rules: evaluations with "/rules/" in path
-    pub rules_evaluations: Vec<String>,
+    /// Rules: evaluations with "/rules/" in path (wrapped in Arc for zero-copy sharing)
+    pub rules_evaluations: Arc<Vec<String>>,
     
-    /// Fields with rules: dotted paths of all fields that have rules (for efficient validation)
-    pub fields_with_rules: Vec<String>,
+    /// Fields with rules: dotted paths of all fields that have rules (wrapped in Arc for zero-copy sharing)
+    pub fields_with_rules: Arc<Vec<String>>,
     
-    /// Others: all other evaluations not in sorted_evaluations (for evaluated_schema output)
-    pub others_evaluations: Vec<String>,
+    /// Others: all other evaluations not in sorted_evaluations (wrapped in Arc for zero-copy sharing)
+    pub others_evaluations: Arc<Vec<String>>,
     
-    /// Value: evaluations ending with ".value" in path
-    pub value_evaluations: Vec<String>,
+    /// Value: evaluations ending with ".value" in path (wrapped in Arc for zero-copy sharing)
+    pub value_evaluations: Arc<Vec<String>>,
     
-    /// Cached layout paths (collected at parse time)
-    pub layout_paths: Vec<String>,
+    /// Cached layout paths (collected at parse time) (wrapped in Arc for zero-copy sharing)
+    pub layout_paths: Arc<Vec<String>>,
     
-    /// Options URL templates (url_path, template_str, params_path) collected at parse time
-    pub options_templates: Vec<(String, String, String)>,
+    /// Options URL templates (url_path, template_str, params_path) (wrapped in Arc for zero-copy sharing)
+    pub options_templates: Arc<Vec<(String, String, String)>>,
     
     /// Subforms: cached ParsedSchema instances for array fields with items
     /// Key is the schema path (e.g., "#/riders"), value is Arc<ParsedSchema> for cheap cloning
@@ -109,18 +109,18 @@ impl ParsedSchema {
         let mut parsed = Self {
             schema: Arc::new(schema_val),
             engine: Arc::new(RLogic::with_config(engine_config)),
-            evaluations: IndexMap::new(),
-            tables: IndexMap::new(),
-            table_metadata: IndexMap::new(),
-            dependencies: IndexMap::new(),
-            sorted_evaluations: Vec::new(),
-            dependents_evaluations: IndexMap::new(),
-            rules_evaluations: Vec::new(),
-            fields_with_rules: Vec::new(),
-            others_evaluations: Vec::new(),
-            value_evaluations: Vec::new(),
-            layout_paths: Vec::new(),
-            options_templates: Vec::new(),
+            evaluations: Arc::new(IndexMap::new()),
+            tables: Arc::new(IndexMap::new()),
+            table_metadata: Arc::new(IndexMap::new()),
+            dependencies: Arc::new(IndexMap::new()),
+            sorted_evaluations: Arc::new(Vec::new()),
+            dependents_evaluations: Arc::new(IndexMap::new()),
+            rules_evaluations: Arc::new(Vec::new()),
+            fields_with_rules: Arc::new(Vec::new()),
+            others_evaluations: Arc::new(Vec::new()),
+            value_evaluations: Arc::new(Vec::new()),
+            layout_paths: Arc::new(Vec::new()),
+            options_templates: Arc::new(Vec::new()),
             subforms: IndexMap::new(),
         };
         

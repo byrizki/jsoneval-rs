@@ -103,29 +103,30 @@ pub struct DependentItem {
 pub struct JSONEval {
     pub schema: Arc<Value>,
     pub engine: Arc<RLogic>,
-    pub evaluations: IndexMap<String, LogicId>,
-    pub tables: IndexMap<String, Value>,
+    /// Zero-copy Arc-wrapped collections (shared from ParsedSchema)
+    pub evaluations: Arc<IndexMap<String, LogicId>>,
+    pub tables: Arc<IndexMap<String, Value>>,
     /// Pre-compiled table metadata (computed at parse time for zero-copy evaluation)
-    pub table_metadata: IndexMap<String, TableMetadata>,
-    pub dependencies: IndexMap<String, IndexSet<String>>,
+    pub table_metadata: Arc<IndexMap<String, TableMetadata>>,
+    pub dependencies: Arc<IndexMap<String, IndexSet<String>>>,
     /// Evaluations grouped into parallel-executable batches
     /// Each inner Vec contains evaluations that can run concurrently
-    pub sorted_evaluations: Vec<Vec<String>>,
+    pub sorted_evaluations: Arc<Vec<Vec<String>>>,
     /// Evaluations categorized for result handling
     /// Dependents: map from source field to list of dependent items
-    pub dependents_evaluations: IndexMap<String, Vec<DependentItem>>,
+    pub dependents_evaluations: Arc<IndexMap<String, Vec<DependentItem>>>,
     /// Rules: evaluations with "/rules/" in path
-    pub rules_evaluations: Vec<String>,
+    pub rules_evaluations: Arc<Vec<String>>,
     /// Fields with rules: dotted paths of all fields that have rules (for efficient validation)
-    pub fields_with_rules: Vec<String>,
+    pub fields_with_rules: Arc<Vec<String>>,
     /// Others: all other evaluations not in sorted_evaluations (for evaluated_schema output)
-    pub others_evaluations: Vec<String>,
+    pub others_evaluations: Arc<Vec<String>>,
     /// Value: evaluations ending with ".value" in path
-    pub value_evaluations: Vec<String>,
+    pub value_evaluations: Arc<Vec<String>>,
     /// Cached layout paths (collected at parse time)
-    pub layout_paths: Vec<String>,
+    pub layout_paths: Arc<Vec<String>>,
     /// Options URL templates (url_path, template_str, params_path) collected at parse time
-    pub options_templates: Vec<(String, String, String)>,
+    pub options_templates: Arc<Vec<(String, String, String)>>,
     /// Subforms: isolated JSONEval instances for array fields with items
     /// Key is the schema path (e.g., "#/riders"), value is the sub-JSONEval
     pub subforms: IndexMap<String, Box<JSONEval>>,
@@ -191,18 +192,18 @@ impl JSONEval {
 
         let mut instance = Self {
             schema: Arc::new(schema_val),
-            evaluations: IndexMap::new(),
-            tables: IndexMap::new(),
-            table_metadata: IndexMap::new(),
-            dependencies: IndexMap::new(),
-            sorted_evaluations: Vec::new(),
-            dependents_evaluations: IndexMap::new(),
-            rules_evaluations: Vec::new(),
-            fields_with_rules: Vec::new(),
-            others_evaluations: Vec::new(),
-            value_evaluations: Vec::new(),
-            layout_paths: Vec::new(),
-            options_templates: Vec::new(),
+            evaluations: Arc::new(IndexMap::new()),
+            tables: Arc::new(IndexMap::new()),
+            table_metadata: Arc::new(IndexMap::new()),
+            dependencies: Arc::new(IndexMap::new()),
+            sorted_evaluations: Arc::new(Vec::new()),
+            dependents_evaluations: Arc::new(IndexMap::new()),
+            rules_evaluations: Arc::new(Vec::new()),
+            fields_with_rules: Arc::new(Vec::new()),
+            others_evaluations: Arc::new(Vec::new()),
+            value_evaluations: Arc::new(Vec::new()),
+            layout_paths: Arc::new(Vec::new()),
+            options_templates: Arc::new(Vec::new()),
             subforms: IndexMap::new(),
             engine: Arc::new(RLogic::with_config(engine_config)),
             context: context.clone(),
@@ -250,18 +251,18 @@ impl JSONEval {
 
         let mut instance = Self {
             schema: Arc::new(schema_val),
-            evaluations: IndexMap::new(),
-            tables: IndexMap::new(),
-            table_metadata: IndexMap::new(),
-            dependencies: IndexMap::new(),
-            sorted_evaluations: Vec::new(),
-            dependents_evaluations: IndexMap::new(),
-            rules_evaluations: Vec::new(),
-            fields_with_rules: Vec::new(),
-            others_evaluations: Vec::new(),
-            value_evaluations: Vec::new(),
-            layout_paths: Vec::new(),
-            options_templates: Vec::new(),
+            evaluations: Arc::new(IndexMap::new()),
+            tables: Arc::new(IndexMap::new()),
+            table_metadata: Arc::new(IndexMap::new()),
+            dependencies: Arc::new(IndexMap::new()),
+            sorted_evaluations: Arc::new(Vec::new()),
+            dependents_evaluations: Arc::new(IndexMap::new()),
+            rules_evaluations: Arc::new(Vec::new()),
+            fields_with_rules: Arc::new(Vec::new()),
+            others_evaluations: Arc::new(Vec::new()),
+            value_evaluations: Arc::new(Vec::new()),
+            layout_paths: Arc::new(Vec::new()),
+            options_templates: Arc::new(Vec::new()),
             subforms: IndexMap::new(),
             engine: Arc::new(RLogic::with_config(engine_config)),
             context: context.clone(),
@@ -335,18 +336,19 @@ impl JSONEval {
         
         let instance = Self {
             schema: Arc::clone(&parsed.schema),
-            evaluations: parsed.evaluations.clone(),
-            tables: parsed.tables.clone(),
-            table_metadata: parsed.table_metadata.clone(),
-            dependencies: parsed.dependencies.clone(),
-            sorted_evaluations: parsed.sorted_evaluations.clone(),
-            dependents_evaluations: parsed.dependents_evaluations.clone(),
-            rules_evaluations: parsed.rules_evaluations.clone(),
-            fields_with_rules: parsed.fields_with_rules.clone(),
-            others_evaluations: parsed.others_evaluations.clone(),
-            value_evaluations: parsed.value_evaluations.clone(),
-            layout_paths: parsed.layout_paths.clone(),
-            options_templates: parsed.options_templates.clone(),
+            // Zero-copy Arc clones (just increments reference count, no data copying)
+            evaluations: Arc::clone(&parsed.evaluations),
+            tables: Arc::clone(&parsed.tables),
+            table_metadata: Arc::clone(&parsed.table_metadata),
+            dependencies: Arc::clone(&parsed.dependencies),
+            sorted_evaluations: Arc::clone(&parsed.sorted_evaluations),
+            dependents_evaluations: Arc::clone(&parsed.dependents_evaluations),
+            rules_evaluations: Arc::clone(&parsed.rules_evaluations),
+            fields_with_rules: Arc::clone(&parsed.fields_with_rules),
+            others_evaluations: Arc::clone(&parsed.others_evaluations),
+            value_evaluations: Arc::clone(&parsed.value_evaluations),
+            layout_paths: Arc::clone(&parsed.layout_paths),
+            options_templates: Arc::clone(&parsed.options_templates),
             subforms,
             engine,
             context: context.clone(),
@@ -377,13 +379,13 @@ impl JSONEval {
         self.data = data.clone();
         self.evaluated_schema = (*self.schema).clone();
         self.engine = Arc::new(RLogic::new());
-        self.dependents_evaluations.clear();
-        self.rules_evaluations.clear();
-        self.fields_with_rules.clear();
-        self.others_evaluations.clear();
-        self.value_evaluations.clear();
-        self.layout_paths.clear();
-        self.options_templates.clear();
+        self.dependents_evaluations = Arc::new(IndexMap::new());
+        self.rules_evaluations = Arc::new(Vec::new());
+        self.fields_with_rules = Arc::new(Vec::new());
+        self.others_evaluations = Arc::new(Vec::new());
+        self.value_evaluations = Arc::new(Vec::new());
+        self.layout_paths = Arc::new(Vec::new());
+        self.options_templates = Arc::new(Vec::new());
         self.subforms.clear();
         parse_schema::legacy::parse_schema(self)?;
         
@@ -428,13 +430,13 @@ impl JSONEval {
         self.data = data.clone();
         self.evaluated_schema = (*self.schema).clone();
         self.engine = Arc::new(RLogic::new());
-        self.dependents_evaluations.clear();
-        self.rules_evaluations.clear();
-        self.fields_with_rules.clear();
-        self.others_evaluations.clear();
-        self.value_evaluations.clear();
-        self.layout_paths.clear();
-        self.options_templates.clear();
+        self.dependents_evaluations = Arc::new(IndexMap::new());
+        self.rules_evaluations = Arc::new(Vec::new());
+        self.fields_with_rules = Arc::new(Vec::new());
+        self.others_evaluations = Arc::new(Vec::new());
+        self.value_evaluations = Arc::new(Vec::new());
+        self.layout_paths = Arc::new(Vec::new());
+        self.options_templates = Arc::new(Vec::new());
         self.subforms.clear();
         parse_schema::legacy::parse_schema(self)?;
         
@@ -586,8 +588,8 @@ impl JSONEval {
         // Acquire lock for synchronous execution
         let _lock = self.eval_lock.lock().unwrap();
 
-        // Clone sorted_evaluations (batches) to avoid borrow checker issues
-        let eval_batches: Vec<Vec<String>> = self.sorted_evaluations.clone();
+        // Clone sorted_evaluations (Arc clone is cheap, then clone inner Vec)
+        let eval_batches: Vec<Vec<String>> = (*self.sorted_evaluations).clone();
 
         // Process each batch - parallelize evaluations within each batch
         // Batches are processed sequentially to maintain dependency order
@@ -607,7 +609,7 @@ impl JSONEval {
             
             // Parallelize only if batch has multiple items (overhead not worth it for single item)
             #[cfg(feature = "parallel")]
-            if batch.len() > 1 {
+            if batch.len() > 1000 {
                 let results: Mutex<Vec<(String, String, Value)>> = Mutex::new(Vec::with_capacity(batch.len()));
                 batch.par_iter().for_each(|eval_key| {
                     let pointer_path = path_utils::normalize_to_json_pointer(eval_key);
@@ -659,7 +661,7 @@ impl JSONEval {
             let batch_items = &batch;
             
             #[cfg(feature = "parallel")]
-            let batch_items = if batch.len() > 1 { &batch[0..0] } else { &batch }; // Empty slice if already processed in parallel
+            let batch_items = if batch.len() > 1000 { &batch[0..0] } else { &batch }; // Empty slice if already processed in parallel
             
             for eval_key in batch_items {
                 let pointer_path = path_utils::normalize_to_json_pointer(eval_key);
@@ -764,7 +766,7 @@ impl JSONEval {
         }
         
         // Override self.data with values from value evaluations
-        for eval_key in &self.value_evaluations.clone() {
+        for eval_key in self.value_evaluations.iter() {
             let clean_key = eval_key.replace("#", "");
             let path = clean_key.replace("/properties", "").replace("/value", "");
             
@@ -1186,11 +1188,11 @@ impl JSONEval {
     
     /// Evaluate options URL templates (handles {variable} patterns)
     fn evaluate_options_templates(&mut self) {
-        // Use pre-collected options templates from parsing (no clone, no recursion)
+        // Use pre-collected options templates from parsing (Arc clone is cheap)
         let templates_to_eval = self.options_templates.clone();
         
         // Evaluate each template
-        for (path, template_str, params_path) in templates_to_eval {
+        for (path, template_str, params_path) in templates_to_eval.iter() {
             if let Some(params) = self.evaluated_schema.pointer(&params_path) {
                 if let Ok(evaluated) = self.evaluate_template(&template_str, params) {
                     if let Some(target) = self.evaluated_schema.pointer_mut(&path) {
@@ -1359,15 +1361,15 @@ impl JSONEval {
     
     fn resolve_layout_internal(&mut self) {
         // Use cached layout paths (collected at parse time)
-        // Clone to avoid borrow checker issues
+        // Clone Arc reference (cheap)
         let layout_paths = self.layout_paths.clone();
         
-        for layout_path in &layout_paths {
+        for layout_path in layout_paths.iter() {
             self.resolve_layout_elements(layout_path);
         }
         
         // After resolving all references, propagate parent hidden/disabled to children
-        for layout_path in &layout_paths {
+        for layout_path in layout_paths.iter() {
             self.propagate_parent_conditions(layout_path);
         }
     }
@@ -1916,7 +1918,7 @@ impl JSONEval {
         
         // Use pre-parsed fields_with_rules from schema parsing (no runtime collection needed)
         // This list was collected during schema parse and contains all fields with rules
-        for field_path in &self.fields_with_rules {
+        for field_path in self.fields_with_rules.iter() {
             // Check if we should validate this path (path filtering)
             if let Some(filter_paths) = paths {
                 if !filter_paths.is_empty() && !filter_paths.iter().any(|p| field_path.starts_with(p.as_str()) || p.starts_with(field_path.as_str())) {

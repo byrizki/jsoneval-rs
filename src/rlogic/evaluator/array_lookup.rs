@@ -8,7 +8,7 @@ use rayon::prelude::*;
 
 // Lower threshold for parallel processing - even smaller tables benefit from optimization
 #[cfg(feature = "parallel")]
-const PARALLEL_THRESHOLD: usize = 100;
+const PARALLEL_THRESHOLD: usize = 1000;
 
 impl Evaluator {
     /// Resolve table reference directly - ZERO-COPY with optimized lookup

@@ -310,13 +310,13 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
         &mut fields_with_rules,
     )?;
     
-    lib.evaluations = evaluations;
-    lib.tables = tables;
-    lib.dependencies = dependencies;
-    lib.layout_paths = layout_paths;
-    lib.dependents_evaluations = dependents_evaluations;
-    lib.options_templates = options_templates;
-    lib.fields_with_rules = fields_with_rules;
+    lib.evaluations = Arc::new(evaluations);
+    lib.tables = Arc::new(tables);
+    lib.dependencies = Arc::new(dependencies);
+    lib.layout_paths = Arc::new(layout_paths);
+    lib.dependents_evaluations = Arc::new(dependents_evaluations);
+    lib.options_templates = Arc::new(options_templates);
+    lib.fields_with_rules = Arc::new(fields_with_rules);
     
     // Build subforms from collected data (after walk completes)
     lib.subforms = build_subforms_from_data(subforms_data, lib)?;
@@ -324,7 +324,7 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
     // Collect table-level dependencies by aggregating all column dependencies
     collect_table_dependencies(lib);
     
-    lib.sorted_evaluations = topo_sort::legacy::topological_sort(lib)?;
+    lib.sorted_evaluations = Arc::new(topo_sort::legacy::topological_sort(lib)?);
     
     // Categorize evaluations for result handling
     categorize_evaluations(lib);
@@ -410,11 +410,14 @@ fn create_subform(
 
 /// Collect dependencies for tables by aggregating all column/cell dependencies
 fn collect_table_dependencies(lib: &mut JSONEval) {
-    for (table_key, _) in &lib.tables {
+    // Clone the dependencies to a mutable map
+    let mut dependencies = (*lib.dependencies).clone();
+    
+    for (table_key, _) in lib.tables.iter() {
         let mut table_deps = IndexSet::new();
         
         // Collect dependencies from all evaluations that belong to this table
-        for (eval_key, deps) in &lib.dependencies {
+        for (eval_key, deps) in &dependencies {
             // Check if this evaluation is within the table
             if eval_key.starts_with(table_key) && eval_key != table_key {
                 // Add all dependencies from table cells/columns
@@ -429,9 +432,12 @@ fn collect_table_dependencies(lib: &mut JSONEval) {
         
         // Store aggregated dependencies for the table
         if !table_deps.is_empty() {
-            lib.dependencies.insert(table_key.clone(), table_deps);
+            dependencies.insert(table_key.clone(), table_deps);
         }
     }
+    
+    // Wrap the updated dependencies in Arc
+    lib.dependencies = Arc::new(dependencies);
 }
 
 /// Categorize evaluations for different result handling
@@ -444,6 +450,9 @@ fn categorize_evaluations(lib: &mut JSONEval) {
         .collect();
     
     // Find evaluations NOT in batches and categorize them
+    let mut rules_evaluations = Vec::new();
+    let mut others_evaluations = Vec::new();
+    
     for eval_key in lib.evaluations.keys() {
         // Skip if already in sorted_evaluations batches
         if batched_keys.contains(eval_key) {
@@ -457,19 +466,25 @@ fn categorize_evaluations(lib: &mut JSONEval) {
 
         // Categorize based on path patterns
         if eval_key.contains("/rules/") {
-            lib.rules_evaluations.push(eval_key.clone());
+            rules_evaluations.push(eval_key.clone());
         } else if !eval_key.contains("/dependents/") {
             // Don't add dependents to others_evaluations
-            lib.others_evaluations.push(eval_key.clone());
+            others_evaluations.push(eval_key.clone());
         }
     }
+    
+    // Update Arc-wrapped collections
+    lib.rules_evaluations = Arc::new(rules_evaluations);
+    lib.others_evaluations = Arc::new(others_evaluations);
 }
 
 /// Process collected value fields and add non-duplicate, non-table, non-dependent ones
 fn process_value_fields(lib: &mut JSONEval, value_fields: Vec<String>) {
+    let mut value_evaluations = Vec::new();
+    
     for path in value_fields {
         // Skip if already collected from evaluations in categorize_evaluations
-        if lib.value_evaluations.contains(&path) {
+        if value_evaluations.contains(&path) {
             continue;
         }
         
@@ -478,20 +493,23 @@ fn process_value_fields(lib: &mut JSONEval, value_fields: Vec<String>) {
             continue;
         }
         
-        lib.value_evaluations.push(path);
+        value_evaluations.push(path);
     }
+    
+    // Update Arc-wrapped collection
+    lib.value_evaluations = Arc::new(value_evaluations);
 }
 
 /// Build pre-compiled table metadata at parse time (moves heavy operations from evaluation)
 fn build_table_metadata(lib: &mut JSONEval) -> Result<(), String> {
     let mut table_metadata = IndexMap::new();
     
-    for (eval_key, table) in &lib.tables {
+    for (eval_key, table) in lib.tables.iter() {
         let metadata = compile_table_metadata(lib, eval_key, table)?;
-        table_metadata.insert(eval_key.clone(), metadata);
+        table_metadata.insert(eval_key.to_string(), metadata);
     }
     
-    lib.table_metadata = table_metadata;
+    lib.table_metadata = Arc::new(table_metadata);
     Ok(())
 }
 
