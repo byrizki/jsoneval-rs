@@ -1,5 +1,6 @@
 #include "json-eval-bridge.h"
-#include <atomic>
+#include <map>
+#include <mutex>
 #include <memory>
 
 // Forward declarations for FFI functions

@@ -273,10 +273,11 @@ public:
 
     /**
      * Check if caching is enabled (synchronous)
+     * Fast inline check without async overhead
      * @param handle Instance handle
      * @returns true if caching is enabled, false otherwise
      */
-    static bool isCacheEnabled(const std::string& handle);
+    static inline bool isCacheEnabled(const std::string& handle);
 
     /**
      * Resolve layout with optional evaluation (async)
