@@ -55,6 +55,94 @@ use rayon::prelude::*;
 
 use std::mem;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
+use std::cell::RefCell;
+
+// Timing infrastructure
+thread_local! {
+    static TIMING_ENABLED: RefCell<bool> = RefCell::new(std::env::var("JSONEVAL_TIMING").is_ok());
+    static TIMING_DATA: RefCell<Vec<(String, std::time::Duration)>> = RefCell::new(Vec::new());
+}
+
+/// Check if timing is enabled
+#[inline]
+fn is_timing_enabled() -> bool {
+    TIMING_ENABLED.with(|enabled| *enabled.borrow())
+}
+
+/// Enable timing programmatically (in addition to JSONEVAL_TIMING environment variable)
+pub fn enable_timing() {
+    TIMING_ENABLED.with(|enabled| {
+        *enabled.borrow_mut() = true;
+    });
+}
+
+/// Disable timing
+pub fn disable_timing() {
+    TIMING_ENABLED.with(|enabled| {
+        *enabled.borrow_mut() = false;
+    });
+}
+
+/// Record timing data
+#[inline]
+fn record_timing(label: &str, duration: std::time::Duration) {
+    if is_timing_enabled() {
+        TIMING_DATA.with(|data| {
+            data.borrow_mut().push((label.to_string(), duration));
+        });
+    }
+}
+
+/// Print timing summary
+pub fn print_timing_summary() {
+    if !is_timing_enabled() {
+        return;
+    }
+    
+    TIMING_DATA.with(|data| {
+        let timings = data.borrow();
+        if timings.is_empty() {
+            return;
+        }
+        
+        eprintln!("\n📊 Timing Summary (JSONEVAL_TIMING enabled)");
+        eprintln!("{}", "=".repeat(60));
+        
+        let mut total = std::time::Duration::ZERO;
+        for (label, duration) in timings.iter() {
+            eprintln!("{:40} {:>12?}", label, duration);
+            total += *duration;
+        }
+        
+        eprintln!("{}", "=".repeat(60));
+        eprintln!("{:40} {:>12?}", "TOTAL", total);
+        eprintln!();
+    });
+}
+
+/// Clear timing data
+pub fn clear_timing_data() {
+    TIMING_DATA.with(|data| {
+        data.borrow_mut().clear();
+    });
+}
+
+/// Macro for timing a block of code
+macro_rules! time_block {
+    ($label:expr, $block:block) => {{
+        let _start = if is_timing_enabled() {
+            Some(Instant::now())
+        } else {
+            None
+        };
+        let result = $block;
+        if let Some(start) = _start {
+            record_timing($label, start.elapsed());
+        }
+        result
+    }};
+}
 
 /// Get the library version
 pub fn version() -> &'static str {
@@ -182,41 +270,53 @@ impl JSONEval {
         context: Option<&str>,
         data: Option<&str>,
     ) -> Result<Self, serde_json::Error> {
-        // Use serde_json for schema (needs arbitrary_precision) and SIMD for data (needs speed)
-        let schema_val: Value = serde_json::from_str(schema)?;
-        let context: Value = json_parser::parse_json_str(context.unwrap_or("{}")).map_err(serde_json::Error::custom)?;
-        let data: Value = json_parser::parse_json_str(data.unwrap_or("{}")).map_err(serde_json::Error::custom)?;
-        let evaluated_schema = schema_val.clone();
-        // Use default config: tracking enabled
-        let engine_config = RLogicConfig::default();
+        time_block!("JSONEval::new() [total]", {
+            // Use serde_json for schema (needs arbitrary_precision) and SIMD for data (needs speed)
+            let schema_val: Value = time_block!("  parse schema JSON", {
+                serde_json::from_str(schema)?
+            });
+            let context: Value = time_block!("  parse context JSON", {
+                json_parser::parse_json_str(context.unwrap_or("{}")).map_err(serde_json::Error::custom)?
+            });
+            let data: Value = time_block!("  parse data JSON", {
+                json_parser::parse_json_str(data.unwrap_or("{}")).map_err(serde_json::Error::custom)?
+            });
+            let evaluated_schema = schema_val.clone();
+            // Use default config: tracking enabled
+            let engine_config = RLogicConfig::default();
 
-        let mut instance = Self {
-            schema: Arc::new(schema_val),
-            evaluations: Arc::new(IndexMap::new()),
-            tables: Arc::new(IndexMap::new()),
-            table_metadata: Arc::new(IndexMap::new()),
-            dependencies: Arc::new(IndexMap::new()),
-            sorted_evaluations: Arc::new(Vec::new()),
-            dependents_evaluations: Arc::new(IndexMap::new()),
-            rules_evaluations: Arc::new(Vec::new()),
-            fields_with_rules: Arc::new(Vec::new()),
-            others_evaluations: Arc::new(Vec::new()),
-            value_evaluations: Arc::new(Vec::new()),
-            layout_paths: Arc::new(Vec::new()),
-            options_templates: Arc::new(Vec::new()),
-            subforms: IndexMap::new(),
-            engine: Arc::new(RLogic::with_config(engine_config)),
-            context: context.clone(),
-            data: data.clone(),
-            evaluated_schema: evaluated_schema.clone(),
-            eval_data: EvalData::with_schema_data_context(&evaluated_schema, &data, &context),
-            eval_cache: EvalCache::new(),
-            cache_enabled: true, // Caching enabled by default
-            eval_lock: Mutex::new(()),
-            cached_msgpack_schema: None, // JSON initialization, no MessagePack cache
-        };
-        parse_schema::legacy::parse_schema(&mut instance).map_err(serde_json::Error::custom)?;
-        Ok(instance)
+            let mut instance = time_block!("  create instance struct", {
+                Self {
+                    schema: Arc::new(schema_val),
+                    evaluations: Arc::new(IndexMap::new()),
+                    tables: Arc::new(IndexMap::new()),
+                    table_metadata: Arc::new(IndexMap::new()),
+                    dependencies: Arc::new(IndexMap::new()),
+                    sorted_evaluations: Arc::new(Vec::new()),
+                    dependents_evaluations: Arc::new(IndexMap::new()),
+                    rules_evaluations: Arc::new(Vec::new()),
+                    fields_with_rules: Arc::new(Vec::new()),
+                    others_evaluations: Arc::new(Vec::new()),
+                    value_evaluations: Arc::new(Vec::new()),
+                    layout_paths: Arc::new(Vec::new()),
+                    options_templates: Arc::new(Vec::new()),
+                    subforms: IndexMap::new(),
+                    engine: Arc::new(RLogic::with_config(engine_config)),
+                    context: context.clone(),
+                    data: data.clone(),
+                    evaluated_schema: evaluated_schema.clone(),
+                    eval_data: EvalData::with_schema_data_context(&evaluated_schema, &data, &context),
+                    eval_cache: EvalCache::new(),
+                    cache_enabled: true, // Caching enabled by default
+                    eval_lock: Mutex::new(()),
+                    cached_msgpack_schema: None, // JSON initialization, no MessagePack cache
+                }
+            });
+            time_block!("  parse_schema", {
+                parse_schema::legacy::parse_schema(&mut instance).map_err(serde_json::Error::custom)?
+            });
+            Ok(instance)
+        })
     }
 
     /// Create a new JSONEval instance from MessagePack-encoded schema
@@ -558,42 +658,54 @@ impl JSONEval {
     ///
     /// A `Result` indicating success or an error message.
     pub fn evaluate(&mut self, data: &str, context: Option<&str>) -> Result<(), String> {
-        // Use SIMD-accelerated JSON parsing
-        let data: Value = json_parser::parse_json_str(data)?;
-        let context: Value = json_parser::parse_json_str(context.unwrap_or("{}"))?;
+        time_block!("evaluate() [total]", {
+            // Use SIMD-accelerated JSON parsing
+            let data: Value = time_block!("  parse data", {
+                json_parser::parse_json_str(data)?
+            });
+            let context: Value = time_block!("  parse context", {
+                json_parser::parse_json_str(context.unwrap_or("{}"))?
+            });
+                
+            self.data = data.clone();
             
-        self.data = data.clone();
-        
-        // Collect top-level data keys to selectively purge cache
-        let changed_data_paths: Vec<String> = if let Some(obj) = data.as_object() {
-            obj.keys().map(|k| k.clone()).collect()
-        } else {
-            Vec::new()
-        };
-        
-        // Replace data and context in existing eval_data
-        self.eval_data.replace_data_and_context(data, context);
-        
-        // Selectively purge cache entries that depend on changed top-level data keys
-        // This is more efficient than clearing entire cache
-        self.purge_cache_for_changed_data(&changed_data_paths);
-        
-        // Call internal evaluate (uses existing data if not provided)
-        self.evaluate_internal()
+            // Collect top-level data keys to selectively purge cache
+            let changed_data_paths: Vec<String> = if let Some(obj) = data.as_object() {
+                obj.keys().map(|k| k.clone()).collect()
+            } else {
+                Vec::new()
+            };
+            
+            // Replace data and context in existing eval_data
+            time_block!("  replace_data_and_context", {
+                self.eval_data.replace_data_and_context(data, context);
+            });
+            
+            // Selectively purge cache entries that depend on changed top-level data keys
+            // This is more efficient than clearing entire cache
+            time_block!("  purge_cache", {
+                self.purge_cache_for_changed_data(&changed_data_paths);
+            });
+            
+            // Call internal evaluate (uses existing data if not provided)
+            self.evaluate_internal()
+        })
     }
     
     /// Internal evaluate that can be called when data is already set
     /// This avoids double-locking and unnecessary data cloning for re-evaluation from evaluate_dependents
     fn evaluate_internal(&mut self) -> Result<(), String> {
-        // Acquire lock for synchronous execution
-        let _lock = self.eval_lock.lock().unwrap();
+        time_block!("  evaluate_internal() [total]", {
+            // Acquire lock for synchronous execution
+            let _lock = self.eval_lock.lock().unwrap();
 
-        // Clone sorted_evaluations (Arc clone is cheap, then clone inner Vec)
-        let eval_batches: Vec<Vec<String>> = (*self.sorted_evaluations).clone();
+            // Clone sorted_evaluations (Arc clone is cheap, then clone inner Vec)
+            let eval_batches: Vec<Vec<String>> = (*self.sorted_evaluations).clone();
 
-        // Process each batch - parallelize evaluations within each batch
-        // Batches are processed sequentially to maintain dependency order
-        for batch in eval_batches {
+            // Process each batch - parallelize evaluations within each batch
+            // Batches are processed sequentially to maintain dependency order
+            time_block!("    process batches", {
+                for batch in eval_batches {
             // Skip empty batches
             if batch.is_empty() {
                 continue;
@@ -701,14 +813,16 @@ impl JSONEval {
                     }
                 }
             }
-        }
+                }
+            });
 
-        // Drop lock before calling evaluate_others
-        drop(_lock);
-        
-        self.evaluate_others();
+            // Drop lock before calling evaluate_others
+            drop(_lock);
+            
+            self.evaluate_others();
 
-        Ok(())
+            Ok(())
+        })
     }
 
     /// Get the evaluated schema with optional layout resolution.
@@ -721,11 +835,13 @@ impl JSONEval {
     ///
     /// The evaluated schema as a JSON value.
     pub fn get_evaluated_schema(&mut self, skip_layout: bool) -> Value {
-        if !skip_layout {
-            self.resolve_layout_internal();
-        }
-        
-        self.evaluated_schema.clone()
+        time_block!("get_evaluated_schema()", {
+            if !skip_layout {
+                self.resolve_layout_internal();
+            }
+            
+            self.evaluated_schema.clone()
+        })
     }
 
     /// Get the evaluated schema as MessagePack binary format
@@ -1091,17 +1207,21 @@ impl JSONEval {
     }
 
     fn evaluate_others(&mut self) {
-        // Step 1: Evaluate options URL templates (handles {variable} patterns)
-        self.evaluate_options_templates();
-        
-        // Step 2: Evaluate "rules" and "others" categories with caching
-        // Rules are evaluated here so their values are available in evaluated_schema
-        let combined_count = self.rules_evaluations.len() + self.others_evaluations.len();
-        if combined_count == 0 {
-            return;
-        }
-        
-        let eval_data_snapshot = self.eval_data.clone();
+        time_block!("    evaluate_others()", {
+            // Step 1: Evaluate options URL templates (handles {variable} patterns)
+            time_block!("      evaluate_options_templates", {
+                self.evaluate_options_templates();
+            });
+            
+            // Step 2: Evaluate "rules" and "others" categories with caching
+            // Rules are evaluated here so their values are available in evaluated_schema
+            let combined_count = self.rules_evaluations.len() + self.others_evaluations.len();
+            if combined_count == 0 {
+                return;
+            }
+            
+            time_block!("      evaluate rules+others", {
+                let eval_data_snapshot = self.eval_data.clone();
         
         #[cfg(feature = "parallel")]
         {
@@ -1184,6 +1304,8 @@ impl JSONEval {
                 }
             }
         }
+            });
+        });
     }
     
     /// Evaluate options URL templates (handles {variable} patterns)
@@ -1360,18 +1482,24 @@ impl JSONEval {
     }
     
     fn resolve_layout_internal(&mut self) {
-        // Use cached layout paths (collected at parse time)
-        // Clone Arc reference (cheap)
-        let layout_paths = self.layout_paths.clone();
-        
-        for layout_path in layout_paths.iter() {
-            self.resolve_layout_elements(layout_path);
-        }
-        
-        // After resolving all references, propagate parent hidden/disabled to children
-        for layout_path in layout_paths.iter() {
-            self.propagate_parent_conditions(layout_path);
-        }
+        time_block!("  resolve_layout_internal()", {
+            // Use cached layout paths (collected at parse time)
+            // Clone Arc reference (cheap)
+            let layout_paths = self.layout_paths.clone();
+            
+            time_block!("    resolve_layout_elements", {
+                for layout_path in layout_paths.iter() {
+                    self.resolve_layout_elements(layout_path);
+                }
+            });
+            
+            // After resolving all references, propagate parent hidden/disabled to children
+            time_block!("    propagate_parent_conditions", {
+                for layout_path in layout_paths.iter() {
+                    self.propagate_parent_conditions(layout_path);
+                }
+            });
+        });
     }
     
     /// Propagate parent hidden/disabled conditions to children recursively

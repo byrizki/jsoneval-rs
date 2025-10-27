@@ -17,6 +17,7 @@ fn print_help(program_name: &str) {
     println!("    --parsed                     Use ParsedSchema for caching (parse once, reuse)");
     println!("    --concurrent <COUNT>         Test concurrent evaluations with N threads");
     println!("    --compare                    Enable comparison with expected results");
+    println!("    --timing                     Show detailed internal timing breakdown");
     println!("    --cpu-info                   Show CPU feature information\n");
     println!("ARGUMENTS:");
     println!("    [FILTER]                     Optional filter to match scenario names\n");
@@ -37,6 +38,7 @@ fn main() {
     let mut use_parsed_schema = false;
     let mut concurrent_count: Option<usize> = None;
     let mut enable_comparison = false;
+    let mut show_timing = false;
     let mut i = 1;
     
     // Parse arguments
@@ -52,6 +54,8 @@ fn main() {
             use_parsed_schema = true;
         } else if arg == "--compare" {
             enable_comparison = true;
+        } else if arg == "--timing" {
+            show_timing = true;
         } else if arg == "--concurrent" {
             if i + 1 >= args.len() {
                 eprintln!("Error: {} requires a value", arg);
@@ -109,7 +113,13 @@ fn main() {
     }
     
     if enable_comparison {
-        println!("🔍 Comparison: enabled\n");
+        println!("🔍 Comparison: enabled");
+    }
+    if show_timing {
+        println!("⏱️  Internal timing: enabled");
+    }
+    if enable_comparison || show_timing {
+        println!();
     }
 
     let samples_dir = Path::new("samples");
@@ -152,6 +162,12 @@ fn main() {
             if scenario.is_msgpack { "MessagePack" } else { "JSON" }
         );
         println!("Data: {}\n", scenario.data_path.display());
+
+        // Clear timing data from previous scenarios
+        if show_timing {
+            json_eval_rs::enable_timing();
+            json_eval_rs::clear_timing_data();
+        }
 
         let data_str = fs::read_to_string(&scenario.data_path)
             .unwrap_or_else(|e| panic!("failed to read {}: {}", scenario.data_path.display(), e));
@@ -336,6 +352,11 @@ fn main() {
 
         let total_time = parse_time + eval_time;
         println!("⏱️  Execution time: {:?}\n", total_time);
+        
+        // Print detailed timing breakdown if --timing flag is set
+        if show_timing {
+            json_eval_rs::print_timing_summary();
+        }
         
         // Track statistics
         total_parse_time += parse_time;

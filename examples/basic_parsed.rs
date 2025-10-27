@@ -13,7 +13,8 @@ fn print_help(program_name: &str) {
     println!("    {} [OPTIONS] [FILTER]\n", program_name);
     println!("OPTIONS:");
     println!("    -h, --help         Show this help message");
-    println!("    --compare          Enable comparison with expected results\n");
+    println!("    --compare          Enable comparison with expected results");
+    println!("    --timing           Show detailed internal timing breakdown\n");
     println!("ARGUMENTS:");
     println!("    [FILTER]           Optional filter to match scenario names\n");
     println!("DESCRIPTION:");
@@ -23,6 +24,7 @@ fn print_help(program_name: &str) {
     println!("    {}                 # Run all scenarios with ParsedSchema", program_name);
     println!("    {} zcc             # Run scenarios matching 'zcc'", program_name);
     println!("    {} --compare       # Run with comparison enabled", program_name);
+    println!("    {} zcc --timing    # Run with detailed timing breakdown", program_name);
 }
 
 fn main() {
@@ -31,6 +33,7 @@ fn main() {
     
     let mut scenario_filter: Option<String> = None;
     let mut enable_comparison = false;
+    let mut show_timing = false;
     let mut i = 1;
     
     // Parse arguments
@@ -42,6 +45,8 @@ fn main() {
             return;
         } else if arg == "--compare" {
             enable_comparison = true;
+        } else if arg == "--timing" {
+            show_timing = true;
         } else if !arg.starts_with('-') {
             scenario_filter = Some(arg.clone());
         } else {
@@ -57,7 +62,13 @@ fn main() {
     println!("📦 Using Arc<ParsedSchema> for efficient caching\n");
     
     if enable_comparison {
-        println!("🔍 Comparison: enabled\n");
+        println!("🔍 Comparison: enabled");
+    }
+    if show_timing {
+        println!("⏱️  Internal timing: enabled");
+    }
+    if enable_comparison || show_timing {
+        println!();
     }
     
     let samples_dir = Path::new("samples");
@@ -101,6 +112,12 @@ fn main() {
         );
         println!("Data: {}\n", scenario.data_path.display());
 
+        // Clear timing data from previous scenarios
+        if show_timing {
+            json_eval_rs::enable_timing();
+            json_eval_rs::clear_timing_data();
+        }
+
         let data_str = fs::read_to_string(&scenario.data_path)
             .unwrap_or_else(|e| panic!("failed to read {}: {}", scenario.data_path.display(), e));
 
@@ -135,8 +152,13 @@ fn main() {
         let evaluated_schema = eval.get_evaluated_schema(false);
         let eval_time = eval_start.elapsed();
         
-        println!("  ⚡ Evaluation: {:?}", eval_time);
-        println!("  ⏱️  Total time: {:?}\n", parse_time + eval_time);
+        println!("  ⚡ Eval: {:?}", eval_time);
+        println!("  ⏱️  Total: {:?}\n", parse_time + eval_time);
+        
+        // Print detailed timing breakdown if --timing flag is set
+        if show_timing {
+            json_eval_rs::print_timing_summary();
+        }
         
         total_parse_time += parse_time;
         total_eval_time += eval_time;

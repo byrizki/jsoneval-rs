@@ -12,7 +12,8 @@ fn print_help(program_name: &str) {
     println!("    {} [OPTIONS] [FILTER]\n", program_name);
     println!("OPTIONS:");
     println!("    -h, --help         Show this help message");
-    println!("    --compare          Enable comparison with expected results\n");
+    println!("    --compare          Enable comparison with expected results");
+    println!("    --timing           Show detailed internal timing breakdown\n");
     println!("ARGUMENTS:");
     println!("    [FILTER]           Optional filter to match scenario names\n");
     println!("DESCRIPTION:");
@@ -21,6 +22,7 @@ fn print_help(program_name: &str) {
     println!("    {}                 # Run all JSON schema scenarios", program_name);
     println!("    {} zcc             # Run scenarios matching 'zcc'", program_name);
     println!("    {} --compare       # Run with comparison enabled", program_name);
+    println!("    {} zcc --timing    # Run with detailed timing breakdown", program_name);
 }
 
 fn main() {
@@ -29,6 +31,7 @@ fn main() {
     
     let mut scenario_filter: Option<String> = None;
     let mut enable_comparison = false;
+    let mut show_timing = false;
     let mut i = 1;
     
     // Parse arguments
@@ -40,6 +43,8 @@ fn main() {
             return;
         } else if arg == "--compare" {
             enable_comparison = true;
+        } else if arg == "--timing" {
+            show_timing = true;
         } else if !arg.starts_with('-') {
             scenario_filter = Some(arg.clone());
         } else {
@@ -54,7 +59,13 @@ fn main() {
     println!("\n🚀 JSON Evaluation - Basic Example (JSON Schema)\n");
     
     if enable_comparison {
-        println!("🔍 Comparison: enabled\n");
+        println!("🔍 Comparison: enabled");
+    }
+    if show_timing {
+        println!("⏱️  Internal timing: enabled");
+    }
+    if enable_comparison || show_timing {
+        println!();
     }
     
     let samples_dir = Path::new("samples");
@@ -87,7 +98,8 @@ fn main() {
     
     println!("📊 Found {} scenario(s)\n", scenarios.len());
 
-    let mut total_time = std::time::Duration::ZERO;
+    let mut total_parse_time = std::time::Duration::ZERO;
+    let mut total_eval_time = std::time::Duration::ZERO;
     let mut successful_scenarios = 0;
     let mut comparison_failures = 0;
 
@@ -100,27 +112,46 @@ fn main() {
         );
         println!("Data: {}\n", scenario.data_path.display());
 
+        // Clear timing data from previous scenarios
+        if show_timing {
+            json_eval_rs::enable_timing();
+            json_eval_rs::clear_timing_data();
+        }
+
         let data_str = fs::read_to_string(&scenario.data_path)
             .unwrap_or_else(|e| panic!("failed to read {}: {}", scenario.data_path.display(), e));
 
-        let start_time = Instant::now();
+        // Step 1: Parse schema (JSONEval::new)
+        let parse_start = Instant::now();
         
-        // Read JSON schema as string
         let schema_str = fs::read_to_string(&scenario.schema_path)
             .unwrap_or_else(|e| panic!("failed to read {}: {}", scenario.schema_path.display(), e));
         
-        // Create JSONEval from JSON string
         let mut eval = JSONEval::new(&schema_str, None, Some(&data_str))
             .unwrap_or_else(|e| panic!("failed to create JSONEval: {}", e));
-
+        
+        let parse_time = parse_start.elapsed();
+        println!("  📝 Parse (new): {:?}", parse_time);
+        
+        // Step 2: Evaluate
+        let eval_start = Instant::now();
+        
         eval.evaluate(&data_str, Some("{}"))
             .unwrap_or_else(|e| panic!("evaluation failed: {}", e));
         
         let evaluated_schema = eval.get_evaluated_schema(false);
-        let elapsed = start_time.elapsed();
+        let eval_time = eval_start.elapsed();
         
-        println!("⏱️  Execution time: {:?}\n", elapsed);
-        total_time += elapsed;
+        println!("  ⚡ Eval: {:?}", eval_time);
+        println!("  ⏱️  Total: {:?}\n", parse_time + eval_time);
+        
+        // Print detailed timing breakdown if --timing flag is set
+        if show_timing {
+            json_eval_rs::print_timing_summary();
+        }
+        
+        total_parse_time += parse_time;
+        total_eval_time += eval_time;
         successful_scenarios += 1;
 
         // Save results
@@ -158,10 +189,14 @@ fn main() {
     println!("📊 Summary");
     println!("{}", "=".repeat(50));
     println!("Total scenarios run: {}", successful_scenarios);
-    println!("Total time: {:?}", total_time);
+    println!("Total parse time: {:?}", total_parse_time);
+    println!("Total eval time: {:?}", total_eval_time);
+    println!("Total time: {:?}", total_parse_time + total_eval_time);
     
     if successful_scenarios > 1 {
-        println!("Average per scenario: {:?}", total_time / successful_scenarios as u32);
+        println!("\nAverage per scenario:");
+        println!("  Parse: {:?}", total_parse_time / successful_scenarios as u32);
+        println!("  Eval: {:?}", total_eval_time / successful_scenarios as u32);
     }
     
     if enable_comparison {

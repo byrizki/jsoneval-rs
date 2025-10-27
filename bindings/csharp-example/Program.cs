@@ -255,7 +255,7 @@ namespace JsonEvalBenchmark
                 throw new JsonEvalException($"Failed to create JSONEval instance: {ex.Message}", ex);
             }
             parsingStopwatch.Stop();
-            Console.WriteLine($"  🔧 Schema parsing & compilation: {parsingStopwatch.Elapsed.TotalMilliseconds:F3}ms");
+            Console.WriteLine($"  📝 Parse (new): {parsingStopwatch.Elapsed.TotalMilliseconds:F3}ms");
 
             // Benchmark 2: Evaluation
             var evalStopwatch = Stopwatch.StartNew();
@@ -268,12 +268,10 @@ namespace JsonEvalBenchmark
                 throw new JsonEvalException($"Evaluation failed: {ex.Message}", ex);
             }
             evalStopwatch.Stop();
-            Console.WriteLine($"  ⚡ Evaluation: {evalStopwatch.Elapsed.TotalMilliseconds:F3}ms");
+            Console.WriteLine($"  ⚡ Eval: {evalStopwatch.Elapsed.TotalMilliseconds:F3}ms");
 
             totalStopwatch.Stop();
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"  ✅ Total execution time: {totalStopwatch.Elapsed.TotalMilliseconds:F3}ms");
-            Console.ResetColor();
+            Console.WriteLine($"  ⏱️  Total: {totalStopwatch.Elapsed.TotalMilliseconds:F3}ms");
             Console.WriteLine();
             
             // Get the result for file output (not included in performance timing)
@@ -393,12 +391,12 @@ namespace JsonEvalBenchmark
             }
 
             // Parse output to extract timings from basic example format
-            // Format: "⏱️  Execution time: 734.893826ms"
-            var totalMatch = Regex.Match(output, @"Execution time:\s*([0-9.]+)(s|ms|µs|ns)", RegexOptions.IgnoreCase);
+            // New format: "📝 Parse (new): 584ms", "⚡ Eval: 509ms", "⏱️  Total: 1.093s"
+            var totalMatch = Regex.Match(output, @"(?:Total|Execution time):\s*([0-9.]+)(s|ms|µs|ns)", RegexOptions.IgnoreCase);
             
-            // Try to extract component timings if available (may not be in basic output)
-            var parsingMatch = Regex.Match(output, @"(?:Schema parsing|Parsing).*?:\s*([0-9.]+)(s|ms|µs|ns)", RegexOptions.IgnoreCase);
-            var evalMatch = Regex.Match(output, @"Evaluation.*?:\s*([0-9.]+)(s|ms|µs|ns)", RegexOptions.IgnoreCase);
+            // Extract component timings (new format)
+            var parsingMatch = Regex.Match(output, @"Parse\s*\(new\):\s*([0-9.]+)(s|ms|µs|ns)", RegexOptions.IgnoreCase);
+            var evalMatch = Regex.Match(output, @"Eval:\s*([0-9.]+)(s|ms|µs|ns)", RegexOptions.IgnoreCase);
 
             double parsing = ParseDuration(parsingMatch);
             double evaluation = ParseDuration(evalMatch);
@@ -424,15 +422,13 @@ namespace JsonEvalBenchmark
             // Only show component timings if available
             if (parsing > 0)
             {
-                Console.WriteLine($"  🔧 Schema parsing & compilation: {parsing:F3}ms");
+                Console.WriteLine($"  📝 Parse (new): {parsing:F3}ms");
             }
             if (evaluation > 0)
             {
-                Console.WriteLine($"  ⚡ Evaluation: {evaluation:F3}ms");
+                Console.WriteLine($"  ⚡ Eval: {evaluation:F3}ms");
             }
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"  ✅ Total execution time: {total:F3}ms");
-            Console.ResetColor();
+            Console.WriteLine($"  ⏱️  Total: {total:F3}ms");
             
             // Check for comparison differences in output
             var diffMatch = Regex.Match(output, @"(\d+) difference\(s\)");
@@ -472,9 +468,9 @@ namespace JsonEvalBenchmark
             Console.WriteLine("🦀 Rust (Native):");
             if (rustResult.Success)
             {
-                Console.WriteLine($"  Total:       {rustResult.TotalMs:F3}ms");
-                Console.WriteLine($"  - Parsing:   {rustResult.ParsingMs:F3}ms");
-                Console.WriteLine($"  - Evaluation: {rustResult.EvaluationMs:F3}ms");
+                Console.WriteLine($"  Total:    {rustResult.TotalMs:F3}ms");
+                Console.WriteLine($"  - Parse:  {rustResult.ParsingMs:F3}ms");
+                Console.WriteLine($"  - Eval:   {rustResult.EvaluationMs:F3}ms");
             }
             else
             {
@@ -486,9 +482,9 @@ namespace JsonEvalBenchmark
 
             // C# results
             Console.WriteLine("🎯 C# (FFI):");
-            Console.WriteLine($"  Total:       {csharpResult.TotalMs:F3}ms");
-            Console.WriteLine($"  - Parsing:   {csharpResult.ParsingMs:F3}ms");
-            Console.WriteLine($"  - Evaluation: {csharpResult.EvaluationMs:F3}ms");
+            Console.WriteLine($"  Total:    {csharpResult.TotalMs:F3}ms");
+            Console.WriteLine($"  - Parse:  {csharpResult.ParsingMs:F3}ms");
+            Console.WriteLine($"  - Eval:   {csharpResult.EvaluationMs:F3}ms");
             
             if (csharpResult.DifferenceCount > 0)
             {
@@ -519,13 +515,13 @@ namespace JsonEvalBenchmark
                 if (rustResult.ParsingMs > 0 && csharpResult.ParsingMs > 0)
                 {
                     double parsingOverhead = (csharpResult.ParsingMs / rustResult.ParsingMs - 1.0) * 100;
-                    Console.WriteLine($"  - Parsing:   {(parsingOverhead >= 0 ? "+" : "")}{parsingOverhead:F1}%");
+                    Console.WriteLine($"  - Parse:     {(parsingOverhead >= 0 ? "+" : "")}{parsingOverhead:F1}%");
                 }
                 
                 if (rustResult.EvaluationMs > 0 && csharpResult.EvaluationMs > 0)
                 {
                     double evalOverhead = (csharpResult.EvaluationMs / rustResult.EvaluationMs - 1.0) * 100;
-                    Console.WriteLine($"  - Evaluation: {(evalOverhead >= 0 ? "+" : "")}{evalOverhead:F1}%");
+                    Console.WriteLine($"  - Eval:      {(evalOverhead >= 0 ? "+" : "")}{evalOverhead:F1}%");
                 }
                 
                 Console.ResetColor();
