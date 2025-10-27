@@ -101,7 +101,7 @@ impl EvalCache {
     /// Get cached result (zero-copy via Arc clone)
     /// Returns None if not cached
     /// Thread-safe: can be called concurrently
-    #[inline(always)]
+    #[inline]
     pub fn get(&self, key: &CacheKey) -> Option<Arc<Value>> {
         if let Some(value) = self.cache.get(key) {
             self.hits.fetch_add(1, Ordering::Relaxed);
@@ -114,14 +114,14 @@ impl EvalCache {
 
     /// Insert result into cache (wraps in Arc for zero-copy sharing)
     /// Thread-safe: can be called concurrently
-    #[inline(always)]
+    #[inline]
     pub fn insert(&self, key: CacheKey, value: Value) {
         self.cache.insert(key, Arc::new(value));
     }
 
     /// Insert with Arc-wrapped value (zero-copy if already Arc)
     /// Thread-safe: can be called concurrently
-    #[inline(always)]
+    #[inline]
     pub fn insert_arc(&self, key: CacheKey, value: Arc<Value>) {
         self.cache.insert(key, value);
     }
@@ -156,19 +156,19 @@ impl EvalCache {
     }
 
     /// Get number of cached entries
-    #[inline(always)]
+    #[inline]
     pub fn len(&self) -> usize {
         self.cache.len()
     }
 
     /// Check if cache is empty
-    #[inline(always)]
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.cache.is_empty()
     }
 
     /// Remove specific entry
-    #[inline(always)]
+    #[inline]
     pub fn remove(&self, key: &CacheKey) -> Option<Arc<Value>> {
         self.cache.remove(key).map(|(_, v)| v)
     }

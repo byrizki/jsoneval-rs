@@ -59,7 +59,6 @@ impl ParsedSchemaCache {
     /// Get a cloned Arc reference to the cached schema
     /// 
     /// Returns None if the key doesn't exist
-    #[inline]
     pub fn get(&self, key: &str) -> Option<Arc<ParsedSchema>> {
         let cache = self.cache.read().unwrap();
         cache.get(key).cloned()
@@ -80,21 +79,18 @@ impl ParsedSchemaCache {
     }
     
     /// Check if a key exists in the cache
-    #[inline]
     pub fn contains_key(&self, key: &str) -> bool {
         let cache = self.cache.read().unwrap();
         cache.contains_key(key)
     }
     
     /// Get the number of cached schemas
-    #[inline]
     pub fn len(&self) -> usize {
         let cache = self.cache.read().unwrap();
         cache.len()
     }
     
     /// Check if the cache is empty
-    #[inline]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

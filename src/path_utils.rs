@@ -12,7 +12,7 @@ use serde_json::Value;
 /// - Dotted paths: user.name -> /user/name
 /// - Already normalized paths (no-op)
 /// - Simple field names: field -> /field
-#[inline(always)]
+#[inline]
 pub fn normalize_to_json_pointer(path: &str) -> String {
     if path.is_empty() {
         return "".to_string();
@@ -54,7 +54,7 @@ pub fn normalize_to_json_pointer(path: &str) -> String {
 /// - "illustration.insured.name" -> "#/illustration/properties/insured/properties/name"
 /// - "header.form_number" -> "#/header/properties/form_number"
 /// - "#/already/formatted" -> "#/already/formatted" (no change)
-#[inline(always)]
+#[inline]
 pub fn dot_notation_to_schema_pointer(path: &str) -> String {
     // If already a JSON pointer (starts with # or /), return as-is
     if path.starts_with('#') || path.starts_with('/') {
@@ -92,7 +92,7 @@ pub fn dot_notation_to_schema_pointer(path: &str) -> String {
 /// - "#/illustration/properties/insured/properties/ins_corrname" -> "illustration.properties.insured.properties.ins_corrname"
 /// - "/user/name" -> "user.name"
 /// - "person.name" -> "person.name" (already dotted, no change)
-#[inline(always)]
+#[inline]
 pub fn pointer_to_dot_notation(path: &str) -> String {
     if path.is_empty() {
         return String::new();
@@ -121,7 +121,7 @@ pub fn pointer_to_dot_notation(path: &str) -> String {
 /// Fast JSON pointer-based value access using serde's native implementation
 /// 
 /// This is significantly faster than manual path traversal for deeply nested objects
-#[inline(always)]
+#[inline]
 pub fn get_value_by_pointer<'a>(data: &'a Value, pointer: &str) -> Option<&'a Value> {
     if pointer.is_empty() {
         Some(data)
@@ -130,7 +130,7 @@ pub fn get_value_by_pointer<'a>(data: &'a Value, pointer: &str) -> Option<&'a Va
     }
 }
 
-#[inline(always)]
+#[inline]
 pub fn get_value_by_pointer_without_properties<'a>(data: &'a Value, pointer: &str) -> Option<&'a Value> {
     if pointer.is_empty() {
         Some(data)
@@ -149,7 +149,7 @@ pub fn get_values_by_pointers<'a>(data: &'a Value, pointers: &[String]) -> Vec<O
 /// Fast array indexing helper for JSON arrays
 /// 
 /// Returns None if not an array or index out of bounds
-#[inline(always)]
+#[inline]
 pub fn get_array_element<'a>(data: &'a Value, index: usize) -> Option<&'a Value> {
     data.as_array()?.get(index)
 }
@@ -157,7 +157,7 @@ pub fn get_array_element<'a>(data: &'a Value, index: usize) -> Option<&'a Value>
 /// Fast array indexing with JSON pointer path
 /// 
 /// Example: get_array_element_by_pointer(data, "/$params/tables", 0)
-#[inline(always)]
+#[inline]
 pub fn get_array_element_by_pointer<'a>(data: &'a Value, pointer: &str, index: usize) -> Option<&'a Value> {
     get_value_by_pointer(data, pointer)?
         .as_array()?
@@ -225,7 +225,7 @@ impl ArrayMetadata {
     }
     
     /// Fast column access for uniform object arrays
-    #[inline(always)]
+    #[inline]
     pub fn get_column_value<'a>(&self, data: &'a Value, row_index: usize, column: &str) -> Option<&'a Value> {
         if !self.is_uniform || row_index >= self.length {
             return None;
@@ -237,7 +237,7 @@ impl ArrayMetadata {
     }
     
     /// Fast bounds checking
-    #[inline(always)]
+    #[inline]
     pub fn is_valid_index(&self, index: usize) -> bool {
         index < self.length
     }

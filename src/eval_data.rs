@@ -91,11 +91,11 @@ impl EvalData {
     /// Zero-cost access via Arc dereference
     #[inline(always)]
     pub fn data(&self) -> &Value {
-        &self.data
+        &*self.data
     }
 
     /// Clone a Value without certain keys
-    #[inline]
+    #[inline(always)]
     pub fn clone_data_without(&self, exclude: &[&str]) -> Value {
         match &*self.data {
             Value::Object(map) => {
@@ -114,7 +114,6 @@ impl EvalData {
     /// Set a field value and increment version
     /// Accepts both dotted notation (user.name) and JSON pointer format (/user/name)
     /// Uses CoW: clones data only if shared
-    #[inline]
     pub fn set(&mut self, path: &str, value: Value) {
         // Normalize to JSON pointer format internally
         let pointer = path_utils::normalize_to_json_pointer(path);
@@ -125,7 +124,6 @@ impl EvalData {
     /// Append to an array field without full clone (optimized for table building)
     /// Accepts both dotted notation (items) and JSON pointer format (/items)
     /// Uses CoW: clones data only if shared
-    #[inline]
     pub fn push_to_array(&mut self, path: &str, value: Value) {
         // Normalize to JSON pointer format internally
         let pointer = path_utils::normalize_to_json_pointer(path);
@@ -139,7 +137,7 @@ impl EvalData {
     
     /// Get a field value
     /// Accepts both dotted notation (user.name) and JSON pointer format (/user/name)
-    #[inline(always)]
+    #[inline]
     pub fn get(&self, path: &str) -> Option<&Value> {
         // Normalize to JSON pointer format internally
         let pointer = path_utils::normalize_to_json_pointer(path);
@@ -147,7 +145,7 @@ impl EvalData {
         path_utils::get_value_by_pointer(&self.data, &pointer)
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn get_without_properties(&self, path: &str) -> Option<&Value> {
         // Normalize to JSON pointer format internally
         let pointer = path_utils::normalize_to_json_pointer(path);
@@ -156,7 +154,7 @@ impl EvalData {
     }
     
     /// OPTIMIZED: Fast array element access
-    #[inline(always)]
+    #[inline]
     pub fn get_array_element(&self, array_path: &str, index: usize) -> Option<&Value> {
         let pointer = path_utils::normalize_to_json_pointer(array_path);
         path_utils::get_array_element_by_pointer(&self.data, &pointer, index)
@@ -198,7 +196,6 @@ impl EvalData {
     
     /// Get multiple field values efficiently (for cache key generation)
     /// OPTIMIZED: Use batch pointer resolution for better performance
-    #[inline]
     pub fn get_values<'a>(&'a self, paths: &'a [String]) -> Vec<Cow<'a, Value>> {
         // Convert all paths to JSON pointers for batch processing
         let pointers: Vec<String> = paths.iter()
@@ -215,7 +212,6 @@ impl EvalData {
     }
 
     /// Set a value by JSON pointer, creating intermediate structures as needed
-    #[inline]
     fn set_by_pointer(data: &mut Value, pointer: &str, new_value: Value) {
         if pointer.is_empty() {
             return;
