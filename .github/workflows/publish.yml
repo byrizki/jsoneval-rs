@@ -64,17 +64,27 @@ jobs:
       id: get-tag
       run: |
         if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          echo "tag=${{ github.event.inputs.release_tag }}" >> $GITHUB_OUTPUT
+          TAG="${{ github.event.inputs.release_tag }}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "📦 Using manually specified release tag: $TAG"
         else
           # For workflow_run, get the latest release tag
+          echo "🔍 Looking for latest release..."
           TAG=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r .tag_name)
           if [ "$TAG" = "null" ] || [ -z "$TAG" ]; then
-            echo "No release found"
+            echo "❌ ERROR: No release found in the repository"
+            echo ""
+            echo "To publish packages, you need to:"
+            echo "1. Create a GitHub Release (e.g., v0.0.28)"
+            echo "2. Run the 'Build Bindings' workflow to upload packages to that release"
+            echo "3. Then run this publish workflow"
+            echo ""
+            echo "Or use workflow_dispatch and manually specify the release tag."
             exit 1
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "📦 Found latest release: $TAG"
         fi
-        echo "Release tag: ${{ steps.get-tag.outputs.tag }}"
   
   # Download pre-built packages from GitHub Release
   download-release-assets:
@@ -84,6 +94,25 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
+    
+    - name: Verify release exists
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        TAG="${{ needs.check-workflow.outputs.release_tag }}"
+        echo "Checking if release $TAG exists..."
+        
+        if ! gh release view "$TAG" > /dev/null 2>&1; then
+          echo "❌ ERROR: Release $TAG does not exist"
+          echo "Available releases:"
+          gh release list --limit 5
+          exit 1
+        fi
+        
+        echo "✅ Release $TAG found"
+        echo ""
+        echo "Release info:"
+        gh release view "$TAG"
     
     - name: Download release assets
       env:
@@ -97,16 +126,35 @@ jobs:
         cd release-assets
         
         # Download all release assets
-        gh release download "$TAG" --pattern "*.nupkg" || echo "No .nupkg files"
-        gh release download "$TAG" --pattern "*.tgz" || echo "No .tgz files"
-        gh release download "$TAG" --pattern "*.tar.gz" || echo "No .tar.gz files"
+        echo "Downloading .nupkg files..."
+        gh release download "$TAG" --pattern "*.nupkg" || echo "⚠️ No .nupkg files found"
+        
+        echo "Downloading .tgz files..."
+        gh release download "$TAG" --pattern "*.tgz" || echo "⚠️ No .tgz files found"
+        
+        echo "Downloading .tar.gz files..."
+        gh release download "$TAG" --pattern "*.tar.gz" || echo "⚠️ No .tar.gz files found"
     
-    - name: List downloaded assets
+    - name: Verify downloaded assets
+      id: verify
       run: |
         echo "Downloaded release assets:"
-        ls -lh release-assets/
+        ls -lh release-assets/ || true
+        
+        # Check if any files were downloaded
+        FILE_COUNT=$(find release-assets -type f | wc -l)
+        echo "Total files downloaded: $FILE_COUNT"
+        
+        if [ "$FILE_COUNT" -eq 0 ]; then
+          echo "❌ ERROR: No release assets were found in release ${{ needs.check-workflow.outputs.release_tag }}"
+          echo "Make sure the Build Bindings workflow has completed and uploaded assets to the release."
+          exit 1
+        fi
+        
+        echo "✅ Found $FILE_COUNT release asset(s)"
     
     - name: Re-upload as workflow artifacts
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: release-packages
