@@ -177,13 +177,17 @@ jobs:
     
     - name: Publish to NuGet
       run: |
-        NUPKG=$(find packages -name "*.nupkg" | head -n 1)
+        NUPKG=$(find packages -name "*.nupkg" -type f | head -n 1)
         if [ -z "$NUPKG" ]; then
           echo "❌ No NuGet package found in release"
+          echo "Available files:"
+          ls -lh packages/
           exit 1
         fi
         
-        echo "Publishing: $NUPKG"
+        echo "Publishing: $(basename $NUPKG)"
+        echo "Full path: $NUPKG"
+        
         dotnet nuget push "$NUPKG" \
           --api-key ${{ secrets.NUGET_API_KEY }} \
           --source https://api.nuget.org/v3/index.json \
@@ -215,12 +219,34 @@ jobs:
     - name: Publish web packages to npm
       run: |
         # Find and publish all web-related .tgz packages
+        PUBLISHED=0
+        
         for pkg in packages/*-core-*.tgz packages/*-bundler-*.tgz packages/*-node-*.tgz; do
           if [ -f "$pkg" ]; then
             echo "Publishing: $(basename $pkg)"
-            npm publish "$pkg" --access public
+            echo "Full path: $pkg"
+            
+            # Verify the tarball is valid
+            if ! tar -tzf "$pkg" > /dev/null 2>&1; then
+              echo "⚠️ WARNING: Invalid tarball file, skipping: $pkg"
+              continue
+            fi
+            
+            # Use absolute path
+            FULL_PATH="$(pwd)/$pkg"
+            npm publish "$FULL_PATH" --access public
+            PUBLISHED=$((PUBLISHED + 1))
           fi
         done
+        
+        if [ $PUBLISHED -eq 0 ]; then
+          echo "❌ No web packages were published"
+          echo "Available files:"
+          ls -lh packages/
+          exit 1
+        fi
+        
+        echo "✅ Published $PUBLISHED web package(s)"
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -245,16 +271,46 @@ jobs:
         name: release-packages
         path: packages/
     
-    - name: Publish React Native package to npm
+    - name: Inspect and publish React Native package
       run: |
-        RN_PKG=$(find packages -name "*react-native*.tgz" | head -n 1)
+        RN_PKG=$(find packages -name "*react-native*.tgz" -type f | head -n 1)
         if [ -z "$RN_PKG" ]; then
           echo "❌ No React Native package found in release"
+          echo "Available files:"
+          ls -lh packages/
           exit 1
         fi
         
         echo "Publishing: $(basename $RN_PKG)"
-        npm publish "$RN_PKG" --access public
+        echo "Full path: $RN_PKG"
+        
+        # Verify the tarball is valid
+        if ! tar -tzf "$RN_PKG" > /dev/null 2>&1; then
+          echo "❌ ERROR: Invalid tarball file"
+          exit 1
+        fi
+        
+        # Extract and inspect package.json
+        echo ""
+        echo "📋 Inspecting package.json..."
+        mkdir -p /tmp/inspect
+        tar -xzf "$RN_PKG" -C /tmp/inspect package/package.json 2>/dev/null || true
+        if [ -f /tmp/inspect/package/package.json ]; then
+          echo "Package name: $(grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' /tmp/inspect/package/package.json | cut -d'"' -f4)"
+          echo "Package version: $(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' /tmp/inspect/package/package.json | cut -d'"' -f4)"
+          echo "First 20 lines of package.json:"
+          head -20 /tmp/inspect/package/package.json
+        fi
+        
+        echo ""
+        echo "🚀 Publishing to npm..."
+        
+        # Publish directly without path manipulation
+        cd packages
+        npm publish "$(basename $RN_PKG)" --access public --dry-run
+        echo ""
+        echo "Dry run successful, publishing for real..."
+        npm publish "$(basename $RN_PKG)" --access public
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
