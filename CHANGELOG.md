@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.28] - 2025-10-30
+
+### Added
+- [core] Implement `getSchemaByPath`, `getSchemaPaths`, `getEvaluatedSchemaByPath`, `getEvaluatedSchemaPaths`
+- [bindings] Implement `getSchemaByPath`, `getSchemaPaths`, `getEvaluatedSchemaByPath`, `getEvaluatedSchemaPaths` for C# and FFI
+- [bindings] Implement `getEvaluatedSchemaByPath` and `getEvaluatedSchemaPaths` for Web and React Native
+- [react-native] Enhance RN build
+
 ## [0.0.27] - 2025-10-27
 
 ### Changed

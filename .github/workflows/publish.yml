@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release tag to publish from (e.g., v0.0.27)'
+        description: 'Release tag to publish from (e.g., v0.0.28)'
         required: true
         type: string
       publish_csharp:
