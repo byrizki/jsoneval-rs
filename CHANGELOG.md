@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.29] - 2025-10-30
+
+### Added
+- [core] Implement `format` option on `getSchemaByPaths`, `getEvaluatedSchemaByPaths`
+
+
 ## [0.0.28] - 2025-10-30
 
 ### Added
