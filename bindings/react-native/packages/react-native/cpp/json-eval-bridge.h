@@ -476,6 +476,12 @@ public:
     static void getEvaluatedSchemaWithoutParamsSubformAsync(
         const std::string& handleId,
         const std::string& subformPath,
+        bool resolveLayout,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Get evaluated schema by path from subform (async)
      * @param handleId Instance handle
      * @param subformPath Path to the subform
      * @param schemaPath Dotted path to the value within the subform
