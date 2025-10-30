@@ -434,7 +434,15 @@ namespace JsonEvalRs
             
             if (!result.Success)
             {
-                string error = result.GetError();
+#if NETCOREAPP || NET5_0_OR_GREATER
+                string error = result.Error != IntPtr.Zero
+                    ? Marshal.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                    : "Unknown error";
+#else
+                string error = result.Error != IntPtr.Zero
+                    ? Native.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                    : "Unknown error";
+#endif
                 Native.json_eval_free_result(result);
                 throw new InvalidOperationException($"Failed to get evaluated schema by paths: {error}");
             }
@@ -531,7 +539,15 @@ namespace JsonEvalRs
             
             if (!result.Success)
             {
-                string error = result.GetError();
+#if NETCOREAPP || NET5_0_OR_GREATER
+                string error = result.Error != IntPtr.Zero
+                    ? Marshal.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                    : "Unknown error";
+#else
+                string error = result.Error != IntPtr.Zero
+                    ? Native.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                    : "Unknown error";
+#endif
                 Native.json_eval_free_result(result);
                 throw new InvalidOperationException($"Failed to get schema by paths: {error}");
             }
