@@ -216,13 +216,35 @@ jobs:
         name: release-packages
         path: packages/
     
-    - name: Publish web packages to npm
+    - name: Extract and publish web packages to npm
       run: |
+        echo "📦 Available release files:"
+        ls -lh packages/
+        echo ""
+        
+        # Extract wasm-modules.tar.gz if it exists
+        if [ -f "packages/wasm-modules.tar.gz" ]; then
+          echo "📂 Extracting wasm-modules.tar.gz..."
+          mkdir -p packages/web
+          tar -xzf packages/wasm-modules.tar.gz -C packages/web
+          echo "✅ Extracted web modules"
+          echo ""
+          echo "Contents of web directory:"
+          ls -lh packages/web/
+        fi
+        
         # Find and publish all web-related .tgz packages
         PUBLISHED=0
         
-        for pkg in packages/*-core-*.tgz packages/*-bundler-*.tgz packages/*-node-*.tgz; do
+        # Look in both packages/ and packages/web/
+        for pkg in packages/*.tgz packages/web/*.tgz; do
+          # Skip React Native package
+          if [[ "$pkg" == *"react-native"* ]]; then
+            continue
+          fi
+          
           if [ -f "$pkg" ]; then
+            echo ""
             echo "Publishing: $(basename $pkg)"
             echo "Full path: $pkg"
             
@@ -232,20 +254,35 @@ jobs:
               continue
             fi
             
-            # Use absolute path
-            FULL_PATH="$(pwd)/$pkg"
-            npm publish "$FULL_PATH" --access public
+            # Extract package name for verification
+            mkdir -p /tmp/pkg-inspect
+            tar -xzf "$pkg" -C /tmp/pkg-inspect package/package.json 2>/dev/null || true
+            if [ -f /tmp/pkg-inspect/package/package.json ]; then
+              PKG_NAME=$(grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' /tmp/pkg-inspect/package/package.json | cut -d'"' -f4)
+              echo "Package name: $PKG_NAME"
+            fi
+            rm -rf /tmp/pkg-inspect
+            
+            # Publish
+            npm publish "$pkg" --access public
             PUBLISHED=$((PUBLISHED + 1))
           fi
         done
         
         if [ $PUBLISHED -eq 0 ]; then
+          echo ""
           echo "❌ No web packages were published"
-          echo "Available files:"
+          echo "This might be okay if web packages are not included in this release."
+          echo "Available files in packages/:"
           ls -lh packages/
+          if [ -d packages/web ]; then
+            echo "Available files in packages/web/:"
+            ls -lh packages/web/
+          fi
           exit 1
         fi
         
+        echo ""
         echo "✅ Published $PUBLISHED web package(s)"
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
