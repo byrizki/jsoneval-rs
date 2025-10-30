@@ -66,19 +66,16 @@ android {
     }
 
     packagingOptions {
-        // Handle duplicate libraries from native modules
-        pickFirst 'lib/arm64-v8a/libjsi.so'
-        pickFirst 'lib/armeabi-v7a/libjsi.so'
-        pickFirst 'lib/x86/libjsi.so'
-        pickFirst 'lib/x86_64/libjsi.so'
-        pickFirst 'lib/arm64-v8a/libc++_shared.so'
-        pickFirst 'lib/armeabi-v7a/libc++_shared.so'
-        pickFirst 'lib/x86/libc++_shared.so'
-        pickFirst 'lib/x86_64/libc++_shared.so'
-        pickFirst 'lib/arm64-v8a/libreactnativejni.so'
-        pickFirst 'lib/armeabi-v7a/libreactnativejni.so'
-        pickFirst 'lib/x86/libreactnativejni.so'
-        pickFirst 'lib/x86_64/libreactnativejni.so'
+        // Exclude React Native libraries - they're provided by the app
+        // This prevents duplicate .so files and eliminates the need for pickFirst in the app
+        exclude 'lib/**/libjsi.so'
+        exclude 'lib/**/libc++_shared.so'
+        exclude 'lib/**/libreactnativejni.so'
+        exclude 'lib/**/libfbjni.so'
+        
+        // Keep only our module's native library
+        // pickFirst is used as fallback for any remaining conflicts
+        pickFirst 'META-INF/**'
     }
 }
 

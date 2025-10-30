@@ -50,11 +50,29 @@ target_include_directories(
 )
 
 # Link libraries
+# Note: React Native provides JSI and other libraries at runtime
+# We link against them for compilation, but they should not be packaged
 target_link_libraries(
   json_eval_rn
-  ReactAndroid::jsi
-  ReactAndroid::reactnativejni
   json_eval_rs
   android
   log
+  ReactAndroid::jsi
+  ReactAndroid::reactnativejni
 )
+
+# Modern React Native (0.71+) uses prefab which properly handles shared libraries
+# The libraries are marked as shared dependencies, not to be packaged in our module
+# If you still see duplicate library warnings, ensure your React Native version is up to date
+
+# Optimize binary size
+set_target_properties(json_eval_rn PROPERTIES
+  CXX_VISIBILITY_PRESET hidden
+  C_VISIBILITY_PRESET hidden
+  VISIBILITY_INLINES_HIDDEN ON
+)
+
+# Strip debug symbols in release builds
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+  target_link_options(json_eval_rn PRIVATE -Wl,--strip-all)
+endif()
