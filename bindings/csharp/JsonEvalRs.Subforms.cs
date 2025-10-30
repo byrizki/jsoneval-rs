@@ -249,14 +249,15 @@ namespace JsonEvalRs
         }
 
         /// <summary>
-        /// Gets values from the evaluated schema of a subform using multiple dotted path notations.
-        /// Returns a merged object containing all requested paths. Skips paths that are not found.
+        /// Gets evaluated schema values by multiple paths from subform
+        /// Returns data in the specified format. Skips paths that are not found.
         /// </summary>
         /// <param name="subformPath">Path to the subform</param>
         /// <param name="schemaPaths">Array of dotted paths to retrieve within the subform</param>
         /// <param name="skipLayout">Whether to skip layout resolution</param>
-        /// <returns>Merged JObject containing all found paths</returns>
-        public JObject GetEvaluatedSchemaByPathsSubform(string subformPath, string[] schemaPaths, bool skipLayout = false)
+        /// <param name="format">Return format: Nested (default), Flat, or Array</param>
+        /// <returns>Data in the specified format (JObject for Nested/Flat, JArray for Array)</returns>
+        public JToken GetEvaluatedSchemaByPathsSubform(string subformPath, string[] schemaPaths, bool skipLayout = false, ReturnFormat format = ReturnFormat.Nested)
         {
             ThrowIfDisposed();
             if (string.IsNullOrEmpty(subformPath))
@@ -267,9 +268,9 @@ namespace JsonEvalRs
             string pathsJson = JsonConvert.SerializeObject(schemaPaths);
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_get_evaluated_schema_by_paths_subform(_handle, subformPath, pathsJson, skipLayout);
+            var result = Native.json_eval_get_evaluated_schema_by_paths_subform(_handle, subformPath, pathsJson, skipLayout, (byte)format);
 #else
-            var result = Native.json_eval_get_evaluated_schema_by_paths_subform(_handle, Native.ToUTF8Bytes(subformPath)!, Native.ToUTF8Bytes(pathsJson)!, skipLayout);
+            var result = Native.json_eval_get_evaluated_schema_by_paths_subform(_handle, Native.ToUTF8Bytes(subformPath)!, Native.ToUTF8Bytes(pathsJson)!, skipLayout, (byte)format);
 #endif
             
             if (!result.Success)
@@ -290,17 +291,17 @@ namespace JsonEvalRs
             try
             {
                 if (result.DataPtr == IntPtr.Zero)
-                    return new JObject();
+                    return format == ReturnFormat.Array ? (JToken)new JArray() : (JToken)new JObject();
 
                 int dataLen = (int)result.DataLen.ToUInt32();
                 if (dataLen == 0)
-                    return new JObject();
+                    return format == ReturnFormat.Array ? (JToken)new JArray() : (JToken)new JObject();
 
                 byte[] buffer = new byte[dataLen];
                 Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
                 
                 string json = Encoding.UTF8.GetString(buffer);
-                return JObject.Parse(json);
+                return format == ReturnFormat.Array ? (JToken)JArray.Parse(json) : (JToken)JObject.Parse(json);
             }
             finally
             {
@@ -410,12 +411,13 @@ namespace JsonEvalRs
 
         /// <summary>
         /// Gets schema values by multiple paths from subform
-        /// Returns a merged object containing all requested paths. Skips paths that are not found.
+        /// Returns data in the specified format. Skips paths that are not found.
         /// </summary>
         /// <param name="subformPath">Path to the subform</param>
         /// <param name="schemaPaths">Array of dotted paths to retrieve within the subform</param>
-        /// <returns>Merged JObject containing all found paths</returns>
-        public JObject GetSchemaByPathsSubform(string subformPath, string[] schemaPaths)
+        /// <param name="format">Return format: Nested (default), Flat, or Array</param>
+        /// <returns>Data in the specified format (JObject for Nested/Flat, JArray for Array)</returns>
+        public JToken GetSchemaByPathsSubform(string subformPath, string[] schemaPaths, ReturnFormat format = ReturnFormat.Nested)
         {
             ThrowIfDisposed();
             if (string.IsNullOrEmpty(subformPath))
@@ -426,9 +428,9 @@ namespace JsonEvalRs
             string pathsJson = JsonConvert.SerializeObject(schemaPaths);
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_get_schema_by_paths_subform(_handle, subformPath, pathsJson);
+            var result = Native.json_eval_get_schema_by_paths_subform(_handle, subformPath, pathsJson, (byte)format);
 #else
-            var result = Native.json_eval_get_schema_by_paths_subform(_handle, Native.ToUTF8Bytes(subformPath)!, Native.ToUTF8Bytes(pathsJson)!);
+            var result = Native.json_eval_get_schema_by_paths_subform(_handle, Native.ToUTF8Bytes(subformPath)!, Native.ToUTF8Bytes(pathsJson)!, (byte)format);
 #endif
             
             if (!result.Success)
@@ -449,17 +451,17 @@ namespace JsonEvalRs
             try
             {
                 if (result.DataPtr == IntPtr.Zero)
-                    return new JObject();
+                    return format == ReturnFormat.Array ? (JToken)new JArray() : (JToken)new JObject();
 
                 int dataLen = (int)result.DataLen.ToUInt32();
                 if (dataLen == 0)
-                    return new JObject();
+                    return format == ReturnFormat.Array ? (JToken)new JArray() : (JToken)new JObject();
 
                 byte[] buffer = new byte[dataLen];
                 Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
                 
                 string json = Encoding.UTF8.GetString(buffer);
-                return JObject.Parse(json);
+                return format == ReturnFormat.Array ? (JToken)JArray.Parse(json) : (JToken)JObject.Parse(json);
             }
             finally
             {

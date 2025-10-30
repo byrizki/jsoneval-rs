@@ -18,7 +18,7 @@ impl JSONEvalWasm {
         match self.inner.validate(data, ctx, None) {
             Ok(result) => {
                 let errors: Vec<ValidationError> = result.errors.iter().map(|(path, error)| {
-                    create_validation_error(path.clone(), error.rule_type.clone(), error.message.clone())
+                    create_validation_error(path.clone(), error)
                 }).collect();
 
                 Ok(create_validation_result(result.has_error, errors))
@@ -92,7 +92,7 @@ impl JSONEvalWasm {
         match self.inner.validate(data, ctx, paths_ref) {
             Ok(result) => {
                 let errors: Vec<ValidationError> = result.errors.iter().map(|(path, error)| {
-                    create_validation_error(path.clone(), error.rule_type.clone(), error.message.clone())
+                    create_validation_error(path.clone(), error)
                 }).collect();
 
                 Ok(create_validation_result(result.has_error, errors))

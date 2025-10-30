@@ -1,13 +1,32 @@
 /**
+ * Return format for path-based methods
+ */
+export declare enum ReturnFormat {
+    /** Nested object preserving the path hierarchy (default) */
+    Nested = 0,
+    /** Flat object with dotted keys */
+    Flat = 1,
+    /** Array of values in the order of requested paths */
+    Array = 2
+}
+/**
  * Validation error for a specific field
  */
 export interface ValidationError {
     /** Field path with the error */
     path: string;
-    /** Type of validation rule that failed */
+    /** Type of validation rule that failed (e.g., 'required', 'min', 'max', 'pattern') */
     ruleType: string;
     /** Error message */
     message: string;
+    /** Optional error code */
+    code?: string;
+    /** Optional regex pattern (for pattern validation errors) */
+    pattern?: string;
+    /** Optional field value that failed validation (as string) */
+    fieldValue?: string;
+    /** Optional additional data context for the error */
+    data?: any;
 }
 /**
  * Result of validation operation
@@ -22,10 +41,18 @@ export interface ValidationResult {
  * Dependent field change from evaluateDependents
  */
 export interface DependentChange {
-    /** Path of the dependent field that changed */
-    path: string;
-    /** New value of the dependent field */
-    value: any;
+    /** Path of the dependent field (in dot notation) */
+    $ref: string;
+    /** Schema definition of the changed field */
+    $field?: any;
+    /** Schema definition of the parent field */
+    $parentField: any;
+    /** Whether this is a transitive dependency */
+    transitive: boolean;
+    /** If true, the field was cleared */
+    clear?: boolean;
+    /** New value of the field (if changed) */
+    value?: any;
 }
 /**
  * Options for creating a JSONEval instance
@@ -165,6 +192,8 @@ export interface GetEvaluatedSchemaByPathsSubformOptions {
     schemaPaths: string[];
     /** Whether to skip layout resolution */
     skipLayout?: boolean;
+    /** Return format (Nested, Flat, or Array) */
+    format?: ReturnFormat;
 }
 /**
  * Options for getting schema by path from a subform
@@ -183,6 +212,8 @@ export interface GetSchemaByPathsSubformOptions {
     subformPath: string;
     /** Array of dotted paths to the values within the subform */
     schemaPaths: string[];
+    /** Return format (Nested, Flat, or Array) */
+    format?: ReturnFormat;
 }
 /**
  * High-performance JSON Logic evaluator with schema validation for React Native
@@ -311,13 +342,14 @@ export declare class JSONEval {
     getEvaluatedSchemaByPath(path: string, skipLayout?: boolean): Promise<any | null>;
     /**
      * Get values from the evaluated schema using multiple dotted path notations
-     * Returns a merged object containing all requested paths (skips paths that are not found)
+     * Returns data in the specified format (skips paths that are not found)
      * @param paths - Array of dotted paths to retrieve
      * @param skipLayout - Whether to skip layout resolution
-     * @returns Promise resolving to merged object containing all found paths
+     * @param format - Return format (Nested, Flat, or Array)
+     * @returns Promise resolving to data in the specified format
      * @throws {Error} If operation fails
      */
-    getEvaluatedSchemaByPaths(paths: string[], skipLayout?: boolean): Promise<any>;
+    getEvaluatedSchemaByPaths(paths: string[], skipLayout?: boolean, format?: ReturnFormat): Promise<any>;
     /**
      * Get a value from the schema using dotted path notation
      * @param path - Dotted path to the value (e.g., "properties.field.value")
@@ -327,12 +359,13 @@ export declare class JSONEval {
     getSchemaByPath(path: string): Promise<any | null>;
     /**
      * Get values from the schema using multiple dotted path notations
-     * Returns a merged object containing all requested paths (skips paths that are not found)
+     * Returns data in the specified format (skips paths that are not found)
      * @param paths - Array of dotted paths to retrieve
-     * @returns Promise resolving to merged object containing all found paths
+     * @param format - Return format (Nested, Flat, or Array)
+     * @returns Promise resolving to data in the specified format
      * @throws {Error} If operation fails
      */
-    getSchemaByPaths(paths: string[]): Promise<any>;
+    getSchemaByPaths(paths: string[], format?: ReturnFormat): Promise<any>;
     /**
      * Reload schema with new data
      * @param options - Configuration options with new schema, context, and data
@@ -491,9 +524,9 @@ export declare class JSONEval {
     getEvaluatedSchemaByPathSubform(options: GetEvaluatedSchemaByPathSubformOptions): Promise<any | null>;
     /**
      * Get evaluated schema by multiple paths from subform
-     * Returns a merged object containing all requested paths (skips paths that are not found)
-     * @param options - Options including subform path, array of schema paths, and skipLayout flag
-     * @returns Promise resolving to merged object containing all found paths
+     * Returns data in the specified format (skips paths that are not found)
+     * @param options - Options including subform path, array of schema paths, skipLayout flag, and format
+     * @returns Promise resolving to data in the specified format
      * @throws {Error} If operation fails
      */
     getEvaluatedSchemaByPathsSubform(options: GetEvaluatedSchemaByPathsSubformOptions): Promise<any>;
@@ -512,9 +545,9 @@ export declare class JSONEval {
     getSchemaByPathSubform(options: GetSchemaByPathSubformOptions): Promise<any | null>;
     /**
      * Get schema values by multiple paths from subform
-     * Returns a merged object containing all requested paths (skips paths that are not found)
-     * @param options - Options including subform path and array of schema paths
-     * @returns Promise resolving to merged object containing all found paths
+     * Returns data in the specified format (skips paths that are not found)
+     * @param options - Options including subform path, array of schema paths, and format
+     * @returns Promise resolving to data in the specified format
      * @throws {Error} If operation fails
      */
     getSchemaByPathsSubform(options: GetSchemaByPathsSubformOptions): Promise<any>;

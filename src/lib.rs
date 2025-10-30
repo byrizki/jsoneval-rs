@@ -48,6 +48,21 @@ pub use eval_cache::{EvalCache, CacheKey, CacheStats};
 pub use parsed_schema::ParsedSchema;
 pub use parsed_schema_cache::{ParsedSchemaCache, ParsedSchemaCacheStats, PARSED_SCHEMA_CACHE};
 use serde::de::Error as _;
+
+/// Return format for path-based methods
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ReturnFormat {
+    /// Nested object preserving the path hierarchy (default)
+    /// Example: { "user": { "profile": { "name": "John" } } }
+    #[default]
+    Nested,
+    /// Flat object with dotted keys
+    /// Example: { "user.profile.name": "John" }
+    Flat,
+    /// Array of values in the order of requested paths
+    /// Example: ["John"]
+    Array,
+}
 use serde_json::{Value};
 
 #[cfg(feature = "parallel")]
@@ -976,17 +991,19 @@ impl JSONEval {
     }
 
     /// Get values from the evaluated schema using multiple dotted path notations.
-    /// Returns a merged object containing all requested paths. Skips paths that are not found.
+    /// Returns data in the specified format. Skips paths that are not found.
     ///
     /// # Arguments
     ///
     /// * `paths` - Array of dotted paths to retrieve (e.g., ["properties.field1", "properties.field2"])
     /// * `skip_layout` - Whether to skip layout resolution.
+    /// * `format` - Optional return format (Nested, Flat, or Array). Defaults to Nested.
     ///
     /// # Returns
     ///
-    /// A merged JSON object containing all found paths, or an empty object if no paths are found.
-    pub fn get_evaluated_schema_by_paths(&mut self, paths: &[String], skip_layout: bool) -> Value {
+    /// Data in the specified format, or an empty object/array if no paths are found.
+    pub fn get_evaluated_schema_by_paths(&mut self, paths: &[String], skip_layout: bool, format: Option<ReturnFormat>) -> Value {
+        let format = format.unwrap_or_default();
         if !skip_layout {
             self.resolve_layout_internal();
         }
@@ -1009,7 +1026,7 @@ impl JSONEval {
             }
         }
         
-        Value::Object(result)
+        self.convert_to_format(result, paths, format)
     }
     
     /// Helper function to insert a value at a dotted path in a JSON object
@@ -1047,6 +1064,50 @@ impl JSONEval {
             }
         }
     }
+    
+    /// Convert result map to the requested format
+    fn convert_to_format(&self, result: serde_json::Map<String, Value>, paths: &[String], format: ReturnFormat) -> Value {
+        match format {
+            ReturnFormat::Nested => Value::Object(result),
+            ReturnFormat::Flat => {
+                // Flatten nested object to dotted keys
+                let mut flat = serde_json::Map::new();
+                self.flatten_object(&result, String::new(), &mut flat);
+                Value::Object(flat)
+            }
+            ReturnFormat::Array => {
+                // Return array of values in order of requested paths
+                let values: Vec<Value> = paths.iter()
+                    .map(|path| {
+                        let pointer = if path.is_empty() {
+                            "".to_string()
+                        } else {
+                            format!("/{}", path.replace(".", "/"))
+                        };
+                        Value::Object(result.clone()).pointer(&pointer).cloned().unwrap_or(Value::Null)
+                    })
+                    .collect();
+                Value::Array(values)
+            }
+        }
+    }
+    
+    /// Recursively flatten a nested object into dotted keys
+    fn flatten_object(&self, obj: &serde_json::Map<String, Value>, prefix: String, result: &mut serde_json::Map<String, Value>) {
+        for (key, value) in obj {
+            let new_key = if prefix.is_empty() {
+                key.clone()
+            } else {
+                format!("{}.{}", prefix, key)
+            };
+            
+            if let Value::Object(nested) = value {
+                self.flatten_object(nested, new_key, result);
+            } else {
+                result.insert(new_key, value.clone());
+            }
+        }
+    }
 
     /// Get a value from the schema using dotted path notation.
     /// Converts dotted notation (e.g., "properties.field.value") to JSON pointer format.
@@ -1070,16 +1131,18 @@ impl JSONEval {
     }
 
     /// Get values from the schema using multiple dotted path notations.
-    /// Returns a merged object containing all requested paths. Skips paths that are not found.
+    /// Returns data in the specified format. Skips paths that are not found.
     ///
     /// # Arguments
     ///
     /// * `paths` - Array of dotted paths to retrieve (e.g., ["properties.field1", "properties.field2"])
+    /// * `format` - Optional return format (Nested, Flat, or Array). Defaults to Nested.
     ///
     /// # Returns
     ///
-    /// A merged JSON object containing all found paths, or an empty object if no paths are found.
-    pub fn get_schema_by_paths(&self, paths: &[String]) -> Value {
+    /// Data in the specified format, or an empty object/array if no paths are found.
+    pub fn get_schema_by_paths(&self, paths: &[String], format: Option<ReturnFormat>) -> Value {
+        let format = format.unwrap_or_default();
         let mut result = serde_json::Map::new();
         
         for path in paths {
@@ -1098,7 +1161,7 @@ impl JSONEval {
             }
         }
         
-        Value::Object(result)
+        self.convert_to_format(result, paths, format)
     }
 
     /// Check if a dependency should be cached

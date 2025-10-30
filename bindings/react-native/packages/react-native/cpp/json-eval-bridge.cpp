@@ -27,9 +27,9 @@ extern "C" {
     FFIResult json_eval_get_schema_value(JSONEvalHandle* handle);
     FFIResult json_eval_get_evaluated_schema_without_params(JSONEvalHandle* handle, bool skip_layout);
     FFIResult json_eval_get_evaluated_schema_by_path(JSONEvalHandle* handle, const char* path, bool skip_layout);
-    FFIResult json_eval_get_evaluated_schema_by_paths(JSONEvalHandle* handle, const char* paths_json, bool skip_layout);
+    FFIResult json_eval_get_evaluated_schema_by_paths(JSONEvalHandle* handle, const char* paths_json, bool skip_layout, uint8_t format);
     FFIResult json_eval_get_schema_by_path(JSONEvalHandle* handle, const char* path);
-    FFIResult json_eval_get_schema_by_paths(JSONEvalHandle* handle, const char* paths_json);
+    FFIResult json_eval_get_schema_by_paths(JSONEvalHandle* handle, const char* paths_json, uint8_t format);
     FFIResult json_eval_resolve_layout(JSONEvalHandle* handle, bool evaluate);
     FFIResult json_eval_compile_and_run_logic(JSONEvalHandle* handle, const char* logic_str, const char* data, const char* context);
     uint64_t json_eval_compile_logic(JSONEvalHandle* handle, const char* logic_str);
@@ -55,9 +55,9 @@ extern "C" {
     FFIResult json_eval_get_schema_value_subform(JSONEvalHandle* handle, const char* subform_path);
     FFIResult json_eval_get_evaluated_schema_without_params_subform(JSONEvalHandle* handle, const char* subform_path, bool resolve_layout);
     FFIResult json_eval_get_evaluated_schema_by_path_subform(JSONEvalHandle* handle, const char* subform_path, const char* schema_path, bool skip_layout);
-    FFIResult json_eval_get_evaluated_schema_by_paths_subform(JSONEvalHandle* handle, const char* subform_path, const char* schema_paths_json, bool skip_layout);
+    FFIResult json_eval_get_evaluated_schema_by_paths_subform(JSONEvalHandle* handle, const char* subform_path, const char* schema_paths_json, bool skip_layout, uint8_t format);
     FFIResult json_eval_get_schema_by_path_subform(JSONEvalHandle* handle, const char* subform_path, const char* schema_path);
-    FFIResult json_eval_get_schema_by_paths_subform(JSONEvalHandle* handle, const char* subform_path, const char* schema_paths_json);
+    FFIResult json_eval_get_schema_by_paths_subform(JSONEvalHandle* handle, const char* subform_path, const char* schema_paths_json, uint8_t format);
     FFIResult json_eval_get_subform_paths(JSONEvalHandle* handle);
     FFIResult json_eval_has_subform(JSONEvalHandle* handle, const char* subform_path);
     
@@ -501,16 +501,17 @@ void JsonEvalBridge::getEvaluatedSchemaByPathsAsync(
     const std::string& handleId,
     const std::string& pathsJson,
     bool skipLayout,
+    int format,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, pathsJson, skipLayout]() -> std::string {
+    runAsync([handleId, pathsJson, skipLayout, format]() -> std::string {
         std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
         }
         
-        FFIResult result = json_eval_get_evaluated_schema_by_paths(it->second, pathsJson.c_str(), skipLayout);
+        FFIResult result = json_eval_get_evaluated_schema_by_paths(it->second, pathsJson.c_str(), skipLayout, static_cast<uint8_t>(format));
         
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
@@ -565,16 +566,17 @@ void JsonEvalBridge::getSchemaByPathAsync(
 void JsonEvalBridge::getSchemaByPathsAsync(
     const std::string& handleId,
     const std::string& pathsJson,
+    int format,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, pathsJson]() -> std::string {
+    runAsync([handleId, pathsJson, format]() -> std::string {
         std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
         }
         
-        FFIResult result = json_eval_get_schema_by_paths(it->second, pathsJson.c_str());
+        FFIResult result = json_eval_get_schema_by_paths(it->second, pathsJson.c_str(), static_cast<uint8_t>(format));
         
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
@@ -1195,16 +1197,17 @@ void JsonEvalBridge::getEvaluatedSchemaByPathsSubformAsync(
     const std::string& subformPath,
     const std::string& schemaPathsJson,
     bool skipLayout,
+    int format,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, subformPath, schemaPathsJson, skipLayout]() -> std::string {
+    runAsync([handleId, subformPath, schemaPathsJson, skipLayout, format]() -> std::string {
         std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
         }
         
-        FFIResult result = json_eval_get_evaluated_schema_by_paths_subform(it->second, subformPath.c_str(), schemaPathsJson.c_str(), skipLayout);
+        FFIResult result = json_eval_get_evaluated_schema_by_paths_subform(it->second, subformPath.c_str(), schemaPathsJson.c_str(), skipLayout, static_cast<uint8_t>(format));
         
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
@@ -1289,16 +1292,17 @@ void JsonEvalBridge::getSchemaByPathsSubformAsync(
     const std::string& handleId,
     const std::string& subformPath,
     const std::string& schemaPathsJson,
+    int format,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, subformPath, schemaPathsJson]() -> std::string {
+    runAsync([handleId, subformPath, schemaPathsJson, format]() -> std::string {
         std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
         }
         
-        FFIResult result = json_eval_get_schema_by_paths_subform(it->second, subformPath.c_str(), schemaPathsJson.c_str());
+        FFIResult result = json_eval_get_schema_by_paths_subform(it->second, subformPath.c_str(), schemaPathsJson.c_str(), static_cast<uint8_t>(format));
         
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";

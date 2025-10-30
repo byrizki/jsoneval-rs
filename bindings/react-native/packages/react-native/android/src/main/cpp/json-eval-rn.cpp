@@ -347,14 +347,16 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedSchemaByPathsAsync(
     jstring handle,
     jstring pathsJson,
     jboolean skipLayout,
+    jint format,
     jobject promise
 ) {
     std::string handleStr = jstringToString(env, handle);
     std::string pathsJsonStr = jstringToString(env, pathsJson);
     bool skipLayoutBool = (skipLayout == JNI_TRUE);
+    int formatInt = static_cast<int>(format);
     
-    runAsyncWithPromise(env, promise, "GET_EVALUATED_SCHEMA_BY_PATHS_ERROR", [handleStr, pathsJsonStr, skipLayoutBool](auto callback) {
-        JsonEvalBridge::getEvaluatedSchemaByPathsAsync(handleStr, pathsJsonStr, skipLayoutBool, callback);
+    runAsyncWithPromise(env, promise, "GET_EVALUATED_SCHEMA_BY_PATHS_ERROR", [handleStr, pathsJsonStr, skipLayoutBool, formatInt](auto callback) {
+        JsonEvalBridge::getEvaluatedSchemaByPathsAsync(handleStr, pathsJsonStr, skipLayoutBool, formatInt, callback);
     });
 }
 
@@ -380,13 +382,15 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeGetSchemaByPathsAsync(
     jobject /* this */,
     jstring handle,
     jstring pathsJson,
+    jint format,
     jobject promise
 ) {
     std::string handleStr = jstringToString(env, handle);
     std::string pathsJsonStr = jstringToString(env, pathsJson);
+    int formatInt = static_cast<int>(format);
     
-    runAsyncWithPromise(env, promise, "GET_SCHEMA_BY_PATHS_ERROR", [handleStr, pathsJsonStr](auto callback) {
-        JsonEvalBridge::getSchemaByPathsAsync(handleStr, pathsJsonStr, callback);
+    runAsyncWithPromise(env, promise, "GET_SCHEMA_BY_PATHS_ERROR", [handleStr, pathsJsonStr, formatInt](auto callback) {
+        JsonEvalBridge::getSchemaByPathsAsync(handleStr, pathsJsonStr, formatInt, callback);
     });
 }
 
@@ -794,15 +798,17 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedSchemaByPathsSubformAsync
     jstring subformPath,
     jstring schemaPathsJson,
     jboolean skipLayout,
+    jint format,
     jobject promise
 ) {
     std::string handleStr = jstringToString(env, handle);
     std::string subformPathStr = jstringToString(env, subformPath);
     std::string schemaPathsJsonStr = jstringToString(env, schemaPathsJson);
     bool skipLayoutBool = (skipLayout == JNI_TRUE);
+    int formatInt = static_cast<int>(format);
     
-    runAsyncWithPromise(env, promise, "GET_SCHEMA_BY_PATHS_SUBFORM_ERROR", [handleStr, subformPathStr, schemaPathsJsonStr, skipLayoutBool](auto callback) {
-        JsonEvalBridge::getEvaluatedSchemaByPathsSubformAsync(handleStr, subformPathStr, schemaPathsJsonStr, skipLayoutBool, callback);
+    runAsyncWithPromise(env, promise, "GET_SCHEMA_BY_PATHS_SUBFORM_ERROR", [handleStr, subformPathStr, schemaPathsJsonStr, skipLayoutBool, formatInt](auto callback) {
+        JsonEvalBridge::getEvaluatedSchemaByPathsSubformAsync(handleStr, subformPathStr, schemaPathsJsonStr, skipLayoutBool, formatInt, callback);
     });
 }
 
@@ -845,14 +851,16 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeGetSchemaByPathsSubformAsync(
     jstring handle,
     jstring subformPath,
     jstring schemaPathsJson,
+    jint format,
     jobject promise
 ) {
     std::string handleStr = jstringToString(env, handle);
     std::string subformPathStr = jstringToString(env, subformPath);
     std::string schemaPathsJsonStr = jstringToString(env, schemaPathsJson);
+    int formatInt = static_cast<int>(format);
     
-    runAsyncWithPromise(env, promise, "GET_SCHEMA_BY_PATHS_SUBFORM_ERROR", [handleStr, subformPathStr, schemaPathsJsonStr](auto callback) {
-        JsonEvalBridge::getSchemaByPathsSubformAsync(handleStr, subformPathStr, schemaPathsJsonStr, callback);
+    runAsyncWithPromise(env, promise, "GET_SCHEMA_BY_PATHS_SUBFORM_ERROR", [handleStr, subformPathStr, schemaPathsJsonStr, formatInt](auto callback) {
+        JsonEvalBridge::getSchemaByPathsSubformAsync(handleStr, subformPathStr, schemaPathsJsonStr, formatInt, callback);
     });
 }
 

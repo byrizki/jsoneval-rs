@@ -163,12 +163,14 @@ public:
      * @param handle Instance handle
      * @param pathsJson JSON array of dotted paths to retrieve
      * @param skipLayout Whether to skip layout resolution
+     * @param format Return format (0=Nested, 1=Flat, 2=Array)
      * @param callback Result callback
      */
     static void getEvaluatedSchemaByPathsAsync(
         const std::string& handle,
         const std::string& pathsJson,
         bool skipLayout,
+        int format,
         std::function<void(const std::string&, const std::string&)> callback
     );
 
@@ -188,11 +190,13 @@ public:
      * Get values from schema using multiple dotted path notations (async)
      * @param handle Instance handle
      * @param pathsJson JSON array of dotted paths to retrieve
+     * @param format Return format (0=Nested, 1=Flat, 2=Array)
      * @param callback Result callback
      */
     static void getSchemaByPathsAsync(
         const std::string& handle,
         const std::string& pathsJson,
+        int format,
         std::function<void(const std::string&, const std::string&)> callback
     );
 
@@ -502,6 +506,7 @@ public:
      * @param subformPath Path to the subform
      * @param schemaPathsJson JSON array of dotted paths to retrieve within the subform
      * @param skipLayout Whether to skip layout resolution
+     * @param format Return format (0=Nested, 1=Flat, 2=Array)
      * @param callback Result callback
      */
     static void getEvaluatedSchemaByPathsSubformAsync(
@@ -509,6 +514,7 @@ public:
         const std::string& subformPath,
         const std::string& schemaPathsJson,
         bool skipLayout,
+        int format,
         std::function<void(const std::string&, const std::string&)> callback
     );
 
@@ -541,12 +547,14 @@ public:
      * @param handleId Instance handle
      * @param subformPath Path to the subform
      * @param schemaPathsJson JSON array of dotted paths to retrieve within the subform
+     * @param format Return format (0=Nested, 1=Flat, 2=Array)
      * @param callback Result callback
      */
     static void getSchemaByPathsSubformAsync(
         const std::string& handleId,
         const std::string& subformPath,
         const std::string& schemaPathsJson,
+        int format,
         std::function<void(const std::string&, const std::string&)> callback
     );
 

@@ -19,15 +19,35 @@ const JsonEvalRs = NativeModules.JsonEvalRs
     );
 
 /**
+ * Return format for path-based methods
+ */
+export enum ReturnFormat {
+  /** Nested object preserving the path hierarchy (default) */
+  Nested = 0,
+  /** Flat object with dotted keys */
+  Flat = 1,
+  /** Array of values in the order of requested paths */
+  Array = 2
+}
+
+/**
  * Validation error for a specific field
  */
 export interface ValidationError {
   /** Field path with the error */
   path: string;
-  /** Type of validation rule that failed */
+  /** Type of validation rule that failed (e.g., 'required', 'min', 'max', 'pattern') */
   ruleType: string;
   /** Error message */
   message: string;
+  /** Optional error code */
+  code?: string;
+  /** Optional regex pattern (for pattern validation errors) */
+  pattern?: string;
+  /** Optional field value that failed validation (as string) */
+  fieldValue?: string;
+  /** Optional additional data context for the error */
+  data?: any;
 }
 
 /**
@@ -44,10 +64,18 @@ export interface ValidationResult {
  * Dependent field change from evaluateDependents
  */
 export interface DependentChange {
-  /** Path of the dependent field that changed */
-  path: string;
-  /** New value of the dependent field */
-  value: any;
+  /** Path of the dependent field (in dot notation) */
+  $ref: string;
+  /** Schema definition of the changed field */
+  $field?: any;
+  /** Schema definition of the parent field */
+  $parentField: any;
+  /** Whether this is a transitive dependency */
+  transitive: boolean;
+  /** If true, the field was cleared */
+  clear?: boolean;
+  /** New value of the field (if changed) */
+  value?: any;
 }
 
 /**
@@ -200,6 +228,8 @@ export interface GetEvaluatedSchemaByPathsSubformOptions {
   schemaPaths: string[];
   /** Whether to skip layout resolution */
   skipLayout?: boolean;
+  /** Return format (Nested, Flat, or Array) */
+  format?: ReturnFormat;
 }
 
 /**
@@ -220,6 +250,8 @@ export interface GetSchemaByPathsSubformOptions {
   subformPath: string;
   /** Array of dotted paths to the values within the subform */
   schemaPaths: string[];
+  /** Return format (Nested, Flat, or Array) */
+  format?: ReturnFormat;
 }
 
 /**
@@ -457,16 +489,17 @@ export class JSONEval {
 
   /**
    * Get values from the evaluated schema using multiple dotted path notations
-   * Returns a merged object containing all requested paths (skips paths that are not found)
+   * Returns data in the specified format (skips paths that are not found)
    * @param paths - Array of dotted paths to retrieve
    * @param skipLayout - Whether to skip layout resolution
-   * @returns Promise resolving to merged object containing all found paths
+   * @param format - Return format (Nested, Flat, or Array)
+   * @returns Promise resolving to data in the specified format
    * @throws {Error} If operation fails
    */
-  async getEvaluatedSchemaByPaths(paths: string[], skipLayout: boolean = false): Promise<any> {
+  async getEvaluatedSchemaByPaths(paths: string[], skipLayout: boolean = false, format: ReturnFormat = ReturnFormat.Nested): Promise<any> {
     this.throwIfDisposed();
     const pathsJson = JSON.stringify(paths);
-    const resultStr = await JsonEvalRs.getEvaluatedSchemaByPaths(this.handle, pathsJson, skipLayout);
+    const resultStr = await JsonEvalRs.getEvaluatedSchemaByPaths(this.handle, pathsJson, skipLayout, format);
     return JSON.parse(resultStr);
   }
 
@@ -484,15 +517,16 @@ export class JSONEval {
 
   /**
    * Get values from the schema using multiple dotted path notations
-   * Returns a merged object containing all requested paths (skips paths that are not found)
+   * Returns data in the specified format (skips paths that are not found)
    * @param paths - Array of dotted paths to retrieve
-   * @returns Promise resolving to merged object containing all found paths
+   * @param format - Return format (Nested, Flat, or Array)
+   * @returns Promise resolving to data in the specified format
    * @throws {Error} If operation fails
    */
-  async getSchemaByPaths(paths: string[]): Promise<any> {
+  async getSchemaByPaths(paths: string[], format: ReturnFormat = ReturnFormat.Nested): Promise<any> {
     this.throwIfDisposed();
     const pathsJson = JSON.stringify(paths);
-    const resultStr = await JsonEvalRs.getSchemaByPaths(this.handle, pathsJson);
+    const resultStr = await JsonEvalRs.getSchemaByPaths(this.handle, pathsJson, format);
     return JSON.parse(resultStr);
   }
 
@@ -853,9 +887,9 @@ export class JSONEval {
 
   /**
    * Get evaluated schema by multiple paths from subform
-   * Returns a merged object containing all requested paths (skips paths that are not found)
-   * @param options - Options including subform path, array of schema paths, and skipLayout flag
-   * @returns Promise resolving to merged object containing all found paths
+   * Returns data in the specified format (skips paths that are not found)
+   * @param options - Options including subform path, array of schema paths, skipLayout flag, and format
+   * @returns Promise resolving to data in the specified format
    * @throws {Error} If operation fails
    */
   async getEvaluatedSchemaByPathsSubform(options: GetEvaluatedSchemaByPathsSubformOptions): Promise<any> {
@@ -866,7 +900,8 @@ export class JSONEval {
       this.handle,
       options.subformPath,
       pathsJson,
-      options.skipLayout || false
+      options.skipLayout || false,
+      options.format !== undefined ? options.format : ReturnFormat.Nested
     );
     return JSON.parse(resultStr);
   }
@@ -902,9 +937,9 @@ export class JSONEval {
 
   /**
    * Get schema values by multiple paths from subform
-   * Returns a merged object containing all requested paths (skips paths that are not found)
-   * @param options - Options including subform path and array of schema paths
-   * @returns Promise resolving to merged object containing all found paths
+   * Returns data in the specified format (skips paths that are not found)
+   * @param options - Options including subform path, array of schema paths, and format
+   * @returns Promise resolving to data in the specified format
    * @throws {Error} If operation fails
    */
   async getSchemaByPathsSubform(options: GetSchemaByPathsSubformOptions): Promise<any> {
@@ -914,7 +949,8 @@ export class JSONEval {
     const resultStr = await JsonEvalRs.getSchemaByPathsSubform(
       this.handle,
       options.subformPath,
-      pathsJson
+      pathsJson,
+      options.format !== undefined ? options.format : ReturnFormat.Nested
     );
     return JSON.parse(resultStr);
   }

@@ -260,13 +260,14 @@ RCT_EXPORT_METHOD(getEvaluatedSchemaByPath:(NSString *)handle
 RCT_EXPORT_METHOD(getEvaluatedSchemaByPaths:(NSString *)handle
                   pathsJson:(NSString *)pathsJson
                   skipLayout:(BOOL)skipLayout
+                  format:(NSInteger)format
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 {
     std::string handleStr = [self stdStringFromNSString:handle];
     std::string pathsJsonStr = [self stdStringFromNSString:pathsJson];
     
-    JsonEvalBridge::getEvaluatedSchemaByPathsAsync(handleStr, pathsJsonStr, skipLayout,
+    JsonEvalBridge::getEvaluatedSchemaByPathsAsync(handleStr, pathsJsonStr, skipLayout, static_cast<int>(format),
         [resolve, reject](const std::string& result, const std::string& error) {
             if (error.empty()) {
                 resolve([NSString stringWithUTF8String:result.c_str()]);
@@ -298,13 +299,14 @@ RCT_EXPORT_METHOD(getSchemaByPath:(NSString *)handle
 
 RCT_EXPORT_METHOD(getSchemaByPaths:(NSString *)handle
                   pathsJson:(NSString *)pathsJson
+                  format:(NSInteger)format
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 {
     std::string handleStr = [self stdStringFromNSString:handle];
     std::string pathsJsonStr = [self stdStringFromNSString:pathsJson];
     
-    JsonEvalBridge::getSchemaByPathsAsync(handleStr, pathsJsonStr,
+    JsonEvalBridge::getSchemaByPathsAsync(handleStr, pathsJsonStr, static_cast<int>(format),
         [resolve, reject](const std::string& result, const std::string& error) {
             if (error.empty()) {
                 resolve([NSString stringWithUTF8String:result.c_str()]);
@@ -727,6 +729,7 @@ RCT_EXPORT_METHOD(getEvaluatedSchemaByPathsSubform:(NSString *)handle
                   subformPath:(NSString *)subformPath
                   schemaPathsJson:(NSString *)schemaPathsJson
                   skipLayout:(BOOL)skipLayout
+                  format:(NSInteger)format
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 {
@@ -734,7 +737,7 @@ RCT_EXPORT_METHOD(getEvaluatedSchemaByPathsSubform:(NSString *)handle
     std::string subformPathStr = [self stdStringFromNSString:subformPath];
     std::string schemaPathsJsonStr = [self stdStringFromNSString:schemaPathsJson];
     
-    JsonEvalBridge::getEvaluatedSchemaByPathsSubformAsync(handleStr, subformPathStr, schemaPathsJsonStr, skipLayout,
+    JsonEvalBridge::getEvaluatedSchemaByPathsSubformAsync(handleStr, subformPathStr, schemaPathsJsonStr, skipLayout, static_cast<int>(format),
         [resolve, reject](const std::string& result, const std::string& error) {
             if (error.empty()) {
                 resolve([NSString stringWithUTF8String:result.c_str()]);
@@ -786,6 +789,7 @@ RCT_EXPORT_METHOD(getSchemaByPathSubform:(NSString *)handle
 RCT_EXPORT_METHOD(getSchemaByPathsSubform:(NSString *)handle
                   subformPath:(NSString *)subformPath
                   schemaPathsJson:(NSString *)schemaPathsJson
+                  format:(NSInteger)format
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 {
@@ -793,7 +797,7 @@ RCT_EXPORT_METHOD(getSchemaByPathsSubform:(NSString *)handle
     std::string subformPathStr = [self stdStringFromNSString:subformPath];
     std::string schemaPathsJsonStr = [self stdStringFromNSString:schemaPathsJson];
     
-    JsonEvalBridge::getSchemaByPathsSubformAsync(handleStr, subformPathStr, schemaPathsJsonStr,
+    JsonEvalBridge::getSchemaByPathsSubformAsync(handleStr, subformPathStr, schemaPathsJsonStr, static_cast<int>(format),
         [resolve, reject](const std::string& result, const std::string& error) {
             if (error.empty()) {
                 resolve([NSString stringWithUTF8String:result.c_str()]);

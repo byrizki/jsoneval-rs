@@ -116,11 +116,15 @@ impl JSONEval {
         subform_path: &str,
         schema_paths: &[String],
         skip_layout: bool,
+        format: Option<crate::ReturnFormat>,
     ) -> Value {
         if let Some(subform) = self.subforms.get_mut(subform_path) {
-            subform.get_evaluated_schema_by_paths(schema_paths, skip_layout)
+            subform.get_evaluated_schema_by_paths(schema_paths, skip_layout, format)
         } else {
-            Value::Object(serde_json::Map::new())
+            match format.unwrap_or_default() {
+                crate::ReturnFormat::Array => Value::Array(vec![]),
+                _ => Value::Object(serde_json::Map::new()),
+            }
         }
     }
     
@@ -142,11 +146,15 @@ impl JSONEval {
         &self,
         subform_path: &str,
         schema_paths: &[String],
+        format: Option<crate::ReturnFormat>,
     ) -> Value {
         if let Some(subform) = self.subforms.get(subform_path) {
-            subform.get_schema_by_paths(schema_paths)
+            subform.get_schema_by_paths(schema_paths, format)
         } else {
-            Value::Object(serde_json::Map::new())
+            match format.unwrap_or_default() {
+                crate::ReturnFormat::Array => Value::Array(vec![]),
+                _ => Value::Object(serde_json::Map::new()),
+            }
         }
     }
     

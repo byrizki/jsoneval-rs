@@ -11,6 +11,14 @@ pub struct ValidationError {
     path: String,
     rule_type: String,
     message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pattern: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    field_value: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<serde_json::Value>,
 }
 
 #[wasm_bindgen]
@@ -28,6 +36,26 @@ impl ValidationError {
     #[wasm_bindgen(getter)]
     pub fn message(&self) -> String {
         self.message.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn code(&self) -> Option<String> {
+        self.code.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn pattern(&self) -> Option<String> {
+        self.pattern.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn field_value(&self) -> Option<String> {
+        self.field_value.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn data(&self) -> Option<JsValue> {
+        self.data.as_ref().and_then(|d| serde_wasm_bindgen::to_value(d).ok())
     }
 }
 
@@ -64,11 +92,18 @@ pub struct JSONEvalWasm {
 }
 
 // Helper function to create ValidationError from internal type
-pub(super) fn create_validation_error(path: String, rule_type: String, message: String) -> ValidationError {
+pub(super) fn create_validation_error(
+    path: String,
+    error: &crate::ValidationError,
+) -> ValidationError {
     ValidationError {
         path,
-        rule_type,
-        message,
+        rule_type: error.rule_type.clone(),
+        message: error.message.clone(),
+        code: error.code.clone(),
+        pattern: error.pattern.clone(),
+        field_value: error.field_value.clone(),
+        data: error.data.clone(),
     }
 }
 

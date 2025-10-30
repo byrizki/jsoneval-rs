@@ -240,15 +240,16 @@ export class JSONEvalCore {
 
   /**
    * Get values from the evaluated schema using multiple dotted path notations
-   * Returns a merged object containing all requested paths (skips paths that are not found)
+   * Returns data in the specified format (skips paths that are not found)
    * @param {object} options
    * @param {string[]} options.paths - Array of dotted paths to retrieve
    * @param {boolean} [options.skipLayout=false] - Skip layout resolution
-   * @returns {Promise<any>} Merged object containing all found paths
+   * @param {number} [options.format=0] - Return format (0=Nested, 1=Flat, 2=Array)
+   * @returns {Promise<any>} Data in specified format
    */
-  async getEvaluatedSchemaByPaths({ paths, skipLayout = false }) {
+  async getEvaluatedSchemaByPaths({ paths, skipLayout = false, format = 0 }) {
     await this.init();
-    return this._instance.getEvaluatedSchemaByPathsJS(JSON.stringify(paths), skipLayout);
+    return this._instance.getEvaluatedSchemaByPathsJS(JSON.stringify(paths), skipLayout, format);
   }
 
   /**
@@ -264,14 +265,15 @@ export class JSONEvalCore {
 
   /**
    * Get values from the schema using multiple dotted path notations
-   * Returns a merged object containing all requested paths (skips paths that are not found)
+   * Returns data in the specified format (skips paths that are not found)
    * @param {object} options
    * @param {string[]} options.paths - Array of dotted paths to retrieve
-   * @returns {Promise<any>} Merged object containing all found paths
+   * @param {number} [options.format=0] - Return format (0=Nested, 1=Flat, 2=Array)
+   * @returns {Promise<any>} Data in specified format
    */
-  async getSchemaByPaths({ paths }) {
+  async getSchemaByPaths({ paths, format = 0 }) {
     await this.init();
-    return this._instance.getSchemaByPathsJS(JSON.stringify(paths));
+    return this._instance.getSchemaByPathsJS(JSON.stringify(paths), format);
   }
 
   /**
@@ -631,16 +633,17 @@ export class JSONEvalCore {
 
   /**
    * Get evaluated schema by multiple paths from subform
-   * Returns a merged object containing all requested paths (skips paths that are not found)
+   * Returns data in the specified format (skips paths that are not found)
    * @param {object} options
    * @param {string} options.subformPath - Path to the subform
    * @param {string[]} options.schemaPaths - Array of paths within the subform
    * @param {boolean} [options.skipLayout=false] - Whether to skip layout resolution
+   * @param {number} [options.format=0] - Return format (0=Nested, 1=Flat, 2=Array)
    * @returns {Promise<any>}
    */
-  async getEvaluatedSchemaByPathsSubform({ subformPath, schemaPaths, skipLayout = false }) {
+  async getEvaluatedSchemaByPathsSubform({ subformPath, schemaPaths, skipLayout = false, format = 0 }) {
     await this.init();
-    return this._instance.getEvaluatedSchemaByPathsSubformJS(subformPath, JSON.stringify(schemaPaths), skipLayout);
+    return this._instance.getEvaluatedSchemaByPathsSubformJS(subformPath, JSON.stringify(schemaPaths), skipLayout, format);
   }
 
   /**
@@ -666,15 +669,16 @@ export class JSONEvalCore {
 
   /**
    * Get schema by multiple paths from subform
-   * Returns a merged object containing all requested paths (skips paths that are not found)
+   * Returns data in the specified format (skips paths that are not found)
    * @param {object} options
    * @param {string} options.subformPath - Path to the subform
    * @param {string[]} options.schemaPaths - Array of paths within the subform
+   * @param {number} [options.format=0] - Return format (0=Nested, 1=Flat, 2=Array)
    * @returns {Promise<any>}
    */
-  async getSchemaByPathsSubform({ subformPath, schemaPaths }) {
+  async getSchemaByPathsSubform({ subformPath, schemaPaths, format = 0 }) {
     await this.init();
-    return this._instance.getSchemaByPathsSubformJS(subformPath, JSON.stringify(schemaPaths));
+    return this._instance.getSchemaByPathsSubformJS(subformPath, JSON.stringify(schemaPaths), format);
   }
 
   /**

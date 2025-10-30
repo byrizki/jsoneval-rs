@@ -412,12 +412,13 @@ namespace JsonEvalRs
 
         /// <summary>
         /// Gets values from the evaluated schema using multiple dotted path notations.
-        /// Returns a merged object containing all requested paths. Skips paths that are not found.
+        /// Returns data in the specified format. Skips paths that are not found.
         /// </summary>
         /// <param name="paths">Array of dotted paths to retrieve (e.g., ["properties.field1", "properties.field2"])</param>
         /// <param name="skipLayout">Whether to skip layout resolution</param>
-        /// <returns>Merged JObject containing all found paths</returns>
-        public JObject GetEvaluatedSchemaByPaths(string[] paths, bool skipLayout = false)
+        /// <param name="format">Return format: Nested (default), Flat, or Array</param>
+        /// <returns>Data in the specified format (JObject for Nested/Flat, JArray for Array)</returns>
+        public JToken GetEvaluatedSchemaByPaths(string[] paths, bool skipLayout = false, ReturnFormat format = ReturnFormat.Nested)
         {
             ThrowIfDisposed();
 
@@ -427,9 +428,9 @@ namespace JsonEvalRs
             string pathsJson = JsonConvert.SerializeObject(paths);
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_get_evaluated_schema_by_paths(_handle, pathsJson, skipLayout);
+            var result = Native.json_eval_get_evaluated_schema_by_paths(_handle, pathsJson, skipLayout, (byte)format);
 #else
-            var result = Native.json_eval_get_evaluated_schema_by_paths(_handle, Native.ToUTF8Bytes(pathsJson)!, skipLayout);
+            var result = Native.json_eval_get_evaluated_schema_by_paths(_handle, Native.ToUTF8Bytes(pathsJson)!, skipLayout, (byte)format);
 #endif
             
             if (!result.Success)
@@ -450,18 +451,18 @@ namespace JsonEvalRs
             try
             {
                 if (result.DataPtr == IntPtr.Zero)
-                    return new JObject();
+                    return format == ReturnFormat.Array ? (JToken)new JArray() : (JToken)new JObject();
 
                 int dataLen = (int)result.DataLen.ToUInt32();
                 if (dataLen == 0)
-                    return new JObject();
+                    return format == ReturnFormat.Array ? (JToken)new JArray() : (JToken)new JObject();
 
                 // Zero-copy: read directly from Rust-owned memory
                 byte[] buffer = new byte[dataLen];
                 Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
                 
                 string json = Encoding.UTF8.GetString(buffer);
-                return JObject.Parse(json);
+                return format == ReturnFormat.Array ? (JToken)JArray.Parse(json) : (JToken)JObject.Parse(json);
             }
             finally
             {
@@ -518,11 +519,12 @@ namespace JsonEvalRs
 
         /// <summary>
         /// Gets values from the schema using multiple dotted path notations.
-        /// Returns a merged object containing all requested paths. Skips paths that are not found.
+        /// Returns data in the specified format. Skips paths that are not found.
         /// </summary>
         /// <param name="paths">Array of dotted paths to retrieve (e.g., ["properties.field1", "properties.field2"])</param>
-        /// <returns>Merged JObject containing all found paths</returns>
-        public JObject GetSchemaByPaths(string[] paths)
+        /// <param name="format">Return format: Nested (default), Flat, or Array</param>
+        /// <returns>Data in the specified format (JObject for Nested/Flat, JArray for Array)</returns>
+        public JToken GetSchemaByPaths(string[] paths, ReturnFormat format = ReturnFormat.Nested)
         {
             ThrowIfDisposed();
 
@@ -532,9 +534,9 @@ namespace JsonEvalRs
             string pathsJson = JsonConvert.SerializeObject(paths);
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_get_schema_by_paths(_handle, pathsJson);
+            var result = Native.json_eval_get_schema_by_paths(_handle, pathsJson, (byte)format);
 #else
-            var result = Native.json_eval_get_schema_by_paths(_handle, Native.ToUTF8Bytes(pathsJson)!);
+            var result = Native.json_eval_get_schema_by_paths(_handle, Native.ToUTF8Bytes(pathsJson)!, (byte)format);
 #endif
             
             if (!result.Success)
@@ -555,18 +557,18 @@ namespace JsonEvalRs
             try
             {
                 if (result.DataPtr == IntPtr.Zero)
-                    return new JObject();
+                    return format == ReturnFormat.Array ? (JToken)new JArray() : (JToken)new JObject();
 
                 int dataLen = (int)result.DataLen.ToUInt32();
                 if (dataLen == 0)
-                    return new JObject();
+                    return format == ReturnFormat.Array ? (JToken)new JArray() : (JToken)new JObject();
 
                 // Zero-copy: read directly from Rust-owned memory
                 byte[] buffer = new byte[dataLen];
                 Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
                 
                 string json = Encoding.UTF8.GetString(buffer);
-                return JObject.Parse(json);
+                return format == ReturnFormat.Array ? (JToken)JArray.Parse(json) : (JToken)JObject.Parse(json);
             }
             finally
             {

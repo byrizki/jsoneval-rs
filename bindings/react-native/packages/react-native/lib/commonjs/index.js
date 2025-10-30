@@ -3,7 +3,7 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.multiply = exports.default = exports.JSONEval = void 0;
+exports.multiply = exports.default = exports.ReturnFormat = exports.JSONEval = void 0;
 exports.useJSONEval = useJSONEval;
 var _react = _interopRequireDefault(require("react"));
 var _reactNative = require("react-native");
@@ -19,77 +19,71 @@ const JsonEvalRs = _reactNative.NativeModules.JsonEvalRs ? _reactNative.NativeMo
 });
 
 /**
+ * Return format for path-based methods
+ */
+let ReturnFormat = exports.ReturnFormat = /*#__PURE__*/function (ReturnFormat) {
+  /** Nested object preserving the path hierarchy (default) */
+  ReturnFormat[ReturnFormat["Nested"] = 0] = "Nested";
+  /** Flat object with dotted keys */
+  ReturnFormat[ReturnFormat["Flat"] = 1] = "Flat";
+  /** Array of values in the order of requested paths */
+  ReturnFormat[ReturnFormat["Array"] = 2] = "Array";
+  return ReturnFormat;
+}({});
+/**
  * Validation error for a specific field
  */
-
 /**
  * Result of validation operation
  */
-
 /**
  * Dependent field change from evaluateDependents
  */
-
 /**
  * Options for creating a JSONEval instance
  */
-
 /**
  * Options for evaluation
  */
-
 /**
  * Options for validation with path filtering
  */
-
 /**
  * Cache statistics
  */
-
 /**
  * Options for evaluating dependents
  */
-
 /**
  * Options for evaluating a subform
  */
-
 /**
  * Options for validating a subform
  */
-
 /**
  * Options for evaluating dependents in a subform
  */
-
 /**
  * Options for resolving layout in a subform
  */
-
 /**
  * Options for getting evaluated schema from a subform
  */
-
 /**
  * Options for getting schema value from a subform
  */
-
 /**
  * Options for getting evaluated schema by path from a subform
  */
-
 /**
  * Options for getting evaluated schema by multiple paths from a subform
  */
-
 /**
  * Options for getting schema by path from a subform
  */
-
 /**
  * Options for getting schema by multiple paths from a subform
  */
-
 /**
  * High-performance JSON Logic evaluator with schema validation for React Native
  * 
@@ -315,16 +309,17 @@ class JSONEval {
 
   /**
    * Get values from the evaluated schema using multiple dotted path notations
-   * Returns a merged object containing all requested paths (skips paths that are not found)
+   * Returns data in the specified format (skips paths that are not found)
    * @param paths - Array of dotted paths to retrieve
    * @param skipLayout - Whether to skip layout resolution
-   * @returns Promise resolving to merged object containing all found paths
+   * @param format - Return format (Nested, Flat, or Array)
+   * @returns Promise resolving to data in the specified format
    * @throws {Error} If operation fails
    */
-  async getEvaluatedSchemaByPaths(paths, skipLayout = false) {
+  async getEvaluatedSchemaByPaths(paths, skipLayout = false, format = ReturnFormat.Nested) {
     this.throwIfDisposed();
     const pathsJson = JSON.stringify(paths);
-    const resultStr = await JsonEvalRs.getEvaluatedSchemaByPaths(this.handle, pathsJson, skipLayout);
+    const resultStr = await JsonEvalRs.getEvaluatedSchemaByPaths(this.handle, pathsJson, skipLayout, format);
     return JSON.parse(resultStr);
   }
 
@@ -342,15 +337,16 @@ class JSONEval {
 
   /**
    * Get values from the schema using multiple dotted path notations
-   * Returns a merged object containing all requested paths (skips paths that are not found)
+   * Returns data in the specified format (skips paths that are not found)
    * @param paths - Array of dotted paths to retrieve
-   * @returns Promise resolving to merged object containing all found paths
+   * @param format - Return format (Nested, Flat, or Array)
+   * @returns Promise resolving to data in the specified format
    * @throws {Error} If operation fails
    */
-  async getSchemaByPaths(paths) {
+  async getSchemaByPaths(paths, format = ReturnFormat.Nested) {
     this.throwIfDisposed();
     const pathsJson = JSON.stringify(paths);
-    const resultStr = await JsonEvalRs.getSchemaByPaths(this.handle, pathsJson);
+    const resultStr = await JsonEvalRs.getSchemaByPaths(this.handle, pathsJson, format);
     return JSON.parse(resultStr);
   }
 
@@ -661,15 +657,15 @@ class JSONEval {
 
   /**
    * Get evaluated schema by multiple paths from subform
-   * Returns a merged object containing all requested paths (skips paths that are not found)
-   * @param options - Options including subform path, array of schema paths, and skipLayout flag
-   * @returns Promise resolving to merged object containing all found paths
+   * Returns data in the specified format (skips paths that are not found)
+   * @param options - Options including subform path, array of schema paths, skipLayout flag, and format
+   * @returns Promise resolving to data in the specified format
    * @throws {Error} If operation fails
    */
   async getEvaluatedSchemaByPathsSubform(options) {
     this.throwIfDisposed();
     const pathsJson = JSON.stringify(options.schemaPaths);
-    const resultStr = await JsonEvalRs.getEvaluatedSchemaByPathsSubform(this.handle, options.subformPath, pathsJson, options.skipLayout || false);
+    const resultStr = await JsonEvalRs.getEvaluatedSchemaByPathsSubform(this.handle, options.subformPath, pathsJson, options.skipLayout || false, options.format !== undefined ? options.format : ReturnFormat.Nested);
     return JSON.parse(resultStr);
   }
 
@@ -698,15 +694,15 @@ class JSONEval {
 
   /**
    * Get schema values by multiple paths from subform
-   * Returns a merged object containing all requested paths (skips paths that are not found)
-   * @param options - Options including subform path and array of schema paths
-   * @returns Promise resolving to merged object containing all found paths
+   * Returns data in the specified format (skips paths that are not found)
+   * @param options - Options including subform path, array of schema paths, and format
+   * @returns Promise resolving to data in the specified format
    * @throws {Error} If operation fails
    */
   async getSchemaByPathsSubform(options) {
     this.throwIfDisposed();
     const pathsJson = JSON.stringify(options.schemaPaths);
-    const resultStr = await JsonEvalRs.getSchemaByPathsSubform(this.handle, options.subformPath, pathsJson);
+    const resultStr = await JsonEvalRs.getSchemaByPathsSubform(this.handle, options.subformPath, pathsJson, options.format !== undefined ? options.format : ReturnFormat.Nested);
     return JSON.parse(resultStr);
   }
 

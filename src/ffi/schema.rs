@@ -144,12 +144,14 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_by_path(
 /// 
 /// - handle must be a valid pointer from json_eval_new
 /// - paths_json must be a valid null-terminated UTF-8 string containing a JSON array of paths
+/// - format: 0 = Nested (default), 1 = Flat, 2 = Array
 /// - Caller must call json_eval_free_result when done
 #[no_mangle]
 pub unsafe extern "C" fn json_eval_get_evaluated_schema_by_paths(
     handle: *mut JSONEvalHandle,
     paths_json: *const c_char,
     skip_layout: bool,
+    format: u8,
 ) -> FFIResult {
     if handle.is_null() || paths_json.is_null() {
         return FFIResult::error("Invalid handle or paths pointer".to_string());
@@ -172,7 +174,13 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_by_paths(
         }
     };
 
-    let result = eval.get_evaluated_schema_by_paths(&paths, skip_layout);
+    let return_format = match format {
+        1 => crate::ReturnFormat::Flat,
+        2 => crate::ReturnFormat::Array,
+        _ => crate::ReturnFormat::Nested,
+    };
+
+    let result = eval.get_evaluated_schema_by_paths(&paths, skip_layout, Some(return_format));
     let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
     FFIResult::success(result_bytes)
 }
@@ -218,11 +226,13 @@ pub unsafe extern "C" fn json_eval_get_schema_by_path(
 /// 
 /// - handle must be a valid pointer from json_eval_new
 /// - paths_json must be a valid null-terminated UTF-8 string containing a JSON array of paths
+/// - format: 0 = Nested (default), 1 = Flat, 2 = Array
 /// - Caller must call json_eval_free_result when done
 #[no_mangle]
 pub unsafe extern "C" fn json_eval_get_schema_by_paths(
     handle: *mut JSONEvalHandle,
     paths_json: *const c_char,
+    format: u8,
 ) -> FFIResult {
     if handle.is_null() || paths_json.is_null() {
         return FFIResult::error("Invalid handle or paths pointer".to_string());
@@ -245,7 +255,13 @@ pub unsafe extern "C" fn json_eval_get_schema_by_paths(
         }
     };
 
-    let result = eval.get_schema_by_paths(&paths);
+    let return_format = match format {
+        1 => crate::ReturnFormat::Flat,
+        2 => crate::ReturnFormat::Array,
+        _ => crate::ReturnFormat::Nested,
+    };
+
+    let result = eval.get_schema_by_paths(&paths, Some(return_format));
     let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
     FFIResult::success(result_bytes)
 }
