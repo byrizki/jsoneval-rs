@@ -27,6 +27,10 @@ const JsonEvalRs = _reactNative.NativeModules.JsonEvalRs ? _reactNative.NativeMo
  */
 
 /**
+ * Dependent field change from evaluateDependents
+ */
+
+/**
  * Options for creating a JSONEval instance
  */
 
@@ -287,7 +291,7 @@ class JSONEval {
   /**
    * Get a value from the evaluated schema using dotted path notation
    * @param path - Dotted path to the value (e.g., "properties.field.value")
-   * @param skipLayout - Whether to skip layout resolution (default: false)
+   * @param skipLayout - Whether to skip layout resolution
    * @returns Promise resolving to the value at the path, or null if not found
    * @throws {Error} If operation fails
    */
@@ -295,6 +299,21 @@ class JSONEval {
     this.throwIfDisposed();
     const resultStr = await JsonEvalRs.getEvaluatedSchemaByPath(this.handle, path, skipLayout);
     return resultStr ? JSON.parse(resultStr) : null;
+  }
+
+  /**
+   * Get values from the evaluated schema using multiple dotted path notations
+   * Returns a merged object containing all requested paths (skips paths that are not found)
+   * @param paths - Array of dotted paths to retrieve
+   * @param skipLayout - Whether to skip layout resolution
+   * @returns Promise resolving to merged object containing all found paths
+   * @throws {Error} If operation fails
+   */
+  async getEvaluatedSchemaByPaths(paths, skipLayout = false) {
+    this.throwIfDisposed();
+    const pathsJson = JSON.stringify(paths);
+    const resultStr = await JsonEvalRs.getEvaluatedSchemaByPaths(this.handle, pathsJson, skipLayout);
+    return JSON.parse(resultStr);
   }
 
   /**
@@ -404,6 +423,39 @@ class JSONEval {
   }
 
   /**
+   * Enable evaluation caching
+   * Useful for reusing JSONEval instances with different data
+   * @returns Promise that resolves when cache is enabled
+   * @throws {Error} If operation fails
+   */
+  async enableCache() {
+    this.throwIfDisposed();
+    await JsonEvalRs.enableCache(this.handle);
+  }
+
+  /**
+   * Disable evaluation caching
+   * Useful for web API usage where each request creates a new JSONEval instance
+   * Improves performance by skipping cache operations that have no benefit for single-use instances
+   * @returns Promise that resolves when cache is disabled
+   * @throws {Error} If operation fails
+   */
+  async disableCache() {
+    this.throwIfDisposed();
+    await JsonEvalRs.disableCache(this.handle);
+  }
+
+  /**
+   * Check if evaluation caching is enabled
+   * @returns Boolean indicating if caching is enabled
+   * @throws {Error} If operation fails
+   */
+  isCacheEnabled() {
+    this.throwIfDisposed();
+    return JsonEvalRs.isCacheEnabled(this.handle);
+  }
+
+  /**
    * Resolve layout with optional evaluation
    * @param evaluate - If true, runs evaluation before resolving layout (default: false)
    * @returns Promise that resolves when layout resolution is complete
@@ -428,6 +480,34 @@ class JSONEval {
     const dataStr = data ? this.toJsonString(data) : null;
     const contextStr = context ? this.toJsonString(context) : null;
     const resultStr = await JsonEvalRs.compileAndRunLogic(this.handle, logic, dataStr, contextStr);
+    return JSON.parse(resultStr);
+  }
+
+  /**
+   * Compile JSON logic and return a global ID
+   * @param logicStr - JSON logic expression as a string or object
+   * @returns Promise resolving to the compiled logic ID
+   * @throws {Error} If compilation fails
+   */
+  async compileLogic(logicStr) {
+    this.throwIfDisposed();
+    const logic = this.toJsonString(logicStr);
+    return await JsonEvalRs.compileLogic(this.handle, logic);
+  }
+
+  /**
+   * Run pre-compiled logic by ID
+   * @param logicId - Compiled logic ID from compileLogic
+   * @param data - Optional JSON data string or object (null to use existing data)
+   * @param context - Optional context data string or object (null to use existing context)
+   * @returns Promise resolving to the result of the evaluation
+   * @throws {Error} If execution fails
+   */
+  async runLogic(logicId, data, context) {
+    this.throwIfDisposed();
+    const dataStr = data ? this.toJsonString(data) : null;
+    const contextStr = context ? this.toJsonString(context) : null;
+    const resultStr = await JsonEvalRs.runLogic(this.handle, logicId, dataStr, contextStr);
     return JSON.parse(resultStr);
   }
 

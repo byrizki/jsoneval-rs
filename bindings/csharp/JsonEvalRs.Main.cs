@@ -411,6 +411,57 @@ namespace JsonEvalRs
         }
 
         /// <summary>
+        /// Gets values from the evaluated schema using multiple dotted path notations.
+        /// Returns a merged object containing all requested paths. Skips paths that are not found.
+        /// </summary>
+        /// <param name="paths">Array of dotted paths to retrieve (e.g., ["properties.field1", "properties.field2"])</param>
+        /// <param name="skipLayout">Whether to skip layout resolution</param>
+        /// <returns>Merged JObject containing all found paths</returns>
+        public JObject GetEvaluatedSchemaByPaths(string[] paths, bool skipLayout = false)
+        {
+            ThrowIfDisposed();
+
+            if (paths == null || paths.Length == 0)
+                throw new ArgumentNullException(nameof(paths));
+
+            string pathsJson = JsonConvert.SerializeObject(paths);
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+            var result = Native.json_eval_get_evaluated_schema_by_paths(_handle, pathsJson, skipLayout);
+#else
+            var result = Native.json_eval_get_evaluated_schema_by_paths(_handle, Native.ToUTF8Bytes(pathsJson)!, skipLayout);
+#endif
+            
+            if (!result.Success)
+            {
+                string error = result.GetError();
+                Native.json_eval_free_result(result);
+                throw new InvalidOperationException($"Failed to get evaluated schema by paths: {error}");
+            }
+
+            try
+            {
+                if (result.DataPtr == IntPtr.Zero)
+                    return new JObject();
+
+                int dataLen = (int)result.DataLen.ToUInt32();
+                if (dataLen == 0)
+                    return new JObject();
+
+                // Zero-copy: read directly from Rust-owned memory
+                byte[] buffer = new byte[dataLen];
+                Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
+                
+                string json = Encoding.UTF8.GetString(buffer);
+                return JObject.Parse(json);
+            }
+            finally
+            {
+                Native.json_eval_free_result(result);
+            }
+        }
+
+        /// <summary>
         /// Gets a value from the schema using dotted path notation
         /// </summary>
         /// <param name="path">Dotted path to the value (e.g., "properties.field.value")</param>

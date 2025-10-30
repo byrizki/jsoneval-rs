@@ -975,6 +975,79 @@ impl JSONEval {
         self.evaluated_schema.pointer(&pointer).cloned()
     }
 
+    /// Get values from the evaluated schema using multiple dotted path notations.
+    /// Returns a merged object containing all requested paths. Skips paths that are not found.
+    ///
+    /// # Arguments
+    ///
+    /// * `paths` - Array of dotted paths to retrieve (e.g., ["properties.field1", "properties.field2"])
+    /// * `skip_layout` - Whether to skip layout resolution.
+    ///
+    /// # Returns
+    ///
+    /// A merged JSON object containing all found paths, or an empty object if no paths are found.
+    pub fn get_evaluated_schema_by_paths(&mut self, paths: &[String], skip_layout: bool) -> Value {
+        if !skip_layout {
+            self.resolve_layout_internal();
+        }
+        
+        let mut result = serde_json::Map::new();
+        
+        for path in paths {
+            // Convert dotted notation to JSON pointer
+            let pointer = if path.is_empty() {
+                "".to_string()
+            } else {
+                format!("/{}", path.replace(".", "/"))
+            };
+            
+            // Get value at path, skip if not found
+            if let Some(value) = self.evaluated_schema.pointer(&pointer) {
+                // Store the full path structure to maintain the hierarchy
+                // Clone only once per path
+                self.insert_at_path(&mut result, path, value.clone());
+            }
+        }
+        
+        Value::Object(result)
+    }
+    
+    /// Helper function to insert a value at a dotted path in a JSON object
+    fn insert_at_path(&self, obj: &mut serde_json::Map<String, Value>, path: &str, value: Value) {
+        if path.is_empty() {
+            // If path is empty, merge the value into the root
+            if let Value::Object(map) = value {
+                for (k, v) in map {
+                    obj.insert(k, v);
+                }
+            }
+            return;
+        }
+        
+        let parts: Vec<&str> = path.split('.').collect();
+        if parts.is_empty() {
+            return;
+        }
+        
+        let mut current = obj;
+        let last_index = parts.len() - 1;
+        
+        for (i, part) in parts.iter().enumerate() {
+            if i == last_index {
+                // Last part - insert the value
+                current.insert(part.to_string(), value);
+                break;
+            } else {
+                // Intermediate part - ensure object exists
+                current = current
+                    .entry(part.to_string())
+                    .or_insert_with(|| Value::Object(serde_json::Map::new()))
+                    .as_object_mut()
+                    .unwrap();
+            }
+        }
+    }
+
     /// Get a value from the schema using dotted path notation.
     /// Converts dotted notation (e.g., "properties.field.value") to JSON pointer format.
     ///

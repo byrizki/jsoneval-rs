@@ -102,6 +102,16 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun getEvaluatedSchemaByPaths(
+        handle: String,
+        pathsJson: String,
+        skipLayout: Boolean,
+        promise: Promise
+    ) {
+        nativeGetEvaluatedSchemaByPathsAsync(handle, pathsJson, skipLayout, promise)
+    }
+
+    @ReactMethod
     fun getSchemaByPath(
         handle: String,
         path: String,
@@ -380,6 +390,17 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun getEvaluatedSchemaByPathsSubform(
+        handle: String,
+        subformPath: String,
+        schemaPathsJson: String,
+        skipLayout: Boolean,
+        promise: Promise
+    ) {
+        nativeGetEvaluatedSchemaByPathsSubformAsync(handle, subformPath, schemaPathsJson, skipLayout, promise)
+    }
+
+    @ReactMethod
     fun getSubformPaths(
         handle: String,
         promise: Promise
@@ -444,6 +465,7 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     private external fun nativeGetSchemaValueAsync(handle: String, promise: Promise)
     private external fun nativeGetEvaluatedSchemaWithoutParamsAsync(handle: String, skipLayout: Boolean, promise: Promise)
     private external fun nativeGetEvaluatedSchemaByPathAsync(handle: String, path: String, skipLayout: Boolean, promise: Promise)
+    private external fun nativeGetEvaluatedSchemaByPathsAsync(handle: String, pathsJson: String, skipLayout: Boolean, promise: Promise)
     private external fun nativeGetSchemaByPathAsync(handle: String, path: String, promise: Promise)
     private external fun nativeReloadSchemaAsync(handle: String, schema: String, context: String, data: String, promise: Promise)
     private external fun nativeReloadSchemaMsgpackAsync(handle: String, schemaMsgpack: ByteArray, context: String, data: String, promise: Promise)
@@ -469,6 +491,7 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     private external fun nativeGetSchemaValueSubformAsync(handle: String, subformPath: String, promise: Promise)
     private external fun nativeGetEvaluatedSchemaWithoutParamsSubformAsync(handle: String, subformPath: String, resolveLayout: Boolean, promise: Promise)
     private external fun nativeGetEvaluatedSchemaByPathSubformAsync(handle: String, subformPath: String, schemaPath: String, skipLayout: Boolean, promise: Promise)
+    private external fun nativeGetEvaluatedSchemaByPathsSubformAsync(handle: String, subformPath: String, schemaPathsJson: String, skipLayout: Boolean, promise: Promise)
     private external fun nativeGetSubformPathsAsync(handle: String, promise: Promise)
     private external fun nativeHasSubformAsync(handle: String, subformPath: String, promise: Promise)
     

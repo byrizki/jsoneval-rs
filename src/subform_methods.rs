@@ -110,6 +110,20 @@ impl JSONEval {
         }
     }
     
+    /// Get evaluated schema by multiple paths from subform
+    pub fn get_evaluated_schema_by_paths_subform(
+        &mut self,
+        subform_path: &str,
+        schema_paths: &[String],
+        skip_layout: bool,
+    ) -> Value {
+        if let Some(subform) = self.subforms.get_mut(subform_path) {
+            subform.get_evaluated_schema_by_paths(schema_paths, skip_layout)
+        } else {
+            Value::Object(serde_json::Map::new())
+        }
+    }
+    
     /// Get list of available subform paths
     pub fn get_subform_paths(&self) -> Vec<String> {
         self.subforms.keys().cloned().collect()

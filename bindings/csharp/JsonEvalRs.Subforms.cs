@@ -222,11 +222,80 @@ namespace JsonEvalRs
             
             try
             {
-                return ProcessResult(result);
+                if (!result.Success)
+                {
+                    // Path not found - return null
+                    return null;
+                }
+
+                if (result.DataPtr == IntPtr.Zero)
+                    return null;
+
+                int dataLen = (int)result.DataLen.ToUInt32();
+                if (dataLen == 0)
+                    return null;
+
+                byte[] buffer = new byte[dataLen];
+                Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
+                
+                string json = Encoding.UTF8.GetString(buffer);
+                return JObject.Parse(json);
             }
-            catch
+            finally
             {
-                return null;
+                Native.json_eval_free_result(result);
+            }
+        }
+
+        /// <summary>
+        /// Gets values from the evaluated schema of a subform using multiple dotted path notations.
+        /// Returns a merged object containing all requested paths. Skips paths that are not found.
+        /// </summary>
+        /// <param name="subformPath">Path to the subform</param>
+        /// <param name="schemaPaths">Array of dotted paths to retrieve within the subform</param>
+        /// <param name="skipLayout">Whether to skip layout resolution</param>
+        /// <returns>Merged JObject containing all found paths</returns>
+        public JObject GetEvaluatedSchemaByPathsSubform(string subformPath, string[] schemaPaths, bool skipLayout = false)
+        {
+            ThrowIfDisposed();
+            if (string.IsNullOrEmpty(subformPath))
+                throw new ArgumentNullException(nameof(subformPath));
+            if (schemaPaths == null || schemaPaths.Length == 0)
+                throw new ArgumentNullException(nameof(schemaPaths));
+
+            string pathsJson = JsonConvert.SerializeObject(schemaPaths);
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+            var result = Native.json_eval_get_evaluated_schema_by_paths_subform(_handle, subformPath, pathsJson, skipLayout);
+#else
+            var result = Native.json_eval_get_evaluated_schema_by_paths_subform(_handle, Native.ToUTF8Bytes(subformPath)!, Native.ToUTF8Bytes(pathsJson)!, skipLayout);
+#endif
+            
+            if (!result.Success)
+            {
+                string error = result.GetError();
+                Native.json_eval_free_result(result);
+                throw new InvalidOperationException($"Failed to get evaluated schema by paths from subform: {error}");
+            }
+
+            try
+            {
+                if (result.DataPtr == IntPtr.Zero)
+                    return new JObject();
+
+                int dataLen = (int)result.DataLen.ToUInt32();
+                if (dataLen == 0)
+                    return new JObject();
+
+                byte[] buffer = new byte[dataLen];
+                Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
+                
+                string json = Encoding.UTF8.GetString(buffer);
+                return JObject.Parse(json);
+            }
+            finally
+            {
+                Native.json_eval_free_result(result);
             }
         }
 

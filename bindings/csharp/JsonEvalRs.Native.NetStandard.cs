@@ -102,6 +102,13 @@ namespace JsonEvalRs
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_get_evaluated_schema_by_paths(
+            IntPtr handle,
+            byte[] pathsJson,
+            [MarshalAs(UnmanagedType.I1)] bool skipLayout
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_get_schema_by_path(
             IntPtr handle,
             byte[]? path
@@ -220,6 +227,14 @@ namespace JsonEvalRs
             IntPtr handle,
             byte[] subformPath,
             byte[] schemaPath,
+            [MarshalAs(UnmanagedType.I1)] bool skipLayout
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_get_evaluated_schema_by_paths_subform(
+            IntPtr handle,
+            byte[] subformPath,
+            byte[] schemaPathsJson,
             [MarshalAs(UnmanagedType.I1)] bool skipLayout
         );
 

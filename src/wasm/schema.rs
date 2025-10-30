@@ -103,6 +103,36 @@ impl JSONEvalWasm {
         }
     }
 
+    /// Get values from the evaluated schema using multiple dotted path notations (returns JSON string)
+    /// @param pathsJson - JSON array of dotted paths
+    /// @param skipLayout - Whether to skip layout resolution
+    /// @returns Merged object as JSON string
+    #[wasm_bindgen(js_name = getEvaluatedSchemaByPaths)]
+    pub fn get_evaluated_schema_by_paths(&mut self, paths_json: &str, skip_layout: bool) -> Result<String, JsValue> {
+        // Parse JSON array of paths
+        let paths: Vec<String> = serde_json::from_str(paths_json)
+            .map_err(|e| JsValue::from_str(&format!("Failed to parse paths JSON: {}", e)))?;
+        
+        let result = self.inner.get_evaluated_schema_by_paths(&paths, skip_layout);
+        serde_json::to_string(&result)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Get values from the evaluated schema using multiple dotted path notations (returns JS object)
+    /// @param pathsJson - JSON array of dotted paths
+    /// @param skipLayout - Whether to skip layout resolution
+    /// @returns Merged object as JavaScript object
+    #[wasm_bindgen(js_name = getEvaluatedSchemaByPathsJS)]
+    pub fn get_evaluated_schema_by_paths_js(&mut self, paths_json: &str, skip_layout: bool) -> Result<JsValue, JsValue> {
+        // Parse JSON array of paths
+        let paths: Vec<String> = serde_json::from_str(paths_json)
+            .map_err(|e| JsValue::from_str(&format!("Failed to parse paths JSON: {}", e)))?;
+        
+        let result = self.inner.get_evaluated_schema_by_paths(&paths, skip_layout);
+        serde_wasm_bindgen::to_value(&result)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
     /// Get a value from the schema using dotted path notation
     /// 
     /// @param path - Dotted path to the value (e.g., "properties.field.value")

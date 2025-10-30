@@ -41,6 +41,16 @@ export interface ValidationResult {
 }
 
 /**
+ * Dependent field change from evaluateDependents
+ */
+export interface DependentChange {
+  /** Path of the dependent field that changed */
+  path: string;
+  /** New value of the dependent field */
+  value: any;
+}
+
+/**
  * Options for creating a JSONEval instance
  */
 export interface JSONEvalOptions {
@@ -176,6 +186,18 @@ export interface GetEvaluatedSchemaByPathSubformOptions {
   subformPath: string;
   /** Dotted path to the value within the subform */
   schemaPath: string;
+  /** Whether to skip layout resolution */
+  skipLayout?: boolean;
+}
+
+/**
+ * Options for getting evaluated schema by multiple paths from a subform
+ */
+export interface GetEvaluatedSchemaByPathsSubformOptions {
+  /** Path to the subform */
+  subformPath: string;
+  /** Array of dotted paths to the values within the subform */
+  schemaPaths: string[];
   /** Whether to skip layout resolution */
   skipLayout?: boolean;
 }
@@ -342,7 +364,7 @@ export class JSONEval {
    * @returns Promise resolving to array of dependent field changes
    * @throws {Error} If evaluation fails
    */
-  async evaluateDependents(options: EvaluateDependentsOptions): Promise<any> {
+  async evaluateDependents(options: EvaluateDependentsOptions): Promise<DependentChange[]> {
     this.throwIfDisposed();
     
     try {
@@ -403,7 +425,7 @@ export class JSONEval {
   /**
    * Get a value from the evaluated schema using dotted path notation
    * @param path - Dotted path to the value (e.g., "properties.field.value")
-   * @param skipLayout - Whether to skip layout resolution (default: false)
+   * @param skipLayout - Whether to skip layout resolution
    * @returns Promise resolving to the value at the path, or null if not found
    * @throws {Error} If operation fails
    */
@@ -411,6 +433,21 @@ export class JSONEval {
     this.throwIfDisposed();
     const resultStr = await JsonEvalRs.getEvaluatedSchemaByPath(this.handle, path, skipLayout);
     return resultStr ? JSON.parse(resultStr) : null;
+  }
+
+  /**
+   * Get values from the evaluated schema using multiple dotted path notations
+   * Returns a merged object containing all requested paths (skips paths that are not found)
+   * @param paths - Array of dotted paths to retrieve
+   * @param skipLayout - Whether to skip layout resolution
+   * @returns Promise resolving to merged object containing all found paths
+   * @throws {Error} If operation fails
+   */
+  async getEvaluatedSchemaByPaths(paths: string[], skipLayout: boolean = false): Promise<any> {
+    this.throwIfDisposed();
+    const pathsJson = JSON.stringify(paths);
+    const resultStr = await JsonEvalRs.getEvaluatedSchemaByPaths(this.handle, pathsJson, skipLayout);
+    return JSON.parse(resultStr);
   }
 
   /**
@@ -684,7 +721,7 @@ export class JSONEval {
    * @returns Promise resolving to dependent evaluation results
    * @throws {Error} If evaluation fails
    */
-  async evaluateDependentsSubform(options: EvaluateDependentsSubformOptions): Promise<any> {
+  async evaluateDependentsSubform(options: EvaluateDependentsSubformOptions): Promise<DependentChange[]> {
     this.throwIfDisposed();
     
     const dataStr = options.data ? this.toJsonString(options.data) : null;
@@ -778,6 +815,26 @@ export class JSONEval {
       options.skipLayout || false
     );
     return resultStr ? JSON.parse(resultStr) : null;
+  }
+
+  /**
+   * Get evaluated schema by multiple paths from subform
+   * Returns a merged object containing all requested paths (skips paths that are not found)
+   * @param options - Options including subform path, array of schema paths, and skipLayout flag
+   * @returns Promise resolving to merged object containing all found paths
+   * @throws {Error} If operation fails
+   */
+  async getEvaluatedSchemaByPathsSubform(options: GetEvaluatedSchemaByPathsSubformOptions): Promise<any> {
+    this.throwIfDisposed();
+    
+    const pathsJson = JSON.stringify(options.schemaPaths);
+    const resultStr = await JsonEvalRs.getEvaluatedSchemaByPathsSubform(
+      this.handle,
+      options.subformPath,
+      pathsJson,
+      options.skipLayout || false
+    );
+    return JSON.parse(resultStr);
   }
 
   /**

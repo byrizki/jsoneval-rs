@@ -159,6 +159,20 @@ public:
     );
 
     /**
+     * Get values from evaluated schema using multiple dotted path notations (async)
+     * @param handle Instance handle
+     * @param pathsJson JSON array of dotted paths to retrieve
+     * @param skipLayout Whether to skip layout resolution
+     * @param callback Result callback
+     */
+    static void getEvaluatedSchemaByPathsAsync(
+        const std::string& handle,
+        const std::string& pathsJson,
+        bool skipLayout,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
      * Get a value from schema using dotted path notation (async)
      * @param handle Instance handle
      * @param path Dotted path to the value (e.g., "properties.field.value")
@@ -450,12 +464,6 @@ public:
     static void getEvaluatedSchemaWithoutParamsSubformAsync(
         const std::string& handleId,
         const std::string& subformPath,
-        bool resolveLayout,
-        std::function<void(const std::string&, const std::string&)> callback
-    );
-
-    /**
-     * Get evaluated schema by specific path from subform (async)
      * @param handleId Instance handle
      * @param subformPath Path to the subform
      * @param schemaPath Dotted path to the value within the subform
@@ -466,6 +474,22 @@ public:
         const std::string& handleId,
         const std::string& subformPath,
         const std::string& schemaPath,
+        bool skipLayout,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Get evaluated schema by multiple paths from subform (async)
+     * @param handleId Instance handle
+     * @param subformPath Path to the subform
+     * @param schemaPathsJson JSON array of dotted paths to retrieve within the subform
+     * @param skipLayout Whether to skip layout resolution
+     * @param callback Result callback
+     */
+    static void getEvaluatedSchemaByPathsSubformAsync(
+        const std::string& handleId,
+        const std::string& subformPath,
+        const std::string& schemaPathsJson,
         bool skipLayout,
         std::function<void(const std::string&, const std::string&)> callback
     );

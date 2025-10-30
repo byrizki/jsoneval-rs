@@ -341,6 +341,24 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedSchemaByPathAsync(
 }
 
 JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedSchemaByPathsAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jstring pathsJson,
+    jboolean skipLayout,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    std::string pathsJsonStr = jstringToString(env, pathsJson);
+    bool skipLayoutBool = (skipLayout == JNI_TRUE);
+    
+    runAsyncWithPromise(env, promise, "GET_EVALUATED_SCHEMA_BY_PATHS_ERROR", [handleStr, pathsJsonStr, skipLayoutBool](auto callback) {
+        JsonEvalBridge::getEvaluatedSchemaByPathsAsync(handleStr, pathsJsonStr, skipLayoutBool, callback);
+    });
+}
+
+JNIEXPORT void JNICALL
 Java_com_jsonevalrs_JsonEvalRsModule_nativeGetSchemaByPathAsync(
     JNIEnv* env,
     jobject /* this */,
@@ -749,6 +767,26 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedSchemaByPathSubformAsync(
     
     runAsyncWithPromise(env, promise, "GET_SCHEMA_BY_PATH_SUBFORM_ERROR", [handleStr, subformPathStr, schemaPathStr, skipLayoutBool](auto callback) {
         JsonEvalBridge::getEvaluatedSchemaByPathSubformAsync(handleStr, subformPathStr, schemaPathStr, skipLayoutBool, callback);
+    });
+}
+
+JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedSchemaByPathsSubformAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jstring subformPath,
+    jstring schemaPathsJson,
+    jboolean skipLayout,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    std::string subformPathStr = jstringToString(env, subformPath);
+    std::string schemaPathsJsonStr = jstringToString(env, schemaPathsJson);
+    bool skipLayoutBool = (skipLayout == JNI_TRUE);
+    
+    runAsyncWithPromise(env, promise, "GET_SCHEMA_BY_PATHS_SUBFORM_ERROR", [handleStr, subformPathStr, schemaPathsJsonStr, skipLayoutBool](auto callback) {
+        JsonEvalBridge::getEvaluatedSchemaByPathsSubformAsync(handleStr, subformPathStr, schemaPathsJsonStr, skipLayoutBool, callback);
     });
 }
 

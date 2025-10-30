@@ -239,6 +239,19 @@ export class JSONEvalCore {
   }
 
   /**
+   * Get values from the evaluated schema using multiple dotted path notations
+   * Returns a merged object containing all requested paths (skips paths that are not found)
+   * @param {object} options
+   * @param {string[]} options.paths - Array of dotted paths to retrieve
+   * @param {boolean} [options.skipLayout=false] - Skip layout resolution
+   * @returns {Promise<any>} Merged object containing all found paths
+   */
+  async getEvaluatedSchemaByPaths({ paths, skipLayout = false }) {
+    await this.init();
+    return this._instance.getEvaluatedSchemaByPathsJS(JSON.stringify(paths), skipLayout);
+  }
+
+  /**
    * Get a value from the schema using dotted path notation
    * @param {object} options
    * @param {string} options.path - Dotted path to the value (e.g., "properties.field.value")
@@ -602,6 +615,20 @@ export class JSONEvalCore {
   async getEvaluatedSchemaByPathSubform({ subformPath, schemaPath, skipLayout = false }) {
     await this.init();
     return this._instance.getEvaluatedSchemaByPathSubformJS(subformPath, schemaPath, skipLayout);
+  }
+
+  /**
+   * Get evaluated schema by multiple paths from subform
+   * Returns a merged object containing all requested paths (skips paths that are not found)
+   * @param {object} options
+   * @param {string} options.subformPath - Path to the subform
+   * @param {string[]} options.schemaPaths - Array of paths within the subform
+   * @param {boolean} [options.skipLayout=false] - Whether to skip layout resolution
+   * @returns {Promise<any>}
+   */
+  async getEvaluatedSchemaByPathsSubform({ subformPath, schemaPaths, skipLayout = false }) {
+    await this.init();
+    return this._instance.getEvaluatedSchemaByPathsSubformJS(subformPath, JSON.stringify(schemaPaths), skipLayout);
   }
 
   /**

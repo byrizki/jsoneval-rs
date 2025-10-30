@@ -20,6 +20,11 @@ export interface ValidationResult {
   errors: ValidationError[];
 }
 
+export interface DependentChange {
+  path: string;
+  value: any;
+}
+
 export interface JSONEvalOptions {
   schema: any;
   context?: any;
@@ -50,6 +55,11 @@ export interface GetEvaluatedSchemaOptions {
 
 export interface GetValueByPathOptions {
   path: string;
+  skipLayout?: boolean;
+}
+
+export interface GetValueByPathsOptions {
+  paths: string[];
   skipLayout?: boolean;
 }
 
@@ -109,6 +119,12 @@ export interface GetEvaluatedSchemaByPathSubformOptions {
   skipLayout?: boolean;
 }
 
+export interface GetEvaluatedSchemaByPathsSubformOptions {
+  subformPath: string;
+  schemaPaths: string[];
+  skipLayout?: boolean;
+}
+
 export interface CompileAndRunLogicOptions {
   logicStr: string | object;
   data?: any;
@@ -121,7 +137,7 @@ export class JSONEval {
   init(): Promise<void>;
   validate(options: ValidateOptions): Promise<ValidationResult>;
   evaluate(options: EvaluateOptions): Promise<any>;
-  evaluateDependents(options: EvaluateDependentsOptions): Promise<any>;
+  evaluateDependents(options: EvaluateDependentsOptions): Promise<DependentChange[]>;
   compileAndRunLogic(options: CompileAndRunLogicOptions): Promise<any>;
   compileLogic(logicStr: string | object): Promise<number>;
   runLogic(logicId: number, data?: any, context?: any): Promise<any>;
@@ -130,6 +146,7 @@ export class JSONEval {
   getEvaluatedSchemaWithoutParams(options?: GetEvaluatedSchemaOptions): Promise<any>;
   getValueByPath(options: GetValueByPathOptions): Promise<any | null>;
   getEvaluatedSchemaByPath(options: GetValueByPathOptions): Promise<any | null>;
+  getEvaluatedSchemaByPaths(options: GetValueByPathsOptions): Promise<any>;
   getSchemaByPath(options: GetSchemaByPathOptions): Promise<any | null>;
   reloadSchema(options: ReloadSchemaOptions): Promise<void>;
   reloadSchemaMsgpack(schemaMsgpack: Uint8Array, context?: any, data?: any): Promise<void>;
@@ -144,12 +161,13 @@ export class JSONEval {
   // Subform methods
   evaluateSubform(options: EvaluateSubformOptions): Promise<void>;
   validateSubform(options: ValidateSubformOptions): Promise<ValidationResult>;
-  evaluateDependentsSubform(options: EvaluateDependentsSubformOptions): Promise<any>;
+  evaluateDependentsSubform(options: EvaluateDependentsSubformOptions): Promise<DependentChange[]>;
   resolveLayoutSubform(options: ResolveLayoutSubformOptions): Promise<void>;
   getEvaluatedSchemaSubform(options: GetEvaluatedSchemaSubformOptions): Promise<any>;
   getSchemaValueSubform(options: GetSchemaValueSubformOptions): Promise<any>;
   getEvaluatedSchemaWithoutParamsSubform(options: GetEvaluatedSchemaSubformOptions): Promise<any>;
   getEvaluatedSchemaByPathSubform(options: GetEvaluatedSchemaByPathSubformOptions): Promise<any | null>;
+  getEvaluatedSchemaByPathsSubform(options: GetEvaluatedSchemaByPathsSubformOptions): Promise<any>;
   getSubformPaths(): Promise<string[]>;
   hasSubform(subformPath: string): Promise<boolean>;
   

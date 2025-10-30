@@ -257,6 +257,26 @@ RCT_EXPORT_METHOD(getEvaluatedSchemaByPath:(NSString *)handle
     );
 }
 
+RCT_EXPORT_METHOD(getEvaluatedSchemaByPaths:(NSString *)handle
+                  pathsJson:(NSString *)pathsJson
+                  skipLayout:(BOOL)skipLayout
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    std::string pathsJsonStr = [self stdStringFromNSString:pathsJson];
+    
+    JsonEvalBridge::getEvaluatedSchemaByPathsAsync(handleStr, pathsJsonStr, skipLayout,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"GET_EVALUATED_SCHEMA_BY_PATHS_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
 RCT_EXPORT_METHOD(getSchemaByPath:(NSString *)handle
                   path:(NSString *)path
                   resolver:(RCTPromiseResolveBlock)resolve
@@ -679,6 +699,28 @@ RCT_EXPORT_METHOD(getEvaluatedSchemaByPathSubform:(NSString *)handle
                 resolve([NSString stringWithUTF8String:result.c_str()]);
             } else {
                 reject(@"GET_EVALUATED_SCHEMA_BY_PATH_SUBFORM_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_METHOD(getEvaluatedSchemaByPathsSubform:(NSString *)handle
+                  subformPath:(NSString *)subformPath
+                  schemaPathsJson:(NSString *)schemaPathsJson
+                  skipLayout:(BOOL)skipLayout
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    std::string subformPathStr = [self stdStringFromNSString:subformPath];
+    std::string schemaPathsJsonStr = [self stdStringFromNSString:schemaPathsJson];
+    
+    JsonEvalBridge::getEvaluatedSchemaByPathsSubformAsync(handleStr, subformPathStr, schemaPathsJsonStr, skipLayout,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"GET_EVALUATED_SCHEMA_BY_PATHS_SUBFORM_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
             }
         }
     );

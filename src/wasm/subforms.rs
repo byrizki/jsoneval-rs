@@ -201,6 +201,38 @@ impl JSONEvalWasm {
         }
     }
 
+    /// Get values from the evaluated schema of a subform using multiple dotted path notations (returns JSON string)
+    /// @param subformPath - Path to the subform
+    /// @param pathsJson - JSON array of dotted paths
+    /// @param skipLayout - Whether to skip layout resolution
+    /// @returns Merged object as JSON string
+    #[wasm_bindgen(js_name = getEvaluatedSchemaByPathsSubform)]
+    pub fn get_evaluated_schema_by_paths_subform(&mut self, subform_path: &str, paths_json: &str, skip_layout: bool) -> Result<String, JsValue> {
+        // Parse JSON array of paths
+        let paths: Vec<String> = serde_json::from_str(paths_json)
+            .map_err(|e| JsValue::from_str(&format!("Failed to parse paths JSON: {}", e)))?;
+        
+        let result = self.inner.get_evaluated_schema_by_paths_subform(subform_path, &paths, skip_layout);
+        serde_json::to_string(&result)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Get values from the evaluated schema of a subform using multiple dotted path notations (returns JS object)
+    /// @param subformPath - Path to the subform
+    /// @param pathsJson - JSON array of dotted paths
+    /// @param skipLayout - Whether to skip layout resolution
+    /// @returns Merged object as JavaScript object
+    #[wasm_bindgen(js_name = getEvaluatedSchemaByPathsSubformJS)]
+    pub fn get_evaluated_schema_by_paths_subform_js(&mut self, subform_path: &str, paths_json: &str, skip_layout: bool) -> Result<JsValue, JsValue> {
+        // Parse JSON array of paths
+        let paths: Vec<String> = serde_json::from_str(paths_json)
+            .map_err(|e| JsValue::from_str(&format!("Failed to parse paths JSON: {}", e)))?;
+        
+        let result = self.inner.get_evaluated_schema_by_paths_subform(subform_path, &paths, skip_layout);
+        serde_wasm_bindgen::to_value(&result)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
     /// Get list of available subform paths
     /// 
     /// @returns Array of subform paths

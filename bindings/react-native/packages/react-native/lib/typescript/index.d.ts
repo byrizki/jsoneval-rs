@@ -19,6 +19,15 @@ export interface ValidationResult {
     errors: ValidationError[];
 }
 /**
+ * Dependent field change from evaluateDependents
+ */
+export interface DependentChange {
+    /** Path of the dependent field that changed */
+    path: string;
+    /** New value of the dependent field */
+    value: any;
+}
+/**
  * Options for creating a JSONEval instance
  */
 export interface JSONEvalOptions {
@@ -242,7 +251,7 @@ export declare class JSONEval {
      * @returns Promise resolving to array of dependent field changes
      * @throws {Error} If evaluation fails
      */
-    evaluateDependents(options: EvaluateDependentsOptions): Promise<any>;
+    evaluateDependents(options: EvaluateDependentsOptions): Promise<DependentChange[]>;
     /**
      * Get the evaluated schema with optional layout resolution
      * @param skipLayout - Whether to skip layout resolution (default: false)
@@ -266,11 +275,20 @@ export declare class JSONEval {
     /**
      * Get a value from the evaluated schema using dotted path notation
      * @param path - Dotted path to the value (e.g., "properties.field.value")
-     * @param skipLayout - Whether to skip layout resolution (default: false)
+     * @param skipLayout - Whether to skip layout resolution
      * @returns Promise resolving to the value at the path, or null if not found
      * @throws {Error} If operation fails
      */
     getEvaluatedSchemaByPath(path: string, skipLayout?: boolean): Promise<any | null>;
+    /**
+     * Get values from the evaluated schema using multiple dotted path notations
+     * Returns a merged object containing all requested paths (skips paths that are not found)
+     * @param paths - Array of dotted paths to retrieve
+     * @param skipLayout - Whether to skip layout resolution
+     * @returns Promise resolving to merged object containing all found paths
+     * @throws {Error} If operation fails
+     */
+    getEvaluatedSchemaByPaths(paths: string[], skipLayout?: boolean): Promise<any>;
     /**
      * Get a value from the schema using dotted path notation
      * @param path - Dotted path to the value (e.g., "properties.field.value")
@@ -319,6 +337,27 @@ export declare class JSONEval {
      */
     cacheLen(): Promise<number>;
     /**
+     * Enable evaluation caching
+     * Useful for reusing JSONEval instances with different data
+     * @returns Promise that resolves when cache is enabled
+     * @throws {Error} If operation fails
+     */
+    enableCache(): Promise<void>;
+    /**
+     * Disable evaluation caching
+     * Useful for web API usage where each request creates a new JSONEval instance
+     * Improves performance by skipping cache operations that have no benefit for single-use instances
+     * @returns Promise that resolves when cache is disabled
+     * @throws {Error} If operation fails
+     */
+    disableCache(): Promise<void>;
+    /**
+     * Check if evaluation caching is enabled
+     * @returns Boolean indicating if caching is enabled
+     * @throws {Error} If operation fails
+     */
+    isCacheEnabled(): boolean;
+    /**
      * Resolve layout with optional evaluation
      * @param evaluate - If true, runs evaluation before resolving layout (default: false)
      * @returns Promise that resolves when layout resolution is complete
@@ -334,6 +373,22 @@ export declare class JSONEval {
      * @throws {Error} If compilation or evaluation fails
      */
     compileAndRunLogic(logicStr: string | object, data?: string | object, context?: string | object): Promise<any>;
+    /**
+     * Compile JSON logic and return a global ID
+     * @param logicStr - JSON logic expression as a string or object
+     * @returns Promise resolving to the compiled logic ID
+     * @throws {Error} If compilation fails
+     */
+    compileLogic(logicStr: string | object): Promise<number>;
+    /**
+     * Run pre-compiled logic by ID
+     * @param logicId - Compiled logic ID from compileLogic
+     * @param data - Optional JSON data string or object (null to use existing data)
+     * @param context - Optional context data string or object (null to use existing context)
+     * @returns Promise resolving to the result of the evaluation
+     * @throws {Error} If execution fails
+     */
+    runLogic(logicId: number, data?: string | object, context?: string | object): Promise<any>;
     /**
      * Validate data against schema rules with optional path filtering
      * @param options - Validation options with optional path filtering
@@ -361,7 +416,7 @@ export declare class JSONEval {
      * @returns Promise resolving to dependent evaluation results
      * @throws {Error} If evaluation fails
      */
-    evaluateDependentsSubform(options: EvaluateDependentsSubformOptions): Promise<any>;
+    evaluateDependentsSubform(options: EvaluateDependentsSubformOptions): Promise<DependentChange[]>;
     /**
      * Resolve layout for subform
      * @param options - Options including subform path and evaluate flag
