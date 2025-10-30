@@ -54,8 +54,10 @@ impl ValidationError {
     }
 
     #[wasm_bindgen(getter)]
-    pub fn data(&self) -> Option<JsValue> {
-        self.data.as_ref().and_then(|d| serde_wasm_bindgen::to_value(d).ok())
+    pub fn data(&self) -> JsValue {
+        self.data.as_ref()
+            .and_then(|d| serde_wasm_bindgen::to_value(d).ok())
+            .unwrap_or(JsValue::NULL)
     }
 }
 
