@@ -67,6 +67,10 @@ export interface GetSchemaByPathOptions {
   path: string;
 }
 
+export interface GetSchemaByPathsOptions {
+  paths: string[];
+}
+
 export interface ReloadSchemaOptions {
   schema: any;
   context?: any;
@@ -125,6 +129,16 @@ export interface GetEvaluatedSchemaByPathsSubformOptions {
   skipLayout?: boolean;
 }
 
+export interface GetSchemaByPathSubformOptions {
+  subformPath: string;
+  schemaPath: string;
+}
+
+export interface GetSchemaByPathsSubformOptions {
+  subformPath: string;
+  schemaPaths: string[];
+}
+
 export interface CompileAndRunLogicOptions {
   logicStr: string | object;
   data?: any;
@@ -148,6 +162,7 @@ export class JSONEval {
   getEvaluatedSchemaByPath(options: GetValueByPathOptions): Promise<any | null>;
   getEvaluatedSchemaByPaths(options: GetValueByPathsOptions): Promise<any>;
   getSchemaByPath(options: GetSchemaByPathOptions): Promise<any | null>;
+  getSchemaByPaths(options: GetSchemaByPathsOptions): Promise<any>;
   reloadSchema(options: ReloadSchemaOptions): Promise<void>;
   reloadSchemaMsgpack(schemaMsgpack: Uint8Array, context?: any, data?: any): Promise<void>;
   reloadSchemaFromCache(cacheKey: string, context?: any, data?: any): Promise<void>;
@@ -168,6 +183,8 @@ export class JSONEval {
   getEvaluatedSchemaWithoutParamsSubform(options: GetEvaluatedSchemaSubformOptions): Promise<any>;
   getEvaluatedSchemaByPathSubform(options: GetEvaluatedSchemaByPathSubformOptions): Promise<any | null>;
   getEvaluatedSchemaByPathsSubform(options: GetEvaluatedSchemaByPathsSubformOptions): Promise<any>;
+  getSchemaByPathSubform(options: GetSchemaByPathSubformOptions): Promise<any | null>;
+  getSchemaByPathsSubform(options: GetSchemaByPathsSubformOptions): Promise<any>;
   getSubformPaths(): Promise<string[]>;
   hasSubform(subformPath: string): Promise<boolean>;
   

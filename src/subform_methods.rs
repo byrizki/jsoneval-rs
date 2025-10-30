@@ -124,6 +124,32 @@ impl JSONEval {
         }
     }
     
+    /// Get schema by specific path from subform
+    pub fn get_schema_by_path_subform(
+        &self,
+        subform_path: &str,
+        schema_path: &str,
+    ) -> Option<Value> {
+        if let Some(subform) = self.subforms.get(subform_path) {
+            subform.get_schema_by_path(schema_path)
+        } else {
+            None
+        }
+    }
+    
+    /// Get schema by multiple paths from subform
+    pub fn get_schema_by_paths_subform(
+        &self,
+        subform_path: &str,
+        schema_paths: &[String],
+    ) -> Value {
+        if let Some(subform) = self.subforms.get(subform_path) {
+            subform.get_schema_by_paths(schema_paths)
+        } else {
+            Value::Object(serde_json::Map::new())
+        }
+    }
+    
     /// Get list of available subform paths
     pub fn get_subform_paths(&self) -> Vec<String> {
         self.subforms.keys().cloned().collect()

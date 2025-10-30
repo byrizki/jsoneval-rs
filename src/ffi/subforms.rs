@@ -381,6 +381,87 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_by_paths_subform(
     FFIResult::success(result_bytes)
 }
 
+/// Get schema by specific path from subform
+/// 
+/// # Safety
+/// 
+/// - handle must be a valid pointer from json_eval_new
+/// - subform_path must be a valid null-terminated UTF-8 string
+/// - schema_path must be a valid null-terminated UTF-8 string
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_get_schema_by_path_subform(
+    handle: *mut JSONEvalHandle,
+    subform_path: *const c_char,
+    schema_path: *const c_char,
+) -> FFIResult {
+    if handle.is_null() || subform_path.is_null() || schema_path.is_null() {
+        return FFIResult::error("Invalid pointer".to_string());
+    }
+
+    let eval = &(*handle).inner;
+
+    let subform_str = match CStr::from_ptr(subform_path).to_str() {
+        Ok(s) => s,
+        Err(_) => return FFIResult::error("Invalid UTF-8 in subform_path".to_string()),
+    };
+
+    let path_str = match CStr::from_ptr(schema_path).to_str() {
+        Ok(s) => s,
+        Err(_) => return FFIResult::error("Invalid UTF-8 in schema_path".to_string()),
+    };
+
+    match eval.get_schema_by_path_subform(subform_str, path_str) {
+        Some(value) => {
+            let result_bytes = serde_json::to_vec(&value).unwrap_or_default();
+            FFIResult::success(result_bytes)
+        }
+        None => FFIResult::error("Path not found in subform".to_string()),
+    }
+}
+
+/// Get schema by multiple paths from subform
+/// Returns a merged object containing all requested paths (skips paths that are not found)
+/// 
+/// # Safety
+/// 
+/// - handle must be a valid pointer from json_eval_new
+/// - subform_path must be a valid null-terminated UTF-8 string
+/// - schema_paths_json must be a valid null-terminated UTF-8 string containing a JSON array of paths
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_get_schema_by_paths_subform(
+    handle: *mut JSONEvalHandle,
+    subform_path: *const c_char,
+    schema_paths_json: *const c_char,
+) -> FFIResult {
+    if handle.is_null() || subform_path.is_null() || schema_paths_json.is_null() {
+        return FFIResult::error("Invalid pointer".to_string());
+    }
+
+    let eval = &(*handle).inner;
+
+    let subform_str = match CStr::from_ptr(subform_path).to_str() {
+        Ok(s) => s,
+        Err(_) => return FFIResult::error("Invalid UTF-8 in subform_path".to_string()),
+    };
+
+    let paths_str = match CStr::from_ptr(schema_paths_json).to_str() {
+        Ok(s) => s,
+        Err(_) => return FFIResult::error("Invalid UTF-8 in schema_paths".to_string()),
+    };
+
+    // Parse JSON array of paths
+    let paths: Vec<String> = match serde_json::from_str(paths_str) {
+        Ok(p) => p,
+        Err(e) => {
+            return FFIResult::error(format!("Failed to parse paths JSON: {}", e))
+        }
+    };
+
+    let result = eval.get_schema_by_paths_subform(subform_str, &paths);
+    let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
+    FFIResult::success(result_bytes)
+}
+
 /// Get list of available subform paths
 /// 
 /// # Safety

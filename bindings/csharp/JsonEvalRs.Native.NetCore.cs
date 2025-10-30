@@ -148,6 +148,12 @@ namespace JsonEvalRs
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_get_schema_by_paths(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string pathsJson
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_reload_schema(
             IntPtr handle,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string schema,
@@ -269,6 +275,20 @@ namespace JsonEvalRs
             [MarshalAs(UnmanagedType.LPUTF8Str)] string subformPath,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string schemaPathsJson,
             [MarshalAs(UnmanagedType.I1)] bool skipLayout
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_get_schema_by_path_subform(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string subformPath,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string schemaPath
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_get_schema_by_paths_subform(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string subformPath,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string schemaPathsJson
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]

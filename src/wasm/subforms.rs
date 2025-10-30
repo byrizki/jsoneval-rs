@@ -233,6 +233,59 @@ impl JSONEvalWasm {
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
+    /// Get schema by specific path from subform (returns JSON string)
+    /// @param subformPath - Path to the subform
+    /// @param schemaPath - Path within the subform
+    /// @returns Value as JSON string or null if not found
+    #[wasm_bindgen(js_name = getSchemaByPathSubform)]
+    pub fn get_schema_by_path_subform(&self, subform_path: &str, schema_path: &str) -> Option<String> {
+        self.inner.get_schema_by_path_subform(subform_path, schema_path)
+            .map(|v| serde_json::to_string(&v).unwrap_or_else(|_| "null".to_string()))
+    }
+
+    /// Get schema by specific path from subform (returns JS object)
+    /// @param subformPath - Path to the subform
+    /// @param schemaPath - Path within the subform
+    /// @returns Value as JavaScript object or null if not found
+    #[wasm_bindgen(js_name = getSchemaByPathSubformJS)]
+    pub fn get_schema_by_path_subform_js(&self, subform_path: &str, schema_path: &str) -> Result<JsValue, JsValue> {
+        match self.inner.get_schema_by_path_subform(subform_path, schema_path) {
+            Some(value) => serde_wasm_bindgen::to_value(&value)
+                .map_err(|e| JsValue::from_str(&e.to_string())),
+            None => Ok(JsValue::NULL),
+        }
+    }
+
+    /// Get schema by multiple paths from subform (returns JSON string)
+    /// @param subformPath - Path to the subform
+    /// @param pathsJson - JSON array of dotted paths
+    /// @returns Merged object as JSON string
+    #[wasm_bindgen(js_name = getSchemaByPathsSubform)]
+    pub fn get_schema_by_paths_subform(&self, subform_path: &str, paths_json: &str) -> Result<String, JsValue> {
+        // Parse JSON array of paths
+        let paths: Vec<String> = serde_json::from_str(paths_json)
+            .map_err(|e| JsValue::from_str(&format!("Failed to parse paths JSON: {}", e)))?;
+        
+        let result = self.inner.get_schema_by_paths_subform(subform_path, &paths);
+        serde_json::to_string(&result)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Get schema by multiple paths from subform (returns JS object)
+    /// @param subformPath - Path to the subform
+    /// @param pathsJson - JSON array of dotted paths
+    /// @returns Merged object as JavaScript object
+    #[wasm_bindgen(js_name = getSchemaByPathsSubformJS)]
+    pub fn get_schema_by_paths_subform_js(&self, subform_path: &str, paths_json: &str) -> Result<JsValue, JsValue> {
+        // Parse JSON array of paths
+        let paths: Vec<String> = serde_json::from_str(paths_json)
+            .map_err(|e| JsValue::from_str(&format!("Failed to parse paths JSON: {}", e)))?;
+        
+        let result = self.inner.get_schema_by_paths_subform(subform_path, &paths);
+        serde_wasm_bindgen::to_value(&result)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
     /// Get list of available subform paths
     /// 
     /// @returns Array of subform paths

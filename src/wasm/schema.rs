@@ -156,6 +156,34 @@ impl JSONEvalWasm {
         }
     }
 
+    /// Get values from the schema using multiple dotted path notations (returns JSON string)
+    /// @param pathsJson - JSON array of dotted paths
+    /// @returns Merged object as JSON string
+    #[wasm_bindgen(js_name = getSchemaByPaths)]
+    pub fn get_schema_by_paths(&self, paths_json: &str) -> Result<String, JsValue> {
+        // Parse JSON array of paths
+        let paths: Vec<String> = serde_json::from_str(paths_json)
+            .map_err(|e| JsValue::from_str(&format!("Failed to parse paths JSON: {}", e)))?;
+        
+        let result = self.inner.get_schema_by_paths(&paths);
+        serde_json::to_string(&result)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Get values from the schema using multiple dotted path notations (returns JS object)
+    /// @param pathsJson - JSON array of dotted paths
+    /// @returns Merged object as JavaScript object
+    #[wasm_bindgen(js_name = getSchemaByPathsJS)]
+    pub fn get_schema_by_paths_js(&self, paths_json: &str) -> Result<JsValue, JsValue> {
+        // Parse JSON array of paths
+        let paths: Vec<String> = serde_json::from_str(paths_json)
+            .map_err(|e| JsValue::from_str(&format!("Failed to parse paths JSON: {}", e)))?;
+        
+        let result = self.inner.get_schema_by_paths(&paths);
+        serde_wasm_bindgen::to_value(&result)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
     /// Reload schema with new data
     /// 
     /// @param schema - New JSON schema string

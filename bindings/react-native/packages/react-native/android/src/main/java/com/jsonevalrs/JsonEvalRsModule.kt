@@ -121,6 +121,15 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun getSchemaByPaths(
+        handle: String,
+        pathsJson: String,
+        promise: Promise
+    ) {
+        nativeGetSchemaByPathsAsync(handle, pathsJson, promise)
+    }
+
+    @ReactMethod
     fun reloadSchema(
         handle: String,
         schema: String,
@@ -409,6 +418,26 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun getSchemaByPathSubform(
+        handle: String,
+        subformPath: String,
+        schemaPath: String,
+        promise: Promise
+    ) {
+        nativeGetSchemaByPathSubformAsync(handle, subformPath, schemaPath, promise)
+    }
+
+    @ReactMethod
+    fun getSchemaByPathsSubform(
+        handle: String,
+        subformPath: String,
+        schemaPathsJson: String,
+        promise: Promise
+    ) {
+        nativeGetSchemaByPathsSubformAsync(handle, subformPath, schemaPathsJson, promise)
+    }
+
+    @ReactMethod
     fun hasSubform(
         handle: String,
         subformPath: String,
@@ -467,6 +496,7 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     private external fun nativeGetEvaluatedSchemaByPathAsync(handle: String, path: String, skipLayout: Boolean, promise: Promise)
     private external fun nativeGetEvaluatedSchemaByPathsAsync(handle: String, pathsJson: String, skipLayout: Boolean, promise: Promise)
     private external fun nativeGetSchemaByPathAsync(handle: String, path: String, promise: Promise)
+    private external fun nativeGetSchemaByPathsAsync(handle: String, pathsJson: String, promise: Promise)
     private external fun nativeReloadSchemaAsync(handle: String, schema: String, context: String, data: String, promise: Promise)
     private external fun nativeReloadSchemaMsgpackAsync(handle: String, schemaMsgpack: ByteArray, context: String, data: String, promise: Promise)
     private external fun nativeReloadSchemaFromCacheAsync(handle: String, cacheKey: String, context: String, data: String, promise: Promise)
@@ -492,6 +522,8 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     private external fun nativeGetEvaluatedSchemaWithoutParamsSubformAsync(handle: String, subformPath: String, resolveLayout: Boolean, promise: Promise)
     private external fun nativeGetEvaluatedSchemaByPathSubformAsync(handle: String, subformPath: String, schemaPath: String, skipLayout: Boolean, promise: Promise)
     private external fun nativeGetEvaluatedSchemaByPathsSubformAsync(handle: String, subformPath: String, schemaPathsJson: String, skipLayout: Boolean, promise: Promise)
+    private external fun nativeGetSchemaByPathSubformAsync(handle: String, subformPath: String, schemaPath: String, promise: Promise)
+    private external fun nativeGetSchemaByPathsSubformAsync(handle: String, subformPath: String, schemaPathsJson: String, promise: Promise)
     private external fun nativeGetSubformPathsAsync(handle: String, promise: Promise)
     private external fun nativeHasSubformAsync(handle: String, subformPath: String, promise: Promise)
     

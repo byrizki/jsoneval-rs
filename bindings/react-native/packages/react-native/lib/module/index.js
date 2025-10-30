@@ -71,6 +71,18 @@ const JsonEvalRs = NativeModules.JsonEvalRs ? NativeModules.JsonEvalRs : new Pro
  */
 
 /**
+ * Options for getting evaluated schema by multiple paths from a subform
+ */
+
+/**
+ * Options for getting schema by path from a subform
+ */
+
+/**
+ * Options for getting schema by multiple paths from a subform
+ */
+
+/**
  * High-performance JSON Logic evaluator with schema validation for React Native
  * 
  * ## Zero-Copy Architecture
@@ -318,6 +330,20 @@ export class JSONEval {
     this.throwIfDisposed();
     const resultStr = await JsonEvalRs.getSchemaByPath(this.handle, path);
     return resultStr ? JSON.parse(resultStr) : null;
+  }
+
+  /**
+   * Get values from the schema using multiple dotted path notations
+   * Returns a merged object containing all requested paths (skips paths that are not found)
+   * @param paths - Array of dotted paths to retrieve
+   * @returns Promise resolving to merged object containing all found paths
+   * @throws {Error} If operation fails
+   */
+  async getSchemaByPaths(paths) {
+    this.throwIfDisposed();
+    const pathsJson = JSON.stringify(paths);
+    const resultStr = await JsonEvalRs.getSchemaByPaths(this.handle, pathsJson);
+    return JSON.parse(resultStr);
   }
 
   /**
@@ -626,6 +652,20 @@ export class JSONEval {
   }
 
   /**
+   * Get evaluated schema by multiple paths from subform
+   * Returns a merged object containing all requested paths (skips paths that are not found)
+   * @param options - Options including subform path, array of schema paths, and skipLayout flag
+   * @returns Promise resolving to merged object containing all found paths
+   * @throws {Error} If operation fails
+   */
+  async getEvaluatedSchemaByPathsSubform(options) {
+    this.throwIfDisposed();
+    const pathsJson = JSON.stringify(options.schemaPaths);
+    const resultStr = await JsonEvalRs.getEvaluatedSchemaByPathsSubform(this.handle, options.subformPath, pathsJson, options.skipLayout || false);
+    return JSON.parse(resultStr);
+  }
+
+  /**
    * Get list of available subform paths
    * @returns Promise resolving to array of subform paths
    * @throws {Error} If operation fails
@@ -633,6 +673,32 @@ export class JSONEval {
   async getSubformPaths() {
     this.throwIfDisposed();
     const resultStr = await JsonEvalRs.getSubformPaths(this.handle);
+    return JSON.parse(resultStr);
+  }
+
+  /**
+   * Get schema value by specific path from subform
+   * @param options - Options including subform path and schema path
+   * @returns Promise resolving to value at path or null if not found
+   * @throws {Error} If operation fails
+   */
+  async getSchemaByPathSubform(options) {
+    this.throwIfDisposed();
+    const resultStr = await JsonEvalRs.getSchemaByPathSubform(this.handle, options.subformPath, options.schemaPath);
+    return resultStr ? JSON.parse(resultStr) : null;
+  }
+
+  /**
+   * Get schema values by multiple paths from subform
+   * Returns a merged object containing all requested paths (skips paths that are not found)
+   * @param options - Options including subform path and array of schema paths
+   * @returns Promise resolving to merged object containing all found paths
+   * @throws {Error} If operation fails
+   */
+  async getSchemaByPathsSubform(options) {
+    this.throwIfDisposed();
+    const pathsJson = JSON.stringify(options.schemaPaths);
+    const resultStr = await JsonEvalRs.getSchemaByPathsSubform(this.handle, options.subformPath, pathsJson);
     return JSON.parse(resultStr);
   }
 

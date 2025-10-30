@@ -156,6 +156,35 @@ export interface GetEvaluatedSchemaByPathSubformOptions {
     skipLayout?: boolean;
 }
 /**
+ * Options for getting evaluated schema by multiple paths from a subform
+ */
+export interface GetEvaluatedSchemaByPathsSubformOptions {
+    /** Path to the subform */
+    subformPath: string;
+    /** Array of dotted paths to the values within the subform */
+    schemaPaths: string[];
+    /** Whether to skip layout resolution */
+    skipLayout?: boolean;
+}
+/**
+ * Options for getting schema by path from a subform
+ */
+export interface GetSchemaByPathSubformOptions {
+    /** Path to the subform */
+    subformPath: string;
+    /** Dotted path to the value within the subform */
+    schemaPath: string;
+}
+/**
+ * Options for getting schema by multiple paths from a subform
+ */
+export interface GetSchemaByPathsSubformOptions {
+    /** Path to the subform */
+    subformPath: string;
+    /** Array of dotted paths to the values within the subform */
+    schemaPaths: string[];
+}
+/**
  * High-performance JSON Logic evaluator with schema validation for React Native
  *
  * ## Zero-Copy Architecture
@@ -296,6 +325,14 @@ export declare class JSONEval {
      * @throws {Error} If operation fails
      */
     getSchemaByPath(path: string): Promise<any | null>;
+    /**
+     * Get values from the schema using multiple dotted path notations
+     * Returns a merged object containing all requested paths (skips paths that are not found)
+     * @param paths - Array of dotted paths to retrieve
+     * @returns Promise resolving to merged object containing all found paths
+     * @throws {Error} If operation fails
+     */
+    getSchemaByPaths(paths: string[]): Promise<any>;
     /**
      * Reload schema with new data
      * @param options - Configuration options with new schema, context, and data
@@ -453,11 +490,34 @@ export declare class JSONEval {
      */
     getEvaluatedSchemaByPathSubform(options: GetEvaluatedSchemaByPathSubformOptions): Promise<any | null>;
     /**
+     * Get evaluated schema by multiple paths from subform
+     * Returns a merged object containing all requested paths (skips paths that are not found)
+     * @param options - Options including subform path, array of schema paths, and skipLayout flag
+     * @returns Promise resolving to merged object containing all found paths
+     * @throws {Error} If operation fails
+     */
+    getEvaluatedSchemaByPathsSubform(options: GetEvaluatedSchemaByPathsSubformOptions): Promise<any>;
+    /**
      * Get list of available subform paths
      * @returns Promise resolving to array of subform paths
      * @throws {Error} If operation fails
      */
     getSubformPaths(): Promise<string[]>;
+    /**
+     * Get schema value by specific path from subform
+     * @param options - Options including subform path and schema path
+     * @returns Promise resolving to value at path or null if not found
+     * @throws {Error} If operation fails
+     */
+    getSchemaByPathSubform(options: GetSchemaByPathSubformOptions): Promise<any | null>;
+    /**
+     * Get schema values by multiple paths from subform
+     * Returns a merged object containing all requested paths (skips paths that are not found)
+     * @param options - Options including subform path and array of schema paths
+     * @returns Promise resolving to merged object containing all found paths
+     * @throws {Error} If operation fails
+     */
+    getSchemaByPathsSubform(options: GetSchemaByPathsSubformOptions): Promise<any>;
     /**
      * Check if a subform exists at the given path
      * @param subformPath - Path to check

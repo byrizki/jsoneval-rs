@@ -351,5 +351,103 @@ namespace JsonEvalRs
                 Native.json_eval_free_result(result);
             }
         }
+
+        /// <summary>
+        /// Gets schema value by specific path from subform
+        /// </summary>
+        /// <param name="subformPath">Path to the subform</param>
+        /// <param name="schemaPath">Dotted path to the value within the subform</param>
+        /// <returns>Value as JObject or null if not found</returns>
+        public JObject? GetSchemaByPathSubform(string subformPath, string schemaPath)
+        {
+            ThrowIfDisposed();
+            if (string.IsNullOrEmpty(subformPath))
+                throw new ArgumentNullException(nameof(subformPath));
+            if (string.IsNullOrEmpty(schemaPath))
+                throw new ArgumentNullException(nameof(schemaPath));
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+            var result = Native.json_eval_get_schema_by_path_subform(_handle, subformPath, schemaPath);
+#else
+            var result = Native.json_eval_get_schema_by_path_subform(_handle, Native.ToUTF8Bytes(subformPath)!, Native.ToUTF8Bytes(schemaPath)!);
+#endif
+            
+            try
+            {
+                if (!result.Success)
+                {
+                    // Path not found - return null
+                    return null;
+                }
+
+                if (result.DataPtr == IntPtr.Zero)
+                    return null;
+
+                int dataLen = (int)result.DataLen.ToUInt32();
+                if (dataLen == 0)
+                    return null;
+
+                byte[] buffer = new byte[dataLen];
+                Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
+                
+                string json = Encoding.UTF8.GetString(buffer);
+                return JObject.Parse(json);
+            }
+            finally
+            {
+                Native.json_eval_free_result(result);
+            }
+        }
+
+        /// <summary>
+        /// Gets schema values by multiple paths from subform
+        /// Returns a merged object containing all requested paths. Skips paths that are not found.
+        /// </summary>
+        /// <param name="subformPath">Path to the subform</param>
+        /// <param name="schemaPaths">Array of dotted paths to retrieve within the subform</param>
+        /// <returns>Merged JObject containing all found paths</returns>
+        public JObject GetSchemaByPathsSubform(string subformPath, string[] schemaPaths)
+        {
+            ThrowIfDisposed();
+            if (string.IsNullOrEmpty(subformPath))
+                throw new ArgumentNullException(nameof(subformPath));
+            if (schemaPaths == null || schemaPaths.Length == 0)
+                throw new ArgumentNullException(nameof(schemaPaths));
+
+            string pathsJson = JsonConvert.SerializeObject(schemaPaths);
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+            var result = Native.json_eval_get_schema_by_paths_subform(_handle, subformPath, pathsJson);
+#else
+            var result = Native.json_eval_get_schema_by_paths_subform(_handle, Native.ToUTF8Bytes(subformPath)!, Native.ToUTF8Bytes(pathsJson)!);
+#endif
+            
+            if (!result.Success)
+            {
+                string error = result.GetError();
+                Native.json_eval_free_result(result);
+                throw new InvalidOperationException($"Failed to get schema by paths from subform: {error}");
+            }
+
+            try
+            {
+                if (result.DataPtr == IntPtr.Zero)
+                    return new JObject();
+
+                int dataLen = (int)result.DataLen.ToUInt32();
+                if (dataLen == 0)
+                    return new JObject();
+
+                byte[] buffer = new byte[dataLen];
+                Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
+                
+                string json = Encoding.UTF8.GetString(buffer);
+                return JObject.Parse(json);
+            }
+            finally
+            {
+                Native.json_eval_free_result(result);
+            }
+        }
     }
 }

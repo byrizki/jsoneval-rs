@@ -375,6 +375,22 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeGetSchemaByPathAsync(
 }
 
 JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeGetSchemaByPathsAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jstring pathsJson,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    std::string pathsJsonStr = jstringToString(env, pathsJson);
+    
+    runAsyncWithPromise(env, promise, "GET_SCHEMA_BY_PATHS_ERROR", [handleStr, pathsJsonStr](auto callback) {
+        JsonEvalBridge::getSchemaByPathsAsync(handleStr, pathsJsonStr, callback);
+    });
+}
+
+JNIEXPORT void JNICALL
 Java_com_jsonevalrs_JsonEvalRsModule_nativeReloadSchemaAsync(
     JNIEnv* env,
     jobject /* this */,
@@ -801,6 +817,42 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeGetSubformPathsAsync(
     
     runAsyncWithPromise(env, promise, "GET_SUBFORM_PATHS_ERROR", [handleStr](auto callback) {
         JsonEvalBridge::getSubformPathsAsync(handleStr, callback);
+    });
+}
+
+JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeGetSchemaByPathSubformAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jstring subformPath,
+    jstring schemaPath,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    std::string subformPathStr = jstringToString(env, subformPath);
+    std::string schemaPathStr = jstringToString(env, schemaPath);
+    
+    runAsyncWithPromise(env, promise, "GET_SCHEMA_BY_PATH_SUBFORM_ERROR", [handleStr, subformPathStr, schemaPathStr](auto callback) {
+        JsonEvalBridge::getSchemaByPathSubformAsync(handleStr, subformPathStr, schemaPathStr, callback);
+    });
+}
+
+JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeGetSchemaByPathsSubformAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jstring subformPath,
+    jstring schemaPathsJson,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    std::string subformPathStr = jstringToString(env, subformPath);
+    std::string schemaPathsJsonStr = jstringToString(env, schemaPathsJson);
+    
+    runAsyncWithPromise(env, promise, "GET_SCHEMA_BY_PATHS_SUBFORM_ERROR", [handleStr, subformPathStr, schemaPathsJsonStr](auto callback) {
+        JsonEvalBridge::getSchemaByPathsSubformAsync(handleStr, subformPathStr, schemaPathsJsonStr, callback);
     });
 }
 

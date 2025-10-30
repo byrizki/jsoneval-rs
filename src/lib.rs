@@ -1069,6 +1069,38 @@ impl JSONEval {
         self.schema.pointer(&pointer).cloned()
     }
 
+    /// Get values from the schema using multiple dotted path notations.
+    /// Returns a merged object containing all requested paths. Skips paths that are not found.
+    ///
+    /// # Arguments
+    ///
+    /// * `paths` - Array of dotted paths to retrieve (e.g., ["properties.field1", "properties.field2"])
+    ///
+    /// # Returns
+    ///
+    /// A merged JSON object containing all found paths, or an empty object if no paths are found.
+    pub fn get_schema_by_paths(&self, paths: &[String]) -> Value {
+        let mut result = serde_json::Map::new();
+        
+        for path in paths {
+            // Convert dotted notation to JSON pointer
+            let pointer = if path.is_empty() {
+                "".to_string()
+            } else {
+                format!("/{}", path.replace(".", "/"))
+            };
+            
+            // Get value at path, skip if not found
+            if let Some(value) = self.schema.pointer(&pointer) {
+                // Store the full path structure to maintain the hierarchy
+                // Clone only once per path
+                self.insert_at_path(&mut result, path, value.clone());
+            }
+        }
+        
+        Value::Object(result)
+    }
+
     /// Check if a dependency should be cached
     /// Caches everything except keys starting with $ (except $context)
     #[inline]

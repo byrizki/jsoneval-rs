@@ -263,6 +263,18 @@ export class JSONEvalCore {
   }
 
   /**
+   * Get values from the schema using multiple dotted path notations
+   * Returns a merged object containing all requested paths (skips paths that are not found)
+   * @param {object} options
+   * @param {string[]} options.paths - Array of dotted paths to retrieve
+   * @returns {Promise<any>} Merged object containing all found paths
+   */
+  async getSchemaByPaths({ paths }) {
+    await this.init();
+    return this._instance.getSchemaByPathsJS(JSON.stringify(paths));
+  }
+
+  /**
    * Reload schema with new data
    * @param {object} options
    * @param {object} options.schema - New JSON schema
@@ -638,6 +650,31 @@ export class JSONEvalCore {
   async getSubformPaths() {
     await this.init();
     return this._instance.getSubformPaths();
+  }
+
+  /**
+   * Get schema by specific path from subform
+   * @param {object} options
+   * @param {string} options.subformPath - Path to the subform
+   * @param {string} options.schemaPath - Path within the subform
+   * @returns {Promise<any|null>}
+   */
+  async getSchemaByPathSubform({ subformPath, schemaPath }) {
+    await this.init();
+    return this._instance.getSchemaByPathSubformJS(subformPath, schemaPath);
+  }
+
+  /**
+   * Get schema by multiple paths from subform
+   * Returns a merged object containing all requested paths (skips paths that are not found)
+   * @param {object} options
+   * @param {string} options.subformPath - Path to the subform
+   * @param {string[]} options.schemaPaths - Array of paths within the subform
+   * @returns {Promise<any>}
+   */
+  async getSchemaByPathsSubform({ subformPath, schemaPaths }) {
+    await this.init();
+    return this._instance.getSchemaByPathsSubformJS(subformPath, JSON.stringify(schemaPaths));
   }
 
   /**

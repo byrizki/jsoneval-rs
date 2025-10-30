@@ -210,3 +210,42 @@ pub unsafe extern "C" fn json_eval_get_schema_by_path(
         None => FFIResult::error("Path not found".to_string()),
     }
 }
+
+/// Get values from the schema using multiple dotted path notations
+/// Returns a merged object containing all requested paths (skips paths that are not found)
+/// 
+/// # Safety
+/// 
+/// - handle must be a valid pointer from json_eval_new
+/// - paths_json must be a valid null-terminated UTF-8 string containing a JSON array of paths
+/// - Caller must call json_eval_free_result when done
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_get_schema_by_paths(
+    handle: *mut JSONEvalHandle,
+    paths_json: *const c_char,
+) -> FFIResult {
+    if handle.is_null() || paths_json.is_null() {
+        return FFIResult::error("Invalid handle or paths pointer".to_string());
+    }
+
+    let eval = &(*handle).inner;
+
+    let paths_str = match CStr::from_ptr(paths_json).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            return FFIResult::error("Invalid UTF-8 in paths".to_string())
+        }
+    };
+
+    // Parse JSON array of paths
+    let paths: Vec<String> = match serde_json::from_str(paths_str) {
+        Ok(p) => p,
+        Err(e) => {
+            return FFIResult::error(format!("Failed to parse paths JSON: {}", e))
+        }
+    };
+
+    let result = eval.get_schema_by_paths(&paths);
+    let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
+    FFIResult::success(result_bytes)
+}

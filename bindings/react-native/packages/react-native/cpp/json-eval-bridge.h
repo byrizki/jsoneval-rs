@@ -185,6 +185,18 @@ public:
     );
 
     /**
+     * Get values from schema using multiple dotted path notations (async)
+     * @param handle Instance handle
+     * @param pathsJson JSON array of dotted paths to retrieve
+     * @param callback Result callback
+     */
+    static void getSchemaByPathsAsync(
+        const std::string& handle,
+        const std::string& pathsJson,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
      * Reload schema (async)
      * @param handle Instance handle
      * @param schema New JSON schema string
@@ -501,6 +513,34 @@ public:
      */
     static void getSubformPathsAsync(
         const std::string& handleId,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Get schema by specific path from subform (async)
+     * @param handleId Instance handle
+     * @param subformPath Path to the subform
+     * @param schemaPath Dotted path to the value within the subform
+     * @param callback Result callback
+     */
+    static void getSchemaByPathSubformAsync(
+        const std::string& handleId,
+        const std::string& subformPath,
+        const std::string& schemaPath,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Get schema by multiple paths from subform (async)
+     * @param handleId Instance handle
+     * @param subformPath Path to the subform
+     * @param schemaPathsJson JSON array of dotted paths to retrieve within the subform
+     * @param callback Result callback
+     */
+    static void getSchemaByPathsSubformAsync(
+        const std::string& handleId,
+        const std::string& subformPath,
+        const std::string& schemaPathsJson,
         std::function<void(const std::string&, const std::string&)> callback
     );
 
