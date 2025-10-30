@@ -86,94 +86,30 @@ jobs:
           echo "📦 Found latest release: $TAG"
         fi
   
-  # Download pre-built packages from GitHub Release
-  download-release-assets:
-    needs: check-workflow
-    if: needs.check-workflow.outputs.should_run == 'true'
+
+  # Publish C# NuGet package (download directly from release)
+  publish-csharp:
+    if: |
+      needs.check-workflow.outputs.should_run == 'true' &&
+      (github.event_name == 'workflow_run' || github.event.inputs.publish_csharp == 'true')
+    needs: [check-workflow]
     runs-on: ubuntu-latest
     
     steps:
     - uses: actions/checkout@v4
     
-    - name: Verify release exists
+    - name: Download NuGet package from release
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         TAG="${{ needs.check-workflow.outputs.release_tag }}"
-        echo "Checking if release $TAG exists..."
+        echo "📦 Downloading NuGet package from release: $TAG"
         
-        if ! gh release view "$TAG" > /dev/null 2>&1; then
-          echo "❌ ERROR: Release $TAG does not exist"
-          echo "Available releases:"
-          gh release list --limit 5
-          exit 1
-        fi
+        mkdir -p packages
+        cd packages
+        gh release download "$TAG" --pattern "*.nupkg"
         
-        echo "✅ Release $TAG found"
-        echo ""
-        echo "Release info:"
-        gh release view "$TAG"
-    
-    - name: Download release assets
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        TAG="${{ needs.check-workflow.outputs.release_tag }}"
-        echo "Downloading assets from release: $TAG"
-        
-        # Create download directory
-        mkdir -p release-assets
-        cd release-assets
-        
-        # Download all release assets
-        echo "Downloading .nupkg files..."
-        gh release download "$TAG" --pattern "*.nupkg" || echo "⚠️ No .nupkg files found"
-        
-        echo "Downloading .tgz files..."
-        gh release download "$TAG" --pattern "*.tgz" || echo "⚠️ No .tgz files found"
-        
-        echo "Downloading .tar.gz files..."
-        gh release download "$TAG" --pattern "*.tar.gz" || echo "⚠️ No .tar.gz files found"
-    
-    - name: Verify downloaded assets
-      id: verify
-      run: |
-        echo "Downloaded release assets:"
-        ls -lh release-assets/ || true
-        
-        # Check if any files were downloaded
-        FILE_COUNT=$(find release-assets -type f | wc -l)
-        echo "Total files downloaded: $FILE_COUNT"
-        
-        if [ "$FILE_COUNT" -eq 0 ]; then
-          echo "❌ ERROR: No release assets were found in release ${{ needs.check-workflow.outputs.release_tag }}"
-          echo "Make sure the Build Bindings workflow has completed and uploaded assets to the release."
-          exit 1
-        fi
-        
-        echo "✅ Found $FILE_COUNT release asset(s)"
-    
-    - name: Re-upload as workflow artifacts
-      if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: release-packages
-        path: release-assets/
-
-  # Publish C# NuGet package (using pre-built package from release)
-  publish-csharp:
-    if: |
-      needs.check-workflow.outputs.should_run == 'true' &&
-      (github.event_name == 'workflow_run' || github.event.inputs.publish_csharp == 'true')
-    needs: [check-workflow, download-release-assets]
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Download release packages
-      uses: actions/download-artifact@v4
-      with:
-        name: release-packages
-        path: packages/
+        ls -lh *.nupkg
     
     - name: Publish to NuGet
       run: |
@@ -195,26 +131,39 @@ jobs:
       env:
         NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
 
-  # Publish Web npm packages (using pre-built packages from release)
+  # Publish Web npm packages (download directly from release)
   publish-web:
     if: |
       needs.check-workflow.outputs.should_run == 'true' &&
       (github.event_name == 'workflow_run' || github.event.inputs.publish_web == 'true')
-    needs: [check-workflow, download-release-assets]
+    needs: [check-workflow]
     runs-on: ubuntu-latest
     
     steps:
+    - uses: actions/checkout@v4
+    
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
         registry-url: 'https://registry.npmjs.org'
     
-    - name: Download release packages
-      uses: actions/download-artifact@v4
-      with:
-        name: release-packages
-        path: packages/
+    - name: Download web packages from release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        TAG="${{ needs.check-workflow.outputs.release_tag }}"
+        echo "📦 Downloading web packages from release: $TAG"
+        
+        mkdir -p packages
+        cd packages
+        
+        # Download all .tgz files except React Native
+        gh release download "$TAG" --pattern "*.tgz"
+        
+        echo ""
+        echo "Downloaded packages:"
+        ls -lh *.tgz 2>/dev/null || echo "No .tgz files found"
     
     - name: Publish web packages to npm
       run: |
@@ -280,26 +229,37 @@ jobs:
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-  # Publish React Native npm package (using pre-built package from release)
+  # Publish React Native npm package (download directly from release)
   publish-react-native:
     if: |
       needs.check-workflow.outputs.should_run == 'true' &&
       (github.event_name == 'workflow_run' || github.event.inputs.publish_react_native == 'true')
-    needs: [check-workflow, download-release-assets]
+    needs: [check-workflow]
     runs-on: ubuntu-latest
     
     steps:
+    - uses: actions/checkout@v4
+    
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
         registry-url: 'https://registry.npmjs.org'
     
-    - name: Download release packages
-      uses: actions/download-artifact@v4
-      with:
-        name: release-packages
-        path: packages/
+    - name: Download React Native package from release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        TAG="${{ needs.check-workflow.outputs.release_tag }}"
+        echo "📦 Downloading React Native package from release: $TAG"
+        
+        mkdir -p packages
+        cd packages
+        gh release download "$TAG" --pattern "*react-native*.tgz"
+        
+        echo ""
+        echo "Downloaded package:"
+        ls -lh *react-native*.tgz
     
     - name: Inspect and publish React Native package
       run: |
@@ -368,7 +328,7 @@ jobs:
   # Summary
   publish-summary:
     if: always()
-    needs: [check-workflow, download-release-assets, publish-csharp, publish-web, publish-react-native, publish-crates-io]
+    needs: [check-workflow, publish-csharp, publish-web, publish-react-native, publish-crates-io]
     runs-on: ubuntu-latest
     
     steps:

@@ -807,25 +807,34 @@ jobs:
         if [ -d "ios-xcframework" ]; then
           tar -czf ios-xcframework.tar.gz ios-xcframework/
         fi
+        
+        # Move web packages to root level for upload
+        if [ -d "web-packages" ]; then
+          mv web-packages/*.tgz . 2>/dev/null || echo "No web packages to move"
+        fi
+        
+        # Move NuGet package to root level for upload
+        if [ -d "nuget-package" ]; then
+          mv nuget-package/*.nupkg . 2>/dev/null || echo "No NuGet package to move"
+        fi
+        
+        # Move React Native package to root level for upload
+        if [ -d "react-native-package" ]; then
+          mv react-native-package/*.tgz . 2>/dev/null || echo "No React Native package to move"
+        fi
     
     - name: Verify release assets before upload
       run: |
+        cd release-artifacts
         echo "📦 Release assets to be uploaded:"
         echo ""
-        echo "Native libraries (.tar.gz):"
-        ls -lh release-artifacts/*.tar.gz 2>/dev/null || echo "  No .tar.gz files found"
+        echo "All files in release-artifacts root:"
+        ls -lh *.tar.gz *.tgz *.nupkg 2>/dev/null || echo "  ⚠️ No release files found!"
         echo ""
-        echo "NuGet packages (.nupkg):"
-        ls -lh release-artifacts/nuget-package/*.nupkg 2>/dev/null || echo "  No .nupkg files found"
-        echo ""
-        echo "Web packages (.tgz):"
-        ls -lh release-artifacts/web-packages/*.tgz 2>/dev/null || echo "  ⚠️ No web packages found!"
-        echo ""
-        echo "React Native package (.tgz):"
-        ls -lh release-artifacts/react-native-package/*.tgz 2>/dev/null || echo "  No React Native package found"
-        echo ""
-        echo "All artifacts directories:"
-        ls -d release-artifacts/*/ 2>/dev/null || echo "  No artifact directories"
+        echo "File count breakdown:"
+        echo "  .tar.gz files: $(ls -1 *.tar.gz 2>/dev/null | wc -l)"
+        echo "  .tgz files: $(ls -1 *.tgz 2>/dev/null | wc -l)"
+        echo "  .nupkg files: $(ls -1 *.nupkg 2>/dev/null | wc -l)"
     
     - name: Upload artifacts to release
       uses: softprops/action-gh-release@v1
@@ -833,9 +842,8 @@ jobs:
         tag_name: ${{ steps.get_tag.outputs.tag }}
         files: |
           release-artifacts/*.tar.gz
-          release-artifacts/nuget-package/*.nupkg
-          release-artifacts/web-packages/*.tgz
-          release-artifacts/react-native-package/*.tgz
+          release-artifacts/*.tgz
+          release-artifacts/*.nupkg
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
