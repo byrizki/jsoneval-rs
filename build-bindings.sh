@@ -118,7 +118,7 @@ build_web() {
     print_info "Packages:"
     print_info "  - @json-eval-rs/bundler: packages/bundler/ (for Webpack, Vite, Next.js, etc.)"
     print_info "  - @json-eval-rs/node: packages/node/ (for Node.js/SSR)"
-    print_info "  - @json-eval-rs/core: packages/core/ (internal API wrapper)"
+    print_info "  - @json-eval-rs/webcore: packages/core/ (internal API wrapper)"
 }
 
 # Build React Native bindings

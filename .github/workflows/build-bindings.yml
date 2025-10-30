@@ -241,20 +241,52 @@ jobs:
       run: |
         cd bindings/web/packages/core
         npm pack
+        
+        echo ""
+        echo "✅ Core package created:"
+        ls -lh *.tgz
+        
+        echo ""
+        echo "📋 Contents of core package:"
+        tar -tzf *.tgz | grep -E '\.(js|ts|json)$'
     
     - name: Package web binding (bundler)
       run: |
         cd bindings/web/packages/bundler
         npm pack
-        # Verify WASM is included in the tarball
-        tar -tzf *.tgz | grep -E '\.wasm$' && echo "✓ WASM files included in bundler package" || echo "⚠ No WASM files in bundler package"
+        
+        echo ""
+        echo "✅ Bundler package created:"
+        ls -lh *.tgz
+        
+        echo ""
+        echo "📋 Verifying bundler package contents:"
+        tar -tzf *.tgz | head -20
+        
+        # Verify key files are included
+        tar -tzf *.tgz | grep -E 'package/index\.js$' && echo "✓ index.js included" || echo "❌ index.js missing"
+        tar -tzf *.tgz | grep -E 'package/index\.d\.ts$' && echo "✓ index.d.ts included" || echo "❌ index.d.ts missing"
+        tar -tzf *.tgz | grep -E '\.wasm$' && echo "✓ WASM files included" || echo "❌ No WASM files"
+        tar -tzf *.tgz | grep -E 'package/pkg/.*\.js$' && echo "✓ pkg/*.js files included" || echo "❌ No pkg/*.js files"
     
     - name: Package web binding (node)
       run: |
         cd bindings/web/packages/node
         npm pack
-        # Verify WASM is included in the tarball
-        tar -tzf *.tgz | grep -E '\.wasm$' && echo "✓ WASM files included in node package" || echo "⚠ No WASM files in node package"
+        
+        echo ""
+        echo "✅ Node package created:"
+        ls -lh *.tgz
+        
+        echo ""
+        echo "📋 Verifying node package contents:"
+        tar -tzf *.tgz | head -20
+        
+        # Verify key files are included
+        tar -tzf *.tgz | grep -E 'package/index\.js$' && echo "✓ index.js included" || echo "❌ index.d.ts missing"
+        tar -tzf *.tgz | grep -E 'package/index\.d\.ts$' && echo "✓ index.d.ts included" || echo "❌ index.d.ts missing"
+        tar -tzf *.tgz | grep -E '\.wasm$' && echo "✓ WASM files included" || echo "❌ No WASM files"
+        tar -tzf *.tgz | grep -E 'package/pkg/.*\.js$' && echo "✓ pkg/*.js files included" || echo "❌ No pkg/*.js files"
     
     - name: Upload web packages
       uses: actions/upload-artifact@v4
@@ -775,6 +807,25 @@ jobs:
         if [ -d "ios-xcframework" ]; then
           tar -czf ios-xcframework.tar.gz ios-xcframework/
         fi
+    
+    - name: Verify release assets before upload
+      run: |
+        echo "📦 Release assets to be uploaded:"
+        echo ""
+        echo "Native libraries (.tar.gz):"
+        ls -lh release-artifacts/*.tar.gz 2>/dev/null || echo "  No .tar.gz files found"
+        echo ""
+        echo "NuGet packages (.nupkg):"
+        ls -lh release-artifacts/nuget-package/*.nupkg 2>/dev/null || echo "  No .nupkg files found"
+        echo ""
+        echo "Web packages (.tgz):"
+        ls -lh release-artifacts/web-packages/*.tgz 2>/dev/null || echo "  ⚠️ No web packages found!"
+        echo ""
+        echo "React Native package (.tgz):"
+        ls -lh release-artifacts/react-native-package/*.tgz 2>/dev/null || echo "  No React Native package found"
+        echo ""
+        echo "All artifacts directories:"
+        ls -d release-artifacts/*/ 2>/dev/null || echo "  No artifact directories"
     
     - name: Upload artifacts to release
       uses: softprops/action-gh-release@v1

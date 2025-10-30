@@ -30,7 +30,7 @@
     "directory": "bindings/web/packages/bundler"
   },
   "dependencies": {
-    "@json-eval-rs/core": "*"
+    "@json-eval-rs/webcore": "*"
   },
   "sideEffects": false
 }

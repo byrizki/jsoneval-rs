@@ -16,7 +16,7 @@ bindings/web/packages/
 
 ### 1. Core Package (Internal)
 
-`@json-eval-rs/core` is a **private package** that provides the high-level JavaScript API:
+`@json-eval-rs/webcore` is a **private package** that provides the high-level JavaScript API:
 
 - `JSONEvalCore` class with all methods
 - Accepts WASM module as first constructor argument
@@ -28,7 +28,7 @@ Each WASM package (`bundler`, `vanilla`, `node`) extends core with its own WASM:
 
 ```javascript
 // packages/bundler/index.js
-import { JSONEvalCore } from '@json-eval-rs/core';
+import { JSONEvalCore } from '@json-eval-rs/webcore';
 import * as wasm from './pkg/json_eval_rs.js';
 
 export class JSONEval extends JSONEvalCore {
@@ -43,7 +43,7 @@ export class JSONEval extends JSONEvalCore {
 ### Before (Old API - Required Manual WASM Passing)
 
 ```typescript
-import { JSONEval } from '@json-eval-rs/core';
+import { JSONEval } from '@json-eval-rs/webcore';
 import * as wasmModule from '@json-eval-rs/bundler';
 
 const evaluator = new JSONEval({ schema, wasmModule });
@@ -77,7 +77,7 @@ Only the WASM packages are published:
 - ✅ `@json-eval-rs/bundler`
 - ✅ `@json-eval-rs/vanilla`
 - ✅ `@json-eval-rs/node`
-- ❌ `@json-eval-rs/core` (private, internal only)
+- ❌ `@json-eval-rs/webcore` (private, internal only)
 
 ## Development
 

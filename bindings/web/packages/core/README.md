@@ -1,4 +1,4 @@
-# @json-eval-rs/core
+# @json-eval-rs/webcore
 
 High-level JavaScript API for JSON Eval RS WASM bindings.
 
@@ -6,13 +6,13 @@ High-level JavaScript API for JSON Eval RS WASM bindings.
 
 ```bash
 # Install bridge + your target WASM package
-yarn install @json-eval-rs/core @json-eval-rs/bundler
+yarn install @json-eval-rs/webcore @json-eval-rs/bundler
 
 # Or for direct browser use
-yarn install @json-eval-rs/core @json-eval-rs/vanilla
+yarn install @json-eval-rs/webcore @json-eval-rs/vanilla
 
 # Or for Node.js
-yarn install @json-eval-rs/core @json-eval-rs/node
+yarn install @json-eval-rs/webcore @json-eval-rs/node
 ```
 
 ## Usage
@@ -20,7 +20,7 @@ yarn install @json-eval-rs/core @json-eval-rs/node
 ### With Bundler (Webpack, Vite, Next.js, etc.)
 
 ```typescript
-import { JSONEval } from '@json-eval-rs/core';
+import { JSONEval } from '@json-eval-rs/webcore';
 import * as wasmModule from '@json-eval-rs/bundler';
 
 const evaluator = new JSONEval({
@@ -59,7 +59,7 @@ evaluator.free();
 
 useEffect(() => {
   Promise.all([
-    import('@json-eval-rs/core'),
+    import('@json-eval-rs/webcore'),
     import('@json-eval-rs/bundler')
   ]).then(([{ JSONEval }, wasmModule]) => {
     const evaluator = new JSONEval({ schema, wasmModule });

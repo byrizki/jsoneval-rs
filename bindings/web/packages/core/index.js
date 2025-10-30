@@ -1,5 +1,5 @@
 /**
- * @json-eval-rs/core
+ * @json-eval-rs/webcore
  * High-level JavaScript API for JSON Eval RS WASM bindings
  * 
  * This package provides a clean, ergonomic API that works with any WASM target:
@@ -27,7 +27,7 @@ export function getVersion(wasmModule) {
  * 
  * @example
  * ```js
- * import { JSONEval } from '@json-eval-rs/core';
+ * import { JSONEval } from '@json-eval-rs/webcore';
  * 
  * const evaluator = new JSONEval({
  *   schema: { type: 'object', properties: { ... } }

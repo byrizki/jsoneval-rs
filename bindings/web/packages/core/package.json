@@ -1,5 +1,5 @@
 {
-  "name": "@json-eval-rs/core",
+  "name": "@json-eval-rs/webcore",
   "version": "0.0.28",
   "description": "JSON Eval RS core JavaScript wrapper (internal package - not published)",
   "main": "index.js",

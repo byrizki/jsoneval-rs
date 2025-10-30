@@ -29,7 +29,7 @@
     "directory": "bindings/web/packages/node"
   },
   "dependencies": {
-    "@json-eval-rs/core": "*"
+    "@json-eval-rs/webcore": "*"
   },
   "sideEffects": false
 }

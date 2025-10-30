@@ -3,7 +3,7 @@
  * JSON Eval RS for Node.js and Server-Side Rendering (SSR)
  */
 
-import { JSONEvalCore, getVersion } from '@json-eval-rs/core';
+import { JSONEvalCore, getVersion } from '@json-eval-rs/webcore';
 import * as wasm from './pkg/json_eval_rs.js';
 
 /**
@@ -40,6 +40,6 @@ export function version() {
 }
 
 // Re-export types for convenience
-export * from '@json-eval-rs/core';
+export * from '@json-eval-rs/webcore';
 
 export default JSONEval;

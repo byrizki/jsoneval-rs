@@ -1,5 +1,5 @@
 /**
- * @json-eval-rs/core - TypeScript definitions
+ * @json-eval-rs/webcore - TypeScript definitions
  */
 
 /**

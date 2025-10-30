@@ -216,36 +216,26 @@ jobs:
         name: release-packages
         path: packages/
     
-    - name: Extract and publish web packages to npm
+    - name: Publish web packages to npm
       run: |
         echo "📦 Available release files:"
         ls -lh packages/
         echo ""
         
-        # Extract wasm-modules.tar.gz if it exists
-        if [ -f "packages/wasm-modules.tar.gz" ]; then
-          echo "📂 Extracting wasm-modules.tar.gz..."
-          mkdir -p packages/web
-          tar -xzf packages/wasm-modules.tar.gz -C packages/web
-          echo "✅ Extracted web modules"
-          echo ""
-          echo "Contents of web directory:"
-          ls -lh packages/web/
-        fi
-        
-        # Find and publish all web-related .tgz packages
+        # Find and publish all web-related .tgz packages (core, bundler, node)
         PUBLISHED=0
         
-        # Look in both packages/ and packages/web/
-        for pkg in packages/*.tgz packages/web/*.tgz; do
+        # Look for web package tarballs (they should be directly in packages/)
+        for pkg in packages/*.tgz; do
           # Skip React Native package
           if [[ "$pkg" == *"react-native"* ]]; then
+            echo "Skipping React Native package: $(basename $pkg)"
             continue
           fi
           
           if [ -f "$pkg" ]; then
             echo ""
-            echo "Publishing: $(basename $pkg)"
+            echo "📦 Processing: $(basename $pkg)"
             echo "Full path: $pkg"
             
             # Verify the tarball is valid
@@ -254,17 +244,20 @@ jobs:
               continue
             fi
             
-            # Extract package name for verification
+            # Extract and display package info
             mkdir -p /tmp/pkg-inspect
             tar -xzf "$pkg" -C /tmp/pkg-inspect package/package.json 2>/dev/null || true
             if [ -f /tmp/pkg-inspect/package/package.json ]; then
               PKG_NAME=$(grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' /tmp/pkg-inspect/package/package.json | cut -d'"' -f4)
-              echo "Package name: $PKG_NAME"
+              PKG_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' /tmp/pkg-inspect/package/package.json | cut -d'"' -f4)
+              echo "  📋 Package: $PKG_NAME@$PKG_VERSION"
             fi
             rm -rf /tmp/pkg-inspect
             
             # Publish
+            echo "  🚀 Publishing to npm..."
             npm publish "$pkg" --access public
+            echo "  ✅ Published successfully"
             PUBLISHED=$((PUBLISHED + 1))
           fi
         done
@@ -272,18 +265,18 @@ jobs:
         if [ $PUBLISHED -eq 0 ]; then
           echo ""
           echo "❌ No web packages were published"
-          echo "This might be okay if web packages are not included in this release."
+          echo ""
+          echo "Expected to find: @json-eval-rs/webcore, @json-eval-rs/bundler, @json-eval-rs/node"
           echo "Available files in packages/:"
           ls -lh packages/
-          if [ -d packages/web ]; then
-            echo "Available files in packages/web/:"
-            ls -lh packages/web/
-          fi
+          echo ""
+          echo "⚠️ Web packages should be directly in the packages/ directory"
+          echo "   Check the build-bindings workflow's web-packages artifact"
           exit 1
         fi
         
         echo ""
-        echo "✅ Published $PUBLISHED web package(s)"
+        echo "✅ Successfully published $PUBLISHED web package(s)"
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
