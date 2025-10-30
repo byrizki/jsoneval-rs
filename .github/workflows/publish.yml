@@ -1,355 +1,221 @@
 name: Publish Packages
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
+  # Trigger after build-bindings workflow completes successfully
+  workflow_run:
+    workflows: ["Build Bindings"]
+    types:
+      - completed
   workflow_dispatch:
     inputs:
+      release_tag:
+        description: 'Release tag to publish from (e.g., v0.0.27)'
+        required: true
+        type: string
       publish_csharp:
         description: 'Publish C# NuGet package'
         required: false
         type: boolean
-        default: false
+        default: true
       publish_web:
         description: 'Publish Web npm package'
         required: false
         type: boolean
-        default: false
+        default: true
       publish_react_native:
         description: 'Publish React Native npm package'
         required: false
         type: boolean
-        default: false
+        default: true
       publish_crates_io:
         description: 'Publish Rust crate to crates.io'
         required: false
         type: boolean
-        default: false
+        default: true
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # Download pre-built artifacts from build-bindings workflow
-  download-artifacts:
+  # Check if workflow_run was successful before proceeding
+  check-workflow:
+    if: github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
-      run-id: ${{ steps.get-run.outputs.run-id }}
+      release_tag: ${{ steps.get-tag.outputs.tag }}
+      should_run: ${{ steps.check.outputs.should_run }}
     
     steps:
-    - name: Get latest successful build-bindings workflow run
-      id: get-run
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const runs = await github.rest.actions.listWorkflowRuns({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            workflow_id: 'build-bindings.yml',
-            status: 'success',
-            branch: 'main',
-            per_page: 1
-          });
-          
-          if (runs.data.workflow_runs.length === 0) {
-            core.setFailed('No successful build-bindings workflow run found');
-            return;
-          }
-          
-          const runId = runs.data.workflow_runs[0].id;
-          core.setOutput('run-id', runId);
-          console.log(`Found workflow run: ${runId}`);
-    
-    - name: Download all artifacts from build-bindings
-      uses: actions/download-artifact@v4
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        run-id: ${{ steps.get-run.outputs.run-id }}
-        path: downloaded-artifacts/
-    
-    - name: List downloaded artifacts
+    - name: Check workflow_run conclusion
+      id: check
       run: |
-        echo "Downloaded artifacts:"
-        ls -R downloaded-artifacts/
+        if [ "${{ github.event_name }}" = "workflow_run" ]; then
+          if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+            echo "Build Bindings workflow did not succeed. Skipping publish."
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "should_run=true" >> $GITHUB_OUTPUT
+        else
+          echo "should_run=true" >> $GITHUB_OUTPUT
+        fi
     
-    - name: Re-upload native artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: all-native-artifacts
-        path: downloaded-artifacts/
-
-  # Publish C# NuGet package
-  publish-csharp:
-    if: |
-      github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') ||
-      github.event.inputs.publish_csharp == 'true'
-    needs: download-artifacts
+    - name: Get release tag
+      id: get-tag
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "tag=${{ github.event.inputs.release_tag }}" >> $GITHUB_OUTPUT
+        else
+          # For workflow_run, get the latest release tag
+          TAG=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r .tag_name)
+          if [ "$TAG" = "null" ] || [ -z "$TAG" ]; then
+            echo "No release found"
+            exit 1
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+        fi
+        echo "Release tag: ${{ steps.get-tag.outputs.tag }}"
+  
+  # Download pre-built packages from GitHub Release
+  download-release-assets:
+    needs: check-workflow
+    if: needs.check-workflow.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     
     steps:
     - uses: actions/checkout@v4
     
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: |
-          8.0.x
-          6.0.x
+    - name: Download release assets
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        TAG="${{ needs.check-workflow.outputs.release_tag }}"
+        echo "Downloading assets from release: $TAG"
+        
+        # Create download directory
+        mkdir -p release-assets
+        cd release-assets
+        
+        # Download all release assets
+        gh release download "$TAG" --pattern "*.nupkg" || echo "No .nupkg files"
+        gh release download "$TAG" --pattern "*.tgz" || echo "No .tgz files"
+        gh release download "$TAG" --pattern "*.tar.gz" || echo "No .tar.gz files"
     
-    - name: Download artifacts from previous job
+    - name: List downloaded assets
+      run: |
+        echo "Downloaded release assets:"
+        ls -lh release-assets/
+    
+    - name: Re-upload as workflow artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-packages
+        path: release-assets/
+
+  # Publish C# NuGet package (using pre-built package from release)
+  publish-csharp:
+    if: |
+      needs.check-workflow.outputs.should_run == 'true' &&
+      (github.event_name == 'workflow_run' || github.event.inputs.publish_csharp == 'true')
+    needs: [check-workflow, download-release-assets]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Download release packages
       uses: actions/download-artifact@v4
       with:
-        name: all-native-artifacts
-        path: artifacts/
-    
-    - name: Organize native libraries
-      run: |
-        # Create native library directories for C# bindings
-        mkdir -p bindings/csharp/runtimes/linux-x64/native
-        mkdir -p bindings/csharp/runtimes/linux-arm64/native
-        mkdir -p bindings/csharp/runtimes/win-x64/native
-        mkdir -p bindings/csharp/runtimes/osx-x64/native
-        mkdir -p bindings/csharp/runtimes/osx-arm64/native
-        
-        # Extract from downloaded structure (artifacts contain subdirs from build-bindings)
-        find artifacts -name "libjson_eval_rs.so" -path "*/native-x86_64-unknown-linux-gnu/*" -exec cp {} bindings/csharp/runtimes/linux-x64/native/ \; || true
-        find artifacts -name "libjson_eval_rs.so" -path "*/native-aarch64-unknown-linux-gnu/*" -exec cp {} bindings/csharp/runtimes/linux-arm64/native/ \; || true
-        find artifacts -name "json_eval_rs.dll" -path "*/native-x86_64-pc-windows-msvc/*" -exec cp {} bindings/csharp/runtimes/win-x64/native/ \; || true
-        find artifacts -name "libjson_eval_rs.dylib" -path "*/native-x86_64-apple-darwin/*" -exec cp {} bindings/csharp/runtimes/osx-x64/native/ \; || true
-        find artifacts -name "libjson_eval_rs.dylib" -path "*/native-aarch64-apple-darwin/*" -exec cp {} bindings/csharp/runtimes/osx-arm64/native/ \; || true
-    
-    - name: Verify native libraries copied
-      run: |
-        echo "Checking native libraries in bindings/csharp/runtimes/..."
-        echo ""
-        echo "Linux x64:"
-        ls -lh bindings/csharp/runtimes/linux-x64/native/*.so 2>/dev/null || echo "  ⚠ Not found"
-        echo ""
-        echo "Linux ARM64:"
-        ls -lh bindings/csharp/runtimes/linux-arm64/native/*.so 2>/dev/null || echo "  ⚠ Not found"
-        echo ""
-        echo "Windows x64:"
-        ls -lh bindings/csharp/runtimes/win-x64/native/*.dll 2>/dev/null || echo "  ⚠ Not found"
-        echo ""
-        echo "macOS x64:"
-        ls -lh bindings/csharp/runtimes/osx-x64/native/*.dylib 2>/dev/null || echo "  ⚠ Not found"
-        echo ""
-        echo "macOS ARM64:"
-        ls -lh bindings/csharp/runtimes/osx-arm64/native/*.dylib 2>/dev/null || echo "  ⚠ Not found"
-    
-    - name: Build C# project
-      run: |
-        cd bindings/csharp
-        dotnet build -c Release
-    
-    - name: Pack NuGet package
-      run: |
-        cd bindings/csharp
-        dotnet pack -c Release --no-build -v detailed 2>&1 | tee pack.log
-        echo ""
-        echo "Checking pack log for native libraries..."
-        grep -i "libjson_eval_rs\|json_eval_rs" pack.log || echo "⚠ No native library references in pack log"
-    
-    - name: Verify NuGet package contents
-      run: |
-        cd bindings/csharp/bin/Release
-        NUPKG=$(ls *.nupkg | head -n 1)
-        echo "Inspecting NuGet package: $NUPKG"
-        echo ""
-        echo "Native libraries in package:"
-        unzip -l "$NUPKG" | grep -E 'runtimes.*\.(dll|so|dylib)$' || echo "⚠ No native libraries found in package!"
-        echo ""
-        echo "Full runtimes folder structure:"
-        unzip -l "$NUPKG" | grep "runtimes/" || echo "No runtimes folder"
+        name: release-packages
+        path: packages/
     
     - name: Publish to NuGet
       run: |
-        cd bindings/csharp
-        dotnet nuget push bin/Release/*.nupkg \
+        NUPKG=$(find packages -name "*.nupkg" | head -n 1)
+        if [ -z "$NUPKG" ]; then
+          echo "❌ No NuGet package found in release"
+          exit 1
+        fi
+        
+        echo "Publishing: $NUPKG"
+        dotnet nuget push "$NUPKG" \
           --api-key ${{ secrets.NUGET_API_KEY }} \
           --source https://api.nuget.org/v3/index.json \
           --skip-duplicate
       env:
         NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-    
-    - name: Upload NuGet package artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: nuget-package
-        path: bindings/csharp/bin/Release/*.nupkg
 
-  # Publish Web npm package
+  # Publish Web npm packages (using pre-built packages from release)
   publish-web:
     if: |
-      github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') ||
-      github.event.inputs.publish_web == 'true'
+      needs.check-workflow.outputs.should_run == 'true' &&
+      (github.event_name == 'workflow_run' || github.event.inputs.publish_web == 'true')
+    needs: [check-workflow, download-release-assets]
     runs-on: ubuntu-latest
     
-    env:
-      RUSTFLAGS: "--cfg=getrandom_backend=\"wasm_js\""
-    
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Rust
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-      with:
-        toolchain: stable
-        target: wasm32-unknown-unknown
-    
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
         registry-url: 'https://registry.npmjs.org'
     
-    - name: Install wasm-pack
-      run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-    
-    - name: Build WASM packages
-      run: |
-        wasm-pack build --target bundler --out-dir bindings/web/packages/bundler/pkg --features wasm
-        wasm-pack build --target nodejs --out-dir bindings/web/packages/node/pkg --features wasm
-    
-    - name: Install dependencies
-      run: |
-        cd bindings/web
-        yarn install
-    
-    - name: Remove pkg .gitignore files
-      run: |
-        # wasm-pack generates .gitignore files that can prevent npm publish from including WASM files
-        rm -f bindings/web/packages/bundler/pkg/.gitignore
-        rm -f bindings/web/packages/node/pkg/.gitignore
-        echo "✓ Removed .gitignore files from pkg directories"
-    
-    - name: Publish core package to npm
-      run: |
-        cd bindings/web/packages/core
-        echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
-        npm publish --access public
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-    
-    - name: Publish bundler package to npm
-      run: |
-        cd bindings/web/packages/bundler
-        echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
-        npm publish --access public
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-    
-    - name: Publish node package to npm
-      run: |
-        cd bindings/web/packages/node
-        echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
-        npm publish --access public
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-    
-    - name: Create package artifacts
-      run: |
-        cd bindings/web/packages/core && npm pack
-        cd ../bundler && npm pack
-        cd ../node && npm pack
-    
-    - name: Upload web package artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: web-packages
-        path: |
-          bindings/web/packages/core/*.tgz
-          bindings/web/packages/bundler/*.tgz
-          bindings/web/packages/node/*.tgz
-
-  # Publish React Native npm package
-  publish-react-native:
-    if: |
-      github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') ||
-      github.event.inputs.publish_react_native == 'true'
-    needs: download-artifacts
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        registry-url: 'https://registry.npmjs.org'
-    
-    - name: Download artifacts from previous job
+    - name: Download release packages
       uses: actions/download-artifact@v4
       with:
-        name: all-native-artifacts
-        path: artifacts/
+        name: release-packages
+        path: packages/
     
-    - name: Organize native libraries
+    - name: Publish web packages to npm
       run: |
-        # Create iOS framework directory
-        mkdir -p bindings/react-native/packages/react-native/ios/libs
-        
-        # Create Android JNI directory
-        mkdir -p bindings/react-native/packages/react-native/android/src/main/jniLibs
-        
-        # Copy iOS libraries from downloaded artifacts
-        find artifacts -name "libjson_eval_rs.a" -path "*/native-aarch64-apple-ios/*" -exec mkdir -p bindings/react-native/packages/react-native/ios/libs/aarch64-apple-ios \; -exec cp {} bindings/react-native/packages/react-native/ios/libs/aarch64-apple-ios/ \; || true
-        find artifacts -name "libjson_eval_rs.a" -path "*/native-x86_64-apple-ios/*" -exec mkdir -p bindings/react-native/packages/react-native/ios/libs/x86_64-apple-ios \; -exec cp {} bindings/react-native/packages/react-native/ios/libs/x86_64-apple-ios/ \; || true
-        find artifacts -name "libjson_eval_rs.a" -path "*/native-aarch64-apple-ios-sim/*" -exec mkdir -p bindings/react-native/packages/react-native/ios/libs/aarch64-apple-ios-sim \; -exec cp {} bindings/react-native/packages/react-native/ios/libs/aarch64-apple-ios-sim/ \; || true
-        
-        # Copy Android JNI libraries from downloaded artifacts (organized by ABI)
-        for abi in arm64-v8a armeabi-v7a x86 x86_64; do
-          if find artifacts -path "*/android-jni-${abi}/*" -name "*.so" 2>/dev/null | grep -q .; then
-            mkdir -p bindings/react-native/packages/react-native/android/src/main/jniLibs/${abi}
-            find artifacts -path "*/android-jni-${abi}/*" -name "*.so" -exec cp {} bindings/react-native/packages/react-native/android/src/main/jniLibs/${abi}/ \;
-            echo "✓ Copied Android ${abi} libraries"
+        # Find and publish all web-related .tgz packages
+        for pkg in packages/*-core-*.tgz packages/*-bundler-*.tgz packages/*-node-*.tgz; do
+          if [ -f "$pkg" ]; then
+            echo "Publishing: $(basename $pkg)"
+            npm publish "$pkg" --access public
           fi
         done
-        
-        echo ""
-        echo "Native libraries organized for React Native:"
-        echo "iOS libraries:"
-        find bindings/react-native/packages/react-native/ios/libs -name "*.a" -exec ls -lh {} \; || echo "No iOS libraries found"
-        echo ""
-        echo "Android JNI libraries:"
-        find bindings/react-native/packages/react-native/android/src/main/jniLibs -name "*.so" -exec ls -lh {} \; || echo "No Android libraries found"
-    
-    - name: Install dependencies
-      run: |
-        cd bindings/react-native
-        yarn install
-    
-    - name: Build TypeScript
-      run: |
-        cd bindings/react-native
-        yarn workspace @json-eval-rs/react-native prepare
-    
-    - name: Publish to npm
-      run: |
-        cd bindings/react-native/packages/react-native
-        echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
-        npm publish --access public
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Publish React Native npm package (using pre-built package from release)
+  publish-react-native:
+    if: |
+      needs.check-workflow.outputs.should_run == 'true' &&
+      (github.event_name == 'workflow_run' || github.event.inputs.publish_react_native == 'true')
+    needs: [check-workflow, download-release-assets]
+    runs-on: ubuntu-latest
     
-    - name: Create package artifact
-      run: |
-        cd bindings/react-native/packages/react-native
-        npm pack
-    
-    - name: Upload React Native package artifact
-      uses: actions/upload-artifact@v4
+    steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
       with:
-        name: react-native-package
-        path: bindings/react-native/packages/react-native/*.tgz
+        node-version: '20'
+        registry-url: 'https://registry.npmjs.org'
+    
+    - name: Download release packages
+      uses: actions/download-artifact@v4
+      with:
+        name: release-packages
+        path: packages/
+    
+    - name: Publish React Native package to npm
+      run: |
+        RN_PKG=$(find packages -name "*react-native*.tgz" | head -n 1)
+        if [ -z "$RN_PKG" ]; then
+          echo "❌ No React Native package found in release"
+          exit 1
+        fi
+        
+        echo "Publishing: $(basename $RN_PKG)"
+        npm publish "$RN_PKG" --access public
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   # Publish Rust crate to crates.io
   publish-crates-io:
     if: |
-      github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') ||
-      github.event.inputs.publish_crates_io == 'true'
+      needs.check-workflow.outputs.should_run == 'true' &&
+      (github.event_name == 'workflow_run' || github.event.inputs.publish_crates_io == 'true')
+    needs: [check-workflow]
     runs-on: ubuntu-latest
     
     steps:
@@ -359,104 +225,16 @@ jobs:
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         toolchain: stable
-    
-    - name: Run tests
-      run: cargo test --all-features
-    
-    - name: Check package
-      run: cargo publish --dry-run
     
     - name: Publish to crates.io
       run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
       env:
         CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-  # Create GitHub Release
-  create-github-release:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [download-artifacts, publish-csharp, publish-web, publish-react-native, publish-crates-io]
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: release-artifacts/
-    
-    - name: Extract version from tag
-      id: version
-      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-    
-    - name: Create release notes
-      run: |
-        cat > release-notes.md << 'EOF'
-        ## 🚀 Release ${{ steps.version.outputs.VERSION }}
-        
-        ### 📦 Published Packages
-        
-        - **Rust Crate**: [crates.io/crates/json-eval-rs](https://crates.io/crates/json-eval-rs)
-        - **C# NuGet**: [nuget.org/packages/JsonEvalRs](https://www.nuget.org/packages/JsonEvalRs)
-        - **Web (npm)**:
-          - Core: [npmjs.com/package/@json-eval-rs/core](https://www.npmjs.com/package/@json-eval-rs/core)
-          - Bundler: [npmjs.com/package/@json-eval-rs/bundler](https://www.npmjs.com/package/@json-eval-rs/bundler)
-          - Node.js: [npmjs.com/package/@json-eval-rs/node](https://www.npmjs.com/package/@json-eval-rs/node)
-        - **React Native (npm)**: [npmjs.com/package/@json-eval-rs/react-native](https://www.npmjs.com/package/@json-eval-rs/react-native)
-        
-        ### 📥 Installation
-        
-        **Rust:**
-        ```bash
-        cargo add json-eval-rs
-        ```
-        
-        **C#:**
-        ```bash
-        dotnet add package JsonEvalRs
-        ```
-        
-        **Web:**
-        ```bash
-        yarn install @json-eval-rs/web
-        ```
-        
-        **React Native:**
-        ```bash
-        yarn install @json-eval-rs/react-native
-        ```
-        
-        ### 📝 Changes
-        
-        See [CHANGELOG.md](CHANGELOG.md) for detailed changes.
-        
-        ### 🔧 Native Libraries
-        
-        Pre-built native libraries for all platforms:
-        - **Desktop**: Linux (x64 & ARM64), Windows (x64), macOS (x64 & ARM64)
-        - **iOS**: Device (ARM64) & Simulator (x64 & ARM64)
-        - **Android**: arm64-v8a, armeabi-v7a, x86, x86_64
-        
-        All native libraries are attached to this release.
-        EOF
-    
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
-      with:
-        body_path: release-notes.md
-        files: |
-          release-artifacts/nuget-package/*.nupkg
-          release-artifacts/web-packages/*.tgz
-          release-artifacts/react-native-package/*.tgz
-          release-artifacts/native-*/*
-          release-artifacts/android-jni-*/*
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   # Summary
   publish-summary:
     if: always()
-    needs: [download-artifacts, publish-csharp, publish-web, publish-react-native, publish-crates-io]
+    needs: [check-workflow, download-release-assets, publish-csharp, publish-web, publish-react-native, publish-crates-io]
     runs-on: ubuntu-latest
     
     steps:
@@ -464,10 +242,8 @@ jobs:
       run: |
         echo "## 📦 Publish Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
-        echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
-        echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
-        echo "| Download from build-bindings | ${{ needs.download-artifacts.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "### Release Tag" >> $GITHUB_STEP_SUMMARY
+        echo "📦 **${{ needs.check-workflow.outputs.release_tag }}**" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Published Packages" >> $GITHUB_STEP_SUMMARY
         echo "| Package | Status |" >> $GITHUB_STEP_SUMMARY
@@ -478,4 +254,4 @@ jobs:
         echo "| Rust crates.io | ${{ needs.publish-crates-io.result == 'success' && '✅' || needs.publish-crates-io.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 📝 Note" >> $GITHUB_STEP_SUMMARY
-        echo "Native libraries are reused from the latest successful build-bindings workflow run." >> $GITHUB_STEP_SUMMARY
+        echo "All packages are published from pre-built artifacts in GitHub Release ${{ needs.check-workflow.outputs.release_tag }}." >> $GITHUB_STEP_SUMMARY

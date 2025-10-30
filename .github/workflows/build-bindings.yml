@@ -729,9 +729,10 @@ jobs:
         path: ~/Library/Logs/xcodebuild/
 
   # Upload artifacts to release
+  # Only runs if ALL tests pass (including React Native tests)
   upload-to-release:
     if: github.event_name == 'release' || github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch'
-    needs: [build-native, build-android-jni, build-ios-xcframework, build-csharp, build-web, build-react-native, test]
+    needs: [build-native, build-android-jni, build-ios-xcframework, build-csharp, build-web, build-react-native, test, test-react-native-android, test-react-native-ios]
     runs-on: ubuntu-latest
     
     steps:
