@@ -792,6 +792,7 @@ jobs:
     - name: Create release archives
       run: |
         cd release-artifacts
+        ls -R
         
         # Archive native libraries
         tar -czf native-linux-x64.tar.gz native-x86_64-unknown-linux-gnu/
