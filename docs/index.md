@@ -6,8 +6,17 @@ layout: default
 
 **High-performance JSON Logic evaluation library with 80+ operators**
 
-[![Crates.io](https://img.shields.io/crates/v/json-eval-rs)](https://crates.io/crates/json-eval-rs)
-[![GitHub](https://img.shields.io/github/stars/byrizki/json-eval-rs?style=social)](https://github.com/byrizki/json-eval-rs)
+[![CI](https://github.com/byrizki/jsoneval-rs/actions/workflows/publish.yml/badge.svg)](https://github.com/byrizki/jsoneval-rs/actions/workflows/publish.yml)
+[![Build Bindings](https://github.com/byrizki/jsoneval-rs/actions/workflows/build-bindings.yml/badge.svg)](https://github.com/byrizki/jsoneval-rs/actions/workflows/build-bindings.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/byrizki/jsoneval-rs?display_name=release&logo=github)](https://github.com/byrizki/jsoneval-rs/releases/latest)
+
+<!-- Registry Versions -->
+[![Crates.io](https://img.shields.io/crates/v/json-eval-rs?label=json-eval-rs&logo=rust)](https://crates.io/crates/json-eval-rs)
+[![NuGet](https://img.shields.io/nuget/v/JsonEvalRs?label=JsonEvalRs&logo=nuget)](https://www.nuget.org/packages/JsonEvalRs)
+[![RN](https://img.shields.io/npm/v/@json-eval-rs/react-native?label=@json-eval-rs/react-native&logo=npm)](https://www.npmjs.com/package/@json-eval-rs/react-native)
+[![Web Core](https://img.shields.io/npm/v/@json-eval-rs/webcore?label=@json-eval-rs/webcore&logo=npm)](https://www.npmjs.com/package/@json-eval-rs/webcore)
+[![Bundler](https://img.shields.io/npm/v/@json-eval-rs/bundler?label=@json-eval-rs/bundler&logo=npm)](https://www.npmjs.com/package/@json-eval-rs/bundler)
+[![Node](https://img.shields.io/npm/v/@json-eval-rs/node?label=@json-eval-rs/node&logo=npm)](https://www.npmjs.com/package/@json-eval-rs/node)
 
 ## Features
 

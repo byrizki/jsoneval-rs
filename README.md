@@ -1,10 +1,16 @@
 # json-eval-rs
 
-[![CI](https://github.com/byrizki/json-eval-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/byrizki/json-eval-rs/actions/workflows/ci.yml)
-[![Build Bindings](https://github.com/byrizki/json-eval-rs/actions/workflows/build-bindings.yml/badge.svg)](https://github.com/byrizki/json-eval-rs/actions/workflows/build-bindings.yml)
-[![Crates.io](https://img.shields.io/crates/v/json-eval-rs.svg)](https://crates.io/crates/json-eval-rs)
-[![NuGet](https://img.shields.io/nuget/v/JsonEvalRs.svg)](https://www.nuget.org/packages/JsonEvalRs)
-[![npm](https://img.shields.io/npm/v/@json-eval-rs/web.svg)](https://www.npmjs.com/package/@json-eval-rs/web)
+[![CI](https://github.com/byrizki/jsoneval-rs/actions/workflows/publish.yml/badge.svg)](https://github.com/byrizki/jsoneval-rs/actions/workflows/publish.yml)
+[![Build Bindings](https://github.com/byrizki/jsoneval-rs/actions/workflows/build-bindings.yml/badge.svg)](https://github.com/byrizki/jsoneval-rs/actions/workflows/build-bindings.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/byrizki/jsoneval-rs?display_name=release&logo=github)](https://github.com/byrizki/jsoneval-rs/releases/latest)
+
+<!-- Registry Versions -->
+[![Crates.io](https://img.shields.io/crates/v/json-eval-rs?label=json-eval-rs&logo=rust)](https://crates.io/crates/json-eval-rs)
+[![NuGet](https://img.shields.io/nuget/v/JsonEvalRs?label=JsonEvalRs&logo=nuget)](https://www.nuget.org/packages/JsonEvalRs)
+[![RN](https://img.shields.io/npm/v/@json-eval-rs/react-native?label=@json-eval-rs/react-native&logo=npm)](https://www.npmjs.com/package/@json-eval-rs/react-native)
+[![Web Core](https://img.shields.io/npm/v/@json-eval-rs/webcore?label=@json-eval-rs/webcore&logo=npm)](https://www.npmjs.com/package/@json-eval-rs/webcore)
+[![Bundler](https://img.shields.io/npm/v/@json-eval-rs/bundler?label=@json-eval-rs/bundler&logo=npm)](https://www.npmjs.com/package/@json-eval-rs/bundler)
+[![Node](https://img.shields.io/npm/v/@json-eval-rs/node?label=@json-eval-rs/node&logo=npm)](https://www.npmjs.com/package/@json-eval-rs/node)
 
 **High-performance JSON Logic evaluation library with schema validation and multi-platform bindings**
 
@@ -376,7 +382,7 @@ Running evaluation...
 
 ```bash
 # Clone the repository
-git clone https://github.com/byrizki/json-eval-rs.git
+git clone https://github.com/byrizki/jsoneval-rs.git
 cd json-eval-rs
 
 # Build the core library
