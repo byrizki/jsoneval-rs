@@ -170,29 +170,32 @@ jobs:
         echo "📦 Available release files:"
         ls -lh packages/
         echo ""
-        
+
         # Find and publish all web-related .tgz packages (core, bundler, node)
         PUBLISHED=0
-        
+
+        # Change into packages directory to ensure npm treats paths as local files
+        cd packages
+
         # Look for web package tarballs (they should be directly in packages/)
-        for pkg in packages/*.tgz; do
+        for pkg in *.tgz; do
           # Skip React Native package
           if [[ "$pkg" == *"react-native"* ]]; then
-            echo "Skipping React Native package: $(basename $pkg)"
+            echo "Skipping React Native package: $pkg"
             continue
           fi
-          
+
           if [ -f "$pkg" ]; then
             echo ""
-            echo "📦 Processing: $(basename $pkg)"
-            echo "Full path: $pkg"
-            
+            echo "📦 Processing: $pkg"
+            echo "Full path: $(pwd)/$pkg"
+
             # Verify the tarball is valid
             if ! tar -tzf "$pkg" > /dev/null 2>&1; then
               echo "⚠️ WARNING: Invalid tarball file, skipping: $pkg"
               continue
             fi
-            
+
             # Extract and display package info
             mkdir -p /tmp/pkg-inspect
             tar -xzf "$pkg" -C /tmp/pkg-inspect package/package.json 2>/dev/null || true
@@ -202,28 +205,28 @@ jobs:
               echo "  📋 Package: $PKG_NAME@$PKG_VERSION"
             fi
             rm -rf /tmp/pkg-inspect
-            
-            # Publish
+
+            # Publish (use ./ to force local file interpretation)
             echo "  🚀 Publishing to npm..."
-            npm publish "$pkg" --access public
+            npm publish "./$pkg" --access public
             echo "  ✅ Published successfully"
             PUBLISHED=$((PUBLISHED + 1))
           fi
         done
-        
+
         if [ $PUBLISHED -eq 0 ]; then
           echo ""
           echo "❌ No web packages were published"
           echo ""
           echo "Expected to find: @json-eval-rs/webcore, @json-eval-rs/bundler, @json-eval-rs/node"
           echo "Available files in packages/:"
-          ls -lh packages/
+          ls -lh
           echo ""
           echo "⚠️ Web packages should be directly in the packages/ directory"
           echo "   Check the build-bindings workflow's web-packages artifact"
           exit 1
         fi
-        
+
         echo ""
         echo "✅ Successfully published $PUBLISHED web package(s)"
       env:
