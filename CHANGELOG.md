@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.30] - 2025-11-12
+
+### Fixed
+- [core] Fix non mandatory table dependency check
+
 ## [0.0.29] - 2025-10-30
 
 ### Added
