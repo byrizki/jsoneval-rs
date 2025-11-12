@@ -108,9 +108,14 @@ pub fn evaluate_table(
                 };
                 
                 if is_empty {
-                    // println!("dependency {} is empty", dep);
-                    requirement_not_filled = true;
-                    break;
+                    // Check if the field is required in the schema before skipping
+                    let is_field_required = check_field_required(&lib.evaluated_schema, dep);
+                    
+                    if is_field_required {
+                        requirement_not_filled = true;
+                        break;
+                    }
+                    // If field is not required (optional), continue without skipping
                 }
             } else {
                 // println!("dependency {} doesn't exist", dep);
@@ -396,4 +401,41 @@ pub fn evaluate_table(
     // Sandbox is dropped here, all temporary mutations are discarded
     // Parent scope_data remains unchanged - safe for parallel execution
     Ok(final_rows)
+}
+
+/// Check if a field is required based on the schema rules
+/// 
+/// This function looks up the field in the evaluated schema and checks if it has
+/// a "required" rule with value=true. If the field doesn't exist in the schema
+/// or doesn't have a required rule, it's considered optional.
+/// 
+/// # Arguments
+/// 
+/// * `schema` - The evaluated schema Value
+/// * `dep_path` - The dependency path (JSON pointer format, e.g., "/properties/field")
+/// 
+/// # Returns
+/// 
+/// * `true` if the field is required, `false` if optional or not found
+fn check_field_required(schema: &Value, dep_path: &str) -> bool {
+    // Convert the dependency path to schema path
+    // For fields like "/properties/field", we need to look at "/properties/field/rules/required"
+    let rules_path = format!("{}/rules/required", path_utils::dot_notation_to_schema_pointer(dep_path));
+    
+    // Try to get the required rule from the schema
+    if let Some(required_rule) = path_utils::get_value_by_pointer(schema, &rules_path) {
+        // Check if the required rule has value=true
+        if let Some(rule_obj) = required_rule.as_object() {
+            if let Some(Value::Bool(is_required)) = rule_obj.get("value") {
+                return *is_required;
+            }
+        }
+        // If it's a direct boolean value
+        if let Some(is_required) = required_rule.as_bool() {
+            return is_required;
+        }
+    }
+    
+    // If no required rule found, field is optional
+    false
 }
