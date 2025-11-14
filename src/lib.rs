@@ -2329,10 +2329,11 @@ impl JSONEval {
             return;
         }
         
+        let mut disabled_field = false;
         // Check if disabled
         if let Some(Value::Object(condition)) = schema_map.get("condition") {
             if let Some(Value::Bool(true)) = condition.get("disabled") {
-                return;
+                disabled_field = true;
             }
         }
         
@@ -2406,7 +2407,7 @@ impl JSONEval {
         
         match rule_name {
             "required" => {
-                if let Value::Bool(true) = rule_active {
+                if !disabled_field && rule_active == Value::Bool(true) {
                     if is_empty {
                         errors.insert(field_path.to_string(), ValidationError {
                             rule_type: "required".to_string(),
