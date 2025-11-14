@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.31] - 2025-11-14
+
+### Fixed
+- [validation] Fix validation for disabled field
+
 ## [0.0.30] - 2025-11-12
 
 ### Fixed
