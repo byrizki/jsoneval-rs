@@ -58,8 +58,17 @@ target_link_libraries(
   android
   log
   ReactAndroid::jsi
-  ReactAndroid::reactnativejni
 )
+
+if(TARGET ReactAndroid::reactnative)
+    message(STATUS "Linking against ReactAndroid::reactnative")
+    target_link_libraries(json_eval_rn ReactAndroid::reactnative)
+elseif(TARGET ReactAndroid::reactnativejni)
+    message(STATUS "Linking against ReactAndroid::reactnativejni")
+    target_link_libraries(json_eval_rn ReactAndroid::reactnativejni)
+else()
+    message(WARNING "Could not find ReactAndroid linkage target. Ensuring JSI is present.")
+endif()
 
 # Modern React Native (0.71+) uses prefab which properly handles shared libraries
 # The libraries are marked as shared dependencies, not to be packaged in our module
