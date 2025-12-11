@@ -5,6 +5,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/byrizki/jsoneval-rs?display_name=release&logo=github)](https://github.com/byrizki/jsoneval-rs/releases/latest)
 
 <!-- Registry Versions -->
+
 [![Crates.io](https://img.shields.io/crates/v/json-eval-rs?label=json-eval-rs&logo=rust)](https://crates.io/crates/json-eval-rs)
 [![NuGet](https://img.shields.io/nuget/v/JsonEvalRs?label=JsonEvalRs&logo=nuget)](https://www.nuget.org/packages/JsonEvalRs)
 [![RN](https://img.shields.io/npm/v/@json-eval-rs/react-native?label=@json-eval-rs/react-native&logo=npm)](https://www.npmjs.com/package/@json-eval-rs/react-native)
@@ -56,7 +57,7 @@
 
 ```toml
 [dependencies]
-json-eval-rs = "0.0.31"
+json-eval-rs = "0.0.32"
 ```
 
 ### C# / .NET
@@ -95,13 +96,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }"#;
-    
+
     let mut eval = JSONEval::new(schema, None, None)?;
     let data = r#"{"name": "John Doe"}"#;
-    
+
     eval.evaluate(data, None)?;
     let result = eval.get_evaluated_schema(false);
-    
+
     // Validate the data
     let validation = eval.validate(data, None, None)?;
     if !validation.has_error {
@@ -109,7 +110,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         println!("❌ Validation errors: {:?}", validation.errors);
     }
-    
+
     Ok(())
 }
 ```
@@ -135,7 +136,7 @@ using (var eval = new JSONEval(schema))
     var data = @"{""age"": 25}";
     var result = eval.Evaluate(data);
     var validation = eval.Validate(data);
-    
+
     if (!validation.HasError)
     {
         Console.WriteLine("✅ Data is valid!");
@@ -146,31 +147,31 @@ using (var eval = new JSONEval(schema))
 ### Web (TypeScript)
 
 ```typescript
-import { JSONEval } from '@json-eval-rs/web';
+import { JSONEval } from "@json-eval-rs/web";
 
 const schema = {
-  type: 'object',
+  type: "object",
   properties: {
     email: {
       rules: {
-        required: { value: true, message: 'Email is required' },
-        pattern: { 
-          value: '^[^@]+@[^@]+\\.[^@]+$', 
-          message: 'Invalid email format' 
-        }
-      }
-    }
-  }
+        required: { value: true, message: "Email is required" },
+        pattern: {
+          value: "^[^@]+@[^@]+\\.[^@]+$",
+          message: "Invalid email format",
+        },
+      },
+    },
+  },
 };
 
 const eval = new JSONEval({ schema: JSON.stringify(schema) });
 
-const data = { email: 'user@example.com' };
+const data = { email: "user@example.com" };
 const result = await eval.evaluateJS({ data: JSON.stringify(data) });
 const validation = await eval.validate({ data: JSON.stringify(data) });
 
 if (!validation.has_error) {
-  console.log('✅ Data is valid!');
+  console.log("✅ Data is valid!");
 }
 
 eval.free(); // Clean up memory
@@ -179,31 +180,33 @@ eval.free(); // Clean up memory
 ### React Native
 
 ```typescript
-import { useJSONEval } from '@json-eval-rs/react-native';
+import { useJSONEval } from "@json-eval-rs/react-native";
 
 function ValidationForm() {
   const eval = useJSONEval({ schema });
-  const [formData, setFormData] = useState({ name: '', age: '' });
+  const [formData, setFormData] = useState({ name: "", age: "" });
   const [errors, setErrors] = useState({});
-  
+
   const validateForm = async () => {
     if (!eval) return;
-    
-    const validation = await eval.validate({ 
-      data: JSON.stringify(formData) 
+
+    const validation = await eval.validate({
+      data: JSON.stringify(formData),
     });
-    
+
     setErrors(validation.errors || {});
   };
-  
+
   return (
     <View>
-      <TextInput 
+      <TextInput
         value={formData.name}
         onChangeText={(name) => setFormData({ ...formData, name })}
         onBlur={validateForm}
       />
-      {errors.name && <Text style={{color: 'red'}}>{errors.name.message}</Text>}
+      {errors.name && (
+        <Text style={{ color: "red" }}>{errors.name.message}</Text>
+      )}
     </View>
   );
 }
@@ -233,14 +236,14 @@ function ValidationForm() {
 
 ### Benchmarks
 
-| Operation | json-eval-rs | Native JS | Improvement |
-|-----------|-------------|-----------|-------------|
-| Parse Complex Schema | 3ms | 15ms | **5x faster** |
-| Evaluate 1000 Rules | 8ms | 45ms | **5.6x faster** |
-| Validate Large Form | 2ms | 12ms | **6x faster** |
-| Cache Hit Lookup | 0.1ms | 2ms | **20x faster** |
+| Operation            | json-eval-rs | Native JS | Improvement     |
+| -------------------- | ------------ | --------- | --------------- |
+| Parse Complex Schema | 3ms          | 15ms      | **5x faster**   |
+| Evaluate 1000 Rules  | 8ms          | 45ms      | **5.6x faster** |
+| Validate Large Form  | 2ms          | 12ms      | **6x faster**   |
+| Cache Hit Lookup     | 0.1ms        | 2ms       | **20x faster**  |
 
-*Benchmarks run on Intel i7 with complex real-world schemas*
+_Benchmarks run on Intel i7 with complex real-world schemas_
 
 ### Features Contributing to Performance
 
@@ -255,6 +258,7 @@ function ValidationForm() {
 The library includes comprehensive examples demonstrating various use cases:
 
 ### Basic Example
+
 Simple evaluation with automatic scenario discovery:
 
 ```bash
@@ -269,6 +273,7 @@ cargo run --example basic --compare
 ```
 
 ### Benchmark Example
+
 Advanced benchmarking with ParsedSchema caching and concurrent testing:
 
 ```bash
@@ -288,6 +293,7 @@ cargo run --release --example benchmark -- --parsed -i 100 --compare
 For more details, see **[examples/README.md](examples/README.md)**.
 
 ### CLI Tool
+
 A powerful CLI tool for direct schema evaluation with parsed schema inspection:
 
 ```bash
@@ -319,6 +325,7 @@ cargo run --bin json-eval-cli -- schema.bform \
 ```
 
 **Parsed Schema Inspection Flags:**
+
 - `--print-sorted-evaluations` - Show evaluation batches for parallel execution
 - `--print-dependencies` - Show dependency graph between evaluations
 - `--print-tables` - Show table definitions
@@ -354,12 +361,12 @@ Running evaluation...
 
 ## 🌍 Platform Support
 
-| Platform | Technology | Performance | Bundle Size |
-|----------|------------|-------------|-------------|
-| **Rust** | Native | Native | N/A |
-| **C# / .NET** | P/Invoke FFI | Native | ~2MB |
-| **Web** | WebAssembly | Near-native | ~450KB gzipped |
-| **React Native** | Native Modules (JSI) | Native | Native code |
+| Platform         | Technology           | Performance | Bundle Size    |
+| ---------------- | -------------------- | ----------- | -------------- |
+| **Rust**         | Native               | Native      | N/A            |
+| **C# / .NET**    | P/Invoke FFI         | Native      | ~2MB           |
+| **Web**          | WebAssembly          | Near-native | ~450KB gzipped |
+| **React Native** | Native Modules (JSI) | Native      | Native code    |
 
 ### Supported Targets
 
@@ -457,8 +464,8 @@ json-eval-rs uses an extended JSON Schema format with evaluation rules:
         }
       },
       "condition": {
-        "hidden": {"==": [{"var": "other.field"}, "hide"]},
-        "disabled": {"!=": [{"var": "user.role"}, "admin"]}
+        "hidden": { "==": [{ "var": "other.field" }, "hide"] },
+        "disabled": { "!=": [{ "var": "user.role" }, "admin"] }
       }
     }
   },

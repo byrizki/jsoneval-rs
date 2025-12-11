@@ -9,26 +9,26 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release tag to publish from (e.g., v0.0.31)'
+        description: "Release tag to publish from (e.g., v0.0.32)"
         required: true
         type: string
       publish_csharp:
-        description: 'Publish C# NuGet package'
+        description: "Publish C# NuGet package"
         required: false
         type: boolean
         default: true
       publish_web:
-        description: 'Publish Web npm package'
+        description: "Publish Web npm package"
         required: false
         type: boolean
         default: true
       publish_react_native:
-        description: 'Publish React Native npm package'
+        description: "Publish React Native npm package"
         required: false
         type: boolean
         default: true
       publish_crates_io:
-        description: 'Publish Rust crate to crates.io'
+        description: "Publish Rust crate to crates.io"
         required: false
         type: boolean
         default: true
@@ -44,48 +44,47 @@ jobs:
     outputs:
       release_tag: ${{ steps.get-tag.outputs.tag }}
       should_run: ${{ steps.check.outputs.should_run }}
-    
+
     steps:
-    - name: Check workflow_run conclusion
-      id: check
-      run: |
-        if [ "${{ github.event_name }}" = "workflow_run" ]; then
-          if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
-            echo "Build Bindings workflow did not succeed. Skipping publish."
-            echo "should_run=false" >> $GITHUB_OUTPUT
-            exit 0
+      - name: Check workflow_run conclusion
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+              echo "Build Bindings workflow did not succeed. Skipping publish."
+              echo "should_run=false" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_run=true" >> $GITHUB_OUTPUT
           fi
-          echo "should_run=true" >> $GITHUB_OUTPUT
-        else
-          echo "should_run=true" >> $GITHUB_OUTPUT
-        fi
-    
-    - name: Get release tag
-      id: get-tag
-      run: |
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          TAG="${{ github.event.inputs.release_tag }}"
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "📦 Using manually specified release tag: $TAG"
-        else
-          # For workflow_run, get the latest release tag
-          echo "🔍 Looking for latest release..."
-          TAG=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r .tag_name)
-          if [ "$TAG" = "null" ] || [ -z "$TAG" ]; then
-            echo "❌ ERROR: No release found in the repository"
-            echo ""
-            echo "To publish packages, you need to:"
-            echo "1. Create a GitHub Release (e.g., v0.0.31)"
-            echo "2. Run the 'Build Bindings' workflow to upload packages to that release"
-            echo "3. Then run this publish workflow"
-            echo ""
-            echo "Or use workflow_dispatch and manually specify the release tag."
-            exit 1
+
+      - name: Get release tag
+        id: get-tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.release_tag }}"
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+            echo "📦 Using manually specified release tag: $TAG"
+          else
+            # For workflow_run, get the latest release tag
+            echo "🔍 Looking for latest release..."
+            TAG=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r .tag_name)
+            if [ "$TAG" = "null" ] || [ -z "$TAG" ]; then
+              echo "❌ ERROR: No release found in the repository"
+              echo ""
+              echo "To publish packages, you need to:"
+              echo "1. Create a GitHub Release (e.g., v0.0.32)"
+              echo "2. Run the 'Build Bindings' workflow to upload packages to that release"
+              echo "3. Then run this publish workflow"
+              echo ""
+              echo "Or use workflow_dispatch and manually specify the release tag."
+              exit 1
+            fi
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+            echo "📦 Found latest release: $TAG"
           fi
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "📦 Found latest release: $TAG"
-        fi
-  
 
   # Publish C# NuGet package (download directly from release)
   publish-csharp:
@@ -94,42 +93,42 @@ jobs:
       (github.event_name == 'workflow_run' || github.event.inputs.publish_csharp == 'true')
     needs: [check-workflow]
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Download NuGet package from release
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        TAG="${{ needs.check-workflow.outputs.release_tag }}"
-        echo "📦 Downloading NuGet package from release: $TAG"
-        
-        mkdir -p packages
-        cd packages
-        gh release download "$TAG" --pattern "*.nupkg"
-        
-        ls -lh *.nupkg
-    
-    - name: Publish to NuGet
-      run: |
-        NUPKG=$(find packages -name "*.nupkg" -type f | head -n 1)
-        if [ -z "$NUPKG" ]; then
-          echo "❌ No NuGet package found in release"
-          echo "Available files:"
-          ls -lh packages/
-          exit 1
-        fi
-        
-        echo "Publishing: $(basename $NUPKG)"
-        echo "Full path: $NUPKG"
-        
-        dotnet nuget push "$NUPKG" \
-          --api-key ${{ secrets.NUGET_API_KEY }} \
-          --source https://api.nuget.org/v3/index.json \
-          --skip-duplicate
-      env:
-        NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+      - uses: actions/checkout@v4
+
+      - name: Download NuGet package from release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.check-workflow.outputs.release_tag }}"
+          echo "📦 Downloading NuGet package from release: $TAG"
+
+          mkdir -p packages
+          cd packages
+          gh release download "$TAG" --pattern "*.nupkg"
+
+          ls -lh *.nupkg
+
+      - name: Publish to NuGet
+        run: |
+          NUPKG=$(find packages -name "*.nupkg" -type f | head -n 1)
+          if [ -z "$NUPKG" ]; then
+            echo "❌ No NuGet package found in release"
+            echo "Available files:"
+            ls -lh packages/
+            exit 1
+          fi
+
+          echo "Publishing: $(basename $NUPKG)"
+          echo "Full path: $NUPKG"
+
+          dotnet nuget push "$NUPKG" \
+            --api-key ${{ secrets.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
 
   # Publish Web npm packages (download directly from release)
   publish-web:
@@ -138,99 +137,99 @@ jobs:
       (github.event_name == 'workflow_run' || github.event.inputs.publish_web == 'true')
     needs: [check-workflow]
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        registry-url: 'https://registry.npmjs.org'
-    
-    - name: Download web packages from release
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        TAG="${{ needs.check-workflow.outputs.release_tag }}"
-        echo "📦 Downloading web packages from release: $TAG"
-        
-        mkdir -p packages
-        cd packages
-        
-        # Download all .tgz files except React Native
-        gh release download "$TAG" --pattern "*.tgz"
-        
-        echo ""
-        echo "Downloaded packages:"
-        ls -lh *.tgz 2>/dev/null || echo "No .tgz files found"
-    
-    - name: Publish web packages to npm
-      run: |
-        echo "📦 Available release files:"
-        ls -lh packages/
-        echo ""
+      - uses: actions/checkout@v4
 
-        # Find and publish all web-related .tgz packages (core, bundler, node)
-        PUBLISHED=0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
 
-        # Change into packages directory to ensure npm treats paths as local files
-        cd packages
+      - name: Download web packages from release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.check-workflow.outputs.release_tag }}"
+          echo "📦 Downloading web packages from release: $TAG"
 
-        # Look for web package tarballs (they should be directly in packages/)
-        for pkg in *.tgz; do
-          # Skip React Native package
-          if [[ "$pkg" == *"react-native"* ]]; then
-            echo "Skipping React Native package: $pkg"
-            continue
-          fi
+          mkdir -p packages
+          cd packages
 
-          if [ -f "$pkg" ]; then
-            echo ""
-            echo "📦 Processing: $pkg"
-            echo "Full path: $(pwd)/$pkg"
+          # Download all .tgz files except React Native
+          gh release download "$TAG" --pattern "*.tgz"
 
-            # Verify the tarball is valid
-            if ! tar -tzf "$pkg" > /dev/null 2>&1; then
-              echo "⚠️ WARNING: Invalid tarball file, skipping: $pkg"
+          echo ""
+          echo "Downloaded packages:"
+          ls -lh *.tgz 2>/dev/null || echo "No .tgz files found"
+
+      - name: Publish web packages to npm
+        run: |
+          echo "📦 Available release files:"
+          ls -lh packages/
+          echo ""
+
+          # Find and publish all web-related .tgz packages (core, bundler, node)
+          PUBLISHED=0
+
+          # Change into packages directory to ensure npm treats paths as local files
+          cd packages
+
+          # Look for web package tarballs (they should be directly in packages/)
+          for pkg in *.tgz; do
+            # Skip React Native package
+            if [[ "$pkg" == *"react-native"* ]]; then
+              echo "Skipping React Native package: $pkg"
               continue
             fi
 
-            # Extract and display package info
-            mkdir -p /tmp/pkg-inspect
-            tar -xzf "$pkg" -C /tmp/pkg-inspect package/package.json 2>/dev/null || true
-            if [ -f /tmp/pkg-inspect/package/package.json ]; then
-              PKG_NAME=$(grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' /tmp/pkg-inspect/package/package.json | cut -d'"' -f4)
-              PKG_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' /tmp/pkg-inspect/package/package.json | cut -d'"' -f4)
-              echo "  📋 Package: $PKG_NAME@$PKG_VERSION"
+            if [ -f "$pkg" ]; then
+              echo ""
+              echo "📦 Processing: $pkg"
+              echo "Full path: $(pwd)/$pkg"
+
+              # Verify the tarball is valid
+              if ! tar -tzf "$pkg" > /dev/null 2>&1; then
+                echo "⚠️ WARNING: Invalid tarball file, skipping: $pkg"
+                continue
+              fi
+
+              # Extract and display package info
+              mkdir -p /tmp/pkg-inspect
+              tar -xzf "$pkg" -C /tmp/pkg-inspect package/package.json 2>/dev/null || true
+              if [ -f /tmp/pkg-inspect/package/package.json ]; then
+                PKG_NAME=$(grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' /tmp/pkg-inspect/package/package.json | cut -d'"' -f4)
+                PKG_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' /tmp/pkg-inspect/package/package.json | cut -d'"' -f4)
+                echo "  📋 Package: $PKG_NAME@$PKG_VERSION"
+              fi
+              rm -rf /tmp/pkg-inspect
+
+              # Publish (use ./ to force local file interpretation)
+              echo "  🚀 Publishing to npm..."
+              npm publish "./$pkg" --access public
+              echo "  ✅ Published successfully"
+              PUBLISHED=$((PUBLISHED + 1))
             fi
-            rm -rf /tmp/pkg-inspect
+          done
 
-            # Publish (use ./ to force local file interpretation)
-            echo "  🚀 Publishing to npm..."
-            npm publish "./$pkg" --access public
-            echo "  ✅ Published successfully"
-            PUBLISHED=$((PUBLISHED + 1))
+          if [ $PUBLISHED -eq 0 ]; then
+            echo ""
+            echo "❌ No web packages were published"
+            echo ""
+            echo "Expected to find: @json-eval-rs/webcore, @json-eval-rs/bundler, @json-eval-rs/node"
+            echo "Available files in packages/:"
+            ls -lh
+            echo ""
+            echo "⚠️ Web packages should be directly in the packages/ directory"
+            echo "   Check the build-bindings workflow's web-packages artifact"
+            exit 1
           fi
-        done
 
-        if [ $PUBLISHED -eq 0 ]; then
           echo ""
-          echo "❌ No web packages were published"
-          echo ""
-          echo "Expected to find: @json-eval-rs/webcore, @json-eval-rs/bundler, @json-eval-rs/node"
-          echo "Available files in packages/:"
-          ls -lh
-          echo ""
-          echo "⚠️ Web packages should be directly in the packages/ directory"
-          echo "   Check the build-bindings workflow's web-packages artifact"
-          exit 1
-        fi
-
-        echo ""
-        echo "✅ Successfully published $PUBLISHED web package(s)"
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          echo "✅ Successfully published $PUBLISHED web package(s)"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   # Publish React Native npm package (download directly from release)
   publish-react-native:
@@ -239,73 +238,73 @@ jobs:
       (github.event_name == 'workflow_run' || github.event.inputs.publish_react_native == 'true')
     needs: [check-workflow]
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        registry-url: 'https://registry.npmjs.org'
-    
-    - name: Download React Native package from release
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        TAG="${{ needs.check-workflow.outputs.release_tag }}"
-        echo "📦 Downloading React Native package from release: $TAG"
-        
-        mkdir -p packages
-        cd packages
-        gh release download "$TAG" --pattern "*react-native*.tgz"
-        
-        echo ""
-        echo "Downloaded package:"
-        ls -lh *react-native*.tgz
-    
-    - name: Inspect and publish React Native package
-      run: |
-        RN_PKG=$(find packages -name "*react-native*.tgz" -type f | head -n 1)
-        if [ -z "$RN_PKG" ]; then
-          echo "❌ No React Native package found in release"
-          echo "Available files:"
-          ls -lh packages/
-          exit 1
-        fi
-        
-        echo "Publishing: $(basename $RN_PKG)"
-        echo "Full path: $RN_PKG"
-        
-        # Verify the tarball is valid
-        if ! tar -tzf "$RN_PKG" > /dev/null 2>&1; then
-          echo "❌ ERROR: Invalid tarball file"
-          exit 1
-        fi
-        
-        # Extract and inspect package.json
-        echo ""
-        echo "📋 Inspecting package.json..."
-        mkdir -p /tmp/inspect
-        tar -xzf "$RN_PKG" -C /tmp/inspect package/package.json 2>/dev/null || true
-        if [ -f /tmp/inspect/package/package.json ]; then
-          echo "Package name: $(grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' /tmp/inspect/package/package.json | cut -d'"' -f4)"
-          echo "Package version: $(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' /tmp/inspect/package/package.json | cut -d'"' -f4)"
-          echo "First 20 lines of package.json:"
-          head -20 /tmp/inspect/package/package.json
-        fi
-        
-        echo ""
-        echo "🚀 Publishing to npm..."
-        
-        # Publish directly without path manipulation
-        cd packages
-        npm publish "$(basename $RN_PKG)" --access public --dry-run
-        echo ""
-        echo "Dry run successful, publishing for real..."
-        npm publish "$(basename $RN_PKG)" --access public
-      env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Download React Native package from release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.check-workflow.outputs.release_tag }}"
+          echo "📦 Downloading React Native package from release: $TAG"
+
+          mkdir -p packages
+          cd packages
+          gh release download "$TAG" --pattern "*react-native*.tgz"
+
+          echo ""
+          echo "Downloaded package:"
+          ls -lh *react-native*.tgz
+
+      - name: Inspect and publish React Native package
+        run: |
+          RN_PKG=$(find packages -name "*react-native*.tgz" -type f | head -n 1)
+          if [ -z "$RN_PKG" ]; then
+            echo "❌ No React Native package found in release"
+            echo "Available files:"
+            ls -lh packages/
+            exit 1
+          fi
+
+          echo "Publishing: $(basename $RN_PKG)"
+          echo "Full path: $RN_PKG"
+
+          # Verify the tarball is valid
+          if ! tar -tzf "$RN_PKG" > /dev/null 2>&1; then
+            echo "❌ ERROR: Invalid tarball file"
+            exit 1
+          fi
+
+          # Extract and inspect package.json
+          echo ""
+          echo "📋 Inspecting package.json..."
+          mkdir -p /tmp/inspect
+          tar -xzf "$RN_PKG" -C /tmp/inspect package/package.json 2>/dev/null || true
+          if [ -f /tmp/inspect/package/package.json ]; then
+            echo "Package name: $(grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' /tmp/inspect/package/package.json | cut -d'"' -f4)"
+            echo "Package version: $(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' /tmp/inspect/package/package.json | cut -d'"' -f4)"
+            echo "First 20 lines of package.json:"
+            head -20 /tmp/inspect/package/package.json
+          fi
+
+          echo ""
+          echo "🚀 Publishing to npm..."
+
+          # Publish directly without path manipulation
+          cd packages
+          npm publish "$(basename $RN_PKG)" --access public --dry-run
+          echo ""
+          echo "Dry run successful, publishing for real..."
+          npm publish "$(basename $RN_PKG)" --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   # Publish Rust crate to crates.io
   publish-crates-io:
@@ -314,41 +313,48 @@ jobs:
       (github.event_name == 'workflow_run' || github.event.inputs.publish_crates_io == 'true')
     needs: [check-workflow]
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Rust
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-      with:
-        toolchain: stable
-    
-    - name: Publish to crates.io
-      run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
-      env:
-        CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Publish to crates.io
+        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
   # Summary
   publish-summary:
     if: always()
-    needs: [check-workflow, publish-csharp, publish-web, publish-react-native, publish-crates-io]
+    needs:
+      [
+        check-workflow,
+        publish-csharp,
+        publish-web,
+        publish-react-native,
+        publish-crates-io,
+      ]
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Publish Summary
-      run: |
-        echo "## 📦 Publish Summary" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### Release Tag" >> $GITHUB_STEP_SUMMARY
-        echo "📦 **${{ needs.check-workflow.outputs.release_tag }}**" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### Published Packages" >> $GITHUB_STEP_SUMMARY
-        echo "| Package | Status |" >> $GITHUB_STEP_SUMMARY
-        echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
-        echo "| C# NuGet | ${{ needs.publish-csharp.result == 'success' && '✅' || needs.publish-csharp.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| Web npm | ${{ needs.publish-web.result == 'success' && '✅' || needs.publish-web.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| React Native npm | ${{ needs.publish-react-native.result == 'success' && '✅' || needs.publish-react-native.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| Rust crates.io | ${{ needs.publish-crates-io.result == 'success' && '✅' || needs.publish-crates-io.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 📝 Note" >> $GITHUB_STEP_SUMMARY
-        echo "All packages are published from pre-built artifacts in GitHub Release ${{ needs.check-workflow.outputs.release_tag }}." >> $GITHUB_STEP_SUMMARY
+      - name: Publish Summary
+        run: |
+          echo "## 📦 Publish Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Release Tag" >> $GITHUB_STEP_SUMMARY
+          echo "📦 **${{ needs.check-workflow.outputs.release_tag }}**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Published Packages" >> $GITHUB_STEP_SUMMARY
+          echo "| Package | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| C# NuGet | ${{ needs.publish-csharp.result == 'success' && '✅' || needs.publish-csharp.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Web npm | ${{ needs.publish-web.result == 'success' && '✅' || needs.publish-web.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| React Native npm | ${{ needs.publish-react-native.result == 'success' && '✅' || needs.publish-react-native.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Rust crates.io | ${{ needs.publish-crates-io.result == 'success' && '✅' || needs.publish-crates-io.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📝 Note" >> $GITHUB_STEP_SUMMARY
+          echo "All packages are published from pre-built artifacts in GitHub Release ${{ needs.check-workflow.outputs.release_tag }}." >> $GITHUB_STEP_SUMMARY
