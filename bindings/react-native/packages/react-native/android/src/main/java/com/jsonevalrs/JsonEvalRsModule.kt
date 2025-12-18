@@ -466,8 +466,9 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     @ReactMethod(isBlockingSynchronousMethod = true)
     fun dispose(
         handle: String
-    ) {
+    ): Boolean {
         nativeDispose(handle)
+        return true
     }
 
     @ReactMethod
