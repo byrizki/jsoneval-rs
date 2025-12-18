@@ -1348,6 +1348,9 @@ impl JSONEval {
     /// Clear evaluation cache
     pub fn clear_cache(&mut self) {
         self.eval_cache.clear();
+        for subform in self.subforms.values_mut() {
+            subform.clear_cache();
+        }
     }
     
     /// Get number of cached entries
@@ -1359,6 +1362,9 @@ impl JSONEval {
     /// Useful for reusing JSONEval instances with different data
     pub fn enable_cache(&mut self) {
         self.cache_enabled = true;
+        for subform in self.subforms.values_mut() {
+            subform.enable_cache();
+        }
     }
     
     /// Disable evaluation caching
@@ -1367,6 +1373,9 @@ impl JSONEval {
     pub fn disable_cache(&mut self) {
         self.cache_enabled = false;
         self.eval_cache.clear(); // Clear any existing cache entries
+        for subform in self.subforms.values_mut() {
+            subform.disable_cache();
+        }
     }
     
     /// Check if caching is enabled
