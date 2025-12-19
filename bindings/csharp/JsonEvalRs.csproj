@@ -9,7 +9,7 @@
     
     <!-- Package Information -->
     <PackageId>JsonEvalRs</PackageId>
-    <Version>0.0.33</Version>
+    <Version>0.0.34</Version>
     <Authors>Muhamad Rizki</Authors>
     <Company>Quadrant Synergy International</Company>
     <Description>High-performance JSON Logic evaluator with schema validation and dependency tracking. Built on blazing-fast Rust engine.</Description>
@@ -22,9 +22,9 @@
     <PackageIcon>icon.png</PackageIcon>
     
     <!-- Assembly Version Information (shown in Windows Explorer properties) -->
-    <AssemblyVersion>0.0.33.0</AssemblyVersion>
-    <FileVersion>0.0.33.0</FileVersion>
-    <InformationalVersion>0.0.33</InformationalVersion>
+    <AssemblyVersion>0.0.34.0</AssemblyVersion>
+    <FileVersion>0.0.34.0</FileVersion>
+    <InformationalVersion>0.0.34</InformationalVersion>
     
     <!-- Include native libraries in package -->
     <IncludeContentInPack>true</IncludeContentInPack>

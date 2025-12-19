@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.34] - 2025-12-19
+
+### Fixed
+
+- [core] Fix C# binding evaluate for selective eval
+
 ## [0.0.33] - 2025-12-19
 
 ### Fixed
