@@ -5,7 +5,7 @@ edition = "2021"
 description = "High-performance JSON Logic evaluator with schema validation and dependency tracking. Built on blazing-fast Rust engine."
 license = "MIT"
 authors = ["Muhamad Rizki <muhamad.rizki@quadrant.co.id>"]
-repository = "https://github.com/byrizki/json-eval-rs"
+repository = "https://github.com/byrizki/jsoneval-rs"
 
 
 [package.metadata.wasm-pack.profile.release]

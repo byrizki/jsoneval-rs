@@ -46,15 +46,15 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/byrizki/json-eval-rs.git",
+    "url": "git+https://github.com/byrizki/jsoneval-rs.git",
     "directory": "bindings/react-native/packages/react-native"
   },
   "author": "Muhamad Rizki <hello@byrizki.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/byrizki/json-eval-rs/issues"
+    "url": "https://github.com/byrizki/jsoneval-rs/issues"
   },
-  "homepage": "https://github.com/byrizki/json-eval-rs#readme",
+  "homepage": "https://github.com/byrizki/jsoneval-rs#readme",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
     "access": "public"

@@ -20,7 +20,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/byrizki/json-eval-rs.git",
+    "url": "https://github.com/byrizki/jsoneval-rs.git",
     "directory": "bindings/web/packages/core"
   },
   "sideEffects": false

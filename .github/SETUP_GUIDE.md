@@ -194,9 +194,9 @@ authors = ["Muhamad Rizki <hello@byrizki.com>"]
 edition = "2021"
 description = "High-performance JSON Logic evaluator with schema validation"
 license = "MIT"
-repository = "https://github.com/byrizki/json-eval-rs"
+repository = "https://github.com/byrizki/jsoneval-rs"
 documentation = "https://docs.rs/json-eval-rs"
-homepage = "https://github.com/byrizki/json-eval-rs"
+homepage = "https://github.com/byrizki/jsoneval-rs"
 keywords = ["json", "logic", "schema", "validation", "evaluation"]
 categories = ["parser-implementations", "data-structures"]
 ```
@@ -207,8 +207,8 @@ categories = ["parser-implementations", "data-structures"]
   <Version>0.0.1</Version>
   <Authors>Muhamad Rizki</Authors>
   <Company>Quadrant Synergy International</Company>
-  <PackageProjectUrl>https://github.com/byrizki/json-eval-rs</PackageProjectUrl>
-  <RepositoryUrl>https://github.com/byrizki/json-eval-rs</RepositoryUrl>
+  <PackageProjectUrl>https://github.com/byrizki/jsoneval-rs</PackageProjectUrl>
+  <RepositoryUrl>https://github.com/byrizki/jsoneval-rs</RepositoryUrl>
 </PropertyGroup>
 ```
 
@@ -220,7 +220,7 @@ categories = ["parser-implementations", "data-structures"]
   "author": "Muhamad Rizki <hello@byrizki.com>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/byrizki/json-eval-rs"
+    "url": "https://github.com/byrizki/jsoneval-rs"
   }
 }
 ```
@@ -233,7 +233,7 @@ categories = ["parser-implementations", "data-structures"]
   "author": "Muhamad Rizki <hello@byrizki.com>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/byrizki/json-eval-rs"
+    "url": "https://github.com/byrizki/jsoneval-rs"
   }
 }
 ```
@@ -245,8 +245,8 @@ Update your main `README.md`:
 ```markdown
 # json-eval-rs
 
-[![CI](https://github.com/byrizki/json-eval-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/byrizki/json-eval-rs/actions/workflows/ci.yml)
-[![Build Bindings](https://github.com/byrizki/json-eval-rs/actions/workflows/build-bindings.yml/badge.svg)](https://github.com/byrizki/json-eval-rs/actions/workflows/build-bindings.yml)
+[![CI](https://github.com/byrizki/jsoneval-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/byrizki/jsoneval-rs/actions/workflows/ci.yml)
+[![Build Bindings](https://github.com/byrizki/jsoneval-rs/actions/workflows/build-bindings.yml/badge.svg)](https://github.com/byrizki/jsoneval-rs/actions/workflows/build-bindings.yml)
 [![Crates.io](https://img.shields.io/crates/v/json-eval-rs.svg)](https://crates.io/crates/json-eval-rs)
 [![NuGet](https://img.shields.io/nuget/v/JsonEvalRs.svg)](https://www.nuget.org/packages/JsonEvalRs)
 [![npm](https://img.shields.io/npm/v/@json-eval-rs/web.svg)](https://www.npmjs.com/package/@json-eval-rs/web)
@@ -477,7 +477,7 @@ updates:
 ## Support
 
 **Issues with setup:**
-- Open an issue: https://github.com/byrizki/json-eval-rs/issues
+- Open an issue: https://github.com/byrizki/jsoneval-rs/issues
 - Check workflow logs in Actions tab
 - Review GitHub Actions documentation
 

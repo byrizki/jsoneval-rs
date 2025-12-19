@@ -118,6 +118,6 @@ MIT
 
 ## Support
 
-- GitHub Issues: https://github.com/byrizki/json-eval-rs/issues
-- Documentation: https://github.com/byrizki/json-eval-rs
+- GitHub Issues: https://github.com/byrizki/jsoneval-rs/issues
+- Documentation: https://github.com/byrizki/jsoneval-rs
 
