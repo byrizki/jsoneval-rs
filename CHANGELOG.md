@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.33] - 2025-12-19
+
+### Fixed
+
+- [RN] Fix Android JSI binding
+
+### Added
+
+- [Feature] Add set timezone offset for date operations
+- [Feature] Add selective paths evaluation
+
+
 ## [0.0.32] - 2025-12-12
 
 ### Fixed

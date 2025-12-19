@@ -276,7 +276,7 @@ dependencies = [
 
 [[package]]
 name = "json-eval-rs"
-version = "0.0.32"
+version = "0.0.33"
 dependencies = [
  "ahash",
  "chrono",
