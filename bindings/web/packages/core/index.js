@@ -156,7 +156,7 @@ export class JSONEvalCore {
       return this._instance.evaluateJS(
         JSON.stringify(data),
         context ? JSON.stringify(context) : null,
-        paths ? JSON.stringify(paths) : null
+        paths || null
       );
     } catch (error) {
       throw new Error(`Evaluation failed: ${error.message || error}`);
@@ -535,14 +535,16 @@ export class JSONEvalCore {
    * @param {string} options.subformPath - Path to the subform (e.g., "#/riders")
    * @param {object} options.data - Data for the subform
    * @param {object} [options.context] - Optional context
+   * @param {Array<string>} [options.paths] - Optional array of paths to evaluate
    * @returns {Promise<void>}
    */
-  async evaluateSubform({ subformPath, data, context }) {
+  async evaluateSubform({ subformPath, data, context, paths }) {
     await this.init();
     return this._instance.evaluateSubform(
       subformPath,
       JSON.stringify(data),
-      context ? JSON.stringify(context) : null
+      context ? JSON.stringify(context) : null,
+      paths || null
     );
   }
 

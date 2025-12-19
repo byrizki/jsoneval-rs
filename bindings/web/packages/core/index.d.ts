@@ -201,6 +201,8 @@ export interface EvaluateSubformOptions {
   data: any;
   /** Optional context data */
   context?: any;
+  /** Optional array of paths to evaluate */
+  paths?: string[];
 }
 
 /**

@@ -150,6 +150,8 @@ export interface EvaluateSubformOptions {
   data: string | object;
   /** Optional context data (string or object) */
   context?: string | object;
+  /** Optional array of paths for selective evaluation */
+  paths?: string[];
 }
 
 /**
@@ -791,7 +793,7 @@ export class JSONEval {
     const dataStr = this.toJsonString(options.data);
     const contextStr = options.context ? this.toJsonString(options.context) : null;
     
-    return JsonEvalRs.evaluateSubform(this.handle, options.subformPath, dataStr, contextStr);
+    return JsonEvalRs.evaluateSubform(this.handle, options.subformPath, dataStr, contextStr, options.paths);
   }
 
   /**

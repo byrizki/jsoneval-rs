@@ -5,16 +5,18 @@ use serde_json::Value;
 
 impl JSONEval {
     /// Evaluate a subform with data
+    /// Evaluate a subform with data and optional selective paths
     pub fn evaluate_subform(
         &mut self,
         subform_path: &str,
         data: &str,
         context: Option<&str>,
+        paths: Option<&[String]>,
     ) -> Result<(), String> {
         let subform = self.subforms.get_mut(subform_path)
             .ok_or_else(|| format!("Subform not found: {}", subform_path))?;
         
-        subform.evaluate(data, context, None)
+        subform.evaluate(data, context, paths)
     }
     
     /// Validate subform data against its schema rules

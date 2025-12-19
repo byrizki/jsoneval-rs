@@ -395,6 +395,7 @@ public:
         const std::string& subformPath,
         const std::string& data,
         const std::string& context,
+        const std::string& pathsJson,
         std::function<void(const std::string&, const std::string&)> callback
     );
 

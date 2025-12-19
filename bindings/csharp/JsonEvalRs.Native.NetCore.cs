@@ -217,7 +217,8 @@ namespace JsonEvalRs
             IntPtr handle,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string subformPath,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string data,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? pathsJson
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]

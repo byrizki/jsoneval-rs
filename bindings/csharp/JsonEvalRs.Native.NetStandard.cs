@@ -184,7 +184,8 @@ namespace JsonEvalRs
             IntPtr handle,
             byte[] subformPath,
             byte[] data,
-            byte[]? context
+            byte[]? context,
+            byte[]? pathsJson
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]

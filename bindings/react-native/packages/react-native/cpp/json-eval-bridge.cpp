@@ -47,7 +47,7 @@ extern "C" {
     FFIResult json_eval_validate_paths(JSONEvalHandle* handle, const char* data, const char* context, const char* paths_json);
     
     // Subform FFI methods
-    FFIResult json_eval_evaluate_subform(JSONEvalHandle* handle, const char* subform_path, const char* data, const char* context);
+    FFIResult json_eval_evaluate_subform(JSONEvalHandle* handle, const char* subform_path, const char* data, const char* context, const char* paths_json);
     FFIResult json_eval_validate_subform(JSONEvalHandle* handle, const char* subform_path, const char* data, const char* context);
     FFIResult json_eval_evaluate_dependents_subform(JSONEvalHandle* handle, const char* subform_path, const char* changed_path, const char* data, const char* context);
     FFIResult json_eval_resolve_layout_subform(JSONEvalHandle* handle, const char* subform_path, bool evaluate);
@@ -949,9 +949,10 @@ void JsonEvalBridge::evaluateSubformAsync(
     const std::string& subformPath,
     const std::string& data,
     const std::string& context,
+    const std::string& pathsJson,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, subformPath, data, context]() -> std::string {
+    runAsync([handleId, subformPath, data, context, pathsJson]() -> std::string {
         std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
@@ -959,7 +960,14 @@ void JsonEvalBridge::evaluateSubformAsync(
         }
         
         const char* ctx = context.empty() ? nullptr : context.c_str();
-        FFIResult result = json_eval_evaluate_subform(it->second, subformPath.c_str(), data.c_str(), ctx);
+        const char* pathsPtr = pathsJson.empty() ? nullptr : pathsJson.c_str();
+        FFIResult result = json_eval_evaluate_subform(
+            it->second, 
+            subformPath.c_str(), 
+            data.c_str(), 
+            ctx,
+            pathsPtr
+        );
         
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";

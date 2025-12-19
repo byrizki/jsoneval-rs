@@ -19,10 +19,11 @@ namespace JsonEvalRs
         /// <summary>
         /// Evaluate a subform with data
         /// </summary>
-        /// <param name="subformPath">Path to the subform (e.g., "#/riders")</param>
+        /// <param name="subformPath">Path to the subform</param>
         /// <param name="data">JSON data string for the subform</param>
         /// <param name="context">Optional context data JSON string</param>
-        public void EvaluateSubform(string subformPath, string data, string? context = null)
+        /// <param name="paths">Optional list of paths for selective evaluation</param>
+        public void EvaluateSubform(string subformPath, string data, string? context = null, IEnumerable<string> paths = null)
         {
             ThrowIfDisposed();
             if (string.IsNullOrEmpty(subformPath))
@@ -30,10 +31,12 @@ namespace JsonEvalRs
             if (string.IsNullOrEmpty(data))
                 throw new ArgumentNullException(nameof(data));
 
+            string pathsJson = paths != null ? JsonConvert.SerializeObject(paths) : null;
+
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_evaluate_subform(_handle, subformPath, data, context);
+            var result = Native.json_eval_evaluate_subform(_handle, subformPath, data, context, pathsJson);
 #else
-            var result = Native.json_eval_evaluate_subform(_handle, Native.ToUTF8Bytes(subformPath)!, Native.ToUTF8Bytes(data)!, Native.ToUTF8Bytes(context));
+            var result = Native.json_eval_evaluate_subform(_handle, Native.ToUTF8Bytes(subformPath)!, Native.ToUTF8Bytes(data)!, Native.ToUTF8Bytes(context), Native.ToUTF8Bytes(pathsJson));
 #endif
             
             if (!result.Success)

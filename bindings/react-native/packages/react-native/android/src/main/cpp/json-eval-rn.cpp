@@ -131,6 +131,28 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeCreate(
     }
 }
 
+JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeEvaluateSubform(
+    JNIEnv *env,
+    jobject thiz,
+    jstring handle,
+    jstring subformPath,
+    jstring data,
+    jstring context,
+    jstring pathsJson,
+    jobject promise) {
+  
+    std::string handleStr = jstringToString(env, handle);
+    std::string subformPathStr = jstringToString(env, subformPath);
+    std::string dataStr = jstringToString(env, data);
+    std::string contextStr = jstringToString(env, context);
+    std::string pathsJsonStr = jstringToString(env, pathsJson);
+
+    runAsyncWithPromise(env, promise, "EVALUATE_SUBFORM_ERROR", [handleStr, subformPathStr, dataStr, contextStr, pathsJsonStr](auto callback) {
+        JsonEvalBridge::evaluateSubformAsync(handleStr, subformPathStr, dataStr, contextStr, pathsJsonStr, callback);
+    });
+}
+
 JNIEXPORT jstring JNICALL
 Java_com_jsonevalrs_JsonEvalRsModule_nativeCreateFromMsgpack(
     JNIEnv* env,

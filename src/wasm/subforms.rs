@@ -11,12 +11,14 @@ impl JSONEvalWasm {
     /// @param subformPath - Path to the subform (e.g., "#/riders")
     /// @param data - JSON data string for the subform
     /// @param context - Optional context data JSON string
+    /// @param paths - Optional array of paths to evaluate (JSON string array)
     /// @throws Error if evaluation fails
     #[wasm_bindgen(js_name = evaluateSubform)]
-    pub fn evaluate_subform(&mut self, subform_path: &str, data: &str, context: Option<String>) -> Result<(), JsValue> {
+    pub fn evaluate_subform(&mut self, subform_path: &str, data: &str, context: Option<String>, paths: Option<Vec<String>>) -> Result<(), JsValue> {
         let ctx = context.as_deref();
+        let paths_ref = paths.as_deref();
         
-        self.inner.evaluate_subform(subform_path, data, ctx)
+        self.inner.evaluate_subform(subform_path, data, ctx, paths_ref)
             .map_err(|e| {
                 let error_msg = format!("Subform evaluation failed: {}", e);
                 console_log(&format!("[WASM ERROR] {}", error_msg));

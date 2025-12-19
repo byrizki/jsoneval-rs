@@ -549,7 +549,48 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     private external fun nativeSetTimezoneOffset(handle: String, offsetMinutes: Int)
     
     // Subform native methods
-    private external fun nativeEvaluateSubformAsync(handle: String, subformPath: String, data: String, context: String, promise: Promise)
+    @ReactMethod
+    fun evaluateSubform(handle: String, subformPath: String, data: String, context: String?, paths: ReadableArray?, promise: Promise) {
+        // Convert ReadableArray to JSON string for passing to JNI?
+        // Or native method accepts array?
+        // Based on implementation plan, we'll convert to JSON string here or in C++.
+        // Let's pass the array to JNI directly if possible, or convert to List/JSON string.
+        // For simplicity and consistency with C#, let's serialize to JSON string if paths is not null.
+
+        // Actually, readableArray handling in JNI usually involves specialized helpers.
+        // Simpler: convert to JSON string in Kotlin.
+        // But Wait, C++ side `nativeEvaluateSubform` needs paths_json string.
+
+        var pathsJson: String? = null
+        if (paths != null) {
+            try {
+                val list = ArrayList<String>()
+                for (i in 0 until paths.size()) {
+                    list.add(paths.getString(i))
+                }
+                // Simple manual JSON array construction or use Gson if available?
+                // Avoiding dependency: assume valid strings
+                val sb = StringBuilder("[")
+                for (i in list.indices) {
+                    if (i > 0) sb.append(",")
+                    sb.append("\"").append(list[i].replace("\"", "\\\"")).append("\"")
+                }
+                sb.append("]")
+                pathsJson = sb.toString()
+            } catch (e: Exception) {
+                 promise.reject("E_INVALID_PATHS", "Invalid paths array")
+                 return
+            }
+        }
+
+        try {
+            nativeEvaluateSubform(handle, subformPath, data, context ?: "", pathsJson ?: "", promise)
+        } catch (e: Exception) {
+            promise.reject("E_EVAL_ERROR", e.message)
+        }
+    }
+
+    private external fun nativeEvaluateSubform(handle: String, subformPath: String, data: String, context: String, pathsJson: String, promise: Promise)
     private external fun nativeValidateSubformAsync(handle: String, subformPath: String, data: String, context: String, promise: Promise)
     private external fun nativeEvaluateDependentsSubformAsync(handle: String, subformPath: String, changedPath: String, data: String, context: String, promise: Promise)
     private external fun nativeResolveLayoutSubformAsync(handle: String, subformPath: String, evaluate: Boolean, promise: Promise)

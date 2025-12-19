@@ -13,12 +13,14 @@ use super::types::{FFIResult, JSONEvalHandle};
 /// - subform_path must be a valid null-terminated UTF-8 string
 /// - data must be a valid null-terminated UTF-8 string
 /// - context can be NULL
+/// - paths_json can be NULL (if NULL, full evaluation)
 #[no_mangle]
 pub unsafe extern "C" fn json_eval_evaluate_subform(
     handle: *mut JSONEvalHandle,
     subform_path: *const c_char,
     data: *const c_char,
     context: *const c_char,
+    paths_json: *const c_char,
 ) -> FFIResult {
     if handle.is_null() || subform_path.is_null() || data.is_null() {
         return FFIResult::error("Invalid pointer".to_string());
@@ -45,7 +47,21 @@ pub unsafe extern "C" fn json_eval_evaluate_subform(
         None
     };
 
-    match eval.evaluate_subform(path_str, data_str, context_str) {
+    let paths: Option<Vec<String>> = if !paths_json.is_null() {
+        match CStr::from_ptr(paths_json).to_str() {
+            Ok(s) => {
+                match serde_json::from_str(s) {
+                    Ok(p) => Some(p),
+                    Err(e) => return FFIResult::error(format!("Failed to parse paths JSON: {}", e)),
+                }
+            },
+            Err(_) => return FFIResult::error("Invalid UTF-8 in paths_json".to_string()),
+        }
+    } else {
+        None
+    };
+
+    match eval.evaluate_subform(path_str, data_str, context_str, paths.as_deref()) {
         Ok(_) => FFIResult::success(Vec::new()),
         Err(e) => FFIResult::error(e),
     }

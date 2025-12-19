@@ -559,6 +559,7 @@ RCT_EXPORT_METHOD(evaluateSubform:(NSString *)handle
                   subformPath:(NSString *)subformPath
                   data:(NSString *)data
                   context:(NSString *)context
+                  paths:(NSArray *)paths
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 {
@@ -566,8 +567,14 @@ RCT_EXPORT_METHOD(evaluateSubform:(NSString *)handle
     std::string pathStr = [self stdStringFromNSString:subformPath];
     std::string dataStr = [self stdStringFromNSString:data];
     std::string contextStr = [self stdStringFromNSString:context];
+
+    std::string pathsJsonStr = "";
+    if (paths != nil) {
+        NSString *jsonString = [self arrayToJsonString:paths];
+        pathsJsonStr = [self stdStringFromNSString:jsonString];
+    }
     
-    JsonEvalBridge::evaluateSubformAsync(handleStr, pathStr, dataStr, contextStr,
+    JsonEvalBridge::evaluateSubformAsync(handleStr, pathStr, dataStr, contextStr, pathsJsonStr,
         [resolve, reject](const std::string& result, const std::string& error) {
             if (error.empty()) {
                 resolve([NSString stringWithUTF8String:result.c_str()]);

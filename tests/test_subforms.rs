@@ -144,7 +144,7 @@ fn test_evaluate_subform() {
     });
     let data_str = serde_json::to_string(&data).unwrap();
     
-    eval.evaluate_subform("#/items", &data_str, None).unwrap();
+    eval.evaluate_subform("#/items", &data_str, None, None).unwrap();
     
     // Get evaluated schema
     let result = eval.get_evaluated_schema_subform("#/items", false);
@@ -479,7 +479,7 @@ fn test_nonexistent_subform_error() {
     // Try to access nonexistent subform
     assert!(!eval.has_subform("#/nonexistent"));
     
-    let result = eval.evaluate_subform("#/nonexistent", "{}", None);
+    let result = eval.evaluate_subform("#/nonexistent", "{}", None, None);
     assert!(result.is_err());
     assert!(result.unwrap_err().contains("Subform not found"));
 }
