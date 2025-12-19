@@ -146,7 +146,7 @@ fn main() {
             Some(&data_str)
         ).unwrap_or_else(|e| panic!("failed to create JSONEval: {}", e));
 
-        eval.evaluate(&data_str, Some("{}"))
+        eval.evaluate(&data_str, Some("{}"), None)
             .unwrap_or_else(|e| panic!("evaluation failed: {}", e));
         
         let evaluated_schema = eval.get_evaluated_schema(false);

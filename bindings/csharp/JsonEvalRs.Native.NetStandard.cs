@@ -75,7 +75,8 @@ namespace JsonEvalRs
         internal static extern FFIResult json_eval_evaluate(
             IntPtr handle,
             byte[]? data,
-            byte[]? context
+            byte[]? context,
+            byte[]? pathsJson
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]

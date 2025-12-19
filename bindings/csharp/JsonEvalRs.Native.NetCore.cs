@@ -108,7 +108,8 @@ namespace JsonEvalRs
         internal static extern FFIResult json_eval_evaluate(
             IntPtr handle,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string data,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? pathsJson
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]

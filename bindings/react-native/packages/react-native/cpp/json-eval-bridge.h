@@ -57,12 +57,14 @@ public:
      * @param handle Instance handle
      * @param data JSON data string
      * @param context Optional context data
+     * @param pathsJson Optional JSON array of paths for selective evaluation
      * @param callback Result callback
      */
     static void evaluateAsync(
         const std::string& handle,
         const std::string& data,
         const std::string& context,
+        const std::string& pathsJson,
         std::function<void(const std::string&, const std::string&)> callback
     );
 

@@ -186,14 +186,16 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeEvaluateAsync(
     jstring handle,
     jstring data,
     jstring context,
+    jstring pathsJson,
     jobject promise
 ) {
     std::string handleStr = jstringToString(env, handle);
     std::string dataStr = jstringToString(env, data);
     std::string contextStr = jstringToString(env, context);
+    std::string pathsJsonStr = jstringToString(env, pathsJson);
     
-    runAsyncWithPromise(env, promise, "EVALUATE_ERROR", [handleStr, dataStr, contextStr](auto callback) {
-        JsonEvalBridge::evaluateAsync(handleStr, dataStr, contextStr, callback);
+    runAsyncWithPromise(env, promise, "EVALUATE_ERROR", [handleStr, dataStr, contextStr, pathsJsonStr](auto callback) {
+        JsonEvalBridge::evaluateAsync(handleStr, dataStr, contextStr, pathsJsonStr, callback);
     });
 }
 

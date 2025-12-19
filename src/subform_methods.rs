@@ -14,7 +14,7 @@ impl JSONEval {
         let subform = self.subforms.get_mut(subform_path)
             .ok_or_else(|| format!("Subform not found: {}", subform_path))?;
         
-        subform.evaluate(data, context)
+        subform.evaluate(data, context, None)
     }
     
     /// Validate subform data against its schema rules

@@ -101,6 +101,8 @@ export interface EvaluateOptions {
   data: any;
   /** Optional context data */
   context?: any;
+  /** Optional array of paths for selective evaluation */
+  paths?: string[];
 }
 
 /**

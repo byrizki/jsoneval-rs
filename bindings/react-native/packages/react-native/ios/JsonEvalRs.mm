@@ -77,6 +77,7 @@ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(createFromCache:(NSString *)cacheKey
 RCT_EXPORT_METHOD(evaluate:(NSString *)handle
                   data:(NSString *)data
                   context:(NSString *)context
+                  pathsJson:(NSString *)pathsJson
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 {
@@ -84,8 +85,9 @@ RCT_EXPORT_METHOD(evaluate:(NSString *)handle
     std::string handleStr = [self stdStringFromNSString:handle];
     std::string dataStr = [self stdStringFromNSString:data];
     std::string contextStr = [self stdStringFromNSString:context];
+    std::string pathsJsonStr = [self stdStringFromNSString:pathsJson];
     
-    JsonEvalBridge::evaluateAsync(handleStr, dataStr, contextStr,
+    JsonEvalBridge::evaluateAsync(handleStr, dataStr, contextStr, pathsJsonStr,
         [resolve, reject](const std::string& result, const std::string& error) {
             if (error.empty()) {
                 // Zero-copy within native: direct pointer access to result

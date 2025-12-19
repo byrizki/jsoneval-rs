@@ -42,7 +42,7 @@ fn test_validation_error_has_all_fields() {
     });
     let data_str = serde_json::to_string(&data).unwrap();
     
-    eval.evaluate(&data_str, None).unwrap();
+    eval.evaluate(&data_str, None, None).unwrap();
     let validation = eval.validate(&data_str, None, None).unwrap();
     
     assert!(validation.has_error, "Should have validation errors");
@@ -92,7 +92,7 @@ fn test_validation_error_default_code() {
     let data = json!({});
     let data_str = serde_json::to_string(&data).unwrap();
     
-    eval.evaluate(&data_str, None).unwrap();
+    eval.evaluate(&data_str, None, None).unwrap();
     let validation = eval.validate(&data_str, None, None).unwrap();
     
     assert!(validation.has_error);
@@ -126,7 +126,7 @@ fn test_validation_error_serialization() {
     let data = json!({});
     let data_str = serde_json::to_string(&data).unwrap();
     
-    eval.evaluate(&data_str, None).unwrap();
+    eval.evaluate(&data_str, None, None).unwrap();
     let validation = eval.validate(&data_str, None, None).unwrap();
     
     // Serialize the validation result

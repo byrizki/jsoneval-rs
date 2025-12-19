@@ -12,12 +12,14 @@ use super::types::{FFIResult, JSONEvalHandle};
 /// - handle must be a valid pointer from json_eval_new
 /// - data must be a valid null-terminated UTF-8 string
 /// - context can be NULL
+/// - paths_json can be NULL or a valid null-terminated string containing a JSON array of path strings
 /// - Caller must call json_eval_free_result when done with the result
 #[no_mangle]
 pub unsafe extern "C" fn json_eval_evaluate(
     handle: *mut JSONEvalHandle,
     data: *const c_char,
     context: *const c_char,
+    paths_json: *const c_char,
 ) -> FFIResult {
     if handle.is_null() || data.is_null() {
         return FFIResult::error("Invalid handle or data pointer".to_string());
@@ -43,7 +45,23 @@ pub unsafe extern "C" fn json_eval_evaluate(
         None
     };
 
-    match eval.evaluate(data_str, context_str) {
+    let paths = if !paths_json.is_null() {
+        match CStr::from_ptr(paths_json).to_str() {
+            Ok(s) => {
+                match serde_json::from_str::<Vec<String>>(s) {
+                    Ok(p) => Some(p),
+                    Err(e) => return FFIResult::error(format!("Failed to parse paths JSON: {}", e)),
+                }
+            },
+            Err(_) => {
+                return FFIResult::error("Invalid UTF-8 in paths".to_string())
+            }
+        }
+    } else {
+        None
+    };
+
+    match eval.evaluate(data_str, context_str, paths.as_deref()) {
         Ok(_) => {
             // Don't serialize the schema here - massive performance waste!
             // C# can call get_evaluated_schema() explicitly if needed

@@ -136,7 +136,7 @@ fn main() {
         // Step 2: Evaluate
         let eval_start = Instant::now();
         
-        eval.evaluate(&data_str, Some("{}"))
+        eval.evaluate(&data_str, Some("{}"), None)
             .unwrap_or_else(|e| panic!("evaluation failed: {}", e));
         
         let evaluated_schema = eval.get_evaluated_schema(false);

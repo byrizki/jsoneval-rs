@@ -17,7 +17,7 @@ fn test_evaluate_basic() {
     let mut eval = JSONEval::new(&schema, None, Some(&data))
         .expect("Failed to create JSONEval");
 
-    eval.evaluate(&data, Some("{}"))
+    eval.evaluate(&data, Some("{}"), None)
         .expect("Evaluation failed");
 
     // Check that schema was evaluated successfully
@@ -45,7 +45,7 @@ fn test_evaluate_with_context() {
     let mut eval = JSONEval::new(&schema, Some(&context), Some(&data))
         .expect("Failed to create JSONEval");
 
-    eval.evaluate(&data, Some(&context))
+    eval.evaluate(&data, Some(&context), None)
         .expect("Evaluation failed");
 
     // Verify evaluation completes successfully
@@ -214,7 +214,7 @@ fn test_evaluate_dependents_basic() {
         .expect("Failed to create JSONEval");
 
     // Evaluate initial schema
-    eval.evaluate(&initial_data, None)
+    eval.evaluate(&initial_data, None, None)
         .expect("Initial evaluation failed");
 
     // Update date_of_birth field and trigger age calculation
@@ -258,7 +258,7 @@ fn test_evaluate_dependents_with_clear() {
     let mut eval = JSONEval::new(&schema, None, Some(&initial_data_str))
         .expect("Failed to create JSONEval");
 
-    eval.evaluate(&initial_data_str, None)
+    eval.evaluate(&initial_data_str, None, None)
         .expect("Initial evaluation failed");
 
     // Toggle off - should trigger dependent evaluation
@@ -311,7 +311,7 @@ fn test_evaluate_dependents_transitive() {
     let mut eval = JSONEval::new(&schema, None, Some(&initial_data_str))
         .expect("Failed to create JSONEval");
 
-    eval.evaluate(&initial_data_str, None)
+    eval.evaluate(&initial_data_str, None, None)
         .expect("Initial evaluation failed");
 
     // Update occupation - should cascade to occupation_class and risk_category
@@ -386,7 +386,7 @@ fn test_evaluate_dependents_no_data_update() {
     let mut eval = JSONEval::new(&schema, None, Some(&data))
         .expect("Failed to create JSONEval");
 
-    eval.evaluate(&data, None)
+    eval.evaluate(&data, None, None)
         .expect("Initial evaluation failed");
 
     // Call evaluate_dependents without updating data (data=None)
@@ -453,7 +453,7 @@ fn test_evaluate_dependents_output_structure() {
     let mut eval = JSONEval::new(&schema, None, Some(&data))
         .expect("Failed to create JSONEval");
 
-    eval.evaluate(&data, None)
+    eval.evaluate(&data, None, None)
         .expect("Initial evaluation failed");
 
     let result = eval.evaluate_dependents(
@@ -578,7 +578,7 @@ fn test_evaluate_dependents_dot_notation() {
     let mut eval = JSONEval::new(&schema, None, Some(&data))
         .expect("Failed to create JSONEval");
 
-    eval.evaluate(&data, None)
+    eval.evaluate(&data, None, None)
         .expect("Initial evaluation failed");
 
     // Test with full schema path format (like zlw.json)
@@ -613,7 +613,7 @@ fn test_evaluate_dependents_with_dot_notation_input() {
     let mut eval = JSONEval::new(&schema, None, Some(&initial_data_str))
         .expect("Failed to create JSONEval");
 
-    eval.evaluate(&initial_data_str, None)
+    eval.evaluate(&initial_data_str, None, None)
         .expect("Initial evaluation failed");
 
     // Test with DOT NOTATION - should work now!
@@ -646,7 +646,7 @@ fn test_evaluate_dependents_dot_vs_schema_path() {
     // Test with schema path
     let mut eval1 = JSONEval::new(&schema, None, Some(&data))
         .expect("Failed to create JSONEval");
-    eval1.evaluate(&data, None).expect("Initial evaluation failed");
+    eval1.evaluate(&data, None, None).expect("Initial evaluation failed");
     
     let result1 = eval1.evaluate_dependents(
         &[String::from("#/illustration/properties/insured/properties/occupation")],
@@ -658,7 +658,7 @@ fn test_evaluate_dependents_dot_vs_schema_path() {
     // Test with dot notation
     let mut eval2 = JSONEval::new(&schema, None, Some(&data))
         .expect("Failed to create JSONEval");
-    eval2.evaluate(&data, None).expect("Initial evaluation failed");
+    eval2.evaluate(&data, None, None).expect("Initial evaluation failed");
     
     let result2 = eval2.evaluate_dependents(
         &[String::from("illustration.insured.occupation")],  // Same field, dot notation

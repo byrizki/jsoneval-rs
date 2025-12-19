@@ -221,10 +221,19 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                         format!("{path}/{key}")
                     };
                     
+                    
                     // Check if this is a "value" field
-                    if key == "value" && !next_path.starts_with("#/$") && !next_path.contains("/$layout/") && !next_path.contains("/items/") && !next_path.contains("/options/") && !next_path.contains("/dependents/") && !next_path.contains("/rules/") {
+                    // Allow $params but exclude other special $ paths like $layout, $items, etc.
+                    let is_excluded_special_path = next_path.contains("/$layout/") 
+                        || next_path.contains("/$items/") 
+                        || next_path.contains("/$options/") 
+                        || next_path.contains("/$dependents/") 
+                        || next_path.contains("/$rules/");
+                    
+                    if key == "value" && !is_excluded_special_path {
                         value_fields.push(next_path.clone());
                     }
+
                     
                     // Recurse into all children (including $ keys like $table, $datas, etc.)
                     walk(val, &next_path, engine, evaluations, tables, deps, value_fields, layout_paths, dependents, options_templates, subforms, fields_with_rules)?;

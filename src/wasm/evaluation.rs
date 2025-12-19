@@ -12,15 +12,20 @@ impl JSONEvalWasm {
     /// @param context - Optional context data JSON string
     /// @throws Error if evaluation fails
     #[wasm_bindgen]
-    pub fn evaluate(&mut self, data: &str, context: Option<String>) -> Result<(), JsValue> {
+    pub fn evaluate(&mut self, data: &str, context: Option<String>, paths: Option<Vec<String>>) -> Result<(), JsValue> {
         let ctx = context.as_deref();
+        let paths_refs: Option<Vec<String>> = paths;
+        // Convert Vec<String> to &[String] for evaluate
+        // We need to keep the Vec alive if it exists
         
-        self.inner.evaluate(data, ctx)
-            .map_err(|e| {
+        match self.inner.evaluate(data, ctx, paths_refs.as_deref()) {
+            Ok(_) => Ok(()),
+            Err(e) => {
                 let error_msg = format!("Evaluation failed: {}", e);
                 console_log(&format!("[WASM ERROR] {}", error_msg));
-                JsValue::from_str(&error_msg)
-            })
+                Err(JsValue::from_str(&error_msg))
+            }
+        }
     }
 
     /// Evaluate and return as JsValue for direct JavaScript object access
@@ -29,10 +34,11 @@ impl JSONEvalWasm {
     /// @param context - Optional context data JSON string
     /// @returns Evaluated schema as JavaScript object
     #[wasm_bindgen(js_name = evaluateJS)]
-    pub fn evaluate_js(&mut self, data: &str, context: Option<String>) -> Result<JsValue, JsValue> {
+    pub fn evaluate_js(&mut self, data: &str, context: Option<String>, paths: Option<Vec<String>>) -> Result<JsValue, JsValue> {
         let ctx = context.as_deref();
+        let paths_refs: Option<Vec<String>> = paths;
         
-        match self.inner.evaluate(data, ctx) {
+        match self.inner.evaluate(data, ctx, paths_refs.as_deref()) {
             Ok(_) => {
                 let result = self.inner.get_evaluated_schema(false);
                 serde_wasm_bindgen::to_value(&result)

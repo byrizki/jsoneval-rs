@@ -98,6 +98,8 @@ export interface EvaluateOptions {
   data: string | object;
   /** Optional context data (string or object) */
   context?: string | object;
+  /** Optional array of paths for selective evaluation */
+  paths?: string[];
 }
 
 /**
@@ -380,8 +382,9 @@ export class JSONEval {
     try {
       const dataStr = this.toJsonString(options.data);
       const contextStr = options.context ? this.toJsonString(options.context) : null;
+      const pathsJson = options.paths ? JSON.stringify(options.paths) : null;
       
-      const resultStr = await JsonEvalRs.evaluate(this.handle, dataStr, contextStr);
+      const resultStr = await JsonEvalRs.evaluate(this.handle, dataStr, contextStr, pathsJson);
       return JSON.parse(resultStr);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

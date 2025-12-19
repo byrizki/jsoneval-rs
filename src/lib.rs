@@ -672,7 +672,7 @@ impl JSONEval {
     /// # Returns
     ///
     /// A `Result` indicating success or an error message.
-    pub fn evaluate(&mut self, data: &str, context: Option<&str>) -> Result<(), String> {
+    pub fn evaluate(&mut self, data: &str, context: Option<&str>, paths: Option<&[String]>) -> Result<(), String> {
         time_block!("evaluate() [total]", {
             // Use SIMD-accelerated JSON parsing
             let data: Value = time_block!("  parse data", {
@@ -703,27 +703,148 @@ impl JSONEval {
             });
             
             // Call internal evaluate (uses existing data if not provided)
-            self.evaluate_internal()
+            self.evaluate_internal(paths)
         })
     }
     
     /// Internal evaluate that can be called when data is already set
     /// This avoids double-locking and unnecessary data cloning for re-evaluation from evaluate_dependents
-    fn evaluate_internal(&mut self) -> Result<(), String> {
+    fn evaluate_internal(&mut self, paths: Option<&[String]>) -> Result<(), String> {
         time_block!("  evaluate_internal() [total]", {
             // Acquire lock for synchronous execution
             let _lock = self.eval_lock.lock().unwrap();
+
+            // Normalize paths to schema pointers for correct filtering
+            let normalized_paths_storage; // Keep alive
+            let normalized_paths = if let Some(p_list) = paths {
+                normalized_paths_storage = p_list.iter()
+                    .flat_map(|p| {
+                        let ptr = path_utils::dot_notation_to_schema_pointer(p);
+                        // Also support version with /properties/ prefix for root match
+                        let with_props = if ptr.starts_with("#/") {
+                             format!("#/properties/{}", &ptr[2..])
+                        } else {
+                             ptr.clone()
+                        };
+                        vec![ptr, with_props]
+                    })
+                    .collect::<Vec<_>>();
+                Some(normalized_paths_storage.as_slice())
+            } else {
+                None
+            };
 
             // Clone sorted_evaluations (Arc clone is cheap, then clone inner Vec)
             let eval_batches: Vec<Vec<String>> = (*self.sorted_evaluations).clone();
 
             // Process each batch - parallelize evaluations within each batch
             // Batches are processed sequentially to maintain dependency order
+            // Process value evaluations (simple computed fields)
+            // These are independent of rule batches and should always run
+            let eval_data_values = self.eval_data.clone();
+            time_block!("      evaluate values", {
+                #[cfg(feature = "parallel")]
+                if self.value_evaluations.len() > 100 {
+                    let value_results: Mutex<Vec<(String, Value)>> = Mutex::new(Vec::with_capacity(self.value_evaluations.len()));
+                    
+                    self.value_evaluations.par_iter().for_each(|eval_key| {
+                        // Filter items if paths are provided
+                        if let Some(filter_paths) = normalized_paths {
+                            if !filter_paths.is_empty() && !filter_paths.iter().any(|p| eval_key.starts_with(p.as_str()) || p.starts_with(eval_key.as_str())) {
+                                return;
+                            }
+                        }
+    
+                        // For value evaluations (e.g. /properties/foo/value), we want the value at that path
+                        // The path in eval_key is like "#/properties/foo/value"
+                        let pointer_path = path_utils::normalize_to_json_pointer(eval_key);
+                        
+                        // Try cache first (thread-safe)
+                        if let Some(_) = self.try_get_cached(eval_key, &eval_data_values) {
+                            return;
+                        }
+                        
+                        // Cache miss - evaluate
+                        if let Some(logic_id) = self.evaluations.get(eval_key) {
+                            if let Ok(val) = self.engine.run(logic_id, eval_data_values.data()) {
+                                let cleaned_val = clean_float_noise(val);
+                                // Cache result (thread-safe)
+                                self.cache_result(eval_key, Value::Null, &eval_data_values);
+                                value_results.lock().unwrap().push((pointer_path, cleaned_val));
+                            }
+                        }
+                    });
+    
+                    // Write results to evaluated_schema
+                    for (result_path, value) in value_results.into_inner().unwrap() {
+                        if let Some(pointer_value) = self.evaluated_schema.pointer_mut(&result_path) {
+                            *pointer_value = value;
+                        }
+                    }
+                }
+
+                // Sequential execution for values (if not parallel or small count)
+                #[cfg(feature = "parallel")]
+                let value_eval_items = if self.value_evaluations.len() > 100 { &self.value_evaluations[0..0] } else { &self.value_evaluations };
+
+                #[cfg(not(feature = "parallel"))]
+                let value_eval_items = &self.value_evaluations;
+
+                for eval_key in value_eval_items.iter() {
+                    // Filter items if paths are provided
+                    if let Some(filter_paths) = normalized_paths {
+                        if !filter_paths.is_empty() && !filter_paths.iter().any(|p| eval_key.starts_with(p.as_str()) || p.starts_with(eval_key.as_str())) {
+                            continue;
+                        }
+                    }
+
+                    let pointer_path = path_utils::normalize_to_json_pointer(eval_key);
+                    
+                    // Try cache first
+                    if let Some(_) = self.try_get_cached(eval_key, &eval_data_values) {
+                        continue;
+                    }
+                    
+                    // Cache miss - evaluate
+                    if let Some(logic_id) = self.evaluations.get(eval_key) {
+                        if let Ok(val) = self.engine.run(logic_id, eval_data_values.data()) {
+                            let cleaned_val = clean_float_noise(val);
+                            println!("[DEBUG] Evaluated {} = {:?}", eval_key, cleaned_val);
+                            // Cache result
+                            self.cache_result(eval_key, Value::Null, &eval_data_values);
+                            
+                            println!("[DEBUG] pointer_path: {}", pointer_path);
+                            if let Some(pointer_value) = self.evaluated_schema.pointer_mut(&pointer_path) {
+                                println!("[DEBUG] Successfully updated pointer");
+                                *pointer_value = cleaned_val;
+                            } else {
+                                println!("[DEBUG] Failed to find pointer in schema");
+                            }
+                        }
+                    } else {
+                        println!("[DEBUG] No logic_id found for {}", eval_key);
+                    }
+                }
+            });
+
             time_block!("    process batches", {
                 for batch in eval_batches {
             // Skip empty batches
             if batch.is_empty() {
                 continue;
+            }
+            
+            // Check if we can skip this entire batch optimization
+            // If paths are provided, we can check if ANY item in batch matches ANY path
+            if let Some(filter_paths) = normalized_paths {
+                if !filter_paths.is_empty() {
+                    let batch_has_match = batch.iter().any(|eval_key| {
+                        filter_paths.iter().any(|p| eval_key.starts_with(p.as_str()) || p.starts_with(eval_key.as_str()))
+                    });
+                    if !batch_has_match {
+                        continue;
+                    }
+                }
             }
             
             // No pre-checking cache - we'll check inside parallel execution
@@ -735,10 +856,19 @@ impl JSONEval {
             let eval_data_snapshot = self.eval_data.clone();
             
             // Parallelize only if batch has multiple items (overhead not worth it for single item)
+
+            
             #[cfg(feature = "parallel")]
             if batch.len() > 1000 {
                 let results: Mutex<Vec<(String, String, Value)>> = Mutex::new(Vec::with_capacity(batch.len()));
                 batch.par_iter().for_each(|eval_key| {
+                    // Filter individual items if paths are provided
+                    if let Some(filter_paths) = normalized_paths {
+                        if !filter_paths.is_empty() && !filter_paths.iter().any(|p| eval_key.starts_with(p.as_str()) || p.starts_with(eval_key.as_str())) {
+                            return;
+                        }
+                    }
+
                     let pointer_path = path_utils::normalize_to_json_pointer(eval_key);
                     
                     // Try cache first (thread-safe)
@@ -791,6 +921,13 @@ impl JSONEval {
             let batch_items = if batch.len() > 1000 { &batch[0..0] } else { &batch }; // Empty slice if already processed in parallel
             
             for eval_key in batch_items {
+                // Filter individual items if paths are provided
+                if let Some(filter_paths) = paths {
+                    if !filter_paths.is_empty() && !filter_paths.iter().any(|p| eval_key.starts_with(p.as_str()) || p.starts_with(eval_key.as_str())) {
+                        continue;
+                    }
+                }
+
                 let pointer_path = path_utils::normalize_to_json_pointer(eval_key);
                 
                 // Try cache first
@@ -834,7 +971,7 @@ impl JSONEval {
             // Drop lock before calling evaluate_others
             drop(_lock);
             
-            self.evaluate_others();
+            self.evaluate_others(paths);
 
             Ok(())
         })
@@ -1383,11 +1520,11 @@ impl JSONEval {
         self.cache_enabled
     }
 
-    fn evaluate_others(&mut self) {
+    fn evaluate_others(&mut self, paths: Option<&[String]>) {
         time_block!("    evaluate_others()", {
             // Step 1: Evaluate options URL templates (handles {variable} patterns)
             time_block!("      evaluate_options_templates", {
-                self.evaluate_options_templates();
+                self.evaluate_options_templates(paths);
             });
             
             // Step 2: Evaluate "rules" and "others" categories with caching
@@ -1400,6 +1537,21 @@ impl JSONEval {
             time_block!("      evaluate rules+others", {
                 let eval_data_snapshot = self.eval_data.clone();
         
+                let normalized_paths: Option<Vec<String>> = paths.map(|p_list| {
+                    p_list.iter()
+                        .flat_map(|p| {
+                            let ptr = path_utils::dot_notation_to_schema_pointer(p);
+                            // Also support version with /properties/ prefix for root match
+                            let with_props = if ptr.starts_with("#/") {
+                                    format!("#/properties/{}", &ptr[2..])
+                            } else {
+                                    ptr.clone()
+                            };
+                            vec![ptr, with_props]
+                        })
+                        .collect()
+                });
+
         #[cfg(feature = "parallel")]
         {
             let combined_results: Mutex<Vec<(String, Value)>> = Mutex::new(Vec::with_capacity(combined_count));
@@ -1408,6 +1560,13 @@ impl JSONEval {
                 .par_iter()
                 .chain(self.others_evaluations.par_iter())
                 .for_each(|eval_key| {
+                    // Filter items if paths are provided
+                    if let Some(filter_paths) = normalized_paths.as_ref() {
+                        if !filter_paths.is_empty() && !filter_paths.iter().any(|p| eval_key.starts_with(p.as_str()) || p.starts_with(eval_key.as_str())) {
+                            return;
+                        }
+                    }
+
                     let pointer_path = path_utils::normalize_to_json_pointer(eval_key);
 
                     // Try cache first (thread-safe)
@@ -1449,7 +1608,18 @@ impl JSONEval {
         #[cfg(not(feature = "parallel"))]
         {
             // Sequential evaluation
-            for eval_key in self.rules_evaluations.iter().chain(self.others_evaluations.iter()) {
+            let combined_evals: Vec<&String> = self.rules_evaluations.iter()
+                .chain(self.others_evaluations.iter())
+                .collect();
+                
+            for eval_key in combined_evals {
+                // Filter items if paths are provided
+                if let Some(filter_paths) = normalized_paths.as_ref() {
+                    if !filter_paths.is_empty() && !filter_paths.iter().any(|p| eval_key.starts_with(p.as_str()) || p.starts_with(eval_key.as_str())) {
+                        continue;
+                    }
+                }
+
                 let pointer_path = path_utils::normalize_to_json_pointer(eval_key);
                 
                 // Try cache first
@@ -1486,12 +1656,21 @@ impl JSONEval {
     }
     
     /// Evaluate options URL templates (handles {variable} patterns)
-    fn evaluate_options_templates(&mut self) {
+    fn evaluate_options_templates(&mut self, paths: Option<&[String]>) {
         // Use pre-collected options templates from parsing (Arc clone is cheap)
         let templates_to_eval = self.options_templates.clone();
         
         // Evaluate each template
         for (path, template_str, params_path) in templates_to_eval.iter() {
+            // Filter items if paths are provided
+            // 'path' here is the schema path to the field (dot notation or similar, need to check)
+            // It seems to be schema pointer based on usage in other methods
+            if let Some(filter_paths) = paths {
+                if !filter_paths.is_empty() && !filter_paths.iter().any(|p| path.starts_with(p.as_str()) || p.starts_with(path.as_str())) {
+                    continue;
+                }
+            }
+
             if let Some(params) = self.evaluated_schema.pointer(&params_path) {
                 if let Ok(evaluated) = self.evaluate_template(&template_str, params) {
                     if let Some(target) = self.evaluated_schema.pointer_mut(&path) {
@@ -1651,7 +1830,7 @@ impl JSONEval {
             // Use existing data
             let data_str = serde_json::to_string(&self.data)
                 .map_err(|e| format!("Failed to serialize data: {}", e))?;
-            self.evaluate(&data_str, None)?;
+            self.evaluate(&data_str, None, None)?;
         }
         
         self.resolve_layout_internal();
@@ -2131,7 +2310,7 @@ impl JSONEval {
         // We need to drop the lock first since evaluate_internal acquires its own lock
         if re_evaluate {
             drop(_lock);  // Release the evaluate_dependents lock
-            self.evaluate_internal()?;
+            self.evaluate_internal(None)?;
         }
         
         Ok(Value::Array(result))
@@ -2214,7 +2393,9 @@ impl JSONEval {
         
         // Re-evaluate rule evaluations to ensure fresh values
         // This ensures all rule.$evaluation expressions are re-computed
-        self.evaluate_others();
+        // Re-evaluate rule evaluations to ensure fresh values
+        // This ensures all rule.$evaluation expressions are re-computed
+        self.evaluate_others(paths);
         
         // Update evaluated_schema with fresh evaluations
         self.evaluated_schema = self.get_evaluated_schema(false);

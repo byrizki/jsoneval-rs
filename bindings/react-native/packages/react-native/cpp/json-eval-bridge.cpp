@@ -19,7 +19,7 @@ extern "C" {
 
     JSONEvalHandle* json_eval_new(const char* schema, const char* context, const char* data);
     JSONEvalHandle* json_eval_new_from_msgpack(const uint8_t* schema_msgpack, size_t schema_len, const char* context, const char* data);
-    FFIResult json_eval_evaluate(JSONEvalHandle* handle, const char* data, const char* context);
+    FFIResult json_eval_evaluate(JSONEvalHandle* handle, const char* data, const char* context, const char* paths_json);
     FFIResult json_eval_get_evaluated_schema_msgpack(JSONEvalHandle* handle, bool skip_layout);
     FFIResult json_eval_validate(JSONEvalHandle* handle, const char* data, const char* context);
     FFIResult json_eval_evaluate_dependents(JSONEvalHandle* handle, const char* changed_path, const char* data, const char* context, int re_evaluate);
@@ -162,18 +162,20 @@ void JsonEvalBridge::evaluateAsync(
     const std::string& handleId,
     const std::string& data,
     const std::string& context,
+    const std::string& pathsJson,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, data, context]() -> std::string {
+    runAsync([handleId, data, context, pathsJson]() -> std::string {
         std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
             throw std::runtime_error("Invalid handle");
         }
         
-        // Step 1: Evaluate (no longer returns data)
+        // Step 1: Evaluate with pathsJson parameter
         const char* ctx = context.empty() ? nullptr : context.c_str();
-        FFIResult evalResult = json_eval_evaluate(it->second, data.c_str(), ctx);
+        const char* pathsPtr = pathsJson.empty() ? nullptr : pathsJson.c_str();
+        FFIResult evalResult = json_eval_evaluate(it->second, data.c_str(), ctx, pathsPtr);
         
         if (!evalResult.success) {
             std::string error = evalResult.error ? evalResult.error : "Unknown error";

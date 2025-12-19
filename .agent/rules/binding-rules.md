@@ -1,5 +1,6 @@
 ---
-trigger: always_on
+trigger: model_decision
+description: Read this rule whenever asked to create, add, or modify binding related code
 ---
 
 When modifying Rust core codebase, ensture to all binding code must be updated and aligned with the Core codebase

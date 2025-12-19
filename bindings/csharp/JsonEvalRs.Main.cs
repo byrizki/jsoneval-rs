@@ -245,9 +245,9 @@ namespace JsonEvalRs
                 throw new ArgumentNullException(nameof(data));
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_evaluate(_handle, data, context);
+            var result = Native.json_eval_evaluate(_handle, data, context, null);
 #else
-            var result = Native.json_eval_evaluate(_handle, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context));
+            var result = Native.json_eval_evaluate(_handle, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), null);
 #endif
             
             // Check for errors but don't return data (massive performance optimization)

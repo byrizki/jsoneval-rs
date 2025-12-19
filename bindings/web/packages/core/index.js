@@ -147,14 +147,16 @@ export class JSONEvalCore {
    * @param {object} options
    * @param {object} options.data - Data to evaluate
    * @param {object} [options.context] - Optional context
+   * @param {string[]} [options.paths] - Optional array of paths for selective evaluation
    * @returns {Promise<any>}
    */
-  async evaluate({ data, context }) {
+  async evaluate({ data, context, paths }) {
     await this.init();
     try {
       return this._instance.evaluateJS(
         JSON.stringify(data),
-        context ? JSON.stringify(context) : null
+        context ? JSON.stringify(context) : null,
+        paths ? JSON.stringify(paths) : null
       );
     } catch (error) {
       throw new Error(`Evaluation failed: ${error.message || error}`);
