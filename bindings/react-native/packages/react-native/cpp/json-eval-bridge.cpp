@@ -1382,6 +1382,19 @@ void JsonEvalBridge::setTimezoneOffsetAsync(
     }, callback);
 }
 
+void JsonEvalBridge::setTimezoneOffset(
+    const std::string& handleId,
+    int32_t offsetMinutes
+) {
+    std::lock_guard<std::mutex> lock(handlesMutex);
+    auto it = handles.find(handleId);
+    if (it == handles.end()) {
+        throw std::runtime_error("Invalid handle");
+    }
+
+    json_eval_set_timezone_offset(it->second, offsetMinutes);
+}
+
 std::string JsonEvalBridge::version() {
     const char* ver = json_eval_version();
     // Version string is static in Rust, no need to free it

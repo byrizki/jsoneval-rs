@@ -609,14 +609,7 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeSetTimezoneOffset(
 ) {
     try {
         std::string handleStr = jstringToString(env, handle);
-        
-        // Access handle from the bridge
-        auto it = JsonEvalBridge::handles.find(handleStr);
-        if (it == JsonEvalBridge::handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        json_eval_set_timezone_offset(it->second, static_cast<int32_t>(offsetMinutes));
+        JsonEvalBridge::setTimezoneOffset(handleStr, static_cast<int32_t>(offsetMinutes));
     } catch (const std::exception& e) {
         jclass exClass = env->FindClass("java/lang/RuntimeException");
         env->ThrowNew(exClass, e.what());

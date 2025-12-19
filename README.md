@@ -26,6 +26,8 @@
 - 💾 **Smart Caching**: Content-based caching with Arc-based zero-copy storage
 - 🔍 **Dependency Tracking**: Automatic field dependency detection for selective re-evaluation
 - 📐 **SIMD Optimized**: Uses `simd-json` for ultra-fast JSON parsing
+- ⚡ **Selective Evaluation**: Re-evaluate only specific fields for improved performance
+- 🌍 **Timezone Support**: Configurable timezone offset for date/time operations
 
 ## 🎯 Use Cases
 
@@ -34,6 +36,8 @@
 - **Business Rule Engines**: Execute complex business logic with high performance
 - **Data Transformation**: Transform and validate large datasets efficiently
 - **UI Layout Resolution**: Resolve conditional layouts with `$ref` references
+- **Interactive Forms**: Selective re-evaluation for efficient field updates
+- **Multi-Timezone Applications**: Handle date/time operations across different timezones
 
 ## 📖 Documentation
 
@@ -77,6 +81,142 @@ yarn install @json-eval-rs/web
 ```bash
 yarn install @json-eval-rs/react-native
 ```
+
+## 🔥 Advanced Features
+
+### Selective Evaluation
+
+Selective evaluation allows you to re-evaluate only specific fields in your schema, significantly improving performance for partial updates.
+
+**Benefits:**
+- ⚡ Faster updates when only a few fields change
+- 💾 Reduced cache invalidation
+- 🎯 Perfect for interactive forms and real-time validation
+- 📈 Scales well with large schemas
+
+**Rust Example:**
+
+```rust
+use json_eval_rs::JSONEval;
+
+let mut eval = JSONEval::new(&schema, None, Some(&data))?;
+
+// Full evaluation
+eval.evaluate(&data, None, None)?;
+
+// Later, selectively re-evaluate only specific fields
+let paths = vec![
+    "user.email".to_string(),
+    "billing.total".to_string()
+];
+eval.evaluate(&updated_data, None, Some(&paths))?;
+```
+
+**C# Example:**
+
+```csharp
+using JsonEvalRs;
+
+var eval = new JSONEval(schema);
+eval.Evaluate(data);
+
+// Selective re-evaluation
+var paths = new[] { "user.email", "billing.total" };
+eval.Evaluate(updatedData, paths: paths);
+```
+
+**Web/TypeScript Example:**
+
+```typescript
+import { JSONEval } from "@json-eval-rs/web";
+
+const eval = new JSONEval({ schema: JSON.stringify(schema) });
+await eval.evaluateJS({ data: JSON.stringify(data) });
+
+// Selective re-evaluation
+await eval.evaluateJS({
+  data: JSON.stringify(updatedData),
+  paths: ["user.email", "billing.total"]
+});
+```
+
+**How it works:**
+- Pass field paths in dotted notation (e.g., `"field.nested.property"`)
+- Only specified fields and their dependencies are recalculated
+- Other fields retain their previously evaluated values
+- Cache is selectively purged only for affected fields
+
+### Timezone Configuration
+
+Configure timezone offset for all date/time operations without external dependencies.
+
+**Benefits:**
+- 🌍 Handle dates in any timezone
+- 🔄 Runtime timezone switching
+- 🚀 No external datetime library required
+- 📅 Consistent date handling across platforms
+
+**Rust Example:**
+
+```rust
+use json_eval_rs::JSONEval;
+
+let mut eval = JSONEval::new(&schema, None, None)?;
+
+// Set to UTC+7 (Bangkok, Jakarta) - 420 minutes offset
+eval.set_timezone_offset(Some(420));
+
+eval.evaluate(&data, None, None)?;
+
+// Reset to UTC
+eval.set_timezone_offset(None);
+```
+
+**C# Example:**
+
+```csharp
+using JsonEvalRs;
+
+var eval = new JSONEval(schema);
+
+// Set timezone to UTC+7 (420 minutes)
+eval.SetTimezoneOffset(420);
+
+eval.Evaluate(data);
+
+// Reset to UTC
+eval.SetTimezoneOffset(null);
+```
+
+**Web/TypeScript Example:**
+
+```typescript
+import { JSONEval } from "@json-eval-rs/web";
+
+const eval = new JSONEval({ schema: JSON.stringify(schema) });
+
+// Set timezone to UTC+7
+eval.setTimezoneOffset(420);
+
+await eval.evaluateJS({ data: JSON.stringify(data) });
+
+// Reset to UTC
+eval.setTimezoneOffset(null);
+```
+
+**Common Timezone Offsets:**
+- UTC: `0` or `null`
+- UTC+7 (Bangkok, Jakarta): `420`
+- UTC+9 (Tokyo, Seoul): `540`
+- UTC-5 (EST): `-300`
+- UTC-8 (PST): `-480`
+- UTC+1 (CET): `60`
+
+**Affected Operations:**
+- `TODAY` - Current date at midnight in the specified timezone
+- `NOW` - Current timestamp in the specified timezone
+- `DATEFORMAT` - Formats dates using the timezone offset
+- All date arithmetic operations
 
 ## 🚀 Quick Start
 
@@ -252,6 +392,8 @@ _Benchmarks run on Intel i7 with complex real-world schemas_
 - **Parallel Processing**: Multi-threaded evaluation using `rayon` (disabled for WASM)
 - **SIMD JSON**: Uses `simd-json` for ultra-fast JSON parsing
 - **Smart Dependencies**: Only re-evaluates fields when their dependencies change
+- **Selective Evaluation**: Re-evaluate only specific fields instead of entire schema
+- **Intelligent Cache Purging**: Selective cache invalidation for changed fields only
 
 ## 🔧 Examples & CLI Tool
 

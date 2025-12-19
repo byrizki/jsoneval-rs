@@ -839,15 +839,12 @@ RCT_EXPORT_METHOD(setTimezoneOffset:(NSString *)handle
     // Convert NSNumber to int32_t, use INT32_MIN for null/nil
     int32_t offset = offsetMinutes ? [offsetMinutes intValue] : INT32_MIN;
     
-    JsonEvalBridge::setTimezoneOffsetAsync(handleStr, offset,
-        [resolve, reject](const std::string& result, const std::string& error) {
-            if (error.empty()) {
-                resolve(nil);
-            } else {
-                reject(@"SET_TIMEZONE_OFFSET_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
-            }
-        }
-    );
+    try {
+        JsonEvalBridge::setTimezoneOffset(handleStr, offset);
+        resolve(nil);
+    } catch (const std::exception& e) {
+        reject(@"SET_TIMEZONE_OFFSET_ERROR", [NSString stringWithUTF8String:e.what()], nil);
+    }
 }
 
 RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(dispose:(NSString *)handle)

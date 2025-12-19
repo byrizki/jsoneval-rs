@@ -586,6 +586,16 @@ public:
     );
 
     /**
+     * Set timezone offset for datetime operations (TODAY, NOW) (synchronous)
+     * @param handle Instance handle
+     * @param offsetMinutes Timezone offset in minutes from UTC
+     */
+    static void setTimezoneOffset(
+        const std::string& handle,
+        int32_t offsetMinutes
+    );
+
+    /**
      * Dispose instance
      * @param handle Instance handle
      */

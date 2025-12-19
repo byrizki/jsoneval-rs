@@ -85,9 +85,116 @@ Test files are in `tests/`. Each test file focuses on a specific area:
 - `array_tests.rs`, `string_tests.rs`, `date_tests.rs`, `math_tests.rs` - Type-specific operators
 - `table_tests.rs` - Table lookup operators
 - `json_eval_tests.rs` - Full JSONEval integration
-- `selective_eval.rs` - Selective evaluation feature
+- `selective_eval.rs`, `selective_eval_advanced.rs` - Selective evaluation feature
+- `timezone_integration_tests.rs`, `date_offset_tests.rs` - Timezone offset functionality
 
 Example scenarios live in `samples/` with schema, data, and expected output files.
+
+## Key Features
+
+### Selective Evaluation
+
+Selective evaluation allows you to re-evaluate only specific fields in your schema, rather than reprocessing the entire schema. This is particularly useful for large schemas where only a subset of fields need to be updated.
+
+**How it works:**
+- Pass an optional `paths` parameter to `evaluate()` with a list of field paths to re-evaluate
+- Only the specified fields and their dependencies will be recalculated
+- Other fields retain their previously evaluated values
+- The cache is selectively purged only for affected fields
+
+**Usage:**
+
+```rust
+use json_eval_rs::JSONEval;
+use serde_json::json;
+
+let mut eval = JSONEval::new(&schema_str, None, Some(&data_str)).unwrap();
+
+// Full evaluation
+eval.evaluate(&data_str, None, None).unwrap();
+
+// Update data and selectively re-evaluate only specific fields
+let paths = vec!["computed1".to_string(), "nested.field.computed2".to_string()];
+eval.evaluate(&updated_data_str, None, Some(&paths)).unwrap();
+```
+
+**Path formats supported:**
+- Dotted notation: `"field.nested.property"`
+- Explicit properties: `"field.properties.nested.properties.property"`
+- Works with both `/properties/` schema paths and `$params` paths
+
+**Benefits:**
+- Improved performance for partial updates
+- Reduced cache invalidation
+- Efficient for large schemas with many computed fields
+- Ideal for interactive forms where only one field changes at a time
+
+**Test coverage:**
+- `tests/selective_eval.rs` - Basic selective evaluation with nested paths
+- `tests/selective_eval_advanced.rs` - Advanced scenarios with $params and explicit properties
+
+### Timezone Offset Configuration
+
+The library supports timezone offset configuration for date/time operations, allowing you to work with dates in different timezones without requiring external datetime libraries.
+
+**How it works:**
+- Configure timezone offset in minutes from UTC
+- Affects all date operations: `TODAY`, `NOW`, `DATEFORMAT`, etc.
+- Defaults to UTC (offset = 0) if not specified
+- Can be changed dynamically during runtime
+
+**Usage:**
+
+```rust
+use json_eval_rs::JSONEval;
+
+let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
+
+// Set timezone to UTC+7 (420 minutes)
+eval.set_timezone_offset(Some(420));
+
+// Evaluate with timezone applied
+eval.evaluate(&data_str, None, None).unwrap();
+
+// Reset to UTC
+eval.set_timezone_offset(None);
+```
+
+**Common timezone offsets:**
+- UTC: `None` or `Some(0)`
+- UTC+7 (Bangkok, Jakarta): `Some(420)`
+- UTC-5 (EST): `Some(-300)`
+- UTC+9 (Tokyo): `Some(540)`
+- UTC-8 (PST): `Some(-480)`
+
+**Configuration via RLogicConfig:**
+
+```rust
+use json_eval_rs::{RLogicConfig, JSONEval};
+
+// Create config with timezone
+let config = RLogicConfig::default()
+    .with_timezone_offset(420); // UTC+7
+
+// Config is applied when creating the evaluator engine
+```
+
+**Benefits:**
+- No external datetime dependencies
+- Consistent date handling across platforms
+- Runtime timezone switching
+- Affects all date operations uniformly
+
+**Affected operators:**
+- `TODAY` - Returns current date at midnight in specified timezone
+- `NOW` - Returns current timestamp in specified timezone
+- `DATEFORMAT` - Formats dates using the timezone offset
+- Date arithmetic operations
+
+**Test coverage:**
+- `tests/timezone_integration_tests.rs` - Integration tests for timezone offset with JSONEval
+- `tests/date_offset_tests.rs` - Date operation tests with various timezone offsets
+- `tests/date_tests.rs` - General date operator tests
 
 ## Key Patterns
 
@@ -95,3 +202,5 @@ Example scenarios live in `samples/` with schema, data, and expected output file
 - Logic expressions use JSON Logic syntax with `{"var": "path.to.field"}` for data access
 - Dependencies are tracked transitively for efficient re-evaluation
 - Results are cleaned for floating-point noise (near-zero values → 0)
+- Selective evaluation uses dotted paths (e.g., `"field.nested.property"`)
+- Timezone offset is specified in minutes from UTC (positive for east, negative for west)
