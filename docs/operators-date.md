@@ -7,6 +7,49 @@ title: Date Functions
 
 Date and time manipulation operators.
 
+## Overview
+
+Date functions provide comprehensive capabilities for working with dates, times, and intervals. These operators handle date parsing, formatting, arithmetic, and comparisons, making it easy to implement age calculations, date validation, and time-based logic.
+
+### Common Use Cases
+
+- **Age Calculation**: Determine years, months, or days since a date with `DATEDIF`
+- **Date Validation**: Check if dates fall within ranges or meet criteria
+- **Date Arithmetic**: Calculate days between dates, add/subtract intervals
+- **Date Formatting**: Display dates in user-friendly formats with `DATEFORMAT`
+- **Business Logic**: Implement expiry checks, subscription renewals, eligibility rules
+- **Financial Calculations**: Calculate interest periods with `YEARFRAC`
+
+### Date Function Categories
+
+1. **Current Date/Time**: `today`, `now` - Get current timestamps
+2. **Extraction**: `year`, `month`, `day` - Extract date components
+3. **Construction**: `date` - Build dates from components
+4. **Arithmetic**: `days`, `DATEDIF` - Calculate differences
+5. **Formatting**: `DATEFORMAT` - Display dates in various formats
+6. **Financial**: `YEARFRAC` - Calculate fractional years for interest
+
+### Date Format Standards
+
+JSON-Eval-RS uses **ISO 8601** format for dates:
+- **Date only**: `"2024-01-15"`
+- **Datetime**: `"2024-01-15T14:30:00Z"`
+- **With milliseconds**: `"2024-01-15T14:30:00.123Z"`
+
+**Why ISO 8601?**
+- Unambiguous (no confusion between MM/DD vs DD/MM)
+- Sortable alphabetically
+- Widely supported across systems
+- Timezone-aware with optional offset
+
+### Timezone Awareness
+
+All date/time operators respect the configured timezone offset:
+- Default: UTC (Coordinated Universal Time)
+- Configurable via `set_timezone_offset(minutes)`
+- When set, all operations adjust to local timezone
+- See **Timezone Configuration** section for details
+
 ## `today` / `TODAY` - Current Date
 
 Returns the current date at midnight (00:00:00).
@@ -549,6 +592,251 @@ Invalid dates return `null`:
 
 ---
 
+## Troubleshooting
+
+### Issue: Date parsing returns null
+
+**Problem:** Date extraction operators (`year`, `month`, `day`) return null.
+
+**Common causes:**
+1. **Invalid date format** - Non-ISO format provided
+2. **Malformed date string** - Syntax errors in date
+3. **Null or undefined input** - Missing date value
+
+**Solutions:**
+```json
+// ❌ Non-ISO formats might fail
+{"year": "01/15/2024"}  // Ambiguous format
+{"year": "15-01-2024"}  // Wrong separator
+
+// ✅ Use ISO 8601 format
+{"year": "2024-01-15"}  // → 2024
+
+// ✅ Validate before extracting
+{"if": [
+  {"!==": [{"var": "date"}, null]},
+  {"year": {"var": "date"}},
+  null
+]}
+
+// ✅ Provide default value
+{"ifnull": [{"year": {"var": "date"}}, 2024]}
+```
+
+### Issue: Age calculation off by one
+
+**Problem:** Age calculation shows 32 years when should be 33, or vice versa.
+
+**Common causes:**
+1. **Birthday hasn't occurred yet this year** - Need to check month/day
+2. **Simple year subtraction** - Doesn't account for birthday
+
+**Solutions:**
+```json
+// ❌ Wrong - doesn't account for birthday
+{"-": [
+  {"year": {"today": null}},
+  {"year": {"var": "birthdate"}}
+]}
+
+// ✅ Correct - use DATEDIF
+{"DATEDIF": [{"var": "birthdate"}, {"today": null}, "Y"]}
+
+// ✅ Manual calculation with month/day check
+{"if": [
+  {"or": [
+    {">": [
+      {"month": {"today": null}},
+      {"month": {"var": "birthdate"}}
+    ]},
+    {"and": [
+      {"==": [
+        {"month": {"today": null}},
+        {"month": {"var": "birthdate"}}
+      ]},
+      {">=": [
+        {"day": {"today": null}},
+        {"day": {"var": "birthdate"}}
+      ]}
+    ]}
+  ]},
+  {"-": [
+    {"year": {"today": null}},
+    {"year": {"var": "birthdate"}}
+  ]},
+  {"-": [
+    {"-": [
+      {"year": {"today": null}},
+      {"year": {"var": "birthdate"}}
+    ]},
+    1
+  ]}
+]}
+```
+
+### Issue: Days between dates is negative
+
+**Problem:** `days` operator returns negative number.
+
+**Explanation:** Order matters! `days([end, start])` returns positive if end > start.
+
+```json
+// Data: {"start": "2024-01-01", "end": "2024-01-15"}
+
+// ❌ Wrong order - returns negative
+{"days": [{"var": "start"}, {"var": "end"}]}  // → -14
+
+// ✅ Correct order
+{"days": [{"var": "end"}, {"var": "start"}]}  // → 14
+
+// ✅ Use abs if order uncertain
+{"abs": [{"days": [{"var": "end"}, {"var": "start"}]}]}
+```
+
+### Issue: Date arithmetic creates invalid dates
+
+**Problem:** Date construction with overflow creates unexpected dates.
+
+**Solution:** This is actually a feature! Date overflow normalizes automatically:
+
+```json
+// Month 13 wraps to next year
+{"date": [2023, 13, 1]}  // → "2024-01-01" ✓
+
+// Day 32 wraps to next month
+{"date": [2024, 1, 32]}  // → "2024-02-01" ✓
+
+// Can be used for date arithmetic:
+{"date": [
+  {"year": {"var": "someDate"}},
+  {"+": [{"month": {"var": "someDate"}}, 3]},  // Add 3 months
+  {"day": {"var": "someDate"}}
+]}
+
+// ✅ For stricter validation, check explicitly
+{"if": [
+  {"and": [
+    {">=": [month, 1]},
+    {"<=": [month, 12]},
+    {">=": [day, 1]},
+    {"<=": [day, 31]}
+  ]},
+  {"date": [year, month, day]},
+  {"return": "Invalid date"}
+]}
+```
+
+### Issue: DATEFORMAT returns wrong format
+
+**Problem:** Date formatting doesn't match expected output.
+
+**Common causes:**
+1. **Wrong format specifier** - Using incorrect format string
+2. **Custom format syntax error** - Typo in strftime codes
+3. **Locale differences** - Month/day names depend on system locale
+
+**Solutions:**
+```json
+// ✅ Use predefined formats for consistency
+{"DATEFORMAT": [date, "iso"]}     // "2024-01-15"
+{"DATEFORMAT": [date, "short"]}   // "01/15/2024"
+{"DATEFORMAT": [date, "long"]}    // "January 15, 2024"
+{"DATEFORMAT": [date, "eu"]}      // "15/01/2024"
+
+// ✅ Check strftime syntax for custom formats
+{"DATEFORMAT": [date, "%Y-%m-%d"]}  // ✓ Correct
+{"DATEFORMAT": [date, "%Y/%m/%d"]}  // ✓ Correct
+{"DATEFORMAT": [date, "YYYY-MM-DD"]} // ✗ Wrong (not strftime)
+
+// Common strftime codes:
+// %Y = 4-digit year (2024)
+// %m = 2-digit month (01-12)
+// %d = 2-digit day (01-31)
+// %B = Full month name (January)
+// %b = Short month name (Jan)
+// %A = Full weekday (Monday)
+// %a = Short weekday (Mon)
+```
+
+### Issue: Timezone offset causing wrong dates
+
+**Problem:** Dates don't match expected values due to timezone differences.
+
+**Solutions:**
+```json
+// Problem: UTC midnight might be different day in local timezone
+
+// ✅ Check current timezone configuration
+// If set_timezone_offset(420) for UTC+7:
+{"today": null}  // Returns midnight in UTC+7
+
+// ✅ Be aware of timezone impact
+// UTC: 2024-01-15T23:00:00Z
+// UTC+7: 2024-01-16T06:00:00+07:00 (next day!)
+
+// ✅ For date-only comparisons, use date components
+{"and": [
+  {"==": [{"year": date1}, {"year": date2}]},
+  {"==": [{"month": date1}, {"month": date2}]},
+  {"==": [{"day": date1}, {"day": date2}]}
+]}
+```
+
+### Issue: DATEDIF with wrong units
+
+**Problem:** `DATEDIF` returns unexpected values.
+
+**Common causes:**
+1. **Wrong unit code** - Using lowercase or incorrect code
+2. **Confusing similar units** - "M" vs "YM" vs "MD"
+
+**Solutions:**
+```json
+// Unit codes (case-sensitive):
+// "Y"  - Complete years
+// "M"  - Complete months (total, not relative to years)
+// "D"  - Total days
+// "YM" - Months ignoring years (remainder after years)
+// "YD" - Days ignoring years (day of year difference)
+// "MD" - Days ignoring months and years (day of month difference)
+
+// Example: From 1990-03-15 to 2023-07-10
+{"DATEDIF": ["1990-03-15", "2023-07-10", "Y"]}   // → 33 years
+{"DATEDIF": ["1990-03-15", "2023-07-10", "M"]}   // → 399 months (total)
+{"DATEDIF": ["1990-03-15", "2023-07-10", "YM"]}  // → 3 months (remainder)
+
+// ✅ For "XX years, YY months" display:
+{"cat": [
+  {"DATEDIF": [start, end, "Y"]}, " years, ",
+  {"DATEDIF": [start, end, "YM"]}, " months"
+]}
+```
+
+### Issue: YEARFRAC basis confusion
+
+**Problem:** Different basis values give different results.
+
+**Explanation:** Basis determines day-count convention:
+
+```json
+// 0 = US (NASD) 30/360 - Assumes 30 days/month, 360 days/year
+// 1 = Actual/actual - Exact days, exact year length
+// 2 = Actual/360 - Exact days, 360-day year
+// 3 = Actual/365 - Exact days, 365-day year  
+// 4 = European 30/360 - Similar to 0 but European rules
+
+// ✅ For most accurate age calculations:
+{"YEARFRAC": [birthdate, today, 1]}  // Actual/actual
+
+// ✅ For financial calculations (bonds, loans):
+{"YEARFRAC": [startDate, endDate, 0]}  // US 30/360 (common in US)
+
+// ✅ For simple interest:
+{"YEARFRAC": [startDate, endDate, 3]}  // Actual/365
+```
+
+---
+
 ## Best Practices
 
 1. **Always use ISO format** for portability
@@ -590,5 +878,27 @@ Invalid dates return `null`:
 ## Performance Notes
 
 - **Date parsing** cached during compilation where possible
-- **Timezone handling** assumes UTC for consistency
+- **Timezone handling**: Efficient offset calculation without heavy datetime libraries
 - **Year calculations** use chrono library for accuracy
+
+---
+
+## Timezone Configuration
+
+Date and time operators (`today`, `now`, `dateformat`, `year`, `month`, `day`, `date`) are timezone-sensitive.
+
+- **Default Behavior**: UTC (Coordinated Universal Time)
+- **Configurable**: You can set a timezone offset in minutes via the API (`set_timezone_offset`).
+
+When a timezone offset is set:
+1. **Inputs are shifted**: `today` and `now` return values in the specified timezone.
+2. **Operations are shifted**: extraction (`year`, `month`, `day`) and formatting (`dateformat`) respect the offset.
+3. **Outputs are shifted**: `date` constructs values relative to the offset.
+
+### Example
+
+With offset `420` (UTC+7, e.g., Bangkok/Jakarta):
+```json
+{"today": null}  // Returns midnight in UTC+7 (e.g. "2024-01-16T00:00:00.000+07:00" normalized to UTC)
+{"hour": {"now": null}} // Returns hour in UTC+7
+```

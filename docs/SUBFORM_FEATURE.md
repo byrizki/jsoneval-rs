@@ -99,7 +99,7 @@ Each subform is a **completely isolated** JSONEval instance with:
 
 ### 1. `evaluate_subform`
 
-Evaluate a subform with data.
+Evaluate a subform with data and optional selective paths.
 
 ```rust
 pub fn evaluate_subform(
@@ -107,6 +107,7 @@ pub fn evaluate_subform(
     subform_path: &str,
     data: &str,
     context: Option<&str>,
+    paths: Option<&[String]>,
 ) -> Result<(), String>
 ```
 
@@ -120,7 +121,12 @@ let data = json!({
 });
 let data_str = serde_json::to_string(&data).unwrap();
 
-eval.evaluate_subform("#/riders", &data_str, None)?;
+// Full evaluation
+eval.evaluate_subform("#/riders", &data_str, None, None)?;
+
+// Selective evaluation (only specific fields)
+let paths = vec!["name".to_string()];
+eval.evaluate_subform("#/riders", &data_str, None, Some(&paths))?;
 ```
 
 ### 2. `validate_subform`
@@ -129,7 +135,7 @@ Validate subform data against its schema rules.
 
 ```rust
 pub fn validate_subform(
-    &self,
+    &mut self,
     subform_path: &str,
     data: &str,
     context: Option<&str>,
@@ -152,26 +158,29 @@ if result.has_error {
 
 ### 3. `evaluate_dependents_subform`
 
-Evaluate dependent fields when a field changes in the subform.
+Evaluate dependent fields when specific fields change in the subform.
 
 ```rust
 pub fn evaluate_dependents_subform(
     &mut self,
     subform_path: &str,
-    changed_path: &str,
+    changed_paths: &[String],
     data: Option<&str>,
     context: Option<&str>,
+    re_evaluate: bool,
 ) -> Result<Value, String>
 ```
 
 **Example:**
 ```rust
 // When riders.premium changes, recalculate dependent fields
+let changed = vec!["#/riders/properties/premium".to_string()];
 eval.evaluate_dependents_subform(
     "#/riders",
-    "#/riders/properties/premium",
+    &changed,
     Some(&data_str),
-    None
+    None,
+    true // trigger re-evaluation
 )?;
 ```
 

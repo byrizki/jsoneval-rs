@@ -24,35 +24,53 @@ layout: default
 - 📦 **80+ Operators** - Comprehensive operator support
 - 🔌 **Multiple Bindings** - C#, React Native, WASM, and Web
 - 🔒 **Type Safety** - Strong typing with MessagePack support
+- ⚡ **Selective Evaluation** - Re-evaluate specific fields only
+- 🌍 **Timezone Awareness** - Configurable timezone support
 - 📚 **Well Documented** - Extensive documentation and examples
 
 ## Quick Start
 
 ```rust
-use json_eval_rs::eval;
+use json_eval_rs::JSONEval;
+use serde_json::json;
 
-let logic = json!({
-    "if": [
-        {">": [{"var": "user.age"}, 18]},
-        "adult",
-        "minor"
-    ]
-});
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let schema = r#"{
+        "type": "object",
+        "properties": {
+            "status": {
+                "rules": {
+                    "required": { "var": "is_active" }
+                }
+            }
+        }
+    }"#;
+    
+    let data = r#"{ "is_active": true }"#;
 
-let data = json!({
-    "user": {
-        "name": "John",
-        "age": 25
-    }
-});
-
-let result = eval(&logic, &data)?;
-// Returns: "adult"
+    // Initialize with schema and data
+    let mut eval = JSONEval::new(schema, None, Some(data))?;
+    
+    // Evaluate
+    eval.evaluate(data, None, None)?;
+    
+    // Check validation results
+    let validation = eval.validate(data, None, None)?;
+    println!("Valid: {}", !validation.has_error);
+    
+    Ok(())
+}
 ```
 
 ## Documentation
 
-### Operator Categories
+### Language Guides
+
+- [C# / .NET](usage-csharp)
+- [React Native](usage-react-native)
+- [Web & NodeJS](usage-web-node)
+
+### Operator Reference
 
 - [Core Operators](operators-core) - Variables, references, and literals
 - [Logical Operators](operators-logical) - Boolean logic and conditionals  
@@ -64,6 +82,12 @@ let result = eval(&logic, &data)?;
 - [Array Operators](operators-array) - Array transformations
 - [Table Operators](operators-table) - Data table operations
 - [Utility Operators](operators-utility) - Helper functions
+
+### Advanced Guides
+
+- [Selective Evaluation](selective-evaluation) - Performance optimization guide
+- [Caching & Performance](caching-and-performance) - Global cache and MessagePack guide
+
 
 ### Quick Reference
 

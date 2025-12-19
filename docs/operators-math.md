@@ -7,6 +7,42 @@ title: Math Functions
 
 Advanced mathematical functions and rounding operations.
 
+## Overview
+
+Math functions provide advanced numerical operations beyond basic arithmetic, including rounding, absolute values, min/max comparisons, and power calculations. These functions are essential for financial calculations, statistical operations, and precise numeric manipulation.
+
+### Common Use Cases
+
+- **Financial Calculations**: Precise currency rounding with `round`, `roundup`, `rounddown`
+- **Range Operations**: Find minimum/maximum values with `min`, `max`
+- **Statistical Analysis**: Calculate absolute deviations with `abs`
+- **Scientific Computing**: Power and exponential calculations with `pow`
+- **Data Binning**: Round to specific multiples with `mround`, `ceiling`, `floor`
+- **Truncation**: Remove decimal places without rounding using `trunc`
+
+### Math Function Categories
+
+1. **Rounding**: `round`, `roundup`, `rounddown`, `trunc` - Control decimal precision
+2. **Multiple-based**: `ceiling`, `floor`, `mround` - Round to specific multiples
+3. **Comparison**: `min`, `max` - Find extreme values
+4. **Transformation**: `abs`, `pow` - Absolute values and exponentiation
+
+### Rounding Modes Explained
+
+Different rounding modes serve different purposes:
+
+- **`round`**: Standard rounding (banker's rounding) - most common use
+- **`roundup`**: Always rounds away from zero - for conservative estimates, page counts
+- **`rounddown`**: Always rounds toward zero - for discounts, floor prices
+- **`ceiling`**: Rounds up to next multiple - for pricing tiers
+- **`floor`**: Rounds down to previous multiple - for quantity discounts
+- **`trunc`**: Removes decimals without rounding - for integer extraction
+- **`mround`**: Rounds to nearest multiple - for time intervals, unit quantities
+
+### Excel Compatibility
+
+All uppercase function names (`ROUND`, `CEILING`, `FLOOR`, etc.) maintain Excel compatibility for seamless formula migration.
+
 ## `abs` - Absolute Value
 
 Returns the absolute value of a number.
@@ -571,6 +607,181 @@ Number - Nearest multiple
    ```json
    {"max": [minValue, {"min": [value, maxValue]}]}
    ```
+
+---
+
+## Troubleshooting
+
+### Issue: Floating point precision errors
+
+**Problem:** Decimal calculations show unexpected results like `0.30000000000000004`.
+
+**Common causes:**
+1. **Binary floating point representation** - 0.1 + 0.2 ≠ 0.3 exactly
+2. **Accumulated rounding errors** - Multiple operations compound errors
+
+**Solutions:**
+```json
+// ❌ Precision issue
+{"+": [0.1, 0.2]}  // → 0.30000000000000004
+
+// ✅ Round to expected precision
+{"round": [{"+": [0.1, 0.2]}, 2]}  // → 0.3
+
+// ✅ Always round financial calculations
+{"round": [
+  {"*": [{"var": "price"}, {"var": "quantity"}]},
+  2
+]}
+```
+
+### Issue: Round/roundup/rounddown giving same result
+
+**Problem:** Different rounding functions produce identical output.
+
+**Common causes:**
+1. **Already at desired precision** - Number has fewer decimals than requested
+2. **Result happens to be same** - Value at midpoint might round same way
+
+**Solutions:**
+```json
+// These will differ:
+{"round": [2.5]}     // → 2 (banker's rounding, rounds to even)
+{"roundup": [2.5]}   // → 3 (always rounds away from zero)
+{"rounddown": [2.5]} // → 2 (always rounds toward zero)
+
+// ✅ Test with values that show difference
+{"round": [2.1]}     // → 2
+{"roundup": [2.1]}   // → 3 (rounds up)
+{"rounddown": [2.1]} // → 2
+```
+
+### Issue: Negative number rounding confusion
+
+**Problem:** Rounding negative numbers produces unexpected results.
+
+**Explanation:** Different rounding functions treat negatives differently:
+
+```json
+// -3.5 rounding:
+{"round": [-3.5]}     // → -4 (banker's rounding)
+{"roundup": [-3.5]}   // → -4 (away from zero = more negative)
+{"rounddown": [-3.5]} // → -3 (toward zero = less negative)
+{"ceiling": [-3.5]}   // → -3 (toward positive infinity)
+{"floor": [-3.5]}     // → -4 (toward negative infinity)
+
+// ✅ For consistent "round up" behavior regardless of sign:
+{"ceiling": [value]}  // Always toward positive infinity
+
+// ✅ For "round toward zero" (truncate):
+{"trunc": [value]}    // Removes decimals
+```
+
+### Issue: Min/Max returns null
+
+**Problem:** `min` or `max` returns null instead of expected value.
+
+**Common causes:**
+1. **Empty array** - No values to compare
+2. **All null values** - No valid numbers in array
+3. **Wrong nesting** - Array of arrays instead of flat array
+
+**Solutions:**
+```json
+// ❌ Empty array
+{"max": []}  // → null
+
+// ✅ Provide default for empty arrays
+{"ifnull": [
+  {"max": [{"var": "values"}]},
+  0  // Default if empty
+]}
+
+// ❌ Wrong structure
+{"max": [[1, 2], [3, 4]]}  // → null (array of arrays)
+
+// ✅ Flatten first
+{"max": [{"merge": [[1, 2], [3, 4]]}]}  // → 4
+```
+
+### Issue: Ceiling/Floor with negative significance
+
+**Problem:** Using negative significance produces unexpected results.
+
+**Explanation:** Significance sign affects rounding direction:
+
+```json
+// Positive significance
+{"ceiling": [123, 10]}   // → 130 (rounds up)
+{"floor": [123, 10]}     // → 120 (rounds down)
+
+// Negative significance behavior
+{"ceiling": [123, -10]}  // → 120 (!)
+{"floor": [123, -10]}    // → 130 (!)
+
+// ✅ Use absolute value for significance
+{"ceiling": [value, {"abs": [significance]}]}
+```
+
+### Issue: Pow with large exponents crashes or returns Infinity
+
+**Problem:** Power calculations overflow or return Infinity.
+
+**Solutions:**
+```json
+// ❌ Overflow
+{"pow": [10, 1000]}  // → Infinity
+
+// ✅ Check for reasonable bounds
+{"if": [
+  {">": [exponent, 100]},
+  {"return": "ERROR: Exponent too large"},
+  {"pow": [base, exponent]}
+]}
+
+// ✅ Use logarithms for very large powers
+// Instead of a^b, calculate using log: e^(b * ln(a))
+```
+
+### Issue: Mround returns incorrect multiples
+
+**Problem:** `mround` doesn't round to expected multiple.
+
+**Common causes:**
+1. **Floating point precision** - Rounding errors in multiple
+2. **Wrong multiple value** - Using wrong unit
+
+**Solutions:**
+```json
+// ❌ Precision issue with decimal multiples
+{"mround": [1.27, 0.1]}  // Might not be exact
+
+// ✅ Round the multiple too
+{"mround": [
+  {"round": [value, 2]},
+  {"round": [0.1, 2]}
+]}
+
+// ✅ For time rounding (15-minute intervals):
+{"mround": [{"var": "minutes"}, 15]}  // → 0, 15, 30, 45, 60...
+```
+
+### Issue: Abs returns negative number
+
+**Problem:** This should never happen. If it does:
+
+**Causes:**
+1. **Not using abs correctly** - Applied to wrong value
+2. **Type coercion issue** - String "-5" might not be converted
+
+**Solutions:**
+```json
+// ✅ Ensure value is a number
+{"abs": [{"ToNumber": [{"var": "value"}]}]}
+
+// ✅ Double-check the operation
+{"abs": {"-": [a, b]}}  // Not {"abs": value}
+```
 
 ---
 

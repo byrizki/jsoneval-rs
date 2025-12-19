@@ -7,6 +7,32 @@ title: String Operators
 
 Text manipulation and string processing operators.
 
+## Overview
+
+String operators provide comprehensive text manipulation capabilities for formatting, parsing, searching, and transforming string data. These operators are essential for building user-facing messages, parsing input, and working with text-based data formats.
+
+### Common Use Cases
+
+- **Concatenation**: Build messages, labels, and formatted output with `cat`
+- **Extraction**: Get substrings, parts of text with `substr`, `left`, `right`, `mid`
+- **Parsing**: Split delimited data with `splittext`, `splitvalue`
+- **Searching**: Find text within strings using `search`
+- **Formatting**: Display numbers as currency or percentages with `stringformat`
+- **Validation**: Check string lengths, patterns, and content
+
+### String Operator Categories
+
+1. **Concatenation**: `cat`, `concat` - Combine strings
+2. **Extraction**: `substr`, `left`, `right`, `mid` - Extract portions
+3. **Search**: `search` - Find text positions
+4. **Splitting**: `splittext`, `splitvalue` - Parse delimited data
+5. **Formatting**: `stringformat` - Format numbers as strings
+6. **Measurement**: `len`, `length` - Get string length
+
+### Excel Compatibility
+
+Operators with uppercase variants (e.g., `CONCAT`, `SEARCH`, `LEFT`) follow Excel conventions for maximum compatibility with spreadsheet formulas.
+
 ## `cat` - Concatenate
 
 Concatenates multiple values into a string.
@@ -539,6 +565,161 @@ String - Formatted number
   ]},
   {"STRINGFORMAT": [{"var": "price"}, 2, "$"]}
 ]}
+```
+
+---
+
+## Troubleshooting
+
+### Issue: Search returns null when text exists
+
+**Problem:** `search` operator returns null even though the text is in the string.
+
+**Common causes:**
+1. **Case sensitivity mismatch** - Though `search` is case-insensitive, the implementation might differ
+2. **Wrong parameter order** - Search text and within text swapped
+3. **Start position past occurrence** - Starting search after the text location
+
+**Solutions:**
+```json
+// ❌ Wrong parameter order
+{"search": ["Hello World", "World"]}  // Wrong order
+
+// ✅ Correct - search text first, within text second
+{"search": ["World", "Hello World"]}  // → 7
+
+// ✅ Case insensitive
+{"search": ["world", "Hello World"]}  // → 7 (finds "World")
+```
+
+### Issue: Substr with negative index doesn't work
+
+**Problem:** Negative indices in `substr` return unexpected results.
+
+**Solution:** Negative indices count from the end. Ensure the logic is correct:
+
+```json
+// Get last N characters
+{"substr": ["Hello World", -5]}  // → "World" (last 5 chars)
+
+// ✅ To get "all but last N", calculate explicitly
+{"substr": [
+  {"var": "text"},
+  0,
+  {"-": [
+    {"length": {"var": "text"}},
+    5  // Remove last 5
+  ]}
+]}
+```
+
+### Issue: StringFormat shows wrong decimal places
+
+**Problem:** Number formatting displays incorrect precision.
+
+**Common causes:**
+1. **Rounding not applied** - Float precision issues
+2. **Wrong decimal parameter** - Confusion between parameters
+
+**Solutions:**
+```json
+// ❌ Precision issue
+{"stringformat": [1.005, 2]}  // Might show "1.00" due to float representation
+
+// ✅ Round before formatting
+{"stringformat": [
+  {"round": [1.005, 2]},
+  2
+]}  // → "1.01"
+
+// ✅ Ensure decimals parameter is number, not string
+{"stringformat": [1234.567, 2]}  // ✓ Correct
+{"stringformat": [1234.567, "2"]}  // Might fail
+```
+
+### Issue: Split returns wrong element
+
+**Problem:** `splittext` returns unexpected array element.
+
+**Common causes:**
+1. **Zero-based indexing** - First element is index 0
+2. **Empty segments** - Multiple consecutive separators create empty strings
+3. **Separator not found** - Returns entire string
+
+**Solutions:**
+```json
+// Data: {"csv": "a,b,c,d"}
+
+// ❌ Wrong - expects 1-based indexing
+{"splittext": [{"var": "csv"}, ",", 3]}  // → "d" (4th element, 0-based)
+
+// ✅ Correct - use 0-based index
+{"splittext": [{"var": "csv"}, ",", 2]}  // → "c" (3rd element)
+
+// ✅ Handle empty segments
+// "a,,c" split by "," → ["a", "", "c"]
+{"splittext": ["a,,c", ",", 1]}  // → "" (empty string)
+```
+
+### Issue: Cat with null produces "null" string
+
+**Problem:** Concatenation includes the word "null" in output.
+
+**Solution:** Use `ifnull` to provide defaults:
+
+```json
+// ❌ Results in "Hello null"
+// Data: {"name": null}
+{"cat": ["Hello ", {"var": "name"}]}
+
+// ✅ Provide default value
+{"cat": [
+  "Hello ",
+  {"ifnull": [{"var": "name"}, "Guest"]}
+]}  // → "Hello Guest"
+```
+
+### Issue: Search start position produces unexpected results
+
+**Problem:** Using start position in `search` doesn't find expected occurrence.
+
+**Common causes:**
+1. **1-based vs 0-based confusion** - Search uses 1-based positions
+2. **Inclusive vs exclusive** - Start position is inclusive
+
+**Solutions:**
+```json
+// Data: {"text": "Hello Hello World"}
+
+// Find second occurrence of "Hello"
+{"search": ["Hello", {"var": "text"}, 7]}  // 1-based, starts after first "Hello"
+// → 7 (finds second "Hello")
+
+// ✅ Find position AFTER first occurrence
+{
+  "let": {
+    "firstPos": {"search": ["Hello", {"var": "text"}]},
+    "secondPos": {"search": [
+      "Hello",
+      {"var": "text"},
+      {"+": [{"var": "firstPos"}, 1]}  // Start after first match
+    ]}
+  },
+  "in": {"var": "secondPos"}
+}
+```
+
+### Issue: Len returns wrong count for Unicode
+
+**Problem:** String length incorrect for emoji or special characters.
+
+**Note:** `len`/`length` counts UTF-8 characters correctly in Rust implementation. If seeing wrong counts, check:
+
+```json
+// Most implementations handle Unicode correctly
+{"len": "Hello 👋"}  // → 7 (counts emoji as 1 char)
+
+// If seeing wrong counts, ensure proper UTF-8 encoding in input data
 ```
 
 ---

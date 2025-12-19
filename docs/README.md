@@ -57,6 +57,19 @@ This documentation is organized by operator category for easy navigation:
   - `missing`, `missing_some`, `return`
   - `RANGEOPTIONS`, `MAPOPTIONS`, `MAPOPTIONSIF`
 
+## 🎯 Quick Reference Guides
+
+- **[Operators Summary](OPERATORS_SUMMARY.md)** - Complete alphabetical reference of all 80+ operators
+- **[Operator Cross-Reference](OPERATOR_CROSS_REFERENCE.md)** - Find operators by task ("I want to...")
+- **[Common Mistakes](COMMON_MISTAKES.md)** - Pitfalls to avoid and how to fix them
+
+## 🔬 Advanced Features
+
+- **[Subform Evaluation](SUBFORM_FEATURE.md)** - Selective evaluation and performance optimization
+  - Evaluate specific paths only
+  - Multi-platform support (Rust, C#, Web, React Native)
+  - Performance benchmarks and best practices
+
 ## 🚀 Quick Start
 
 ### Basic Variable Access
@@ -161,6 +174,13 @@ Navigate to the appropriate category page or use your browser's search function.
 
 ## 📚 Additional Resources
 
+### Documentation Guides
+- **[Operators Summary](OPERATORS_SUMMARY.md)** - Quick reference for all operators
+- **[Operator Cross-Reference](OPERATOR_CROSS_REFERENCE.md)** - Find operators by what you want to do
+- **[Common Mistakes](COMMON_MISTAKES.md)** - Avoid common pitfalls
+- **[Subform Evaluation](SUBFORM_FEATURE.md)** - Advanced selective evaluation
+
+### Project Resources
 - **[Main README](../README.md)** - Project overview and installation
 - **[Examples](../examples/)** - Practical code examples
 - **[Tests](../tests/)** - Comprehensive test suite showing all features

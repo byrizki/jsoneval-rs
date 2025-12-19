@@ -7,6 +7,43 @@ title: Array Operators
 
 Array transformation, filtering, and aggregation operators.
 
+## Overview
+
+Array operators provide powerful functional programming capabilities for working with collections of data. These operators enable you to transform, filter, aggregate, and query arrays without writing imperative loops.
+
+### Common Use Cases
+
+- **Data Transformation**: Convert raw data into desired formats using `map`
+- **Filtering**: Select subsets of data matching criteria with `filter`
+- **Aggregation**: Calculate totals, averages, or other aggregate values with `reduce` and `sum`
+- **Validation**: Check if all/some/no elements meet conditions using `all`, `some`, `none`
+- **Data Combination**: Merge multiple arrays with `merge`
+- **Generation**: Create sequences or ranges using `FOR`
+
+### Array Operator Categories
+
+1. **Transformation**: `map` - Transform each element
+2. **Filtering**: `filter` - Select matching elements
+3. **Aggregation**: `reduce`, `sum`, `multiplies`, `divides` - Combine elements
+4. **Quantifiers**: `all`, `some`, `none` - Test conditions
+5. **Utilities**: `merge`, `in`, `FOR` - Helper operations
+
+### The Current Element Pattern
+
+Most array operators use `{"var": ""}` (empty string) to reference the current element being processed. This is a key pattern to understand:
+
+```json
+// In map/filter/all/some/none:
+{"map": [array, {"*": [{"var": ""}, 2]}]}
+//                      ^^^^ current element
+
+// In reduce, use "accumulator" and "current":
+{"reduce": [array, 
+  {"+": [{"var": "accumulator"}, {"var": "current"}]},
+  0
+]}
+```
+
 ## `map` - Transform Array
 
 Transforms each element in an array using a logic expression.
@@ -633,6 +670,171 @@ Number - Result of sequential division
     {"merge": [{"var": "accumulator"}, [{"var": "current"}]]}
   ]},
   []
+]}
+```
+
+---
+
+## Troubleshooting
+
+### Issue: Empty array returns from map/filter
+
+**Problem:** Operations return empty arrays when you expect results.
+
+**Common causes:**
+1. **Wrong variable reference** - Using `{"var": "fieldName"}` instead of `{"var": ""}`
+2. **Condition always false** - Logic error in filter predicate
+3. **Source array is actually empty** - Input data issue
+
+**Solutions:**
+```json
+// ❌ Wrong - references non-existent field
+{"map": [
+  [1, 2, 3],
+  {"*": [{"var": "value"}, 2]}  // Looking for "value" field on numbers
+]}
+
+// ✅ Correct - uses current element
+{"map": [
+  [1, 2, 3],
+  {"*": [{"var": ""}, 2]}  // Uses current number
+]}
+
+// ✅ Check if source is empty first
+{"if": [
+  {">": [{"length": {"var": "items"}}, 0]},
+  {"map": [{"var": "items"}, transform]},
+  []
+]}
+```
+
+### Issue: Reduce returns wrong accumulator type
+
+**Problem:** Reduce returns unexpected type or structure.
+
+**Solution:** Ensure initial value matches expected type:
+
+```json
+// ❌ Wrong - initial is number but building array
+{"reduce": [
+  array,
+  {"merge": [{"var": "accumulator"}, [{"var": "current"}]]},
+  0  // Should be [] for array
+]}
+
+// ✅ Correct - initial matches accumulator type
+{"reduce": [
+  array,
+  {"merge": [{"var": "accumulator"}, [{"var": "current"}]]},
+  []  // Correct initial for array accumulator
+]}
+```
+
+### Issue: Performance slow with large arrays
+
+**Problem:** Operations timeout or are very slow.
+
+**Solutions:**
+1. **Avoid nested loops** - Don't use map/filter inside map/filter
+2. **Use quantifiers** - `all`/`some`/`none` short-circuit
+3. **Filter before map** - Reduce data size early
+
+```json
+// ❌ Inefficient - nested operations
+{"map": [
+  largeArray1,
+  {"filter": [largeArray2, condition]}  // O(n²)
+]}
+
+// ✅ Better - single pass
+{"filter": [
+  combinedData,
+  condition
+]}
+```
+
+### Issue: Reduce with string concatenation has extra separators
+
+**Problem:** String concatenation adds separator at the beginning.
+
+**Solution:** Handle first element specially or trim result:
+
+```json
+// ❌ Problem - adds comma before first item
+{"reduce": [
+  ["a", "b", "c"],
+  {"cat": [{"var": "accumulator"}, ",", {"var": "current"}]},
+  ""
+]}
+// Result: ",a,b,c"
+
+// ✅ Solution 1 - Check if accumulator is empty
+{"reduce": [
+  ["a", "b", "c"],
+  {"cat": [
+    {"var": "accumulator"},
+    {"if": [
+      {">": [{"length": {"var": "accumulator"}}, 0]},
+      ",",
+      ""
+    ]},
+    {"var": "current"}
+  ]},
+  ""
+]}
+// Result: "a,b,c"
+
+// ✅ Solution 2 - Use array join pattern
+{"reduce": [
+  {"filter": [  // Remove empty strings
+    {"map": [
+      ["a", "b", "c"],
+      {"var": ""}
+    ]},
+    {">": [{"length": {"var": ""}}, 0]}
+  ]},
+  {"cat": [{"var": "accumulator"}, ",", {"var": "current"}]},
+  ""
+]}
+```
+
+### Issue: Cannot access nested properties in map
+
+**Problem:** Trying to extract nested fields returns null.
+
+**Solution:** Use proper path notation:
+
+```json
+// Data: {"users": [{"profile": {"name": "Alice"}}, {"profile": {"name": "Bob"}}]}
+
+// ✅ Correct - use dot notation from current element
+{"map": [
+  {"var": "users"},
+  {"var": "profile.name"}  // Relative to current element
+]}
+// Result: ["Alice", "Bob"]
+```
+
+### Issue: All/some/none returning unexpected results
+
+**Problem:** Quantifier returns true/false opposite of expected.
+
+**Common causes:**
+1. **Empty array** - `all([])` is `true`, `some([])` and `none([])` are `false`
+2. **Truthy/falsy confusion** - `0`, `""`, `null`, `false` are falsy
+
+**Solutions:**
+```json
+// Empty array edge cases
+{"all": [[], condition]}   // → true (vacuously true)
+{"some": [[], condition]}  // → false
+{"none": [[], condition]}  // → true
+
+// ✅ Handle empty arrays explicitly
+{"if": [
+  {">": [{"length": array}, 0]},
+  {"all": [array, condition]},
+  defaultValue
 ]}
 ```
 

@@ -7,6 +7,69 @@ title: Operators Quick Reference
 
 Complete alphabetical reference of all operators in JSONEval-Rs.
 
+## Introduction
+
+This document provides a quick reference to all **80+ operators** available in JSON-Eval-RS. Each operator is documented in detail in its respective category page with comprehensive examples, troubleshooting guides, and best practices.
+
+### How to Use This Guide
+
+1. **Quick Lookup**: Find operators by category in the tables below
+2. **Detailed Learning**: Click through to category pages for comprehensive documentation
+3. **Pattern Library**: See common patterns section for real-world examples
+4. **Troubleshooting**: Each category page includes troubleshooting sections for common issues
+
+### Documentation Structure
+
+Each operator category includes:
+- **Overview**: Context and use cases for the operator category
+- **Operator Descriptions**: Syntax, parameters, return types, and examples
+- **Complex Examples**: Real-world scenarios with step-by-step breakdowns
+- **Troubleshooting**: Common issues and their solutions
+- **Best Practices**: Guidelines for effective operator usage
+- **Performance Notes**: Optimization tips and considerations
+
+### What is JSON-Eval-RS?
+
+JSON-Eval-RS is an extended implementation of JSON Logic that adds powerful operators for:
+- **Excel-style functions**: Rounding, date operations, string manipulation
+- **Table operations**: Data lookups, searches, and queries
+- **Advanced arrays**: Functional programming with map, filter, reduce
+- **Type safety**: Strict and loose comparison modes
+- **Financial calculations**: Precise decimal handling
+
+### Quick Start Examples
+
+**Calculate age from birthdate:**
+```json
+{"DATEDIF": [{"var": "birthdate"}, {"today": null}, "Y"]}
+```
+
+**Filter and transform data:**
+```json
+{"map": [
+  {"filter": [{"var": "users"}, {"var": "active"}]},
+  {"var": "email"}
+]}
+```
+
+**Lookup value from table:**
+```json
+{"VALUEAT": [
+  {"var": "rateTable"},
+  {"INDEXAT": [{"var": "age"}, {"var": "rateTable"}, "minAge"]},
+  "rate"
+]}
+```
+
+**Format currency:**
+```json
+{"STRINGFORMAT": [
+  {"round": [{"*": [{"var": "price"}, 1.1]}, 2]},
+  2,
+  "$"
+]}
+```
+
 ## Core & Variable Access
 
 | Operator | Description | Example |
