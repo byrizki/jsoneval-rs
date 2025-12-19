@@ -23,7 +23,7 @@ namespace JsonEvalRs
         /// <param name="data">JSON data string for the subform</param>
         /// <param name="context">Optional context data JSON string</param>
         /// <param name="paths">Optional list of paths for selective evaluation</param>
-        public void EvaluateSubform(string subformPath, string data, string? context = null, IEnumerable<string> paths = null)
+        public void EvaluateSubform(string subformPath, string data, string? context = null, IEnumerable<string>? paths = null)
         {
             ThrowIfDisposed();
             if (string.IsNullOrEmpty(subformPath))
@@ -31,7 +31,7 @@ namespace JsonEvalRs
             if (string.IsNullOrEmpty(data))
                 throw new ArgumentNullException(nameof(data));
 
-            string pathsJson = paths != null ? JsonConvert.SerializeObject(paths) : null;
+            string? pathsJson = paths != null ? JsonConvert.SerializeObject(paths) : null;
 
 #if NETCOREAPP || NET5_0_OR_GREATER
             var result = Native.json_eval_evaluate_subform(_handle, subformPath, data, context, pathsJson);
