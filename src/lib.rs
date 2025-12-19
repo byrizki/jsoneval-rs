@@ -714,6 +714,8 @@ impl JSONEval {
     /// A `Result` indicating success or an error message.
     pub fn evaluate(&mut self, data: &str, context: Option<&str>, paths: Option<&[String]>) -> Result<(), String> {
         time_block!("evaluate() [total]", {
+            let context_provided = context.is_some();
+            
             // Use SIMD-accelerated JSON parsing
             let data: Value = time_block!("  parse data", {
                 json_parser::parse_json_str(data)?
@@ -740,6 +742,11 @@ impl JSONEval {
             // This is more efficient than clearing entire cache
             time_block!("  purge_cache", {
                 self.purge_cache_for_changed_data(&changed_data_paths);
+                
+                // Also purge context-dependent cache if context was provided
+                if context_provided {
+                    self.purge_cache_for_context_change();
+                }
             });
             
             // Call internal evaluate (uses existing data if not provided)
@@ -759,14 +766,18 @@ impl JSONEval {
             let normalized_paths = if let Some(p_list) = paths {
                 normalized_paths_storage = p_list.iter()
                     .flat_map(|p| {
-                        let ptr = path_utils::dot_notation_to_schema_pointer(p);
-                        // Also support version with /properties/ prefix for root match
-                        let with_props = if ptr.starts_with("#/") {
-                             format!("#/properties/{}", &ptr[2..])
+                        let normalized = if p.starts_with("#/") {
+                            // Case 1: JSON Schema path (e.g. #/properties/foo) - keep as is
+                            p.to_string()
+                        } else if p.starts_with('/') {
+                            // Case 2: Rust Pointer path (e.g. /properties/foo) - ensure # prefix
+                            format!("#{}", p)
                         } else {
-                             ptr.clone()
+                            // Case 3: Dot notation (e.g. properties.foo) - replace dots with slashes and add prefix
+                            format!("#/{}", p.replace('.', "/"))
                         };
-                        vec![ptr, with_props]
+                        
+                        vec![normalized]
                     })
                     .collect::<Vec<_>>();
                 Some(normalized_paths_storage.as_slice())
@@ -962,7 +973,7 @@ impl JSONEval {
             
             for eval_key in batch_items {
                 // Filter individual items if paths are provided
-                if let Some(filter_paths) = paths {
+                if let Some(filter_paths) = normalized_paths {
                     if !filter_paths.is_empty() && !filter_paths.iter().any(|p| eval_key.starts_with(p.as_str()) || p.starts_with(eval_key.as_str())) {
                         continue;
                     }
@@ -1512,6 +1523,26 @@ impl JSONEval {
         
         // Remove all cache entries for affected eval_keys using retain
         // Keep entries whose eval_key is NOT in the affected set
+        self.eval_cache.retain(|cache_key, _| {
+            !affected_eval_keys.contains(&cache_key.eval_key)
+        });
+    }
+
+    /// Purge cache entries that depend on context
+    fn purge_cache_for_context_change(&self) {
+        // Find all eval_keys that depend on $context
+        let mut affected_eval_keys = IndexSet::new();
+        
+        for (eval_key, deps) in self.dependencies.iter() {
+            let is_affected = deps.iter().any(|dep| {
+                dep == "$context" || dep.starts_with("$context.") || dep.starts_with("/$context")
+            });
+            
+            if is_affected {
+                affected_eval_keys.insert(eval_key.clone());
+            }
+        }
+        
         self.eval_cache.retain(|cache_key, _| {
             !affected_eval_keys.contains(&cache_key.eval_key)
         });
@@ -2216,8 +2247,20 @@ impl JSONEval {
             let data_paths: Vec<String> = changed_paths
                 .iter()
                 .map(|path| {
-                    // Convert "illustration.insured.ins_dob" to "/illustration/insured/ins_dob"
-                    format!("/{}", path.replace('.', "/"))
+                    // Robust normalization: normalize to schema pointer first, then strip schema-specific parts
+                    // This handles both "illustration.insured.name" and "#/illustration/properties/insured/properties/name"
+                    let schema_ptr = path_utils::dot_notation_to_schema_pointer(path);
+                    
+                    // Remove # prefix and /properties/ segments to get pure data location
+                    let normalized = schema_ptr.trim_start_matches('#')
+                                              .replace("/properties/", "/");
+                    
+                    // Ensure it starts with / for data pointer
+                    if normalized.starts_with('/') {
+                        normalized
+                    } else {
+                        format!("/{}", normalized)
+                    }
                 })
                 .collect();
             self.purge_cache_for_changed_data_with_comparison(&data_paths, &old_data, &data_value);
