@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.0.35] - 2025-12-19
+
+### Added
+
+- [Feature] Add selective paths evaluation for subforms
+
+### Fixed
+
+- [core] Fix selective paths evaluation
+
 ## [0.0.34] - 2025-12-19
 
 ### Fixed
@@ -16,7 +26,6 @@
 
 - [Feature] Add set timezone offset for date operations
 - [Feature] Add selective paths evaluation
-
 
 ## [0.0.32] - 2025-12-12
 
