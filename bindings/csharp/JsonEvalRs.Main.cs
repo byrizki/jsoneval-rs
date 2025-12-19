@@ -237,17 +237,20 @@ namespace JsonEvalRs
         /// </summary>
         /// <param name="data">JSON data string</param>
         /// <param name="context">Optional context data</param>
-        public void Evaluate(string data, string? context = null)
+        /// <param name="paths">Optional array of paths for selective evaluation</param>
+        public void Evaluate(string data, string? context = null, string[]? paths = null)
         {
             ThrowIfDisposed();
 
             if (string.IsNullOrEmpty(data))
                 throw new ArgumentNullException(nameof(data));
 
+            string? pathsJson = paths != null ? JsonConvert.SerializeObject(paths) : null;
+
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_evaluate(_handle, data, context, null);
+            var result = Native.json_eval_evaluate(_handle, data, context, pathsJson);
 #else
-            var result = Native.json_eval_evaluate(_handle, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), null);
+            var result = Native.json_eval_evaluate(_handle, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), Native.ToUTF8Bytes(pathsJson));
 #endif
             
             // Check for errors but don't return data (massive performance optimization)
