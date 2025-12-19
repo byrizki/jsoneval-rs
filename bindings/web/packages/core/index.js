@@ -441,6 +441,20 @@ export class JSONEvalCore {
   }
 
   /**
+   * Set timezone offset for datetime operations (TODAY, NOW)
+   * @param {number|null|undefined} offsetMinutes - Timezone offset in minutes from UTC 
+   *                                                 (e.g., 420 for UTC+7, -300 for UTC-5)
+   *                                                 Pass null or undefined to reset to UTC
+   * @returns {void}
+   */
+  setTimezoneOffset(offsetMinutes) {
+    if (!this._instance) {
+      throw new Error('Instance not initialized. Call init() first.');
+    }
+    this._instance.set_timezone_offset(offsetMinutes);
+  }
+
+  /**
    * Compile and run JSON logic from a JSON logic string
    * @param {object} options - Options for compile and run logic
    * @param {string|object} options.logicStr - JSON logic expression as a string or object

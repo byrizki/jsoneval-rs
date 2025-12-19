@@ -61,6 +61,8 @@ extern "C" {
     FFIResult json_eval_get_subform_paths(JSONEvalHandle* handle);
     FFIResult json_eval_has_subform(JSONEvalHandle* handle, const char* subform_path);
     
+    void json_eval_set_timezone_offset(JSONEvalHandle* handle, int32_t offset_minutes);
+    
     void json_eval_free(JSONEvalHandle* handle);
     void json_eval_free_result(FFIResult result);
     const char* json_eval_version();
@@ -1361,6 +1363,23 @@ void JsonEvalBridge::dispose(const std::string& handleId) {
         json_eval_free(it->second);
         handles.erase(it);
     }
+}
+
+void JsonEvalBridge::setTimezoneOffsetAsync(
+    const std::string& handleId,
+    int32_t offsetMinutes,
+    std::function<void(const std::string&, const std::string&)> callback
+) {
+    runAsync([handleId, offsetMinutes]() -> std::string {
+        std::lock_guard<std::mutex> lock(handlesMutex);
+        auto it = handles.find(handleId);
+        if (it == handles.end()) {
+            throw std::runtime_error("Invalid handle");
+        }
+        
+        json_eval_set_timezone_offset(it->second, offsetMinutes);
+        return "{}";
+    }, callback);
 }
 
 std::string JsonEvalBridge::version() {

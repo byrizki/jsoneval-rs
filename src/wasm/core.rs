@@ -104,6 +104,15 @@ impl JSONEvalWasm {
             }
         }
     }
+
+    /// Set timezone offset for datetime operations (TODAY, NOW)
+    /// 
+    /// @param offsetMinutes - Timezone offset in minutes from UTC (e.g., 420 for UTC+7, -300 for UTC-5)
+    ///                        Pass null or undefined to reset to UTC
+    #[wasm_bindgen(js_name = setTimezoneOffset)]
+    pub fn set_timezone_offset(&mut self, offset_minutes: Option<i32>) {
+        self.inner.set_timezone_offset(offset_minutes);
+    }
 }
 
 // Make log available for other modules

@@ -834,6 +834,19 @@ namespace JsonEvalRs
         }
 
         /// <summary>
+        /// Set timezone offset for datetime operations (TODAY, NOW)
+        /// </summary>
+        /// <param name="offsetMinutes">Timezone offset in minutes from UTC (e.g., 420 for UTC+7, -300 for UTC-5). Pass null to reset to UTC.</param>
+        public void SetTimezoneOffset(int? offsetMinutes)
+        {
+            ThrowIfDisposed();
+            
+            // Use int.MinValue as sentinel value for null/reset to UTC
+            int offset = offsetMinutes ?? int.MinValue;
+            Native.json_eval_set_timezone_offset(_handle, offset);
+        }
+
+        /// <summary>
         /// Check if evaluation caching is enabled.
         /// </summary>
         /// <returns>True if caching is enabled, false otherwise</returns>

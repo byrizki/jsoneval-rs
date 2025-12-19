@@ -573,6 +573,19 @@ public:
     );
 
     /**
+     * Set timezone offset for datetime operations (TODAY, NOW) (async)
+     * @param handle Instance handle
+     * @param offsetMinutes Timezone offset in minutes from UTC (e.g., 420 for UTC+7, -300 for UTC-5)
+     *                      Pass INT32_MIN to reset to UTC
+     * @param callback Result callback
+     */
+    static void setTimezoneOffsetAsync(
+        const std::string& handle,
+        int32_t offsetMinutes,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
      * Dispose instance
      * @param handle Instance handle
      */

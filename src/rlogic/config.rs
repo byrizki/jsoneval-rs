@@ -10,6 +10,9 @@ pub struct RLogicConfig {
     
     /// Maximum recursion depth for evaluation
     pub recursion_limit: usize,
+
+    /// Timezone offset in minutes from UTC
+    pub timezone_offset: Option<i32>,
 }
 
 impl RLogicConfig {
@@ -24,6 +27,7 @@ impl RLogicConfig {
             enable_tracking: false,
             safe_nan_handling: false,
             recursion_limit: 1000,
+            timezone_offset: None,
         }
     }
     
@@ -33,6 +37,7 @@ impl RLogicConfig {
             enable_tracking: true,
             safe_nan_handling: true,
             recursion_limit: 1000,
+            timezone_offset: None,
         }
     }
     
@@ -42,6 +47,7 @@ impl RLogicConfig {
             enable_tracking: false,
             safe_nan_handling: false,
             recursion_limit: 1000,
+            timezone_offset: None,
         }
     }
     
@@ -61,6 +67,11 @@ impl RLogicConfig {
         self.recursion_limit = limit;
         self
     }
+
+    pub fn with_timezone_offset(mut self, offset: i32) -> Self {
+        self.timezone_offset = Some(offset);
+        self
+    }
 }
 
 impl Default for RLogicConfig {
@@ -69,6 +80,7 @@ impl Default for RLogicConfig {
             enable_tracking: true,
             safe_nan_handling: false,
             recursion_limit: 1000,
+            timezone_offset: None,
         }
     }
 }

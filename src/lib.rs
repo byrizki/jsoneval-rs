@@ -516,6 +516,46 @@ impl JSONEval {
         Ok(())
     }
 
+    /// Set the timezone offset for datetime operations (TODAY, NOW)
+    /// 
+    /// This method updates the RLogic engine configuration with a new timezone offset.
+    /// The offset will be applied to all subsequent datetime evaluations.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `offset_minutes` - Timezone offset in minutes from UTC (e.g., 420 for UTC+7, -300 for UTC-5)
+    ///   Pass `None` to reset to UTC (no offset)
+    /// 
+    /// # Example
+    /// 
+    /// ```ignore
+    /// let mut eval = JSONEval::new(schema, None, None)?;
+    /// 
+    /// // Set to UTC+7 (Jakarta, Bangkok)
+    /// eval.set_timezone_offset(Some(420));
+    /// 
+    /// // Reset to UTC
+    /// eval.set_timezone_offset(None);
+    /// ```
+    pub fn set_timezone_offset(&mut self, offset_minutes: Option<i32>) {
+        // Create new config with the timezone offset
+        let mut config = RLogicConfig::default();
+        if let Some(offset) = offset_minutes {
+            config = config.with_timezone_offset(offset);
+        }
+        
+        // Recreate the engine with the new configuration
+        // This is necessary because RLogic is wrapped in Arc and config is part of the evaluator
+        self.engine = Arc::new(RLogic::with_config(config));
+        
+        // Note: We need to recompile all evaluations because they're associated with the old engine
+        // Re-parse the schema to recompile all evaluations with the new engine
+        let _ = parse_schema::legacy::parse_schema(self);
+        
+        // Clear cache since evaluation results may change with new timezone
+        self.eval_cache.clear();
+    }
+
     /// Reload schema from MessagePack-encoded bytes
     /// 
     /// # Arguments

@@ -595,3 +595,46 @@ pub unsafe extern "C" fn json_eval_reload_schema_from_cache(
         Err(e) => FFIResult::error(e),
     }
 }
+
+/// Set timezone offset for datetime operations (TODAY, NOW)
+/// 
+/// # Safety
+/// 
+/// - handle must be a valid pointer from json_eval_new
+/// - Pass offset_minutes as the timezone offset in minutes from UTC
+///   (e.g., 420 for UTC+7, -300 for UTC-5)
+/// - Pass i32::MIN to reset to UTC (no offset)
+/// 
+/// # Example
+/// 
+/// ```c
+/// // Set to UTC+7 (Jakarta, Bangkok)
+/// json_eval_set_timezone_offset(handle, 420);
+/// 
+/// // Set to UTC-5 (New York, EST)
+/// json_eval_set_timezone_offset(handle, -300);
+/// 
+/// // Reset to UTC
+/// json_eval_set_timezone_offset(handle, i32::MIN);
+/// ```
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_set_timezone_offset(
+    handle: *mut JSONEvalHandle,
+    offset_minutes: i32,
+) {
+    if handle.is_null() {
+        eprintln!("[FFI ERROR] json_eval_set_timezone_offset: handle is null");
+        return;
+    }
+
+    let eval = &mut (*handle).inner;
+    
+    // Use i32::MIN as sentinel value for None/reset to UTC
+    let offset = if offset_minutes == i32::MIN {
+        None
+    } else {
+        Some(offset_minutes)
+    };
+    
+    eval.set_timezone_offset(offset);
+}

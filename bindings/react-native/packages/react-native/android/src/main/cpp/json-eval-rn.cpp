@@ -601,6 +601,29 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeVersion(
 }
 
 JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeSetTimezoneOffset(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jint offsetMinutes
+) {
+    try {
+        std::string handleStr = jstringToString(env, handle);
+        
+        // Access handle from the bridge
+        auto it = JsonEvalBridge::handles.find(handleStr);
+        if (it == JsonEvalBridge::handles.end()) {
+            throw std::runtime_error("Invalid handle");
+        }
+        
+        json_eval_set_timezone_offset(it->second, static_cast<int32_t>(offsetMinutes));
+    } catch (const std::exception& e) {
+        jclass exClass = env->FindClass("java/lang/RuntimeException");
+        env->ThrowNew(exClass, e.what());
+    }
+}
+
+JNIEXPORT void JNICALL
 Java_com_jsonevalrs_JsonEvalRsModule_nativeResolveLayoutAsync(
     JNIEnv* env,
     jobject /* this */,

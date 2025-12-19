@@ -362,6 +362,13 @@ export class JSONEval {
   getSubformPaths(): Promise<string[]>;
   hasSubform(subformPath: string): Promise<boolean>;
   
+  /**
+   * Set timezone offset for datetime operations (TODAY, NOW)
+   * @param offsetMinutes - Timezone offset in minutes from UTC (e.g., 420 for UTC+7, -300 for UTC-5)
+   *                        Pass null or undefined to reset to UTC
+   */
+  setTimezoneOffset(offsetMinutes: number | null | undefined): void;
+  
   free(): void;
 }
 

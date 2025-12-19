@@ -253,6 +253,22 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun setTimezoneOffset(
+        handle: String,
+        offsetMinutes: Int?,
+        promise: Promise
+    ) {
+        try {
+            // Use Int.MIN_VALUE as sentinel for null
+            val offset = offsetMinutes ?: Int.MIN_VALUE
+            nativeSetTimezoneOffset(handle, offset)
+            promise.resolve(null)
+        } catch (e: Exception) {
+            promise.reject("SET_TIMEZONE_OFFSET_ERROR", e.message, e)
+        }
+    }
+
+    @ReactMethod
     fun validatePaths(
         handle: String,
         data: String,
@@ -530,6 +546,7 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     private external fun nativeCompileAndRunLogicAsync(handle: String, logicStr: String, data: String, context: String, promise: Promise)
     private external fun nativeCompileLogic(handle: String, logicStr: String): Double
     private external fun nativeRunLogicAsync(handle: String, logicId: Double, data: String, context: String, promise: Promise)
+    private external fun nativeSetTimezoneOffset(handle: String, offsetMinutes: Int)
     
     // Subform native methods
     private external fun nativeEvaluateSubformAsync(handle: String, subformPath: String, data: String, context: String, promise: Promise)

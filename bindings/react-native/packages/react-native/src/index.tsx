@@ -685,6 +685,30 @@ export class JSONEval {
   }
 
   /**
+   * Set timezone offset for datetime operations (TODAY, NOW)
+   * @param offsetMinutes - Timezone offset in minutes from UTC (e.g., 420 for UTC+7, -300 for UTC-5)
+   *                        Pass null to reset to UTC
+   * @returns Promise that resolves when timezone is set
+   * @throws {Error} If operation fails
+   * 
+   * @example
+   * ```typescript
+   * // Set to UTC+7 (Jakarta, Bangkok)
+   * await eval.setTimezoneOffset(420);
+   * 
+   * // Set to UTC-5 (New York, EST)
+   * await eval.setTimezoneOffset(-300);
+   * 
+   * // Reset to UTC
+   * await eval.setTimezoneOffset(null);
+   * ```
+   */
+  async setTimezoneOffset(offsetMinutes: number | null): Promise<void> {
+    this.throwIfDisposed();
+    await JsonEvalRs.setTimezoneOffset(this.handle, offsetMinutes);
+  }
+
+  /**
    * Compile and run JSON logic from a JSON logic string
    * @param logicStr - JSON logic expression as a string or object
    * @param data - Optional JSON data string or object (null to use existing data)

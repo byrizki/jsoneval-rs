@@ -76,15 +76,33 @@ impl Evaluator {
     }
 
     /// Evaluate Today operation
+    /// Applies timezone offset if configured, otherwise returns UTC date
     pub(super) fn eval_today(&self) -> Result<Value, String> {
         let now = chrono::Utc::now();
-        Ok(Value::String(helpers::build_iso_date_string(now.date_naive())))
+        
+        // Apply timezone offset if configured
+        let adjusted_time = if let Some(offset_minutes) = self.config.timezone_offset {
+            now + chrono::Duration::minutes(offset_minutes as i64)
+        } else {
+            now
+        };
+        
+        Ok(Value::String(helpers::build_iso_date_string(adjusted_time.date_naive())))
     }
 
     /// Evaluate Now operation
+    /// Applies timezone offset if configured, otherwise returns UTC time
     pub(super) fn eval_now(&self) -> Result<Value, String> {
         let now = chrono::Utc::now();
-        Ok(Value::String(now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)))
+        
+        // Apply timezone offset if configured
+        let adjusted_time = if let Some(offset_minutes) = self.config.timezone_offset {
+            now + chrono::Duration::minutes(offset_minutes as i64)
+        } else {
+            now
+        };
+        
+        Ok(Value::String(adjusted_time.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)))
     }
 
     /// Evaluate Days operation - ZERO-COPY

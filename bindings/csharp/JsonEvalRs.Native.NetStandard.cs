@@ -268,6 +268,12 @@ namespace JsonEvalRs
             IntPtr handle,
             byte[] subformPath
         );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void json_eval_set_timezone_offset(
+            IntPtr handle,
+            int offsetMinutes
+        );
     }
 }
 #endif
