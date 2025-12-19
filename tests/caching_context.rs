@@ -1,6 +1,6 @@
 
 use json_eval_rs::JSONEval;
-use serde_json::{json, Value};
+use serde_json::{json};
 
 #[test]
 fn test_disable_cache_propagates_to_subforms() {
