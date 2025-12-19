@@ -341,7 +341,7 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
         context: String?,
         promise: Promise
     ) {
-        nativeEvaluateSubformAsync(handle, subformPath, data, context ?: "", promise)
+        nativeEvaluateSubform(handle, subformPath, data, context ?: "", "", promise)
     }
 
     @ReactMethod
