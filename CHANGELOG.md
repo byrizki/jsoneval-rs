@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.36] - 2025-12-22
+
+### Fixed
+
+- [core] Fix table calculation dependency on optional deps
+
 ## [0.0.35] - 2025-12-19
 
 ### Added
