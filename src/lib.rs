@@ -860,20 +860,13 @@ impl JSONEval {
                     if let Some(logic_id) = self.evaluations.get(eval_key) {
                         if let Ok(val) = self.engine.run(logic_id, eval_data_values.data()) {
                             let cleaned_val = clean_float_noise(val);
-                            println!("[DEBUG] Evaluated {} = {:?}", eval_key, cleaned_val);
                             // Cache result
                             self.cache_result(eval_key, Value::Null, &eval_data_values);
                             
-                            println!("[DEBUG] pointer_path: {}", pointer_path);
                             if let Some(pointer_value) = self.evaluated_schema.pointer_mut(&pointer_path) {
-                                println!("[DEBUG] Successfully updated pointer");
                                 *pointer_value = cleaned_val;
-                            } else {
-                                println!("[DEBUG] Failed to find pointer in schema");
                             }
                         }
-                    } else {
-                        println!("[DEBUG] No logic_id found for {}", eval_key);
                     }
                 }
             });

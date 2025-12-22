@@ -118,10 +118,14 @@ pub fn evaluate_table(
                     // If field is not required (optional), continue without skipping
                 }
             } else {
-                // println!("dependency {} doesn't exist", dep);
-                // Dependency doesn't exist, treat as null
-                requirement_not_filled = true;
-                break;
+                // Dependency doesn't exist
+                // Check if the field is required in the schema before skipping
+                let is_field_required = check_field_required(&lib.evaluated_schema, dep);
+                
+                if is_field_required {
+                    requirement_not_filled = true;
+                    break;
+                }
             }
         }
     }
