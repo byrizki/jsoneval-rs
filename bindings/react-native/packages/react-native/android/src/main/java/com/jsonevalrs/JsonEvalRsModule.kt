@@ -333,16 +333,6 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     // Subform Methods
     // ========================================================================
 
-    @ReactMethod
-    fun evaluateSubform(
-        handle: String,
-        subformPath: String,
-        data: String,
-        context: String?,
-        promise: Promise
-    ) {
-        nativeEvaluateSubform(handle, subformPath, data, context ?: "", "", promise)
-    }
 
     @ReactMethod
     fun validateSubform(
@@ -566,7 +556,7 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
             try {
                 val list = ArrayList<String>()
                 for (i in 0 until paths.size()) {
-                    list.add(paths.getString(i))
+                    list.add(paths.getString(i) ?: "")
                 }
                 // Simple manual JSON array construction or use Gson if available?
                 // Avoiding dependency: assume valid strings
