@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.37] - 2025-12-23
+
+### Fixed
+
+- [RN] Fix RN Android Build
+
 ## [0.0.36] - 2025-12-22
 
 ### Fixed
