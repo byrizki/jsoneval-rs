@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.40] - 2025-12-24
+
+### Fixed
+
+- [core] Fix cache purging function
+
 ## [0.0.39] - 2025-12-24
 
 ### Fixed

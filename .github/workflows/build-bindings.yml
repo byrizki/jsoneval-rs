@@ -11,6 +11,36 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  check-rn-tests:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+    - uses: actions/checkout@v4
+    - id: check
+      name: Check for [RN] flag
+      run: |
+        SHOULD_RUN=false
+        # Check latest changes in CHANGELOG.md for [RN]
+        # Extract content between first '## [' and the next '## ['
+        if [ -f CHANGELOG.md ]; then
+          LATEST_CHANGES=$(awk '/^## \[/ { if (found) exit; found=1; print; next } found { print }' CHANGELOG.md)
+          echo "Latest changes analyzed:"
+          echo "$LATEST_CHANGES"
+          
+          if echo "$LATEST_CHANGES" | grep -Fq "[RN]"; then
+            echo "Found [RN] in CHANGELOG.md (latest version)"
+            SHOULD_RUN=true
+          fi
+        fi
+        
+        # Check commit message for [RN]
+        if [[ "${{ github.event.head_commit.message }}" == *"[RN]"* ]]; then
+          echo "Found [RN] in commit message"
+          SHOULD_RUN=true
+        fi
+        echo "should_run=$SHOULD_RUN" >> $GITHUB_OUTPUT
+
   # Build native libraries for all platforms
   build-native:
     strategy:
@@ -578,7 +608,8 @@ jobs:
   # Integration test to verify the package works on Android
   # Runs in parallel, doesn't block releases
   test-react-native-android:
-    needs: [build-android-jni, build-react-native]
+    needs: [build-android-jni, build-react-native, check-rn-tests]
+    if: needs.check-rn-tests.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     
     steps:
@@ -681,7 +712,8 @@ jobs:
   # Integration test to verify the package works on iOS
   # Runs in parallel, doesn't block releases
   test-react-native-ios:
-    needs: [build-ios-xcframework, build-react-native]
+    needs: [build-ios-xcframework, build-react-native, check-rn-tests]
+    if: needs.check-rn-tests.outputs.should_run == 'true'
     runs-on: macos-latest
     
     steps:
@@ -763,7 +795,11 @@ jobs:
   # Upload artifacts to release
   # Only runs if ALL tests pass (including React Native tests)
   upload-to-release:
-    if: github.event_name == 'release' || github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch'
+    if: |
+      always() && 
+      (github.event_name == 'release' || github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch') &&
+      !contains(needs.*.result, 'failure') && 
+      !contains(needs.*.result, 'cancelled')
     needs: [build-native, build-android-jni, build-ios-xcframework, build-csharp, build-web, build-react-native, test, test-react-native-android, test-react-native-ios]
     runs-on: ubuntu-latest
     
