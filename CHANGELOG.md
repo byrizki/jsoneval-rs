@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.38] - 2025-12-24
+
+### Fixed
+
+- [core] Fix schema value evaluations
+
 ## [0.0.37] - 2025-12-23
 
 ### Fixed
