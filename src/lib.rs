@@ -728,7 +728,7 @@ impl JSONEval {
             
             // Collect top-level data keys to selectively purge cache
             let changed_data_paths: Vec<String> = if let Some(obj) = data.as_object() {
-                obj.keys().map(|k| k.clone()).collect()
+                obj.keys().map(|k| format!("/{}", k)).collect()
             } else {
                 Vec::new()
             };
