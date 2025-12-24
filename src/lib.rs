@@ -1095,8 +1095,8 @@ impl JSONEval {
         for eval_key in self.value_evaluations.iter() {
             let clean_key = eval_key.replace("#", "");
             
-            // Exclude rules.*.value and options.*.value
-            if clean_key.ends_with("/value") && (clean_key.contains("/rules/") || clean_key.contains("/options/")) {
+            // Exclude rules.*.value, options.*.value, and $params
+            if clean_key.starts_with("/$params") || (clean_key.ends_with("/value") && (clean_key.contains("/rules/") || clean_key.contains("/options/"))) {
                 continue;
             }
             
