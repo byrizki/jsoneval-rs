@@ -799,6 +799,13 @@ impl JSONEval {
                     let value_results: Mutex<Vec<(String, Value)>> = Mutex::new(Vec::with_capacity(self.value_evaluations.len()));
                     
                     self.value_evaluations.par_iter().for_each(|eval_key| {
+                        // Skip if has dependencies (will be handled in sorted batches)
+                        if let Some(deps) = self.dependencies.get(eval_key) {
+                            if !deps.is_empty() {
+                                return;
+                            }
+                        }
+
                         // Filter items if paths are provided
                         if let Some(filter_paths) = normalized_paths {
                             if !filter_paths.is_empty() && !filter_paths.iter().any(|p| eval_key.starts_with(p.as_str()) || p.starts_with(eval_key.as_str())) {
@@ -842,6 +849,13 @@ impl JSONEval {
                 let value_eval_items = &self.value_evaluations;
 
                 for eval_key in value_eval_items.iter() {
+                    // Skip if has dependencies (will be handled in sorted batches)
+                    if let Some(deps) = self.dependencies.get(eval_key) {
+                        if !deps.is_empty() {
+                            continue;
+                        }
+                    }
+
                     // Filter items if paths are provided
                     if let Some(filter_paths) = normalized_paths {
                         if !filter_paths.is_empty() && !filter_paths.iter().any(|p| eval_key.starts_with(p.as_str()) || p.starts_with(eval_key.as_str())) {
@@ -1080,6 +1094,12 @@ impl JSONEval {
         // Override self.data with values from value evaluations
         for eval_key in self.value_evaluations.iter() {
             let clean_key = eval_key.replace("#", "");
+            
+            // Exclude rules.*.value and options.*.value
+            if clean_key.ends_with("/value") && (clean_key.contains("/rules/") || clean_key.contains("/options/")) {
+                continue;
+            }
+            
             let path = clean_key.replace("/properties", "").replace("/value", "");
             
             // Get the value from evaluated_schema

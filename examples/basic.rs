@@ -140,6 +140,7 @@ fn main() {
             .unwrap_or_else(|e| panic!("evaluation failed: {}", e));
         
         let evaluated_schema = eval.get_evaluated_schema(false);
+        let schema_value = eval.get_schema_value();
         let eval_time = eval_start.elapsed();
         
         println!("  ⚡ Eval: {:?}", eval_time);
@@ -157,6 +158,7 @@ fn main() {
         // Save results
         let evaluated_path = samples_dir.join(format!("{}-evaluated-schema.json", scenario.name));
         let parsed_path = samples_dir.join(format!("{}-parsed-schema.json", scenario.name));
+        let value_path = samples_dir.join(format!("{}-schema-value.json", scenario.name));
 
         fs::write(&evaluated_path, common::pretty_json(&evaluated_schema))
             .unwrap_or_else(|e| panic!("failed to write {}: {}", evaluated_path.display(), e));
@@ -169,9 +171,13 @@ fn main() {
         fs::write(&parsed_path, common::pretty_json(&Value::Object(metadata_obj)))
             .unwrap_or_else(|e| panic!("failed to write {}: {}", parsed_path.display(), e));
 
+        fs::write(&value_path, common::pretty_json(&schema_value))
+            .unwrap_or_else(|e| panic!("failed to write {}: {}", value_path.display(), e));
+
         println!("✅ Results saved:");
         println!("  - {}", evaluated_path.display());
-        println!("  - {}\n", parsed_path.display());
+        println!("  - {}", parsed_path.display());
+        println!("  - {}\n", value_path.display());
 
         // Optional comparison
         if enable_comparison {
