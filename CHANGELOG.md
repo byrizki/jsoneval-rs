@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.39] - 2025-12-24
+
+### Fixed
+
+- [core] Fix get schema values to exclude $params
+
 ## [0.0.38] - 2025-12-24
 
 ### Fixed
