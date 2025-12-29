@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.41] - 2025-12-29
+
+### Fixed
+
+- [core] Fix array operations with parallel feature
+
 ## [0.0.40] - 2025-12-24
 
 ### Fixed
