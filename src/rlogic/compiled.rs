@@ -373,7 +373,17 @@ impl CompiledLogic {
             }
             
             // Custom operators - Math
-            "abs" => Ok(CompiledLogic::Abs(Box::new(Self::compile(args)?))),
+            "abs" => {
+                let arg = if let Value::Array(arr) = args {
+                    if arr.is_empty() {
+                        return Err("abs requires at least one argument".to_string());
+                    }
+                    &arr[0]
+                } else {
+                    args
+                };
+                Ok(CompiledLogic::Abs(Box::new(Self::compile(arg)?)))
+            }
             "max" => {
                 let arr = args.as_array().ok_or("max requires array")?;
                 let compiled: Result<Vec<_>, _> = arr.iter().map(Self::compile).collect();
@@ -460,8 +470,28 @@ impl CompiledLogic {
             "mround" | "MROUND" => Self::compile_binary(args, |a, b| CompiledLogic::Mround(a, b)),
             
             // Custom operators - String
-            "length" => Ok(CompiledLogic::Length(Box::new(Self::compile(args)?))),
-            "len" | "LEN" => Ok(CompiledLogic::Len(Box::new(Self::compile(args)?))),
+            "length" => {
+                let arg = if let Value::Array(arr) = args {
+                    if arr.is_empty() {
+                        return Err("length requires at least one argument".to_string());
+                    }
+                    &arr[0]
+                } else {
+                    args
+                };
+                Ok(CompiledLogic::Length(Box::new(Self::compile(arg)?)))
+            }
+            "len" | "LEN" => {
+                let arg = if let Value::Array(arr) = args {
+                    if arr.is_empty() {
+                        return Err("len requires at least one argument".to_string());
+                    }
+                    &arr[0]
+                } else {
+                    args
+                };
+                Ok(CompiledLogic::Len(Box::new(Self::compile(arg)?)))
+            }
             "search" | "SEARCH" => {
                 let arr = args.as_array().ok_or("search requires array")?;
                 if arr.len() < 2 {
@@ -572,16 +602,56 @@ impl CompiledLogic {
             // Custom operators - Logical
             "xor" => Self::compile_binary(args, |a, b| CompiledLogic::Xor(a, b)),
             "ifnull" | "IFNULL" => Self::compile_binary(args, |a, b| CompiledLogic::IfNull(a, b)),
-            "isempty" | "ISEMPTY" => Ok(CompiledLogic::IsEmpty(Box::new(Self::compile(args)?))),
+            "isempty" | "ISEMPTY" => {
+                let arg = if let Value::Array(arr) = args {
+                    if arr.is_empty() {
+                        return Err("ISEMPTY requires at least one argument".to_string());
+                    }
+                    &arr[0]
+                } else {
+                    args
+                };
+                Ok(CompiledLogic::IsEmpty(Box::new(Self::compile(arg)?)))
+            }
             "empty" | "EMPTY" => Ok(CompiledLogic::Empty),
             
             // Custom operators - Date
             "today" | "TODAY" => Ok(CompiledLogic::Today),
             "now" | "NOW" => Ok(CompiledLogic::Now),
             "days" | "DAYS" => Self::compile_binary(args, |a, b| CompiledLogic::Days(a, b)),
-            "year" | "YEAR" => Ok(CompiledLogic::Year(Box::new(Self::compile(args)?))),
-            "month" | "MONTH" => Ok(CompiledLogic::Month(Box::new(Self::compile(args)?))),
-            "day" | "DAY" => Ok(CompiledLogic::Day(Box::new(Self::compile(args)?))),
+            "year" | "YEAR" => {
+                let arg = if let Value::Array(arr) = args {
+                    if arr.is_empty() {
+                        return Err("year requires at least one argument".to_string());
+                    }
+                    &arr[0]
+                } else {
+                    args
+                };
+                Ok(CompiledLogic::Year(Box::new(Self::compile(arg)?)))
+            }
+            "month" | "MONTH" => {
+                let arg = if let Value::Array(arr) = args {
+                    if arr.is_empty() {
+                        return Err("month requires at least one argument".to_string());
+                    }
+                    &arr[0]
+                } else {
+                    args
+                };
+                Ok(CompiledLogic::Month(Box::new(Self::compile(arg)?)))
+            }
+            "day" | "DAY" => {
+                let arg = if let Value::Array(arr) = args {
+                    if arr.is_empty() {
+                        return Err("day requires at least one argument".to_string());
+                    }
+                    &arr[0]
+                } else {
+                    args
+                };
+                Ok(CompiledLogic::Day(Box::new(Self::compile(arg)?)))
+            }
             "date" | "DATE" => {
                 let arr = args.as_array().ok_or("date requires array")?;
                 if arr.len() < 3 {

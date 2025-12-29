@@ -13,17 +13,17 @@ mod math_tests {
 
         let logic_id = engine.compile(&json!({"abs": {"var": "value"}})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(5.0));
+        assert_eq!(result, json!(5));
 
         // Abs of positive number
         let logic_id = engine.compile(&json!({"abs": 10})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(10.0));
+        assert_eq!(result, json!(10));
 
         // Abs of zero
         let logic_id = engine.compile(&json!({"abs": 0})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(0.0));
+        assert_eq!(result, json!(0));
     }
 
     #[test]
@@ -34,17 +34,17 @@ mod math_tests {
         // Max of multiple values
         let logic_id = engine.compile(&json!({"max": [1, 5, 3, 9, 2]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(9.0));
+        assert_eq!(result, json!(9));
 
         // Min of multiple values
         let logic_id = engine.compile(&json!({"min": [1, 5, 3, 9, 2]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(1.0));
+        assert_eq!(result, json!(1));
 
         // Single value
         let logic_id = engine.compile(&json!({"max": [42]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(42.0));
+        assert_eq!(result, json!(42));
 
         // Empty array
         let logic_id = engine.compile(&json!({"max": []})).unwrap();
@@ -60,22 +60,22 @@ mod math_tests {
         // Basic power
         let logic_id = engine.compile(&json!({"pow": [2, 3]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(8.0));
+        assert_eq!(result, json!(8));
 
         // Square root
         let logic_id = engine.compile(&json!({"pow": [9, 0.5]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(3.0));
+        assert_eq!(result, json!(3));
 
         // Cube root
         let logic_id = engine.compile(&json!({"pow": [8, {"+": [1, {"*": [2, {"!": true}]}]}]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(8.0)); // Engine produces 8^(1) when exponent expression simplifies to 1
+        assert_eq!(result, json!(8)); // Engine produces 8^(1) when exponent expression simplifies to 1
 
         // Power of zero
         let logic_id = engine.compile(&json!({"pow": [5, 0]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(1.0));
+        assert_eq!(result, json!(1));
     }
 
     #[test]
@@ -86,21 +86,21 @@ mod math_tests {
         // Round
         let logic_id = engine.compile(&json!({"round": 3.7})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(4.0));
+        assert_eq!(result, json!(4));
 
         let logic_id = engine.compile(&json!({"round": 3.2})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(3.0));
+        assert_eq!(result, json!(3));
 
         // Round up (ceil)
         let logic_id = engine.compile(&json!({"roundup": 3.1})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(4.0));
+        assert_eq!(result, json!(4));
 
         // Round down (floor)
         let logic_id = engine.compile(&json!({"rounddown": 3.9})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(3.0));
+        assert_eq!(result, json!(3));
     }
 
     #[test]
@@ -111,12 +111,12 @@ mod math_tests {
         // Basic modulo
         let logic_id = engine.compile(&json!({"%": [7, 3]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(1.0));
+        assert_eq!(result, json!(1));
 
         // Even check
         let logic_id = engine.compile(&json!({"%": [8, 2]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(0.0));
+        assert_eq!(result, json!(0));
 
         // Modulo with floats
         let logic_id = engine.compile(&json!({"%": [7.5, 2]})).unwrap();
@@ -135,7 +135,7 @@ mod math_tests {
 
         let logic_id = engine_safe.compile(&json!({"pow": [-1, 0.5]})).unwrap();
         let result = engine_safe.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(0.0)); // NaN becomes 0 with safe_nan
+        assert_eq!(result, json!(0)); // NaN becomes 0 with safe_nan
 
         // Division by zero
         let logic_id = engine.compile(&json!({"/": [1, 0]})).unwrap();
@@ -150,12 +150,12 @@ mod math_tests {
         // Negative numbers
         let logic_id = engine.compile(&json!({"abs": -42})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(42.0));
+        assert_eq!(result, json!(42));
 
         // Very large numbers
         let logic_id = engine.compile(&json!({"pow": [2, 10]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(1024.0));
+        assert_eq!(result, json!(1024));
     }
 
     #[test]
@@ -166,15 +166,15 @@ mod math_tests {
         // Math operations with variables
         let logic_id = engine.compile(&json!({"max": [{"var": "a"}, {"var": "b"}, {"abs": {"var": "c"}}]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(10.0)); // max(10, 3, 5) = 10
+        assert_eq!(result, json!(10)); // max(10, 3, 5) = 10
 
         let logic_id = engine.compile(&json!({"pow": [{"var": "a"}, {"var": "b"}]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(1000.0)); // 10^3 = 1000
+        assert_eq!(result, json!(1000)); // 10^3 = 1000
 
         let logic_id = engine.compile(&json!({"round": {"+": [{"var": "a"}, 0.7]}})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(11.0)); // round(10.7) = 11
+        assert_eq!(result, json!(11)); // round(10.7) = 11
     }
 
     #[test]
@@ -189,7 +189,7 @@ mod math_tests {
             0
         ]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(15.0));
+        assert_eq!(result, json!(15));
 
         // Max of array via reduce
         let logic_id = engine.compile(&json!({"reduce": [
@@ -224,7 +224,7 @@ mod math_tests {
             1
         ]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(120.0));
+        assert_eq!(result, json!(120));
     }
 
     #[test]
@@ -253,17 +253,17 @@ mod math_tests {
         // String to number coercion
         let logic_id = engine.compile(&json!({"+": ["5", 3]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(8.0));
+        assert_eq!(result, json!(8));
 
         // Boolean to number coercion
         let logic_id = engine.compile(&json!({"+": [true, 1]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(2.0));
+        assert_eq!(result, json!(2));
 
         // Null to number coercion (becomes 0)
         let logic_id = engine.compile(&json!({"+": [null, 5]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(5.0));
+        assert_eq!(result, json!(5));
     }
 
     #[test]
@@ -284,7 +284,7 @@ mod math_tests {
             }
         })).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(5.0)); // sqrt(9 + 16) = sqrt(25) = 5
+        assert_eq!(result, json!(5)); // sqrt(9 + 16) = sqrt(25) = 5
 
         // Complex formula: (x + y) * z / 2
         let logic_id = engine.compile(&json!({"/": [
@@ -306,16 +306,16 @@ mod math_tests {
         // Invalid math operation
         let logic_id = engine.compile(&json!({"pow": ["not_a_number", 2]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(0.0)); // Engine coerces invalid bases to 0
+        assert_eq!(result, json!(0)); // Engine coerces invalid bases to 0
 
         // Math on null values
         let logic_id = engine.compile(&json!({"abs": null})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(0.0)); // null becomes 0
+        assert_eq!(result, json!(0)); // null becomes 0
 
         // Math on arrays currently coerces to 0
         let logic_id = engine.compile(&json!({"abs": [-1, 2, -3]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(0.0));
+        assert_eq!(result, json!(1));
     }
 }

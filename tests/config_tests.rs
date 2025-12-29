@@ -18,7 +18,7 @@ mod config_tests {
         let data = json!({});
 
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(5.0));
+        assert_eq!(result, json!(5));
     }
 
     #[test]
@@ -29,11 +29,11 @@ mod config_tests {
 
         // First evaluation
         let result1 = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result1, json!(5.0));
+        assert_eq!(result1, json!(5));
 
         // Second evaluation
         let result2 = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result2, json!(5.0));
+        assert_eq!(result2, json!(5));
     }
 
     #[test]
@@ -47,7 +47,7 @@ mod config_tests {
         let logic_id = engine.compile(&json!({"pow": [-1, 0.5]})).unwrap();
         let result = engine.run_with_config(&logic_id, &data, &config_safe).unwrap();
         // With safe_nan_handling, NaN becomes 0
-        assert_eq!(result, json!(0.0));
+        assert_eq!(result, json!(0));
 
         // Without safe NaN handling - NaN becomes null in JSON
         let config_unsafe = RLogicConfig::new().with_safe_nan(false);
@@ -109,7 +109,7 @@ mod config_tests {
         let data = json!({"a": 10, "b": 20});
         let result = engine.run(&logic_id, &data).unwrap();
 
-        assert_eq!(result, json!(30.0));
+        assert_eq!(result, json!(30));
     }
 
     #[test]
@@ -121,7 +121,7 @@ mod config_tests {
         let logic_id = engine.compile(&json!({"pow": [-1, 0.5]})).unwrap();
         let data = json!({});
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(0.0));
+        assert_eq!(result, json!(0));
     }
 
     #[test]
@@ -154,8 +154,8 @@ mod config_tests {
         engine_safe.run(&logic_id2, &data).unwrap();
 
         // Both should produce correct results regardless of tracking
-        assert_eq!(engine_perf.run(&logic_id1, &data).unwrap(), json!(3.0));
-        assert_eq!(engine_safe.run(&logic_id2, &data).unwrap(), json!(3.0));
+        assert_eq!(engine_perf.run(&logic_id1, &data).unwrap(), json!(3));
+        assert_eq!(engine_safe.run(&logic_id2, &data).unwrap(), json!(3));
     }
 
     #[test]
@@ -168,7 +168,7 @@ mod config_tests {
         let logic_id = engine.compile(&json!({"+": [1, 2]})).unwrap();
         let data = json!({});
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(3.0));
+        assert_eq!(result, json!(3));
     }
 
     #[test]
@@ -194,7 +194,7 @@ mod config_tests {
             let result_unsafe = engine_unsafe.run(&logic_id, &data).unwrap();
 
             // NaN should be converted to 0 with safe handling, null without
-            assert_eq!(result_safe, json!(0.0), "Safe result for {} should be 0", description);
+            assert_eq!(result_safe, json!(0), "Safe result for {} should be 0", description);
             assert_eq!(result_unsafe, json!(null), "Unsafe result for {} should be null", description);
         }
     }
@@ -216,8 +216,8 @@ mod config_tests {
         let result1 = engine1.run(&logic_id1, &data).unwrap();
         let result2 = engine2.run(&logic_id2, &data).unwrap();
 
-        assert_eq!(result1, json!(3.0));
-        assert_eq!(result2, json!(3.0));
+        assert_eq!(result1, json!(3));
+        assert_eq!(result2, json!(3));
     }
 
     #[test]
@@ -257,11 +257,11 @@ mod config_tests {
         let config_safe = RLogicConfig::new().with_safe_nan(true);
         let result_safe = engine.run_with_config(&logic_id, &data, &config_safe).unwrap();
         // NaN should become 0, then 0 + 10 = 10
-        assert_eq!(result_safe, json!(10.0));
+        assert_eq!(result_safe, json!(10));
 
         // Without safe NaN - null + 10 = 10 (null treated as 0)
         let config_unsafe = RLogicConfig::new().with_safe_nan(false);
         let result_unsafe = engine.run_with_config(&logic_id, &data, &config_unsafe).unwrap();
-        assert_eq!(result_unsafe, json!(10.0)); // null + 10 = 10
+        assert_eq!(result_unsafe, json!(10)); // null + 10 = 10
     }
 }

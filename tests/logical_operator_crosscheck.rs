@@ -103,13 +103,13 @@ fn crosscheck_or_operator() {
     let logic_id = engine.compile(&json!({"or": [0, 5]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("0 || 5 = {:?}", result);
-    assert_eq!(result, json!(5.0), "JS: 0 || 5 should return 5");
+    assert_eq!(result, json!(5), "JS: 0 || 5 should return 5");
 
     // JS: 5 || 10 => 5 (short-circuits, returns first truthy)
     let logic_id = engine.compile(&json!({"or": [5, 10]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("5 || 10 = {:?}", result);
-    assert_eq!(result, json!(5.0), "JS: 5 || 10 should return 5");
+    assert_eq!(result, json!(5), "JS: 5 || 10 should return 5");
 
     // JS: "" || "hello" => "hello" (returns first truthy)
     let logic_id = engine.compile(&json!({"or": ["", "hello"]})).unwrap();
@@ -127,7 +127,7 @@ fn crosscheck_or_operator() {
     let logic_id = engine.compile(&json!({"or": [null, 42]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("null || 42 = {:?}", result);
-    assert_eq!(result, json!(42.0), "JS: null || 42 should return 42");
+    assert_eq!(result, json!(42), "JS: null || 42 should return 42");
 
     // JS: false || 0 || null => null (all falsy, returns last)
     let logic_id = engine.compile(&json!({"or": [false, 0, null]})).unwrap();
@@ -139,7 +139,7 @@ fn crosscheck_or_operator() {
     let logic_id = engine.compile(&json!({"or": [false, 0, "", 42, "never"]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("false || 0 || \"\" || 42 || \"never\" = {:?}", result);
-    assert_eq!(result, json!(42.0), "JS: should return 42");
+    assert_eq!(result, json!(42), "JS: should return 42");
 
     println!("✓ OR operator matches JS behavior");
 }
@@ -173,19 +173,19 @@ fn crosscheck_and_operator() {
     let logic_id = engine.compile(&json!({"and": [5, 10]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("5 && 10 = {:?}", result);
-    assert_eq!(result, json!(10.0), "JS: 5 && 10 should return 10");
+    assert_eq!(result, json!(10), "JS: 5 && 10 should return 10");
 
     // JS: 0 && 10 => 0 (returns first falsy)
     let logic_id = engine.compile(&json!({"and": [0, 10]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("0 && 10 = {:?}", result);
-    assert_eq!(result, json!(0.0), "JS: 0 && 10 should return 0");
+    assert_eq!(result, json!(0), "JS: 0 && 10 should return 0");
 
     // JS: 5 && 0 => 0 (returns first falsy)
     let logic_id = engine.compile(&json!({"and": [5, 0]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("5 && 0 = {:?}", result);
-    assert_eq!(result, json!(0.0), "JS: 5 && 0 should return 0");
+    assert_eq!(result, json!(0), "JS: 5 && 0 should return 0");
 
     // JS: "hello" && "world" => "world" (all truthy, returns last)
     let logic_id = engine.compile(&json!({"and": ["hello", "world"]})).unwrap();
@@ -209,13 +209,13 @@ fn crosscheck_and_operator() {
     let logic_id = engine.compile(&json!({"and": [1, "hello", 0, "never"]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("1 && \"hello\" && 0 && \"never\" = {:?}", result);
-    assert_eq!(result, json!(0.0), "JS: should return 0");
+    assert_eq!(result, json!(0), "JS: should return 0");
 
     // JS: 1 && "hello" && 42 => 42 (all truthy, returns last)
     let logic_id = engine.compile(&json!({"and": [1, "hello", 42]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("1 && \"hello\" && 42 = {:?}", result);
-    assert_eq!(result, json!(42.0), "JS: should return 42");
+    assert_eq!(result, json!(42), "JS: should return 42");
 
     println!("✓ AND operator matches JS behavior");
 }
@@ -243,13 +243,13 @@ fn crosscheck_short_circuit_behavior() {
     let logic_id = engine.compile(&json!({"and": [0, 100, 200]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("0 && 100 && 200 = {:?}", result);
-    assert_eq!(result, json!(0.0), "JS: should short-circuit at 0");
+    assert_eq!(result, json!(0), "JS: should short-circuit at 0");
 
     // JS: 5 || anything => 5 (short-circuits)
     let logic_id = engine.compile(&json!({"or": [5, 100, 200]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("5 || 100 || 200 = {:?}", result);
-    assert_eq!(result, json!(5.0), "JS: should short-circuit at 5");
+    assert_eq!(result, json!(5), "JS: should short-circuit at 5");
 
     println!("✓ Short-circuit behavior matches JS");
 }
@@ -305,13 +305,13 @@ fn crosscheck_with_arrays_and_special_values() {
     let logic_id = engine.compile(&json!({"or": [[], [1, 2, 3]]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("[] || [1,2,3] = {:?}", result);
-    assert_eq!(result, json!([1.0, 2.0, 3.0]), "JS: [] || [1,2,3] should return [1,2,3]");
+    assert_eq!(result, json!([1, 2, 3]), "JS: [] || [1,2,3] should return [1,2,3]");
 
     // JS: [1,2] && [3,4] => [3,4] (both truthy, returns last)
     let logic_id = engine.compile(&json!({"and": [[1, 2], [3, 4]]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("[1,2] && [3,4] = {:?}", result);
-    assert_eq!(result, json!([3.0, 4.0]), "JS: [1,2] && [3,4] should return [3,4]");
+    assert_eq!(result, json!([3, 4]), "JS: [1,2] && [3,4] should return [3,4]");
 
     // JS: !([]) => true (empty array is falsy)
     let logic_id = engine.compile(&json!({"!": [[]]})).unwrap();

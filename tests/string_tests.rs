@@ -59,22 +59,22 @@ mod string_tests {
         // String length
         let logic_id = engine.compile(&json!({"length": "hello"})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(5.0));
+        assert_eq!(result, json!(5));
 
         // Len function (same as length)
         let logic_id = engine.compile(&json!({"len": "hello world"})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(11.0));
+        assert_eq!(result, json!(11));
 
         // Array length
         let logic_id = engine.compile(&json!({"length": {"var": "array"}})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(5.0));
+        assert_eq!(result, json!(5));
 
         // Object length
         let logic_id = engine.compile(&json!({"length": {"var": "object"}})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(3.0));
+        assert_eq!(result, json!(3));
     }
 
     #[test]
@@ -85,17 +85,17 @@ mod string_tests {
         // Basic search (engine returns 1-based index)
         let logic_id = engine.compile(&json!({"search": ["World", {"var": "text"}]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(7.0));
+        assert_eq!(result, json!(7));
 
         // Search with start position
         let logic_id = engine.compile(&json!({"search": ["hello", {"var": "text"}, 8]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(14.0)); // Second "hello" starts at position 14
+        assert_eq!(result, json!(14)); // Second "hello" starts at position 14
 
         // Case insensitive search
         let logic_id = engine.compile(&json!({"search": ["HELLO", {"var": "text"}]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(1.0));
+        assert_eq!(result, json!(1));
 
         // Not found
         let logic_id = engine.compile(&json!({"search": ["notfound", {"var": "text"}]})).unwrap();
@@ -169,7 +169,7 @@ mod string_tests {
         // Empty string operations
         let logic_id = engine.compile(&json!({"length": ""})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(0.0));
+        assert_eq!(result, json!(0));
 
         let logic_id = engine.compile(&json!({"cat": ["", ""]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
@@ -187,7 +187,7 @@ mod string_tests {
         // Search edge cases
         let logic_id = engine.compile(&json!({"search": ["", "hello"]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(1.0));
+        assert_eq!(result, json!(1));
 
         let logic_id = engine.compile(&json!({"search": ["x", ""]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
@@ -216,7 +216,7 @@ mod string_tests {
         // Length of non-string
         let logic_id = engine.compile(&json!({"length": {"var": "array"}})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(3.0));
+        assert_eq!(result, json!(3));
 
         // Search in non-string (should work for arrays via string conversion)
         let logic_id = engine.compile(&json!({"search": ["2", {"var": "array"}]})).unwrap();
@@ -242,7 +242,7 @@ mod string_tests {
         // Length of null
         let logic_id = engine.compile(&json!({"length": null})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(0.0));
+        assert_eq!(result, json!(0));
     }
 
     #[test]
@@ -253,7 +253,7 @@ mod string_tests {
         // Unicode length
         let logic_id = engine.compile(&json!({"length": {"var": "text"}})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(17.0));
+        assert_eq!(result, json!(17));
 
         // Unicode concatenation
         let logic_id = engine.compile(&json!({"cat": ["Hello ", "世界 🌍"]})).unwrap();

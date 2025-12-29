@@ -14,22 +14,31 @@ mod operator_tests {
         // Addition
         let logic_id = engine.compile(&json!({"+": [2, 3, 4]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(9.0));
+        assert_eq!(result, json!(9));
+
+        // Abs with array wrapping
+        let logic_id = engine.compile(&json!({"abs": [-5]})).unwrap();
+        let result = engine.run(&logic_id, &data).unwrap();
+        assert_eq!(result, json!(5));
+
+        let logic_id = engine.compile(&json!({"abs": -5})).unwrap();
+        let result = engine.run(&logic_id, &data).unwrap();
+        assert_eq!(result, json!(5));
 
         // Subtraction
         let logic_id = engine.compile(&json!({"-": [10, 3, 2]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(5.0));
+        assert_eq!(result, json!(5));
 
         // Multiplication
         let logic_id = engine.compile(&json!({"*": [2, 3, 4]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(24.0));
+        assert_eq!(result, json!(24));
 
         // Division
         let logic_id = engine.compile(&json!({"/": [24, 3, 2]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(4.0));
+        assert_eq!(result, json!(4));
     }
 
     #[test]
@@ -39,11 +48,11 @@ mod operator_tests {
 
         let logic_id = engine.compile(&json!({"+": [{"var": "a"}, {"var": "b"}]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(15.0));
+        assert_eq!(result, json!(15));
 
         let logic_id = engine.compile(&json!({"*": [{"var": "a"}, {"var": "b"}, {"var": "c"}]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(100.0));
+        assert_eq!(result, json!(100));
     }
 
     #[test]
@@ -54,12 +63,12 @@ mod operator_tests {
         // Single operand
         let logic_id = engine.compile(&json!({"+": [42]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(42.0));
+        assert_eq!(result, json!(42));
 
         // Empty array
         let logic_id = engine.compile(&json!({"+": []})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(0.0));
+        assert_eq!(result, json!(0));
 
         // Division by zero
         let logic_id = engine.compile(&json!({"/": [10, 0]})).unwrap();
@@ -163,6 +172,30 @@ mod operator_tests {
         let logic_id = engine.compile(&json!({"!": false})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(true));
+
+        // Length/Len with array wrapping
+        let logic_id = engine.compile(&json!({"length": ["hello"]})).unwrap();
+        let result = engine.run(&logic_id, &data).unwrap();
+        assert_eq!(result, json!(5));
+
+        let logic_id = engine.compile(&json!({"len": ["hello"]})).unwrap();
+        let result = engine.run(&logic_id, &data).unwrap();
+        assert_eq!(result, json!(5));
+
+        // ISEMPTY
+        let logic_id = engine.compile(&json!({"ISEMPTY": null})).unwrap();
+        let result = engine.run(&logic_id, &data).unwrap();
+        assert_eq!(result, json!(true));
+
+        // ISEMPTY with array argument (standard JSON Logic)
+        let logic_id = engine.compile(&json!({"ISEMPTY": [null]})).unwrap();
+        let result = engine.run(&logic_id, &data).unwrap();
+        assert_eq!(result, json!(true));
+
+        // ISEMPTY with missing var wrapped in array
+        let logic_id = engine.compile(&json!({"ISEMPTY": [{"var": "missing_var"}]})).unwrap();
+        let result = engine.run(&logic_id, &data).unwrap();
+        assert_eq!(result, json!(true));
     }
 
     #[test]
@@ -237,7 +270,7 @@ mod operator_tests {
         // Nested arithmetic
         let logic_id = engine.compile(&json!({"+": [{"*": [{"var": "a"}, {"var": "b"}]}, {"var": "c"}]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(10.0)); // (2*3) + 4 = 10
+        assert_eq!(result, json!(10)); // (2*3) + 4 = 10
 
         // Nested logical
         let logic_id = engine.compile(&json!({"and": [{"<": [{"var": "a"}, {"var": "c"}]}, {">": [{"var": "b"}, {"var": "a"}]}]})).unwrap();
@@ -253,6 +286,6 @@ mod operator_tests {
         // Test that operators work as expected (no built-in precedence, explicit nesting required)
         let logic_id = engine.compile(&json!({"+": [2, {"*": [3, 4]}]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(14.0)); // 2 + (3*4) = 14
+        assert_eq!(result, json!(14)); // 2 + (3*4) = 14
     }
 }

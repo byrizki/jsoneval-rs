@@ -48,17 +48,30 @@ mod date_tests {
         // Extract year
         let logic_id = engine.compile(&json!({"year": {"var": "birthdate"}})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(1990.0));
+        assert_eq!(result, json!(1990));
 
         // Extract month
         let logic_id = engine.compile(&json!({"month": {"var": "birthdate"}})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(5.0));
+        assert_eq!(result, json!(5));
 
         // Extract day
         let logic_id = engine.compile(&json!({"day": {"var": "birthdate"}})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(15.0));
+        assert_eq!(result, json!(15));
+
+        // Array-wrapped arguments (consistency check)
+        let logic_id = engine.compile(&json!({"year": [{"var": "birthdate"}]})).unwrap();
+        let result = engine.run(&logic_id, &data).unwrap();
+        assert_eq!(result, json!(1990));
+
+        let logic_id = engine.compile(&json!({"month": [{"var": "birthdate"}]})).unwrap();
+        let result = engine.run(&logic_id, &data).unwrap();
+        assert_eq!(result, json!(5));
+
+        let logic_id = engine.compile(&json!({"day": [{"var": "birthdate"}]})).unwrap();
+        let result = engine.run(&logic_id, &data).unwrap();
+        assert_eq!(result, json!(15));
     }
 
     #[test]
@@ -80,12 +93,12 @@ mod date_tests {
         // Days between dates
         let logic_id = engine.compile(&json!({"days": [{"var": "end"}, {"var": "start"}]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(5.0)); // 20 - 15 = 5 days
+        assert_eq!(result, json!(5)); // 20 - 15 = 5 days
 
         // Reverse order (negative result)
         let logic_id = engine.compile(&json!({"days": [{"var": "start"}, {"var": "end"}]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(-5.0));
+        assert_eq!(result, json!(-5));
     }
 
     #[test]
@@ -104,11 +117,11 @@ mod date_tests {
 
         let logic_id = engine.compile(&json!({"DATEDIF": [{"var": "birth"}, {"var": "today"}, "Y"]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(33.0));
+        assert_eq!(result, json!(33));
 
         let logic_id = engine.compile(&json!({"DATEDIF": [{"var": "birth"}, {"var": "today"}, "M"]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(399.0));
+        assert_eq!(result, json!(399));
 
         let logic_id = engine.compile(&json!({"DAYS": [{"var": "today"}, {"var": "birth"}]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
@@ -150,8 +163,8 @@ mod date_tests {
 
         // Test different date formats
         let test_cases = vec![
-            ("2023-01-15", 2023.0, 1.0, 15.0),
-            ("2023-01-15T00:00:00Z", 2023.0, 1.0, 15.0),
+            ("2023-01-15", 2023, 1, 15),
+            ("2023-01-15T00:00:00Z", 2023, 1, 15),
         ];
 
         for (date_str, expected_year, expected_month, expected_day) in test_cases {
@@ -238,12 +251,12 @@ mod date_tests {
             {"year": {"var": ""}}
         ]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!([2023.0, 2023.0, 2023.0]));
+        assert_eq!(result, json!([2023, 2023, 2023]));
 
         // Find maximum date (simplified)
         let logic_id = engine.compile(&json!({"max": [1, 2, 3]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(3.0));
+        assert_eq!(result, json!(3));
     }
 
     #[test]
@@ -311,7 +324,7 @@ mod date_tests {
         // Test that parsed dates maintain their time component
         let logic_id = engine.compile(&json!({"year": "2023-06-15T14:30:45Z"})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(2023.0));
+        assert_eq!(result, json!(2023));
     }
 
     #[test]

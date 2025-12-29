@@ -5,9 +5,13 @@ use crate::path_utils;
 #[inline(always)]
 pub fn f64_to_json(f: f64, safe_nan_handling: bool) -> Value {
     if f.is_finite() {
+        // Check if it's an integer value (within safe precision range)
+        if f == f.floor() && f.abs() < 9007199254740991.0 { // MAX_SAFE_INTEGER
+            return Value::Number(Number::from(f as i64));
+        }
         Number::from_f64(f).map(Value::Number).unwrap_or(Value::Null)
     } else if safe_nan_handling {
-        Value::Number(Number::from_f64(0.0).unwrap())
+        Value::Number(Number::from(0))
     } else {
         Value::Null
     }

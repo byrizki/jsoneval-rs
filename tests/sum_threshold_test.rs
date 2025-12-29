@@ -7,7 +7,7 @@ fn test_sum_without_threshold() {
     let logic = json!({"SUM": [[1, 2, 3, 4, 5]]});
     let compiled = engine.compile(&logic).unwrap();
     let result = engine.run(&compiled, &json!({})).unwrap();
-    assert_eq!(result, json!(15.0)); // Float result
+    assert_eq!(result, json!(15)); // Float result
 }
 
 #[test]
@@ -17,7 +17,7 @@ fn test_sum_with_threshold() {
     let logic = json!({"SUM": [[1, 2, 3, 4, 5], null, 2]});
     let compiled = engine.compile(&logic).unwrap();
     let result = engine.run(&compiled, &json!({})).unwrap();
-    assert_eq!(result, json!(6.0)); // 1 + 2 + 3 = 6
+    assert_eq!(result, json!(6)); // 1 + 2 + 3 = 6
 }
 
 #[test]
@@ -36,7 +36,7 @@ fn test_sum_with_field_and_threshold() {
     let logic = json!({"SUM": [{"var": "table"}, "value", 2]});
     let compiled = engine.compile(&logic).unwrap();
     let result = engine.run(&compiled, &data).unwrap();
-    assert_eq!(result, json!(60.0)); // 10 + 20 + 30 = 60
+    assert_eq!(result, json!(60)); // 10 + 20 + 30 = 60
 }
 
 #[test]
@@ -46,7 +46,7 @@ fn test_sum_with_threshold_zero() {
     let logic = json!({"SUM": [[1, 2, 3, 4, 5], null, 0]});
     let compiled = engine.compile(&logic).unwrap();
     let result = engine.run(&compiled, &json!({})).unwrap();
-    assert_eq!(result, json!(1.0));
+    assert_eq!(result, json!(1));
 }
 
 #[test]
@@ -55,7 +55,7 @@ fn test_sum_with_threshold_larger_than_array() {
     let logic = json!({"SUM": [[1, 2, 3], null, 10]});
     let compiled = engine.compile(&logic).unwrap();
     let result = engine.run(&compiled, &json!({})).unwrap();
-    assert_eq!(result, json!(6.0)); // Sums all elements since threshold > array length
+    assert_eq!(result, json!(6)); // Sums all elements since threshold > array length
 }
 
 #[test]
@@ -65,5 +65,5 @@ fn test_sum_with_negative_threshold() {
     let logic = json!({"SUM": [[1, 2, 3, 4, 5], null, -1]});
     let compiled = engine.compile(&logic).unwrap();
     let result = engine.run(&compiled, &json!({})).unwrap();
-    assert_eq!(result, json!(15.0));
+    assert_eq!(result, json!(15));
 }

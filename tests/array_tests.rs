@@ -14,7 +14,7 @@ mod array_tests {
         // Double each number
         let logic_id = engine.compile(&json!({"map": [{"var": "numbers"}, {"*": [{"var": ""}, 2]}]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!([2.0, 4.0, 6.0, 8.0, 10.0]));
+        assert_eq!(result, json!([2, 4, 6, 8, 10]));
 
         // Convert to strings
         let logic_id = engine.compile(&json!({"map": [{"var": "numbers"}, {"cat": [{"var": ""}, "x"]} ]})).unwrap();
@@ -46,7 +46,7 @@ mod array_tests {
         // Sum all numbers
         let logic_id = engine.compile(&json!({"reduce": [{"var": "numbers"}, {"+": [{"var": "accumulator"}, {"var": "current"}]}, 0]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(15.0));
+        assert_eq!(result, json!(15));
 
         // Find maximum
         let logic_id = engine.compile(&json!({"reduce": [{"var": "numbers"}, {"if": [{">": [{"var": "current"}, {"var": "accumulator"}]}, {"var": "current"}, {"var": "accumulator"}]}, 0]})).unwrap();
@@ -83,12 +83,12 @@ mod array_tests {
         // Merge arrays
         let logic_id = engine.compile(&json!({"merge": [[1, 2], [3, 4], [5]]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!([1.0, 2.0, 3.0, 4.0, 5.0]));
+        assert_eq!(result, json!([1, 2, 3, 4, 5]));
 
         // Merge with mixed types
         let logic_id = engine.compile(&json!({"merge": [["a", "b"], [1, 2], [true, null]]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(["a", "b", 1.0, 2.0, true, null]));
+        assert_eq!(result, json!(["a", "b", 1, 2, true, null]));
     }
 
     #[test]
@@ -133,7 +133,7 @@ mod array_tests {
         // Reduce on empty array
         let logic_id = engine.compile(&json!({"reduce": [[], {"+": [{"var": "accumulator"}, {"var": "current"}]}, 0]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(0.0));
+        assert_eq!(result, json!(0));
 
         // Quantifiers on empty array
         let logic_id = engine.compile(&json!({"all": [[], {">": [{"var": ""}, 0]}]})).unwrap();
@@ -178,7 +178,7 @@ mod array_tests {
             0
         ]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(90.0)); // 30 + 25 + 35
+        assert_eq!(result, json!(90)); // 30 + 25 + 35
     }
 
     #[test]
@@ -199,7 +199,7 @@ mod array_tests {
         // Reduce with non-array
         let logic_id = engine.compile(&json!({"reduce": ["not_array", {"var": ""}, 0]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(0.0));
+        assert_eq!(result, json!(0));
     }
 
     #[test]
@@ -210,7 +210,7 @@ mod array_tests {
         // Sum array values
         let logic_id = engine.compile(&json!({"sum": [{"var": "values"}]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(15.0));
+        assert_eq!(result, json!(15));
 
         // Sum object field values
         let data = json!({"items": [
@@ -220,7 +220,7 @@ mod array_tests {
         ]});
         let logic_id = engine.compile(&json!({"sum": [{"var": "items"}, "value"]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(60.0));
+        assert_eq!(result, json!(60));
     }
 
     #[test]
@@ -231,12 +231,12 @@ mod array_tests {
         // Simple for loop
         let logic_id = engine.compile(&json!({"FOR": [0, 3, {"+": [{"var": "$loopIteration"}, 1]}]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!([1.0, 2.0, 3.0]));
+        assert_eq!(result, json!([1, 2, 3]));
 
         // For loop with complex logic
         let logic_id = engine.compile(&json!({"FOR": [1, 4, {"*": [{"var": "$loopIteration"}, 2]}]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!([2.0, 4.0, 6.0]));
+        assert_eq!(result, json!([2, 4, 6]));
     }
 
     #[test]
@@ -317,7 +317,7 @@ mod array_tests {
         // Sum should skip nulls
         let logic_id = engine.compile(&json!({"sum": [{"var": "values"}]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(60.0));
+        assert_eq!(result, json!(60));
 
         // Filter out nulls
         let logic_id = engine.compile(&json!({
@@ -337,7 +337,7 @@ mod array_tests {
             ]
         })).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!([20.0, 0.0, 40.0, 0.0, 60.0]));
+        assert_eq!(result, json!([20, 0, 40, 0, 60]));
     }
 
     #[test]
@@ -368,7 +368,7 @@ mod array_tests {
             ]
         })).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(2200.0)); // 1000 + 2000 - 500 - 300
+        assert_eq!(result, json!(2200)); // 1000 + 2000 - 500 - 300
     }
 
     #[test]
@@ -431,7 +431,7 @@ mod array_tests {
             ]
         })).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(250.0));
+        assert_eq!(result, json!(250));
 
         // Count product B entries
         let logic_id = engine.compile(&json!({
@@ -441,7 +441,7 @@ mod array_tests {
             ]}
         })).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(2.0));
+        assert_eq!(result, json!(2));
     }
 
     #[test]
@@ -455,8 +455,8 @@ mod array_tests {
 
         // Operations on empty arrays
         let test_cases = vec![
-            (json!({"sum": [{"var": "empty"}]}), json!(0.0)),
-            (json!({"length": {"var": "empty"}}), json!(0.0)),
+            (json!({"sum": [{"var": "empty"}]}), json!(0)),
+            (json!({"length": {"var": "empty"}}), json!(0)),
             (json!({"merge": [{"var": "empty"}, {"var": "empty"}]}), json!([])),
         ];
 
@@ -469,6 +469,6 @@ mod array_tests {
         // Single element operations
         let logic_id = engine.compile(&json!({"sum": [{"var": "single"}]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(42.0));
+        assert_eq!(result, json!(42));
     }
 }

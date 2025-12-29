@@ -98,23 +98,23 @@ mod table_tests {
         // Find index by exact match
         let logic_id = engine.compile(&json!({"INDEXAT": [200, {"var": "table"}, "id"]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(1.0));
+        assert_eq!(result, json!(1));
 
         // Find index by range (first where field <= value)
         // JS: table?.findIndex((x) => x[field] <= look)
         let logic_id = engine.compile(&json!({"INDEXAT": [250, {"var": "table"}, "id", true]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(0.0)); // First item with id <= 250 is Alice (100)
+        assert_eq!(result, json!(0)); // First item with id <= 250 is Alice (100)
 
         // Range with value smaller than all items
         let logic_id = engine.compile(&json!({"INDEXAT": [50, {"var": "table"}, "id", true]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(-1.0)); // No item with id <= 50
+        assert_eq!(result, json!(-1)); // No item with id <= 50
 
         // Not found (exact match)
         let logic_id = engine.compile(&json!({"INDEXAT": [999, {"var": "table"}, "id"]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(-1.0));
+        assert_eq!(result, json!(-1));
     }
 
     #[test]
@@ -131,17 +131,17 @@ mod table_tests {
         // Match single condition
         let logic_id = engine.compile(&json!({"MATCH": [{"var": "table"}, "Alice", "name"]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(0.0));
+        assert_eq!(result, json!(0));
 
         // Match multiple conditions
         let logic_id = engine.compile(&json!({"MATCH": [{"var": "table"}, "Alice", "name", "NYC", "city"]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(0.0));
+        assert_eq!(result, json!(0));
 
         // Match not found
         let logic_id = engine.compile(&json!({"MATCH": [{"var": "table"}, "David", "name"]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(-1.0));
+        assert_eq!(result, json!(-1));
     }
 
     #[test]
@@ -158,12 +158,12 @@ mod table_tests {
         // Find rate for age 30 (should match 26-40 range)
         let logic_id = engine.compile(&json!({"MATCHRANGE": [{"var": "rates"}, "min_age", "max_age", 30]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(1.0)); // Index 1 has the matching range
+        assert_eq!(result, json!(1)); // Index 1 has the matching range
 
         // Find rate for age 50 (should match 41-60 range)
         let logic_id = engine.compile(&json!({"MATCHRANGE": [{"var": "rates"}, "min_age", "max_age", 50]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(2.0));
+        assert_eq!(result, json!(2));
     }
 
     #[test]
@@ -213,14 +213,14 @@ mod table_tests {
         println!("Item 0: active={}, value={}", data["items"][0]["active"], data["items"][0]["value"]);
         println!("Item 1: active={}, value={}", data["items"][1]["active"], data["items"][1]["value"]);
         println!("Item 2: active={}, value={}", data["items"][2]["active"], data["items"][2]["value"]);
-        assert_eq!(result, json!(2.0)); // Index 2 has value 30 and is active
+        assert_eq!(result, json!(2)); // Index 2 has value 30 and is active
 
         // No match found
         let logic_id = engine.compile(&json!({"FINDINDEX": [{"var": "items"},
             {">": [{"var": "value"}, 50]}
         ]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(-1.0));
+        assert_eq!(result, json!(-1));
     }
 
     #[test]
@@ -266,12 +266,12 @@ mod table_tests {
         // Test INDEXAT on large table
         let logic_id = engine.compile(&json!({"INDEXAT": [75, {"var": "table"}, "id"]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(75.0));
+        assert_eq!(result, json!(75));
 
         // Test MATCH on large table
         let logic_id = engine.compile(&json!({"MATCH": [{"var": "table"}, true, "active"]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(0.0)); // First even index is active
+        assert_eq!(result, json!(0)); // First even index is active
     }
 
     #[test]
@@ -310,7 +310,7 @@ mod table_tests {
         })).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         println!("Test 1 (number) result: {}", result);
-        assert_eq!(result, json!(1.0)); // Second item has x=20
+        assert_eq!(result, json!(1)); // Second item has x=20
         
         // Test with string values
         let data2 = json!({"items": [{"name": "Alice"}, {"name": "Bob"}]});
@@ -319,7 +319,7 @@ mod table_tests {
         })).unwrap();
         let result = engine.run(&logic_id, &data2).unwrap();
         println!("Test 2 (string) result: {}", result);
-        assert_eq!(result, json!(1.0)); // Bob is at index 1
+        assert_eq!(result, json!(1)); // Bob is at index 1
     }
 
     #[test]
@@ -343,7 +343,7 @@ mod table_tests {
             ]
         })).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(0.0)); // Alice is first engineer at index 0
+        assert_eq!(result, json!(0)); // Alice is first engineer at index 0
         
         // Test FINDINDEX with multiple conditions using array shorthand with &&
         let logic_id = engine.compile(&json!({
@@ -356,7 +356,7 @@ mod table_tests {
             ]
         })).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(2.0)); // Charlie is at index 2
+        assert_eq!(result, json!(2)); // Charlie is at index 2
     }
 
     #[test]
@@ -399,6 +399,6 @@ mod table_tests {
             ]}]
         })).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(110000.0)); // 50000 + 60000
+        assert_eq!(result, json!(110000)); // 50000 + 60000
     }
 }

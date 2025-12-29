@@ -41,7 +41,7 @@ mod basic_tests {
         // Test number evaluation
         let logic_id = engine.compile(&json!(42)).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(42.0));
+        assert_eq!(result, json!(42));
 
         // Test string evaluation
         let logic_id = engine.compile(&json!("hello")).unwrap();
@@ -70,7 +70,7 @@ mod basic_tests {
 
         let logic_id = engine.compile(&json!({"var": ["age", 25]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(25.0));
+        assert_eq!(result, json!(25));
     }
 
     #[test]
@@ -140,7 +140,7 @@ mod basic_tests {
 
         let logic_id = engine.compile(&json!([1, 2, 3, "hello", true, null])).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!([1.0, 2.0, 3.0, "hello", true, null]));
+        assert_eq!(result, json!([1, 2, 3, "hello", true, null]));
     }
 
     #[test]
@@ -267,7 +267,7 @@ mod basic_tests {
             "var": ["missing", 42]
         })).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(42.0));
+        assert_eq!(result, json!(42));
 
         // Default with boolean
         let logic_id = engine.compile(&json!({

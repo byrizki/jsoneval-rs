@@ -15,10 +15,10 @@ mod edge_case_tests {
 
         // Operations with null
         let test_cases = vec![
-            (json!({"+": [null, 5]}), json!(5.0)),
-            (json!({"*": [null, 3]}), json!(0.0)),
+            (json!({"+": [null, 5]}), json!(5)),
+            (json!({"*": [null, 3]}), json!(0)),
             (json!({"cat": [null, "test"]}), json!("test")),
-            (json!({"length": null}), json!(0.0)),
+            (json!({"length": null}), json!(0)),
         ];
 
         for (logic, expected) in test_cases {
@@ -36,11 +36,11 @@ mod edge_case_tests {
         // Empty array operations
         let logic_id = engine.compile(&json!({"+": []})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(0.0));
+        assert_eq!(result, json!(0));
 
         let logic_id = engine.compile(&json!({"*": []})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(0.0)); // Engine returns 0 for empty product
+        assert_eq!(result, json!(0)); // Engine returns 0 for empty product
 
         let logic_id = engine.compile(&json!({"cat": []})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
@@ -50,7 +50,7 @@ mod edge_case_tests {
         let data = json!({"empty": {}});
         let logic_id = engine.compile(&json!({"length": {"var": "empty"}})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(0.0));
+        assert_eq!(result, json!(0));
     }
 
     #[test]
@@ -60,9 +60,9 @@ mod edge_case_tests {
 
         // String to number coercion edge cases
         let test_cases = vec![
-            (json!({"+": ["", 5]}), json!(5.0)),      // Empty string -> 0
-            (json!({"+": ["abc", 5]}), json!(5.0)),   // Invalid string -> 0
-            (json!({"+": ["123", 5]}), json!(128.0)), // Numeric strings coerced to numbers
+            (json!({"+": ["", 5]}), json!(5)),      // Empty string -> 0
+            (json!({"+": ["abc", 5]}), json!(5)),   // Invalid string -> 0
+            (json!({"+": ["123", 5]}), json!(128)), // Numeric strings coerced to numbers
         ];
 
         for (logic, expected) in test_cases {
@@ -74,12 +74,12 @@ mod edge_case_tests {
         // Boolean coercion
         let logic_id = engine.compile(&json!({"+": [true, false]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(1.0));
+        assert_eq!(result, json!(1));
 
         // Array coercion (takes first element)
         let logic_id = engine.compile(&json!({"+": [[10, 20], 5]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(5.0));
+        assert_eq!(result, json!(5));
     }
 
     #[test]
@@ -124,7 +124,7 @@ mod edge_case_tests {
         // ASCII search
         let logic_id = engine.compile(&json!({"search": ["World", "Hello World"]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(7.0));
+        assert_eq!(result, json!(7));
 
         // Empty string operations
         let logic_id = engine.compile(&json!({"substr": ["", 0, 1]})).unwrap();
@@ -199,7 +199,7 @@ mod edge_case_tests {
         // Reduce on non-array
         let logic_id = engine.compile(&json!({"reduce": ["not_array", {"var": ""}, 0]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(0.0));
+        assert_eq!(result, json!(0));
 
         // Quantifiers on non-array
         let logic_id = engine.compile(&json!({"all": ["not_array", {"var": ""}]})).unwrap();
@@ -224,12 +224,12 @@ mod edge_case_tests {
         // INDEXAT on empty table
         let logic_id = engine.compile(&json!({"INDEXAT": ["value", {"var": "table"}, "field"]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(-1.0));
+        assert_eq!(result, json!(-1));
 
         // MATCH on empty table
         let logic_id = engine.compile(&json!({"MATCH": [{"var": "table"}, ["value", "field"]]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(-1.0));
+        assert_eq!(result, json!(-1));
     }
 
     #[test]
@@ -312,14 +312,14 @@ mod edge_case_tests {
         // Sum of large array
         let logic_id = engine.compile(&json!({"sum": [{"var": "large"}]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!(499500.0));
+        assert_eq!(result, json!(499500));
 
         // Map over large array
         let logic_id = engine.compile(&json!({"map": [{"var": "large"}, {"*": [{"var": ""}, 2]}]})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert!(result.as_array().unwrap().len() == 1000);
-        assert_eq!(result.as_array().unwrap()[0], json!(0.0));
-        assert_eq!(result.as_array().unwrap()[999], json!(1998.0));
+        assert_eq!(result.as_array().unwrap()[0], json!(0));
+        assert_eq!(result.as_array().unwrap()[999], json!(1998));
     }
 
     #[test]
@@ -429,8 +429,8 @@ mod edge_case_tests {
         let data = json!({"x": 10, "y": 20});
         let result1 = engine.run(&logic_id1, &data).unwrap();
         let result2 = engine.run(&logic_id2, &data).unwrap();
-        assert_eq!(result1, json!(30.0));
-        assert_eq!(result2, json!(30.0));
+        assert_eq!(result1, json!(30));
+        assert_eq!(result2, json!(30));
     }
 
     #[test]
@@ -446,11 +446,11 @@ mod edge_case_tests {
         let lengths = result.as_array().unwrap();
         assert_eq!(lengths.len(), 6);
         // Numbers have length 0, strings their length, booleans 0, null 0, objects their size, arrays their length
-        assert_eq!(lengths[0], json!(0.0));  // 1
-        assert_eq!(lengths[1], json!(6.0)); // "string"
-        assert_eq!(lengths[2], json!(0.0)); // true
-        assert_eq!(lengths[3], json!(0.0)); // null
-        assert_eq!(lengths[4], json!(1.0)); // {"nested": "value"}
-        assert_eq!(lengths[5], json!(2.0)); // [1, 2]
+        assert_eq!(lengths[0], json!(0));  // 1
+        assert_eq!(lengths[1], json!(6)); // "string"
+        assert_eq!(lengths[2], json!(0)); // true
+        assert_eq!(lengths[3], json!(0)); // null
+        assert_eq!(lengths[4], json!(1)); // {"nested": "value"}
+        assert_eq!(lengths[5], json!(2)); // [1, 2]
     }
 }
