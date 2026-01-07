@@ -1514,18 +1514,42 @@ impl JSONEval {
             return;
         }
         
-        // Find all eval_keys that depend on the changed data paths
+        // Convert data paths (e.g., "/hide_flag") to JSON Pointer paths (e.g., "/properties/hide_flag")
+        // Dependencies are stored in JSON Pointer format (WITHOUT # prefix)
+        let changed_schema_paths: Vec<String> = changed_data_paths.iter()
+            .map(|data_path| {
+                // Convert "/hide_flag" to "/properties/hide_flag"
+                // Convert "/foo/bar" to "/properties/foo/properties/bar"
+                let cleaned = data_path.trim_start_matches('/');
+                if cleaned.is_empty() {
+                    "/properties".to_string()
+                } else {
+                    // For nested paths, insert /properties/ between each segment
+                    let segments: Vec<&str> = cleaned.split('/').collect();
+                    let schema_path = segments.join("/properties/");
+                    format!("/properties/{}", schema_path)
+                }
+            })
+            .collect();
+        
+        // Find all eval_keys that depend on the changed paths
         let mut affected_eval_keys = IndexSet::new();
         
         for (eval_key, deps) in self.dependencies.iter() {
             // Check if this evaluation depends on any of the changed paths
             let is_affected = deps.iter().any(|dep| {
-                // Check if the dependency matches any changed path
-                changed_data_paths.iter().any(|changed_path| {
-                    // Exact match or prefix match (for nested fields)
-                    dep == changed_path || 
-                    dep.starts_with(&format!("{}/", changed_path)) ||
-                    changed_path.starts_with(&format!("{}/", dep))
+                // Check against both original data paths and converted schema paths
+                changed_data_paths.iter().any(|changed_data_path| {
+                    // Exact match or prefix match with data path format
+                    dep == changed_data_path || 
+                    dep.starts_with(&format!("{}/", changed_data_path)) ||
+                    changed_data_path.starts_with(&format!("{}/", dep))
+                }) ||
+                changed_schema_paths.iter().any(|changed_schema_path| {
+                    // Exact match or prefix match with schema path format
+                    dep == changed_schema_path || 
+                    dep.starts_with(&format!("{}/", changed_schema_path)) ||
+                    changed_schema_path.starts_with(&format!("{}/", dep))
                 })
             });
             
