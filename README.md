@@ -61,7 +61,7 @@
 
 ```toml
 [dependencies]
-json-eval-rs = "0.0.42"
+json-eval-rs = "0.0.43"
 ```
 
 ### C# / .NET
