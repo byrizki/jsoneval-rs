@@ -74,6 +74,9 @@ endif()
 # The libraries are marked as shared dependencies, not to be packaged in our module
 # If you still see duplicate library warnings, ensure your React Native version is up to date
 
+# Android 15 16KB page size support
+target_link_options(json_eval_rn PRIVATE -Wl,-z,max-page-size=16384)
+
 # Optimize binary size
 set_target_properties(json_eval_rn PROPERTIES
   CXX_VISIBILITY_PRESET hidden

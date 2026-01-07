@@ -516,7 +516,7 @@ Running evaluation...
 - **Windows**: x86_64
 - **macOS**: x86_64, ARM64 (Apple Silicon)
 - **Web**: All modern browsers, Node.js 14+
-- **Mobile**: iOS 11+, Android API 21+
+- **Mobile**: iOS 11+, Android API 21+ (supports Android 15+ 16KB page sizes)
 
 ## 🏃‍♂️ Getting Started
 

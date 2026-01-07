@@ -72,6 +72,10 @@ for abi in "${BUILD_ABIS[@]}"; do
     
     echo -e "${GREEN}Building for $abi ($target)...${NC}"
     
+    # Android 15 16KB page size support
+    # Set RUSTFLAGS to ensure proper page alignment
+    export RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384"
+    
     # Build the shared library (.so)
     cargo build --release --target "$target" --features ffi
     

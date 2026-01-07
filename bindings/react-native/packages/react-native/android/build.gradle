@@ -29,6 +29,7 @@ android {
         minSdkVersion safeExtGet('minSdkVersion', 21)
         targetSdkVersion safeExtGet('targetSdkVersion', 34)
         
+        // Android 15+ 16KB page size supported via linker flags in CMakeLists.txt
         externalNativeBuild {
             cmake {
                 cppFlags "-std=c++17 -fexceptions -frtti"

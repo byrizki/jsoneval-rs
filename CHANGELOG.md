@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.43] - 2025-01-07
+
+### Changed
+
+- [RN] **Android 15 Compatibility**: Update Android native builds to support 16KB page sizes (required for Android 15+)
+
 ## [0.0.42] - 2025-01-07
 
 ### Fixed
