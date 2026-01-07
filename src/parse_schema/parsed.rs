@@ -320,6 +320,15 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
     parsed.evaluations = Arc::new(evaluations);
     parsed.tables = Arc::new(tables);
     parsed.dependencies = Arc::new(dependencies);
+    // Sort layout paths by depth descending (deepest first)
+    // This ensures nested layouts are resolved before their parents
+    // Count '/' to determine depth
+    layout_paths.sort_by(|a, b| {
+        let depth_a = a.matches('/').count();
+        let depth_b = b.matches('/').count();
+        depth_b.cmp(&depth_a)
+    });
+
     parsed.layout_paths = Arc::new(layout_paths);
     parsed.dependents_evaluations = Arc::new(dependents_evaluations);
     parsed.options_templates = Arc::new(options_templates);

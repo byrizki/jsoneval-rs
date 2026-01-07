@@ -1514,42 +1514,19 @@ impl JSONEval {
             return;
         }
         
-        // Convert data paths (e.g., "/hide_flag") to JSON Pointer paths (e.g., "/properties/hide_flag")
-        // Dependencies are stored in JSON Pointer format (WITHOUT # prefix)
-        let changed_schema_paths: Vec<String> = changed_data_paths.iter()
-            .map(|data_path| {
-                // Convert "/hide_flag" to "/properties/hide_flag"
-                // Convert "/foo/bar" to "/properties/foo/properties/bar"
-                let cleaned = data_path.trim_start_matches('/');
-                if cleaned.is_empty() {
-                    "/properties".to_string()
-                } else {
-                    // For nested paths, insert /properties/ between each segment
-                    let segments: Vec<&str> = cleaned.split('/').collect();
-                    let schema_path = segments.join("/properties/");
-                    format!("/properties/{}", schema_path)
-                }
-            })
-            .collect();
-        
         // Find all eval_keys that depend on the changed paths
         let mut affected_eval_keys = IndexSet::new();
         
         for (eval_key, deps) in self.dependencies.iter() {
             // Check if this evaluation depends on any of the changed paths
             let is_affected = deps.iter().any(|dep| {
-                // Check against both original data paths and converted schema paths
-                changed_data_paths.iter().any(|changed_data_path| {
-                    // Exact match or prefix match with data path format
-                    dep == changed_data_path || 
-                    dep.starts_with(&format!("{}/", changed_data_path)) ||
-                    changed_data_path.starts_with(&format!("{}/", dep))
-                }) ||
-                changed_schema_paths.iter().any(|changed_schema_path| {
-                    // Exact match or prefix match with schema path format
-                    dep == changed_schema_path || 
-                    dep.starts_with(&format!("{}/", changed_schema_path)) ||
-                    changed_schema_path.starts_with(&format!("{}/", dep))
+                // Check if dependency path matches any changed data path using flexible matching
+                changed_data_paths.iter().any(|changed_for_purge| {
+                     // Check both directions:
+                     // 1. Dependency matches changed data (dependency is child of change)
+                     // 2. Changed data matches dependency (change is child of dependency)
+                     Self::paths_match_flexible(dep, changed_for_purge) || 
+                     Self::paths_match_flexible(changed_for_purge, dep)
                 })
             });
             
@@ -1563,6 +1540,69 @@ impl JSONEval {
         self.eval_cache.retain(|cache_key, _| {
             !affected_eval_keys.contains(&cache_key.eval_key)
         });
+    }
+
+    /// Flexible path matching that handles structural schema keywords (e.g. properties, oneOf)
+    /// Returns true if schema_path structurally matches data_path
+    fn paths_match_flexible(schema_path: &str, data_path: &str) -> bool {
+        let s_segs: Vec<&str> = schema_path.trim_start_matches('#').trim_start_matches('/').split('/').filter(|s| !s.is_empty()).collect();
+        let d_segs: Vec<&str> = data_path.trim_start_matches('/').split('/').filter(|s| !s.is_empty()).collect();
+        
+        let mut d_idx = 0;
+        
+        for s_seg in s_segs {
+            // If we matched all data segments, we are good (schema is deeper/parent)
+            if d_idx >= d_segs.len() {
+                return true;
+            }
+            
+            let d_seg = d_segs[d_idx];
+            
+            if s_seg == d_seg {
+                // Exact match, advance data pointer
+                d_idx += 1;
+            } else if s_seg == "items" || s_seg == "additionalProperties" || s_seg == "patternProperties" {
+                // Wildcard match for arrays/maps - consume data segment if it looks valid
+                // Note: items matches array index (numeric). additionalProperties matches any key.
+                if s_seg == "items" {
+                    // Only match if data segment is numeric (array index)
+                    if d_seg.chars().all(|c| c.is_ascii_digit()) {
+                        d_idx += 1;
+                    }
+                } else {
+                    // additionalProperties/patternProperties matches any string key
+                    d_idx += 1;
+                }
+            } else if Self::is_structural_keyword(s_seg) || s_seg.chars().all(|c| c.is_ascii_digit()) {
+                // Skip structural keywords (properties, oneOf, etc) and numeric indices in schema (e.g. oneOf/0)
+                continue;
+            } else {
+                // Mismatch: schema has a named segment that data doesn't have
+                return false;
+            }
+        }
+        
+        // Return true if we consumed all data segments
+        // (If data is longer than schema, it's NOT a match - e.g. path is too deep for this schema node)
+        // Wait, if dependency is on /a/b, and change is /a/b/c.
+        // Schema: /a/b. Data: /a/b/c.
+        // s runs out. d remains.
+        // Is /a/b a valid dependency for /a/b/c?
+        // Yes, parent invalidation.
+        // But the calling logic checks both directions (dep vs change, change vs dep).
+        // This function checks if "schema_path covers data_path".
+        // If s runs out and d remains, it means schema path is a PREFIX of data path structure.
+        // So return true.
+        true
+    }
+    
+    fn is_structural_keyword(s: &str) -> bool {
+        matches!(s, 
+            "properties" | "definitions" | "$defs" | 
+            "allOf" | "anyOf" | "oneOf" | 
+            "not" | "if" | "then" | "else" | 
+            "dependentSchemas" | "$params" | "dependencies"
+        )
     }
 
     /// Purge cache entries that depend on context

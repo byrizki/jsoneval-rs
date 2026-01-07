@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.44] - 2026-01-07
+
+### Fixed
+
+- [core] Re: fix layout sync issue
+
 ## [0.0.43] - 2025-01-07
 
 ### Changed

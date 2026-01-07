@@ -322,6 +322,15 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
     lib.evaluations = Arc::new(evaluations);
     lib.tables = Arc::new(tables);
     lib.dependencies = Arc::new(dependencies);
+    // Sort layout paths by depth descending (deepest first)
+    // This ensures nested layouts are resolved before their parents
+    // Count '/' to determine depth
+    layout_paths.sort_by(|a, b| {
+        let depth_a = a.matches('/').count();
+        let depth_b = b.matches('/').count();
+        depth_b.cmp(&depth_a)
+    });
+    
     lib.layout_paths = Arc::new(layout_paths);
     lib.dependents_evaluations = Arc::new(dependents_evaluations);
     lib.options_templates = Arc::new(options_templates);
