@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.42] - 2025-01-07
+
+### Fixed
+
+- [core] **Layout sync cache bug**: Fixed cache purging for dependent evaluations when data changes
+
 ## [0.0.41] - 2025-12-29
 
 ### Fixed
