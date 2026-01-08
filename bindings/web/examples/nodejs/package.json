@@ -1,0 +1,15 @@
+{
+  "name": "node-repro",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "tsx index.ts"
+  },
+  "dependencies": {
+    "@json-eval-rs/node": "*",
+    "tsx": "^4.7.0",
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  }
+}

@@ -19,3 +19,4 @@ build
 *.dylib
 output/*
 test_zlw_structure.rs
+dist

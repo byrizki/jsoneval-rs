@@ -1,0 +1,26 @@
+{
+  "illustration": {
+    "header": {
+      "form_number": "123456789",
+      "form_date": "2023-01-01"
+    },
+    "insured": {
+      "name": "John Doe",
+      "date_of_birth": "1990-01-01",
+      "age": 33,
+      "gender": "M",
+      "is_smoker": false,
+      "occupation": "OFFICE",
+      "occupation_class": "1",
+      "risk_category": "Low"
+    },
+    "policy_container": {
+      "has_additional_coverage": true,
+      "coverage_type": "STANDARD",
+      "coverage_details": {
+        "sum_assured": 1000000,
+        "premium_amount": 50000
+      }
+    }
+  }
+}
