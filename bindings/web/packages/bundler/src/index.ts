@@ -3,25 +3,26 @@
  * JSON Eval RS for modern bundlers (Webpack, Vite, Rollup, Next.js, etc.)
  */
 
-import { JSONEvalCore, getVersion } from '@json-eval-rs/webcore';
-import * as wasm from './pkg/json_eval_rs.js';
+import { JSONEvalCore, getVersion, JSONEvalOptions } from '@json-eval-rs/webcore';
+// @ts-ignore - implicitly loaded by bundler, file exists after build
+import * as wasm from '../pkg/json_eval_rs.js';
 
 /**
  * JSONEval class with bundler WASM pre-configured
  */
 export class JSONEval extends JSONEvalCore {
-  constructor(options) {
+  constructor(options: JSONEvalOptions) {
     super(wasm, options);
   }
 
   /**
    * Create a new JSONEval instance from a cached ParsedSchema
-   * @param {string} cacheKey - Cache key to lookup in ParsedSchemaCache
-   * @param {object} [context] - Optional context data
-   * @param {object} [data] - Optional initial data
-   * @returns {JSONEval} New instance
+   * @param cacheKey - Cache key to lookup in ParsedSchemaCache
+   * @param context - Optional context data
+   * @param data - Optional initial data
+   * @returns New instance
    */
-  static fromCache(cacheKey, context, data) {
+  static fromCache(cacheKey: string, context?: any, data?: any): JSONEval {
     return new JSONEval({
       schema: cacheKey,
       context,
@@ -33,9 +34,8 @@ export class JSONEval extends JSONEvalCore {
 
 /**
  * Get library version
- * @returns {string}
  */
-export function version() {
+export function version(): string {
   return getVersion(wasm);
 }
 

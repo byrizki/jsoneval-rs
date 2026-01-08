@@ -1,16 +1,16 @@
 /**
  * @json-eval-rs/webcore
  * High-level JavaScript API for JSON Eval RS WASM bindings
- * 
+ *
  * This package provides a clean, ergonomic API that works with any WASM target:
  */
 
 /**
  * Get the library version from the WASM module
- * @param {any} wasmModule - WASM module
- * @returns {string} Version string
+ * @param wasmModule - WASM module
+ * @returns Version string
  */
-export function getVersion(wasmModule) {
+export function getVersion(wasmModule: any): string {
   if (wasmModule && typeof wasmModule.getVersion === 'function') {
     return wasmModule.getVersion();
   }
@@ -18,35 +18,353 @@ export function getVersion(wasmModule) {
 }
 
 /**
+ * Return format for path-based methods
+ */
+export enum ReturnFormat {
+  /** Nested object preserving the path hierarchy (default) */
+  Nested = 0,
+  /** Flat object with dotted keys */
+  Flat = 1,
+  /** Array of values in the order of requested paths */
+  Array = 2
+}
+
+/**
+ * Validation error for a specific field
+ */
+export interface ValidationError {
+  /** Field path with the error */
+  path: string;
+  /** Type of validation rule that failed (e.g., 'required', 'min', 'max', 'pattern') */
+  rule_type: string;
+  /** Error message */
+  message: string;
+  /** Optional error code */
+  code?: string;
+  /** Optional regex pattern (for pattern validation errors) */
+  pattern?: string;
+  /** Optional field value that failed validation (as string) */
+  field_value?: string;
+  /** Optional additional data context for the error */
+  data?: any;
+}
+
+/**
+ * Result of validation operation
+ */
+export interface ValidationResult {
+  /** Whether any validation errors occurred */
+  has_error: boolean;
+  /** Array of validation errors */
+  errors: ValidationError[];
+}
+
+/**
+ * Dependent field change from evaluateDependents
+ */
+export interface DependentChange {
+  /** Path of the dependent field (in dot notation) */
+  $ref: string;
+  /** Schema definition of the changed field */
+  $field?: any;
+  /** Schema definition of the parent field */
+  $parentField: any;
+  /** Whether this is a transitive dependency */
+  transitive: boolean;
+  /** If true, the field was cleared */
+  clear?: boolean;
+  /** New value of the field (if changed) */
+  value?: any;
+}
+
+/**
+ * Options for creating a JSONEval instance
+ */
+export interface JSONEvalOptions {
+  /** JSON schema object */
+  schema: any;
+  /** Optional context data */
+  context?: any;
+  /** Optional initial data */
+  data?: any;
+  /** If true, schema is treated as a cache key */
+  fromCache?: boolean;
+}
+
+/**
+ * Options for validation
+ */
+export interface ValidateOptions {
+  /** JSON data to validate */
+  data: any;
+  /** Optional context data */
+  context?: any;
+}
+
+/**
+ * Options for evaluation
+ */
+export interface EvaluateOptions {
+  /** JSON data to evaluate */
+  data: any;
+  /** Optional context data */
+  context?: any;
+  /** Optional array of paths for selective evaluation */
+  paths?: string[];
+}
+
+/**
+ * Options for evaluating dependents
+ */
+export interface EvaluateDependentsOptions {
+  /** Array of field paths that changed */
+  changedPaths: string[];
+  /** Updated JSON data */
+  data?: any;
+  /** Optional context data */
+  context?: any;
+  /** If true, performs full evaluation after processing dependents */
+  reEvaluate?: boolean;
+}
+
+/**
+ * Options for getting evaluated schema
+ */
+export interface GetEvaluatedSchemaOptions {
+  /** Whether to skip layout resolution */
+  skipLayout?: boolean;
+}
+
+/**
+ * Options for getting a value by path from evaluated schema
+ */
+export interface GetValueByPathOptions {
+  /** Dotted path to the value */
+  path: string;
+  /** Whether to skip layout resolution */
+  skipLayout?: boolean;
+}
+
+/**
+ * Options for getting values by multiple paths from evaluated schema
+ */
+export interface GetValueByPathsOptions {
+  /** Array of dotted paths to retrieve */
+  paths: string[];
+  /** Whether to skip layout resolution */
+  skipLayout?: boolean;
+  /** Return format (Nested, Flat, or Array) */
+  format?: ReturnFormat;
+}
+
+/**
+ * Options for getting a value by path from schema
+ */
+export interface GetSchemaByPathOptions {
+  /** Dotted path to the value */
+  path: string;
+}
+
+/**
+ * Options for getting values by multiple paths from schema
+ */
+export interface GetSchemaByPathsOptions {
+  /** Array of dotted paths to retrieve */
+  paths: string[];
+  /** Return format (Nested, Flat, or Array) */
+  format?: ReturnFormat;
+}
+
+/**
+ * Options for reloading schema
+ */
+export interface ReloadSchemaOptions {
+  /** New JSON schema */
+  schema: any;
+  /** Optional new context */
+  context?: any;
+  /** Optional new data */
+  data?: any;
+}
+
+/**
+ * Cache statistics
+ */
+export interface CacheStats {
+  /** Number of cache hits */
+  hits: number;
+  /** Number of cache misses */
+  misses: number;
+  /** Number of cached entries */
+  entries: number;
+}
+
+/**
+ * Options for evaluating a subform
+ */
+export interface EvaluateSubformOptions {
+  /** Path to the subform */
+  subformPath: string;
+  /** JSON data to evaluate */
+  data: any;
+  /** Optional context data */
+  context?: any;
+  /** Optional array of paths to evaluate */
+  paths?: string[];
+}
+
+/**
+ * Options for validating a subform
+ */
+export interface ValidateSubformOptions {
+  /** Path to the subform */
+  subformPath: string;
+  /** JSON data to validate */
+  data: any;
+  /** Optional context data */
+  context?: any;
+}
+
+/**
+ * Options for evaluating dependents in a subform
+ */
+export interface EvaluateDependentsSubformOptions {
+  /** Path to the subform */
+  subformPath: string;
+  /** Array of field paths that changed */
+  changedPaths: string[];
+  /** Updated JSON data */
+  data?: any;
+  /** Optional context data */
+  context?: any;
+  /** If true, performs full evaluation after processing dependents */
+  reEvaluate?: boolean;
+}
+
+/**
+ * Options for resolving layout in a subform
+ */
+export interface ResolveLayoutSubformOptions {
+  /** Path to the subform */
+  subformPath: string;
+  /** Whether to evaluate after resolving layout */
+  evaluate?: boolean;
+}
+
+/**
+ * Options for getting evaluated schema from a subform
+ */
+export interface GetEvaluatedSchemaSubformOptions {
+  /** Path to the subform */
+  subformPath: string;
+  /** Whether to resolve layout */
+  resolveLayout?: boolean;
+}
+
+/**
+ * Options for getting schema value from a subform
+ */
+export interface GetSchemaValueSubformOptions {
+  /** Path to the subform */
+  subformPath: string;
+}
+
+/**
+ * Options for getting evaluated schema by path from a subform
+ */
+export interface GetEvaluatedSchemaByPathSubformOptions {
+  /** Path to the subform */
+  subformPath: string;
+  /** Dotted path to the value within the subform */
+  schemaPath: string;
+  /** Whether to skip layout resolution */
+  skipLayout?: boolean;
+}
+
+/**
+ * Options for getting evaluated schema by multiple paths from a subform
+ */
+export interface GetEvaluatedSchemaByPathsSubformOptions {
+  /** Path to the subform */
+  subformPath: string;
+  /** Array of dotted paths to retrieve within the subform */
+  schemaPaths: string[];
+  /** Whether to skip layout resolution */
+  skipLayout?: boolean;
+  /** Return format (Nested, Flat, or Array) */
+  format?: ReturnFormat;
+}
+
+/**
+ * Options for getting schema by path from a subform
+ */
+export interface GetSchemaByPathSubformOptions {
+  /** Path to the subform */
+  subformPath: string;
+  /** Dotted path to the value within the subform */
+  schemaPath: string;
+}
+
+/**
+ * Options for getting schema by multiple paths from a subform
+ */
+export interface GetSchemaByPathsSubformOptions {
+  /** Path to the subform */
+  subformPath: string;
+  /** Array of dotted paths to retrieve within the subform */
+  schemaPaths: string[];
+  /** Return format (Nested, Flat, or Array) */
+  format?: ReturnFormat;
+}
+
+/**
+ * Options for compiling and running logic
+ */
+export interface CompileAndRunLogicOptions {
+  /** Logic expression as string or object */
+  logicStr: string | object;
+  /** Optional data context */
+  data?: any;
+  /** Optional context data */
+  context?: any;
+}
+
+
+/**
  * JSONEval - High-level JavaScript API for JSON Eval RS
- * 
+ *
  * This is an internal abstraction layer. Use specific packages instead:
  * - @json-eval-rs/bundler (for bundlers like Webpack, Vite, Next.js)
  * - @json-eval-rs/vanilla (for direct browser usage)
  * - @json-eval-rs/node (for Node.js/SSR)
- * 
+ *
  * @example
  * ```js
  * import { JSONEval } from '@json-eval-rs/webcore';
- * 
+ *
  * const evaluator = new JSONEval({
  *   schema: { type: 'object', properties: { ... } }
  * });
- * 
+ *
  * await evaluator.init();
  * const result = await evaluator.validate({ data: { name: 'John' } });
  * ```
  */
 export class JSONEvalCore {
+  private _schema: any;
+  private _wasmModule: any;
+  private _context: any;
+  private _data: any;
+  private _instance: any = null;
+  private _ready: boolean = false;
+  private _isMsgpackSchema: boolean;
+  private _isFromCache: boolean;
+
   /**
-   * @param {any} wasmModule - WASM module (injected by wrapper package)
-   * @param {object} options
-   * @param {object|Uint8Array|string} options.schema - JSON schema, MessagePack bytes, or cache key
-   * @param {object} [options.context] - Optional context data
-   * @param {object} [options.data] - Optional initial data
-   * @param {boolean} [options.fromCache] - If true, schema is treated as a cache key
+   * @param wasmModule - WASM module (injected by wrapper package)
+   * @param options
    */
-  constructor(wasmModule, { schema, context, data, fromCache = false }) {
+  constructor(wasmModule: any, { schema, context, data, fromCache = false }: JSONEvalOptions) {
     this._schema = schema;
     this._wasmModule = wasmModule;
     this._context = context;
@@ -61,7 +379,7 @@ export class JSONEvalCore {
    * Initialize the WASM instance
    * Call this before using other methods, or use the async methods which call it automatically
    */
-  async init() {
+  async init(): Promise<void> {
     if (this._ready) return;
 
     // If WASM module not provided, throw error - user must provide it or install peer dependency
@@ -75,7 +393,7 @@ export class JSONEvalCore {
 
     try {
       const { JSONEvalWasm } = this._wasmModule;
-      
+
       // Create instance from cache, MessagePack, or JSON
       if (this._isFromCache) {
         this._instance = JSONEvalWasm.newFromCache(
@@ -97,7 +415,7 @@ export class JSONEvalCore {
         );
       }
       this._ready = true;
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(`Failed to create JSONEval instance: ${error.message || error}`);
     }
   }
@@ -105,14 +423,14 @@ export class JSONEvalCore {
   /**
    * Create a new JSONEval instance from a cached ParsedSchema
    * Static factory method for convenience
-   * 
-   * @param {any} wasmModule - WASM module
-   * @param {string} cacheKey - Cache key to lookup in ParsedSchemaCache
-   * @param {object} [context] - Optional context data
-   * @param {object} [data] - Optional initial data
-   * @returns {JSONEvalCore} New instance
+   *
+   * @param wasmModule - WASM module
+   * @param cacheKey - Cache key to lookup in ParsedSchemaCache
+   * @param context - Optional context data
+   * @param data - Optional initial data
+   * @returns New instance
    */
-  static fromCache(wasmModule, cacheKey, context, data) {
+  static fromCache(wasmModule: any, cacheKey: string, context?: any, data?: any): JSONEvalCore {
     return new JSONEvalCore(wasmModule, {
       schema: cacheKey,
       context,
@@ -124,12 +442,8 @@ export class JSONEvalCore {
   /**
    * Validate data against schema (returns parsed JavaScript object)
    * Uses validateJS for Worker-safe serialization
-   * @param {object} options
-   * @param {object} options.data - Data to validate
-   * @param {object} [options.context] - Optional context
-   * @returns {Promise<{has_error: boolean, errors: Array<{path: string, rule_type: string, message: string}>}>}
    */
-  async validate({ data, context }) {
+  async validate({ data, context }: ValidateOptions): Promise<ValidationResult> {
     await this.init();
     try {
       // Use validateJS for proper serialization (Worker-safe)
@@ -137,20 +451,15 @@ export class JSONEvalCore {
         JSON.stringify(data),
         context ? JSON.stringify(context) : null
       );
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(`Validation failed: ${error.message || error}`);
     }
   }
 
   /**
    * Evaluate schema with data (returns parsed JavaScript object)
-   * @param {object} options
-   * @param {object} options.data - Data to evaluate
-   * @param {object} [options.context] - Optional context
-   * @param {string[]} [options.paths] - Optional array of paths for selective evaluation
-   * @returns {Promise<any>}
    */
-  async evaluate({ data, context, paths }) {
+  async evaluate({ data, context, paths }: EvaluateOptions): Promise<any> {
     await this.init();
     try {
       return this._instance.evaluateJS(
@@ -158,21 +467,15 @@ export class JSONEvalCore {
         context ? JSON.stringify(context) : null,
         paths || null
       );
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(`Evaluation failed: ${error.message || error}`);
     }
   }
 
   /**
    * Evaluate dependent fields (returns parsed JavaScript object, processes transitively)
-   * @param {object} options
-   * @param {string[]} options.changedPaths - Array of changed field paths (e.g., ["#/illustration/properties/field1", "field2"])
-   * @param {object} [options.data] - Optional updated data (null to use existing)
-   * @param {object} [options.context] - Optional context
-   * @param {boolean} [options.reEvaluate] - If true, performs full evaluation after processing dependents
-   * @returns {Promise<Array>} Array of dependent change objects
    */
-  async evaluateDependents({ changedPaths, data, context, reEvaluate = false }) {
+  async evaluateDependents({ changedPaths, data, context, reEvaluate = false }: EvaluateDependentsOptions): Promise<DependentChange[]> {
     await this.init();
     try {
       return this._instance.evaluateDependentsJS(
@@ -181,61 +484,47 @@ export class JSONEvalCore {
         context ? JSON.stringify(context) : null,
         reEvaluate
       );
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(`Dependent evaluation failed: ${error.message || error}`);
     }
   }
 
   /**
    * Get evaluated schema
-   * @param {object} [options]
-   * @param {boolean} [options.skipLayout=false] - Skip layout resolution
-   * @returns {Promise<any>}
    */
-  async getEvaluatedSchema({ skipLayout = false } = {}) {
+  async getEvaluatedSchema({ skipLayout = false }: GetEvaluatedSchemaOptions = {}): Promise<any> {
     await this.init();
     return this._instance.getEvaluatedSchemaJS(skipLayout);
   }
 
   /**
    * Get evaluated schema as MessagePack binary data
-   * @param {object} [options]
-   * @param {boolean} [options.skipLayout=false] - Skip layout resolution
-   * @returns {Promise<Uint8Array>} MessagePack-encoded schema bytes
    */
-  async getEvaluatedSchemaMsgpack({ skipLayout = false } = {}) {
+  async getEvaluatedSchemaMsgpack({ skipLayout = false }: GetEvaluatedSchemaOptions = {}): Promise<Uint8Array> {
     await this.init();
     return this._instance.getEvaluatedSchemaMsgpack(skipLayout);
   }
 
   /**
    * Get schema values (evaluations ending with .value)
-   * @returns {Promise<object>}
    */
-  async getSchemaValue() {
+  async getSchemaValue(): Promise<any> {
     await this.init();
     return this._instance.getSchemaValue();
   }
 
   /**
    * Get evaluated schema without $params field
-   * @param {object} [options]
-   * @param {boolean} [options.skipLayout=false] - Skip layout resolution
-   * @returns {Promise<any>}
    */
-  async getEvaluatedSchemaWithoutParams({ skipLayout = false } = {}) {
+  async getEvaluatedSchemaWithoutParams({ skipLayout = false }: GetEvaluatedSchemaOptions = {}): Promise<any> {
     await this.init();
     return this._instance.getEvaluatedSchemaWithoutParamsJS(skipLayout);
   }
 
   /**
    * Get a value from the evaluated schema using dotted path notation
-   * @param {object} options
-   * @param {string} options.path - Dotted path to the value (e.g., "properties.field.value")
-   * @param {boolean} [options.skipLayout=false] - Skip layout resolution
-   * @returns {Promise<any|null>} Value at the path, or null if not found
    */
-  async getEvaluatedSchemaByPath({ path, skipLayout = false }) {
+  async getEvaluatedSchemaByPath({ path, skipLayout = false }: GetValueByPathOptions): Promise<any | null> {
     await this.init();
     return this._instance.getEvaluatedSchemaByPathJS(path, skipLayout);
   }
@@ -243,24 +532,16 @@ export class JSONEvalCore {
   /**
    * Get values from the evaluated schema using multiple dotted path notations
    * Returns data in the specified format (skips paths that are not found)
-   * @param {object} options
-   * @param {string[]} options.paths - Array of dotted paths to retrieve
-   * @param {boolean} [options.skipLayout=false] - Skip layout resolution
-   * @param {number} [options.format=0] - Return format (0=Nested, 1=Flat, 2=Array)
-   * @returns {Promise<any>} Data in specified format
    */
-  async getEvaluatedSchemaByPaths({ paths, skipLayout = false, format = 0 }) {
+  async getEvaluatedSchemaByPaths({ paths, skipLayout = false, format = 0 }: GetValueByPathsOptions): Promise<any> {
     await this.init();
     return this._instance.getEvaluatedSchemaByPathsJS(JSON.stringify(paths), skipLayout, format);
   }
 
   /**
    * Get a value from the schema using dotted path notation
-   * @param {object} options
-   * @param {string} options.path - Dotted path to the value (e.g., "properties.field.value")
-   * @returns {Promise<any|null>} Value at the path, or null if not found
    */
-  async getSchemaByPath({ path }) {
+  async getSchemaByPath({ path }: GetSchemaByPathOptions): Promise<any | null> {
     await this.init();
     return this._instance.getSchemaByPathJS(path);
   }
@@ -268,25 +549,16 @@ export class JSONEvalCore {
   /**
    * Get values from the schema using multiple dotted path notations
    * Returns data in the specified format (skips paths that are not found)
-   * @param {object} options
-   * @param {string[]} options.paths - Array of dotted paths to retrieve
-   * @param {number} [options.format=0] - Return format (0=Nested, 1=Flat, 2=Array)
-   * @returns {Promise<any>} Data in specified format
    */
-  async getSchemaByPaths({ paths, format = 0 }) {
+  async getSchemaByPaths({ paths, format = 0 }: GetSchemaByPathsOptions): Promise<any> {
     await this.init();
     return this._instance.getSchemaByPathsJS(JSON.stringify(paths), format);
   }
 
   /**
    * Reload schema with new data
-   * @param {object} options
-   * @param {object} options.schema - New JSON schema
-   * @param {object} [options.context] - Optional new context
-   * @param {object} [options.data] - Optional new data
-   * @returns {Promise<void>}
    */
-  async reloadSchema({ schema, context, data }) {
+  async reloadSchema({ schema, context, data }: ReloadSchemaOptions): Promise<void> {
     if (!this._instance) {
       throw new Error('Instance not initialized. Call init() first.');
     }
@@ -302,19 +574,15 @@ export class JSONEvalCore {
       this._schema = schema;
       this._context = context;
       this._data = data;
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(`Failed to reload schema: ${error.message || error}`);
     }
   }
 
   /**
    * Reload schema from MessagePack bytes
-   * @param {Uint8Array} schemaMsgpack - MessagePack-encoded schema bytes
-   * @param {object} [context] - Optional new context
-   * @param {object} [data] - Optional new data
-   * @returns {Promise<void>}
    */
-  async reloadSchemaMsgpack(schemaMsgpack, context, data) {
+  async reloadSchemaMsgpack(schemaMsgpack: Uint8Array, context?: any, data?: any): Promise<void> {
     if (!this._instance) {
       throw new Error('Instance not initialized. Call init() first.');
     }
@@ -335,19 +603,15 @@ export class JSONEvalCore {
       this._context = context;
       this._data = data;
       this._isMsgpackSchema = true;
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(`Failed to reload schema from MessagePack: ${error.message || error}`);
     }
   }
 
   /**
    * Reload schema from ParsedSchemaCache using a cache key
-   * @param {string} cacheKey - Cache key to lookup in the global ParsedSchemaCache
-   * @param {object} [context] - Optional new context
-   * @param {object} [data] - Optional new data
-   * @returns {Promise<void>}
    */
-  async reloadSchemaFromCache(cacheKey, context, data) {
+  async reloadSchemaFromCache(cacheKey: string, context?: any, data?: any): Promise<void> {
     if (!this._instance) {
       throw new Error('Instance not initialized. Call init() first.');
     }
@@ -367,102 +631,85 @@ export class JSONEvalCore {
       this._context = context;
       this._data = data;
       // Note: schema is not updated as we don't have access to it from the cache key
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(`Failed to reload schema from cache: ${error.message || error}`);
     }
   }
 
   /**
    * Get cache statistics
-   * @returns {Promise<{hits: number, misses: number, entries: number}>}
    */
-  async cacheStats() {
+  async cacheStats(): Promise<CacheStats> {
     await this.init();
     return this._instance.cacheStats();
   }
 
   /**
    * Clear the evaluation cache
-   * @returns {Promise<void>}
    */
-  async clearCache() {
+  async clearCache(): Promise<void> {
     await this.init();
     this._instance.clearCache();
   }
 
   /**
    * Get the number of cached entries
-   * @returns {Promise<number>}
    */
-  async cacheLen() {
+  async cacheLen(): Promise<number> {
     await this.init();
     return this._instance.cacheLen();
   }
 
   /**
    * Enable evaluation caching
-   * Useful for reusing JSONEval instances with different data
-   * @returns {Promise<void>}
    */
-  async enableCache() {
+  async enableCache(): Promise<void> {
     await this.init();
     this._instance.enableCache();
   }
 
   /**
    * Disable evaluation caching
-   * Useful for web API usage where each request creates a new JSONEval instance
-   * Improves performance by skipping cache operations that have no benefit for single-use instances
-   * @returns {Promise<void>}
    */
-  async disableCache() {
+  async disableCache(): Promise<void> {
     await this.init();
     this._instance.disableCache();
   }
 
   /**
    * Check if evaluation caching is enabled
-   * @returns {boolean}
    */
-  isCacheEnabled() {
+  isCacheEnabled(): boolean {
     if (!this._instance) return true; // Default is enabled
     return this._instance.isCacheEnabled();
   }
 
   /**
    * Resolve layout with optional evaluation
-   * @param {object} [options]
-   * @param {boolean} [options.evaluate=false] - If true, runs evaluation before resolving layout
-   * @returns {Promise<void>}
    */
-  async resolveLayout({ evaluate = false } = {}) {
+  async resolveLayout(options: { evaluate?: boolean } = {}): Promise<void> {
+    const { evaluate = false } = options;
     await this.init();
     return this._instance.resolveLayout(evaluate);
   }
 
   /**
    * Set timezone offset for datetime operations (TODAY, NOW)
-   * @param {number|null|undefined} offsetMinutes - Timezone offset in minutes from UTC 
-   *                                                 (e.g., 420 for UTC+7, -300 for UTC-5)
-   *                                                 Pass null or undefined to reset to UTC
-   * @returns {void}
+   * @param offsetMinutes - Timezone offset in minutes from UTC
+   *                        (e.g., 420 for UTC+7, -300 for UTC-5)
+   *                        Pass null or undefined to reset to UTC
    */
-  setTimezoneOffset(offsetMinutes) {
+  setTimezoneOffset(offsetMinutes: number | null | undefined): void {
     if (!this._instance) {
       throw new Error('Instance not initialized. Call init() first.');
     }
-    this._instance.set_timezone_offset(offsetMinutes);
+    this._instance.setTimezoneOffset(offsetMinutes);
   }
 
   /**
    * Compile and run JSON logic from a JSON logic string
-   * @param {object} options - Options for compile and run logic
-   * @param {string|object} options.logicStr - JSON logic expression as a string or object
-   * @param {object} [options.data] - Optional data to evaluate against (uses existing data if not provided)
-   * @param {object} [options.context] - Optional context to use (uses existing context if not provided)
-   * @returns {Promise<any>} Result of the evaluation
    */
-  async compileAndRunLogic({ logicStr, data, context }) {
+  async compileAndRunLogic({ logicStr, data, context }: CompileAndRunLogicOptions): Promise<any> {
     await this.init();
     const logic = typeof logicStr === 'string' ? logicStr : JSON.stringify(logicStr);
     const result = await this._instance.compileAndRunLogic(
@@ -476,10 +723,8 @@ export class JSONEvalCore {
 
   /**
    * Compile JSON logic and return a global ID
-   * @param {string|object} logicStr - JSON logic expression as a string or object
-   * @returns {Promise<number>} Compiled logic ID
    */
-  async compileLogic(logicStr) {
+  async compileLogic(logicStr: string | object): Promise<number> {
     await this.init();
     const logic = typeof logicStr === 'string' ? logicStr : JSON.stringify(logicStr);
     return this._instance.compileLogic(logic);
@@ -487,12 +732,8 @@ export class JSONEvalCore {
 
   /**
    * Run pre-compiled logic by ID
-   * @param {number} logicId - Compiled logic ID from compileLogic
-   * @param {object} [data] - Optional data to evaluate against (uses existing data if not provided)
-   * @param {object} [context] - Optional context to use (uses existing context if not provided)
-   * @returns {Promise<any>} Result of the evaluation
    */
-  async runLogic(logicId, data, context) {
+  async runLogic(logicId: number, data?: any, context?: any): Promise<any> {
     await this.init();
     const result = await this._instance.runLogic(
       logicId,
@@ -505,13 +746,8 @@ export class JSONEvalCore {
 
   /**
    * Validate data against schema rules with optional path filtering
-   * @param {object} options
-   * @param {object} options.data - Data to validate
-   * @param {object} [options.context] - Optional context
-   * @param {Array<string>} [options.paths] - Optional array of paths to validate (null for all)
-   * @returns {Promise<{has_error: boolean, errors: Array<{path: string, rule_type: string, message: string}>}>}
    */
-  async validatePaths({ data, context, paths }) {
+  async validatePaths({ data, context, paths }: EvaluateOptions): Promise<ValidationResult> {
     await this.init();
     try {
       // Use validatePathsJS for proper serialization (Worker-safe)
@@ -520,7 +756,7 @@ export class JSONEvalCore {
         context ? JSON.stringify(context) : null,
         paths || null
       );
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(`Validation failed: ${error.message || error}`);
     }
   }
@@ -531,14 +767,8 @@ export class JSONEvalCore {
 
   /**
    * Evaluate a subform with data
-   * @param {object} options
-   * @param {string} options.subformPath - Path to the subform (e.g., "#/riders")
-   * @param {object} options.data - Data for the subform
-   * @param {object} [options.context] - Optional context
-   * @param {Array<string>} [options.paths] - Optional array of paths to evaluate
-   * @returns {Promise<void>}
    */
-  async evaluateSubform({ subformPath, data, context, paths }) {
+  async evaluateSubform({ subformPath, data, context, paths }: EvaluateSubformOptions): Promise<void> {
     await this.init();
     return this._instance.evaluateSubform(
       subformPath,
@@ -550,13 +780,8 @@ export class JSONEvalCore {
 
   /**
    * Validate subform data against its schema rules
-   * @param {object} options
-   * @param {string} options.subformPath - Path to the subform
-   * @param {object} options.data - Data for the subform
-   * @param {object} [options.context] - Optional context
-   * @returns {Promise<{has_error: boolean, errors: Array}>}
    */
-  async validateSubform({ subformPath, data, context }) {
+  async validateSubform({ subformPath, data, context }: ValidateSubformOptions): Promise<ValidationResult> {
     await this.init();
     return this._instance.validateSubform(
       subformPath,
@@ -567,20 +792,13 @@ export class JSONEvalCore {
 
   /**
    * Evaluate dependent fields in subform
-   * @param {object} options
-   * @param {string} options.subformPath - Path to the subform
-   * @param {string[]} options.changedPaths - Array of field paths that changed
-   * @param {object} [options.data] - Optional updated data
-   * @param {object} [options.context] - Optional context
-   * @param {boolean} [options.reEvaluate=false] - If true, performs full evaluation after processing dependents
-   * @returns {Promise<any>}
    */
-  async evaluateDependentsSubform({ subformPath, changedPaths, data, context, reEvaluate = false }) {
+  async evaluateDependentsSubform({ subformPath, changedPaths, data, context, reEvaluate = false }: EvaluateDependentsSubformOptions): Promise<DependentChange[]> {
     await this.init();
-    
-    // For backward compatibility, accept single changedPath too
+
+    // For backward compatibility, accept single changedPath too (though types say array)
     const paths = Array.isArray(changedPaths) ? changedPaths : [changedPaths];
-    
+
     return this._instance.evaluateDependentsSubformJS(
       subformPath,
       paths[0], // WASM still expects single path (wraps internally)
@@ -591,60 +809,40 @@ export class JSONEvalCore {
 
   /**
    * Resolve layout for subform
-   * @param {object} options
-   * @param {string} options.subformPath - Path to the subform
-   * @param {boolean} [options.evaluate=false] - If true, runs evaluation before resolving layout
-   * @returns {Promise<void>}
    */
-  async resolveLayoutSubform({ subformPath, evaluate = false }) {
+  async resolveLayoutSubform({ subformPath, evaluate = false }: ResolveLayoutSubformOptions): Promise<void> {
     await this.init();
     return this._instance.resolveLayoutSubform(subformPath, evaluate);
   }
 
   /**
    * Get evaluated schema from subform
-   * @param {object} options
-   * @param {string} options.subformPath - Path to the subform
-   * @param {boolean} [options.resolveLayout=false] - Whether to resolve layout
-   * @returns {Promise<any>}
    */
-  async getEvaluatedSchemaSubform({ subformPath, resolveLayout = false }) {
+  async getEvaluatedSchemaSubform({ subformPath, resolveLayout = false }: GetEvaluatedSchemaSubformOptions): Promise<any> {
     await this.init();
     return this._instance.getEvaluatedSchemaSubformJS(subformPath, resolveLayout);
   }
 
   /**
    * Get schema value from subform (all .value fields)
-   * @param {object} options
-   * @param {string} options.subformPath - Path to the subform
-   * @returns {Promise<any>}
    */
-  async getSchemaValueSubform({ subformPath }) {
+  async getSchemaValueSubform({ subformPath }: GetSchemaValueSubformOptions): Promise<any> {
     await this.init();
     return this._instance.getSchemaValueSubform(subformPath);
   }
 
   /**
    * Get evaluated schema without $params from subform
-   * @param {object} options
-   * @param {string} options.subformPath - Path to the subform
-   * @param {boolean} [options.resolveLayout=false] - Whether to resolve layout
-   * @returns {Promise<any>}
    */
-  async getEvaluatedSchemaWithoutParamsSubform({ subformPath, resolveLayout = false }) {
+  async getEvaluatedSchemaWithoutParamsSubform({ subformPath, resolveLayout = false }: GetEvaluatedSchemaSubformOptions): Promise<any> {
     await this.init();
     return this._instance.getEvaluatedSchemaWithoutParamsSubformJS(subformPath, resolveLayout);
   }
 
   /**
    * Get evaluated schema by specific path from subform
-   * @param {object} options
-   * @param {string} options.subformPath - Path to the subform
-   * @param {string} options.schemaPath - Path within the subform
-   * @param {boolean} [options.skipLayout=false] - Whether to skip layout resolution
-   * @returns {Promise<any|null>}
    */
-  async getEvaluatedSchemaByPathSubform({ subformPath, schemaPath, skipLayout = false }) {
+  async getEvaluatedSchemaByPathSubform({ subformPath, schemaPath, skipLayout = false }: GetEvaluatedSchemaByPathSubformOptions): Promise<any | null> {
     await this.init();
     return this._instance.getEvaluatedSchemaByPathSubformJS(subformPath, schemaPath, skipLayout);
   }
@@ -652,35 +850,24 @@ export class JSONEvalCore {
   /**
    * Get evaluated schema by multiple paths from subform
    * Returns data in the specified format (skips paths that are not found)
-   * @param {object} options
-   * @param {string} options.subformPath - Path to the subform
-   * @param {string[]} options.schemaPaths - Array of paths within the subform
-   * @param {boolean} [options.skipLayout=false] - Whether to skip layout resolution
-   * @param {number} [options.format=0] - Return format (0=Nested, 1=Flat, 2=Array)
-   * @returns {Promise<any>}
    */
-  async getEvaluatedSchemaByPathsSubform({ subformPath, schemaPaths, skipLayout = false, format = 0 }) {
+  async getEvaluatedSchemaByPathsSubform({ subformPath, schemaPaths, skipLayout = false, format = 0 }: GetEvaluatedSchemaByPathsSubformOptions): Promise<any> {
     await this.init();
     return this._instance.getEvaluatedSchemaByPathsSubformJS(subformPath, JSON.stringify(schemaPaths), skipLayout, format);
   }
 
   /**
    * Get list of available subform paths
-   * @returns {Promise<Array<string>>}
    */
-  async getSubformPaths() {
+  async getSubformPaths(): Promise<string[]> {
     await this.init();
     return this._instance.getSubformPaths();
   }
 
   /**
    * Get schema by specific path from subform
-   * @param {object} options
-   * @param {string} options.subformPath - Path to the subform
-   * @param {string} options.schemaPath - Path within the subform
-   * @returns {Promise<any|null>}
    */
-  async getSchemaByPathSubform({ subformPath, schemaPath }) {
+  async getSchemaByPathSubform({ subformPath, schemaPath }: GetSchemaByPathSubformOptions): Promise<any | null> {
     await this.init();
     return this._instance.getSchemaByPathSubformJS(subformPath, schemaPath);
   }
@@ -688,23 +875,16 @@ export class JSONEvalCore {
   /**
    * Get schema by multiple paths from subform
    * Returns data in the specified format (skips paths that are not found)
-   * @param {object} options
-   * @param {string} options.subformPath - Path to the subform
-   * @param {string[]} options.schemaPaths - Array of paths within the subform
-   * @param {number} [options.format=0] - Return format (0=Nested, 1=Flat, 2=Array)
-   * @returns {Promise<any>}
    */
-  async getSchemaByPathsSubform({ subformPath, schemaPaths, format = 0 }) {
+  async getSchemaByPathsSubform({ subformPath, schemaPaths, format = 0 }: GetSchemaByPathsSubformOptions): Promise<any> {
     await this.init();
     return this._instance.getSchemaByPathsSubformJS(subformPath, JSON.stringify(schemaPaths), format);
   }
 
   /**
    * Check if a subform exists at the given path
-   * @param {string} subformPath - Path to check
-   * @returns {Promise<boolean>}
    */
-  async hasSubform(subformPath) {
+  async hasSubform(subformPath: string): Promise<boolean> {
     await this.init();
     return this._instance.hasSubform(subformPath);
   }
@@ -712,7 +892,7 @@ export class JSONEvalCore {
   /**
    * Free WASM resources
    */
-  free() {
+  free(): void {
     if (this._instance) {
       this._instance.free();
       this._instance = null;

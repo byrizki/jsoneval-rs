@@ -247,6 +247,9 @@ jobs:
     - name: Build WASM for Node.js
       run: wasm-pack build --target nodejs --out-dir bindings/web/packages/node/pkg --features wasm
     
+    - name: Build WASM for vanilla (web)
+      run: wasm-pack build --target web --out-dir bindings/web/packages/vanilla/pkg --features wasm
+    
     - name: Install web dependencies
       run: |
         cd bindings/web
@@ -259,12 +262,16 @@ jobs:
         echo ""
         echo "Node WASM files:"
         ls -lh bindings/web/packages/node/pkg/ || echo "No node pkg directory"
+        echo ""
+        echo "Vanilla WASM files:"
+        ls -lh bindings/web/packages/vanilla/pkg/ || echo "No vanilla pkg directory"
     
     - name: Remove pkg .gitignore files
       run: |
         # wasm-pack generates .gitignore files that can prevent npm pack from including WASM files
         rm -f bindings/web/packages/bundler/pkg/.gitignore
         rm -f bindings/web/packages/node/pkg/.gitignore
+        rm -f bindings/web/packages/vanilla/pkg/.gitignore
         echo "✓ Removed .gitignore files from pkg directories"
     
     - name: Package core wrapper
@@ -317,6 +324,25 @@ jobs:
         tar -tzf *.tgz | grep -E 'package/index\.d\.ts$' && echo "✓ index.d.ts included" || echo "❌ index.d.ts missing"
         tar -tzf *.tgz | grep -E '\.wasm$' && echo "✓ WASM files included" || echo "❌ No WASM files"
         tar -tzf *.tgz | grep -E 'package/pkg/.*\.js$' && echo "✓ pkg/*.js files included" || echo "❌ No pkg/*.js files"
+
+    - name: Package web binding (vanilla)
+      run: |
+        cd bindings/web/packages/vanilla
+        npm pack
+        
+        echo ""
+        echo "✅ Vanilla package created:"
+        ls -lh *.tgz
+        
+        echo ""
+        echo "📋 Verifying vanilla package contents:"
+        tar -tzf *.tgz | head -20
+        
+        # Verify key files are included
+        tar -tzf *.tgz | grep -E 'package/index\.js$' && echo "✓ index.js included" || echo "❌ index.js missing"
+        tar -tzf *.tgz | grep -E 'package/index\.d\.ts$' && echo "✓ index.d.ts included" || echo "❌ index.d.ts missing"
+        tar -tzf *.tgz | grep -E '\.wasm$' && echo "✓ WASM files included" || echo "❌ No WASM files"
+        tar -tzf *.tgz | grep -E 'package/pkg/.*\.js$' && echo "✓ pkg/*.js files included" || echo "❌ No pkg/*.js files"
     
     - name: Upload web packages
       uses: actions/upload-artifact@v4
@@ -326,6 +352,7 @@ jobs:
           bindings/web/packages/core/*.tgz
           bindings/web/packages/bundler/*.tgz
           bindings/web/packages/node/*.tgz
+          bindings/web/packages/vanilla/*.tgz
         if-no-files-found: error
     
     - name: Upload WASM artifacts

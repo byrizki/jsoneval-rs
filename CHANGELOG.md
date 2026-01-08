@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.45] - 2026-01-08
+
+### Added
+
+- [web] Vanilla package
+- [web] Migrate to TypeScript
+
 ## [0.0.44] - 2026-01-07
 
 ### Fixed

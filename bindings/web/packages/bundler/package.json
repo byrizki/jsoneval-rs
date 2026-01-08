@@ -1,17 +1,20 @@
 {
   "name": "@json-eval-rs/bundler",
-  "version": "0.0.44",
+  "version": "0.0.45",
   "description": "JSON Eval RS for bundlers (Webpack, Vite, Next.js, etc.) with ergonomic API",
-  "main": "index.js",
-  "types": "index.d.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "type": "module",
   "files": [
-    "index.js",
-    "index.d.ts",
+    "dist",
     "pkg/*.js",
     "pkg/*.wasm",
     "pkg/*.d.ts"
   ],
+  "scripts": {
+    "build": "tsc",
+    "prepack": "npm run build"
+  },
   "keywords": [
     "json",
     "json-logic",

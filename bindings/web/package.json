@@ -1,6 +1,6 @@
 {
   "name": "json-eval-rs-web-monorepo",
-  "version": "0.0.44",
+  "version": "0.0.45",
   "private": true,
   "description": "JSON Eval RS Web Bindings - Monorepo",
   "workspaces": [
@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "nextjs": "yarn workspace nextjs dev",
+    "compile": "yarn workspaces run build",
     "build": "../../build-bindings.sh web",
     "clean": "rm -rf packages/*/json_eval_rs* packages/*/*.wasm"
   },
@@ -26,5 +27,9 @@
     "rust"
   ],
   "author": "Muhamad Rizki",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
 }

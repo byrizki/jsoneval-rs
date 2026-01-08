@@ -1,12 +1,15 @@
 {
-  "name": "@json-eval-rs/webcore",
+  "name": "@json-eval-rs/vanilla",
   "version": "0.0.45",
-  "description": "JSON Eval RS core JavaScript wrapper (internal package - not published)",
+  "description": "JSON Eval RS for direct browser usage (vanilla JS) or manual WASM loading (Next.js Turbopack compat)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
   "files": [
-    "dist"
+    "dist",
+    "pkg/*.js",
+    "pkg/*.wasm",
+    "pkg/*.d.ts"
   ],
   "scripts": {
     "build": "tsc",
@@ -17,14 +20,22 @@
     "json-logic",
     "schema",
     "validation",
-    "wasm"
+    "wasm",
+    "web",
+    "vanilla",
+    "browser",
+    "nextjs",
+    "turbopack"
   ],
   "author": "Muhamad Rizki",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/byrizki/jsoneval-rs.git",
-    "directory": "bindings/web/packages/core"
+    "directory": "bindings/web/packages/vanilla"
+  },
+  "dependencies": {
+    "@json-eval-rs/webcore": "*"
   },
   "sideEffects": false
 }
