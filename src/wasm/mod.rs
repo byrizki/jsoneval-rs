@@ -21,8 +21,7 @@ pub use core::{get_version, version, init};
 
 /// Helper to serialize Rust values to JS objects (not Maps)
 /// converting serde_json::Value::Object/HashMap to plain JS objects
-pub(crate) fn to_value(value: &impl serde::Serialize) -> Result<JsValue, JsValue> {
+pub(crate) fn to_value(value: &impl serde::Serialize) -> Result<JsValue, serde_wasm_bindgen::Error> {
     let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
     value.serialize(&serializer)
-        .map_err(|e| JsValue::from_str(&e.to_string()))
 }

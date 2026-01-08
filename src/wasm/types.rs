@@ -83,7 +83,7 @@ impl ValidationResult {
 
     #[wasm_bindgen(js_name = toJSON)]
     pub fn to_json(&self) -> Result<JsValue, JsValue> {
-        super::to_value(&self)
+        super::to_value(&self).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 }
 
