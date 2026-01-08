@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.46] - 2026-01-08
+
+### Fixed
+
+- [wasm] fix return value to JS Object
+
 ## [0.0.45] - 2026-01-08
 
 ### Added
