@@ -301,8 +301,8 @@ jobs:
         tar -tzf *.tgz | head -20
         
         # Verify key files are included
-        tar -tzf *.tgz | grep -E 'package/index\.js$' && echo "✓ index.js included" || echo "❌ index.js missing"
-        tar -tzf *.tgz | grep -E 'package/index\.d\.ts$' && echo "✓ index.d.ts included" || echo "❌ index.d.ts missing"
+        tar -tzf *.tgz | grep -E 'package/dist/index\.js$' && echo "✓ index.js included" || echo "❌ index.js missing"
+        tar -tzf *.tgz | grep -E 'package/dist/index\.d\.ts$' && echo "✓ index.d.ts included" || echo "❌ index.d.ts missing"
         tar -tzf *.tgz | grep -E '\.wasm$' && echo "✓ WASM files included" || echo "❌ No WASM files"
         tar -tzf *.tgz | grep -E 'package/pkg/.*\.js$' && echo "✓ pkg/*.js files included" || echo "❌ No pkg/*.js files"
     
@@ -320,8 +320,8 @@ jobs:
         tar -tzf *.tgz | head -20
         
         # Verify key files are included
-        tar -tzf *.tgz | grep -E 'package/index\.js$' && echo "✓ index.js included" || echo "❌ index.d.ts missing"
-        tar -tzf *.tgz | grep -E 'package/index\.d\.ts$' && echo "✓ index.d.ts included" || echo "❌ index.d.ts missing"
+        tar -tzf *.tgz | grep -E 'package/dist/index\.js$' && echo "✓ index.js included" || echo "❌ index.d.ts missing"
+        tar -tzf *.tgz | grep -E 'package/dist/index\.d\.ts$' && echo "✓ index.d.ts included" || echo "❌ index.d.ts missing"
         tar -tzf *.tgz | grep -E '\.wasm$' && echo "✓ WASM files included" || echo "❌ No WASM files"
         tar -tzf *.tgz | grep -E 'package/pkg/.*\.js$' && echo "✓ pkg/*.js files included" || echo "❌ No pkg/*.js files"
 
@@ -339,8 +339,8 @@ jobs:
         tar -tzf *.tgz | head -20
         
         # Verify key files are included
-        tar -tzf *.tgz | grep -E 'package/index\.js$' && echo "✓ index.js included" || echo "❌ index.js missing"
-        tar -tzf *.tgz | grep -E 'package/index\.d\.ts$' && echo "✓ index.d.ts included" || echo "❌ index.d.ts missing"
+        tar -tzf *.tgz | grep -E 'package/dist/index\.js$' && echo "✓ index.js included" || echo "❌ index.js missing"
+        tar -tzf *.tgz | grep -E 'package/dist/index\.d\.ts$' && echo "✓ index.d.ts included" || echo "❌ index.d.ts missing"
         tar -tzf *.tgz | grep -E '\.wasm$' && echo "✓ WASM files included" || echo "❌ No WASM files"
         tar -tzf *.tgz | grep -E 'package/pkg/.*\.js$' && echo "✓ pkg/*.js files included" || echo "❌ No pkg/*.js files"
     
