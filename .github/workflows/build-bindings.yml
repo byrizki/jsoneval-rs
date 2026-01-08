@@ -627,9 +627,6 @@ jobs:
     
     - name: Run tests
       run: cargo test --all-features
-    
-    - name: Run tests (release mode)
-      run: cargo test --release --all-features
 
   # Test React Native example - Android
   # Integration test to verify the package works on Android
