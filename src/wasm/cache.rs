@@ -16,7 +16,7 @@ impl JSONEvalWasm {
             "misses": stats.misses,
             "entries": stats.entries,
         });
-        serde_wasm_bindgen::to_value(&stats_obj)
+        super::to_value(&stats_obj)
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 

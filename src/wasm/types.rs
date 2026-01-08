@@ -56,7 +56,7 @@ impl ValidationError {
     #[wasm_bindgen(getter)]
     pub fn data(&self) -> JsValue {
         self.data.as_ref()
-            .and_then(|d| serde_wasm_bindgen::to_value(d).ok())
+            .and_then(|d| super::to_value(d).ok())
             .unwrap_or(JsValue::NULL)
     }
 }
@@ -83,7 +83,7 @@ impl ValidationResult {
 
     #[wasm_bindgen(js_name = toJSON)]
     pub fn to_json(&self) -> Result<JsValue, JsValue> {
-        serde_wasm_bindgen::to_value(&self).map_err(|e| JsValue::from_str(&e.to_string()))
+        super::to_value(&self)
     }
 }
 

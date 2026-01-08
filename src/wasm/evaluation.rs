@@ -41,7 +41,7 @@ impl JSONEvalWasm {
         match self.inner.evaluate(data, ctx, paths_refs.as_deref()) {
             Ok(_) => {
                 let result = self.inner.get_evaluated_schema(false);
-                serde_wasm_bindgen::to_value(&result)
+                super::to_value(&result)
                     .map_err(|e| {
                         let error_msg = format!("Failed to convert evaluation result to JsValue: {}", e);
                         console_log(&format!("[WASM ERROR] {}", error_msg));

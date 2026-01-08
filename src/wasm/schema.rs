@@ -23,7 +23,7 @@ impl JSONEvalWasm {
     #[wasm_bindgen(js_name = getEvaluatedSchemaJS)]
     pub fn get_evaluated_schema_js(&mut self, skip_layout: bool) -> Result<JsValue, JsValue> {
         let result = self.inner.get_evaluated_schema(skip_layout);
-        serde_wasm_bindgen::to_value(&result)
+        super::to_value(&result)
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
@@ -53,7 +53,7 @@ impl JSONEvalWasm {
     #[wasm_bindgen(js_name = getSchemaValue)]
     pub fn get_schema_value(&mut self) -> Result<JsValue, JsValue> {
         let result = self.inner.get_schema_value();
-        serde_wasm_bindgen::to_value(&result)
+        super::to_value(&result)
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
@@ -74,7 +74,7 @@ impl JSONEvalWasm {
     #[wasm_bindgen(js_name = getEvaluatedSchemaWithoutParamsJS)]
     pub fn get_evaluated_schema_without_params_js(&mut self, skip_layout: bool) -> Result<JsValue, JsValue> {
         let result = self.inner.get_evaluated_schema_without_params(skip_layout);
-        serde_wasm_bindgen::to_value(&result)
+        super::to_value(&result)
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
@@ -97,7 +97,7 @@ impl JSONEvalWasm {
     #[wasm_bindgen(js_name = getEvaluatedSchemaByPathJS)]
     pub fn get_evaluated_schema_by_path_js(&mut self, path: &str, skip_layout: bool) -> Result<JsValue, JsValue> {
         match self.inner.get_evaluated_schema_by_path(path, skip_layout) {
-            Some(value) => serde_wasm_bindgen::to_value(&value)
+            Some(value) => super::to_value(&value)
                 .map_err(|e| JsValue::from_str(&e.to_string())),
             None => Ok(JsValue::NULL),
         }
@@ -143,7 +143,7 @@ impl JSONEvalWasm {
         };
         
         let result = self.inner.get_evaluated_schema_by_paths(&paths, skip_layout, Some(return_format));
-        serde_wasm_bindgen::to_value(&result)
+        super::to_value(&result)
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
@@ -164,7 +164,7 @@ impl JSONEvalWasm {
     #[wasm_bindgen(js_name = getSchemaByPathJS)]
     pub fn get_schema_by_path_js(&self, path: &str) -> Result<JsValue, JsValue> {
         match self.inner.get_schema_by_path(path) {
-            Some(value) => serde_wasm_bindgen::to_value(&value)
+            Some(value) => super::to_value(&value)
                 .map_err(|e| JsValue::from_str(&e.to_string())),
             None => Ok(JsValue::NULL),
         }
@@ -208,7 +208,7 @@ impl JSONEvalWasm {
         };
         
         let result = self.inner.get_schema_by_paths(&paths, Some(return_format));
-        serde_wasm_bindgen::to_value(&result)
+        super::to_value(&result)
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 

@@ -98,7 +98,7 @@ impl JSONEvalWasm {
         let paths = vec![changed_path.to_string()];
         
         match self.inner.evaluate_dependents_subform(subform_path, &paths, data_str, ctx, false) {
-            Ok(result) => serde_wasm_bindgen::to_value(&result)
+            Ok(result) => super::to_value(&result)
                 .map_err(|e| JsValue::from_str(&e.to_string())),
             Err(e) => Err(JsValue::from_str(&e)),
         }
@@ -138,7 +138,7 @@ impl JSONEvalWasm {
     #[wasm_bindgen(js_name = getEvaluatedSchemaSubformJS)]
     pub fn get_evaluated_schema_subform_js(&mut self, subform_path: &str, resolve_layout: bool) -> Result<JsValue, JsValue> {
         let result = self.inner.get_evaluated_schema_subform(subform_path, resolve_layout);
-        serde_wasm_bindgen::to_value(&result)
+        super::to_value(&result)
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
@@ -149,7 +149,7 @@ impl JSONEvalWasm {
     #[wasm_bindgen(js_name = getSchemaValueSubform)]
     pub fn get_schema_value_subform(&mut self, subform_path: &str) -> Result<JsValue, JsValue> {
         let result = self.inner.get_schema_value_subform(subform_path);
-        serde_wasm_bindgen::to_value(&result)
+        super::to_value(&result)
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
@@ -172,7 +172,7 @@ impl JSONEvalWasm {
     #[wasm_bindgen(js_name = getEvaluatedSchemaWithoutParamsSubformJS)]
     pub fn get_evaluated_schema_without_params_subform_js(&mut self, subform_path: &str, resolve_layout: bool) -> Result<JsValue, JsValue> {
         let result = self.inner.get_evaluated_schema_without_params_subform(subform_path, resolve_layout);
-        serde_wasm_bindgen::to_value(&result)
+        super::to_value(&result)
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
@@ -197,7 +197,7 @@ impl JSONEvalWasm {
     #[wasm_bindgen(js_name = getEvaluatedSchemaByPathSubformJS)]
     pub fn get_evaluated_schema_by_path_subform_js(&mut self, subform_path: &str, schema_path: &str, skip_layout: bool) -> Result<JsValue, JsValue> {
         match self.inner.get_evaluated_schema_by_path_subform(subform_path, schema_path, skip_layout) {
-            Some(value) => serde_wasm_bindgen::to_value(&value)
+            Some(value) => super::to_value(&value)
                 .map_err(|e| JsValue::from_str(&e.to_string())),
             None => Ok(JsValue::NULL),
         }
@@ -245,7 +245,7 @@ impl JSONEvalWasm {
         };
         
         let result = self.inner.get_evaluated_schema_by_paths_subform(subform_path, &paths, skip_layout, Some(return_format));
-        serde_wasm_bindgen::to_value(&result)
+        super::to_value(&result)
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
@@ -266,7 +266,7 @@ impl JSONEvalWasm {
     #[wasm_bindgen(js_name = getSchemaByPathSubformJS)]
     pub fn get_schema_by_path_subform_js(&self, subform_path: &str, schema_path: &str) -> Result<JsValue, JsValue> {
         match self.inner.get_schema_by_path_subform(subform_path, schema_path) {
-            Some(value) => serde_wasm_bindgen::to_value(&value)
+            Some(value) => super::to_value(&value)
                 .map_err(|e| JsValue::from_str(&e.to_string())),
             None => Ok(JsValue::NULL),
         }
@@ -312,7 +312,7 @@ impl JSONEvalWasm {
         };
         
         let result = self.inner.get_schema_by_paths_subform(subform_path, &paths, Some(return_format));
-        serde_wasm_bindgen::to_value(&result)
+        super::to_value(&result)
             .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
