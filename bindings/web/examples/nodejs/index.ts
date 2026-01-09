@@ -24,8 +24,11 @@ test("Node.js Binding Example Test", async (t) => {
   console.log("Validating JSON...");
   const schema = JSON.parse(schemaStr);
   const data = JSON.parse(dataStr);
-  
-  assert.doesNotThrow(() => JSON.parse(schemaStr), "Schema should be valid JSON");
+
+  assert.doesNotThrow(
+    () => JSON.parse(schemaStr),
+    "Schema should be valid JSON"
+  );
   assert.doesNotThrow(() => JSON.parse(dataStr), "Data should be valid JSON");
 
   console.log("Creating JSONEval instance...");
@@ -36,23 +39,28 @@ test("Node.js Binding Example Test", async (t) => {
   });
 
   console.log("Calling evaluate()...");
-  await je.evaluate({ data });
+  await je.evaluate({ data, context: {} });
 
   console.log("Calling getEvaluatedSchema()...");
   const evaluatedSchema = await je.getEvaluatedSchema({ skipLayout: false });
 
   console.log("Result type:", typeof evaluatedSchema);
-  
-  assert.ok(evaluatedSchema, "Evaluated schema should not be null or undefined");
-  
-  if (evaluatedSchema instanceof Map) {
-    console.log("Result is a Map! Keys:", Array.from(evaluatedSchema.keys()));
-    console.log("Map Size:", evaluatedSchema.size);
-    assert.ok(evaluatedSchema.size > 0, "Evaluated schema Map should not be empty");
-  } else {
-    const keys = Object.keys(evaluatedSchema as object);
-    console.log("Result Object keys:", keys.length);
-    console.log("First few keys:", keys.slice(0, 5));
-    assert.ok(keys.length > 0, "Evaluated schema Object should not be empty");
-  }
+
+  assert.ok(
+    evaluatedSchema,
+    "Evaluated schema should not be null or undefined"
+  );
+  assert.ok(
+    typeof evaluatedSchema === "object",
+    "Evaluated schema should be an object"
+  );
+  assert.equal(
+    evaluatedSchema instanceof Map,
+    false,
+    "Evaluated schema should not be a Map"
+  );
+  assert.ok(
+    !JSON.stringify(evaluatedSchema).includes("$evaluation"),
+    "Evaluated schema should NOT contain '$evaluation' key"
+  );
 });
