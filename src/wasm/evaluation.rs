@@ -109,14 +109,13 @@ impl JSONEvalWasm {
     #[wasm_bindgen(js_name = evaluateDependentsJS)]
     pub fn evaluate_dependents_js(
         &mut self,
-        changed_paths_json: &str,
+        changed_paths: JsValue,
         data: Option<String>,
         context: Option<String>,
         re_evaluate: bool,
     ) -> Result<JsValue, JsValue> {
-        // Parse JSON array of paths
-        let paths: Vec<String> = serde_json::from_str(changed_paths_json).map_err(|e| {
-            let error_msg = format!("Failed to parse paths JSON: {}", e);
+        let paths: Vec<String> = serde_wasm_bindgen::from_value(changed_paths).map_err(|e| {
+            let error_msg = format!("Failed to parse paths array: {}", e);
             console_log(&format!("[WASM ERROR] {}", error_msg));
             JsValue::from_str(&error_msg)
         })?;
