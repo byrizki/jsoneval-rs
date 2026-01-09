@@ -136,7 +136,7 @@ impl JSONEvalWasm {
 
         let result =
             self.inner
-                .get_evaluated_schema_by_paths(&paths, skip_layout, Some(return_format));
+                .get_evaluated_schema_by_paths(&paths, skip_layout, return_format);
         serde_json::to_string(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
@@ -164,7 +164,7 @@ impl JSONEvalWasm {
 
         let result =
             self.inner
-                .get_evaluated_schema_by_paths(&paths, skip_layout, Some(return_format));
+                .get_evaluated_schema_by_paths(&paths, skip_layout, return_format);
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
@@ -207,7 +207,7 @@ impl JSONEvalWasm {
             _ => crate::ReturnFormat::Nested,
         };
 
-        let result = self.inner.get_schema_by_paths(&paths, Some(return_format));
+        let result = self.inner.get_schema_by_paths(&paths, return_format);
         serde_json::to_string(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
@@ -227,7 +227,7 @@ impl JSONEvalWasm {
             _ => crate::ReturnFormat::Nested,
         };
 
-        let result = self.inner.get_schema_by_paths(&paths, Some(return_format));
+        let result = self.inner.get_schema_by_paths(&paths, return_format);
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 

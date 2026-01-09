@@ -1,6 +1,7 @@
 // Subform methods for isolated array field evaluation
 
 use crate::JSONEval;
+use crate::ReturnFormat;
 use serde_json::Value;
 
 impl JSONEval {
@@ -65,7 +66,8 @@ impl JSONEval {
             .get_mut(subform_path)
             .ok_or_else(|| format!("Subform not found: {}", subform_path))?;
 
-        subform.resolve_layout(evaluate)
+        subform.resolve_layout(evaluate);
+        Ok(())
     }
 
     /// Get evaluated schema from subform
@@ -111,7 +113,7 @@ impl JSONEval {
         skip_layout: bool,
     ) -> Option<Value> {
         if let Some(subform) = self.subforms.get_mut(subform_path) {
-            subform.get_evaluated_schema_by_path(schema_path, skip_layout)
+            Some(subform.get_evaluated_schema_by_paths(&[schema_path.to_string()], skip_layout, ReturnFormat::Nested))
         } else {
             None
         }
@@ -126,7 +128,7 @@ impl JSONEval {
         format: Option<crate::ReturnFormat>,
     ) -> Value {
         if let Some(subform) = self.subforms.get_mut(subform_path) {
-            subform.get_evaluated_schema_by_paths(schema_paths, skip_layout, format)
+            subform.get_evaluated_schema_by_paths(schema_paths, skip_layout, format.unwrap_or(ReturnFormat::Flat))
         } else {
             match format.unwrap_or_default() {
                 crate::ReturnFormat::Array => Value::Array(vec![]),
@@ -156,7 +158,7 @@ impl JSONEval {
         format: Option<crate::ReturnFormat>,
     ) -> Value {
         if let Some(subform) = self.subforms.get(subform_path) {
-            subform.get_schema_by_paths(schema_paths, format)
+            subform.get_schema_by_paths(schema_paths, format.unwrap_or(ReturnFormat::Flat))
         } else {
             match format.unwrap_or_default() {
                 crate::ReturnFormat::Array => Value::Array(vec![]),

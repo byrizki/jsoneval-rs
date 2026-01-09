@@ -91,8 +91,6 @@ pub unsafe extern "C" fn json_eval_resolve_layout(
     }
 
     let eval = &mut (*handle).inner;
-    match eval.resolve_layout(evaluate) {
-        Ok(_) => FFIResult::success(Vec::new()),
-        Err(e) => FFIResult::error(e),
-    }
+    eval.resolve_layout(evaluate);
+    FFIResult::success(Vec::new())
 }
