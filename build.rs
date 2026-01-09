@@ -1,7 +1,9 @@
 fn main() {
     // Add version resource to Windows DLL
-    #[cfg(target_os = "windows")]
-    {
+    // Check if we are actually compiling FOR Windows (target), not just ON Windows (host)
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    
+    if target_os == "windows" {
         let version = env!("CARGO_PKG_VERSION");
         
         // Parse version string (e.g., "0.0.48" -> parts [0, 0, 3])
@@ -32,7 +34,8 @@ fn main() {
         
         if let Err(e) = res.compile() {
             eprintln!("Error: Failed to compile Windows resource: {}", e);
-            panic!("Failed to compile Windows resource: {}", e);
+            // Don't panic, just warn. Dependencies might be missing on some setups.
+            println!("cargo:warning=Failed to compile Windows resource: {}", e);
         }
     }
     

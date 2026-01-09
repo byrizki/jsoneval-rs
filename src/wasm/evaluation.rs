@@ -128,7 +128,7 @@ impl JSONEvalWasm {
             .inner
             .evaluate_dependents(&paths, data_str, ctx, re_evaluate)
         {
-            Ok(result) => serde_wasm_bindgen::to_value(&result).map_err(|e| {
+            Ok(result) => super::to_value(&result).map_err(|e| {
                 let error_msg = format!("Failed to serialize dependents: {}", e);
                 console_log(&format!("[WASM ERROR] {}", error_msg));
                 JsValue::from_str(&error_msg)
@@ -160,7 +160,7 @@ impl JSONEvalWasm {
             .inner
             .compile_and_run_logic(logic_str, data_str, context_str)
         {
-            Ok(result) => serde_wasm_bindgen::to_value(&result).map_err(|e| {
+            Ok(result) => super::to_value(&result).map_err(|e| {
                 let error_msg = format!("Failed to convert logic result: {}", e);
                 JsValue::from_str(&error_msg)
             }),
@@ -220,7 +220,7 @@ impl JSONEvalWasm {
             .inner
             .run_logic(id, data_value.as_ref(), context_value.as_ref())
         {
-            Ok(result) => serde_wasm_bindgen::to_value(&result).map_err(|e| {
+            Ok(result) => super::to_value(&result).map_err(|e| {
                 let error_msg = format!("Failed to convert logic result: {}", e);
                 JsValue::from_str(&error_msg)
             }),

@@ -81,13 +81,28 @@ export interface DependentChange {
  * Options for creating a JSONEval instance
  */
 export interface JSONEvalOptions {
-  /** JSON schema object */
+  /**
+   * JSON schema object or MessagePack binary or cache key string.
+   * - If object: Standard JSON Schema
+   * - If Uint8Array: MessagePack encoded schema
+   * - If string (and fromCache=true): Cache key for pre-parsed schema
+   */
   schema: any;
-  /** Optional context data */
+  /**
+   * Optional context data accessible via $context in logic.
+   * Useful for user sessions, environment variables, etc.
+   */
   context?: any;
-  /** Optional initial data */
+  /**
+   * Optional initial data object to evaluate against.
+   * Can be updated later with reloadSchema.
+   */
   data?: any;
-  /** If true, schema is treated as a cache key */
+  /**
+   * If true, the `schema` parameter is treated as a string cache key
+   * to lookup a pre-parsed schema from the global cache.
+   * Default: false
+   */
   fromCache?: boolean;
 }
 
@@ -351,18 +366,29 @@ export interface CompileAndRunLogicOptions {
  * ```
  */
 export class JSONEvalCore {
+  /** Internal storage for the schema (JSON, MsgPack, or Cache Key) */
   private _schema: any;
+  /** Reference to the loaded WASM module */
   private _wasmModule: any;
+  /** Current context data */
   private _context: any;
+  /** Current evaluation data */
   private _data: any;
+  /** The underlying WASM JSONEval instance */
   private _instance: any = null;
+  /** Initialization state flag */
   private _ready: boolean = false;
+  /** Flag indicating if schema provided is binary MessagePack */
   private _isMsgpackSchema: boolean;
+  /** Flag indicating if schema is a cache key reference */
   private _isFromCache: boolean;
 
   /**
-   * @param wasmModule - WASM module (injected by wrapper package)
-   * @param options
+   * Create a new JSONEval Core instance.
+   * Does not initialize WASM immediately; wait for `init()` or call async methods.
+   *
+   * @param wasmModule - The loaded WASM module (provided by wrapper packages like @json-eval-rs/node or /vanilla)
+   * @param options - Configuration options containing schema, data, and context
    */
   constructor(wasmModule: any, { schema, context, data, fromCache = false }: JSONEvalOptions) {
     this._schema = schema;
@@ -720,8 +746,7 @@ export class JSONEvalCore {
       data ? JSON.stringify(data) : null,
       context ? JSON.stringify(context) : null
     );
-    // Parse result if it's a string
-    return typeof result === 'string' ? JSON.parse(result) : result;
+    return result;
   }
 
   /**
@@ -743,8 +768,7 @@ export class JSONEvalCore {
       data ? JSON.stringify(data) : null,
       context ? JSON.stringify(context) : null
     );
-    // Parse result if it's a string
-    return typeof result === 'string' ? JSON.parse(result) : result;
+    return result;
   }
 
   /**

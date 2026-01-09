@@ -68,15 +68,8 @@ impl JSONEvalWasm {
                     "errors": errors,
                 });
 
-                // Use JSON.parse to ensure plain object (not Map)
-                let json_string = serde_json::to_string(&validation_result).map_err(|e| {
+                super::to_value(&validation_result).map_err(|e| {
                     let error_msg = format!("Failed to serialize validation result: {}", e);
-                    console_log(&format!("[WASM ERROR] {}", error_msg));
-                    JsValue::from_str(&error_msg)
-                })?;
-
-                js_sys::JSON::parse(&json_string).map_err(|e| {
-                    let error_msg = format!("JSON parse error: {:?}", e);
                     console_log(&format!("[WASM ERROR] {}", error_msg));
                     JsValue::from_str(&error_msg)
                 })
@@ -158,15 +151,8 @@ impl JSONEvalWasm {
                     "errors": errors,
                 });
 
-                // Use JSON.parse to ensure plain object (not Map)
-                let json_string = serde_json::to_string(&validation_result).map_err(|e| {
+                super::to_value(&validation_result).map_err(|e| {
                     let error_msg = format!("Failed to serialize validation result: {}", e);
-                    console_log(&format!("[WASM ERROR] {}", error_msg));
-                    JsValue::from_str(&error_msg)
-                })?;
-
-                js_sys::JSON::parse(&json_string).map_err(|e| {
-                    let error_msg = format!("JSON parse error: {:?}", e);
                     console_log(&format!("[WASM ERROR] {}", error_msg));
                     JsValue::from_str(&error_msg)
                 })
