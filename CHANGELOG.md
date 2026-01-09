@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.47] - 2026-01-09
+
+### Fixed
+
+- [wasm] fix return value to JS Object
+- [core] fix options url templation
+
 ## [0.0.46] - 2026-01-08
 
 ### Fixed
