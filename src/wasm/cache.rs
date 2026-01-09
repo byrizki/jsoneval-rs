@@ -1,12 +1,12 @@
 //! WASM cache management functions
 
-use wasm_bindgen::prelude::*;
 use super::types::JSONEvalWasm;
+use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 impl JSONEvalWasm {
     /// Get cache statistics
-    /// 
+    ///
     /// @returns Cache statistics as JavaScript object with hits, misses, and entries
     #[wasm_bindgen(js_name = cacheStats)]
     pub fn cache_stats(&self) -> Result<JsValue, JsValue> {
@@ -16,8 +16,7 @@ impl JSONEvalWasm {
             "misses": stats.misses,
             "entries": stats.entries,
         });
-        super::to_value(&stats_obj)
-            .map_err(|e| JsValue::from_str(&e.to_string()))
+        super::to_value(&stats_obj).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
     /// Clear the evaluation cache
@@ -27,7 +26,7 @@ impl JSONEvalWasm {
     }
 
     /// Get the number of cached entries
-    /// 
+    ///
     /// @returns Number of cached entries
     #[wasm_bindgen(js_name = cacheLen)]
     pub fn cache_len(&self) -> usize {
@@ -50,7 +49,7 @@ impl JSONEvalWasm {
     }
 
     /// Check if evaluation caching is enabled
-    /// 
+    ///
     /// @returns true if caching is enabled, false otherwise
     #[wasm_bindgen(js_name = isCacheEnabled)]
     pub fn is_cache_enabled(&self) -> bool {

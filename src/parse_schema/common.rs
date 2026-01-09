@@ -1,9 +1,8 @@
-/// Shared utilities for schema parsing (used by both legacy and parsed implementations)
-
-use indexmap::IndexSet;
-use serde_json::Value;
 use crate::path_utils;
 use crate::table_metadata::ColumnMetadata;
+/// Shared utilities for schema parsing (used by both legacy and parsed implementations)
+use indexmap::IndexSet;
+use serde_json::Value;
 
 /// Collect $ref dependencies from a JSON value recursively
 pub fn collect_refs(value: &Value, refs: &mut IndexSet<String>) {
@@ -42,12 +41,12 @@ pub fn collect_refs(value: &Value, refs: &mut IndexSet<String>) {
 }
 
 /// Compute forward/normal column partitions with transitive closure
-/// 
+///
 /// This function identifies which columns have forward references (dependencies on later columns)
 /// and separates them from normal columns for proper evaluation order.
 pub fn compute_column_partitions(columns: &[ColumnMetadata]) -> (Vec<usize>, Vec<usize>) {
     use std::collections::HashSet;
-    
+
     // Build set of all forward-referencing column names (direct + transitive)
     let mut fwd_cols = HashSet::new();
     for col in columns {
@@ -55,7 +54,7 @@ pub fn compute_column_partitions(columns: &[ColumnMetadata]) -> (Vec<usize>, Vec
             fwd_cols.insert(col.name.as_ref());
         }
     }
-    
+
     // Transitive closure: any column that depends on forward columns is also forward
     loop {
         let mut changed = false;
@@ -78,11 +77,11 @@ pub fn compute_column_partitions(columns: &[ColumnMetadata]) -> (Vec<usize>, Vec
             break;
         }
     }
-    
+
     // Separate into forward and normal indices
     let mut forward_indices = Vec::new();
     let mut normal_indices = Vec::new();
-    
+
     for (idx, col) in columns.iter().enumerate() {
         if fwd_cols.contains(col.name.as_ref()) {
             forward_indices.push(idx);
@@ -90,6 +89,6 @@ pub fn compute_column_partitions(columns: &[ColumnMetadata]) -> (Vec<usize>, Vec
             normal_indices.push(idx);
         }
     }
-    
+
     (forward_indices, normal_indices)
 }

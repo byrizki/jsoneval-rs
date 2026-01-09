@@ -1,11 +1,11 @@
 //! FFI functions for ParsedSchemaCache management
 
+use super::types::FFIResult;
+use crate::{ParsedSchema, ParsedSchemaCache};
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::ptr;
 use std::sync::{Arc, OnceLock};
-use crate::{ParsedSchemaCache, ParsedSchema};
-use super::types::FFIResult;
 
 /// Opaque pointer type for ParsedSchemaCache instances
 pub struct ParsedSchemaCacheHandle {
@@ -13,9 +13,9 @@ pub struct ParsedSchemaCacheHandle {
 }
 
 /// Create a new ParsedSchemaCache instance
-/// 
+///
 /// # Safety
-/// 
+///
 /// - Returns a handle that must be freed with parsed_cache_free
 #[no_mangle]
 pub unsafe extern "C" fn parsed_cache_new() -> *mut ParsedSchemaCacheHandle {
@@ -25,28 +25,28 @@ pub unsafe extern "C" fn parsed_cache_new() -> *mut ParsedSchemaCacheHandle {
 }
 
 /// Get the global ParsedSchemaCache singleton
-/// 
+///
 /// # Safety
-/// 
+///
 /// - Returns a pointer to the global cache (do NOT free this pointer)
 /// - This is a static singleton that lives for the entire program lifetime
 #[no_mangle]
 pub unsafe extern "C" fn parsed_cache_global() -> *const ParsedSchemaCacheHandle {
     static GLOBAL_CACHE_HANDLE: OnceLock<Box<ParsedSchemaCacheHandle>> = OnceLock::new();
-    
+
     let handle = GLOBAL_CACHE_HANDLE.get_or_init(|| {
         Box::new(ParsedSchemaCacheHandle {
             inner: crate::PARSED_SCHEMA_CACHE.clone(),
         })
     });
-    
+
     handle.as_ref() as *const ParsedSchemaCacheHandle
 }
 
 /// Parse and insert a schema into the cache
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from parsed_cache_new or parsed_cache_global
 /// - key must be a valid null-terminated UTF-8 string
 /// - schema_json must be a valid null-terminated UTF-8 string
@@ -82,9 +82,9 @@ pub unsafe extern "C" fn parsed_cache_insert(
 }
 
 /// Parse and insert a schema from MessagePack into the cache
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from parsed_cache_new or parsed_cache_global
 /// - key must be a valid null-terminated UTF-8 string
 /// - schema_msgpack must be a valid pointer to MessagePack bytes
@@ -119,9 +119,9 @@ pub unsafe extern "C" fn parsed_cache_insert_msgpack(
 }
 
 /// Get a cached schema by key
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from parsed_cache_new or parsed_cache_global
 /// - key must be a valid null-terminated UTF-8 string
 /// - Returns a pointer to Arc<ParsedSchema> (caller should NOT free this - it's owned by the cache)
@@ -149,9 +149,9 @@ pub unsafe extern "C" fn parsed_cache_get(
 }
 
 /// Check if a key exists in the cache
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from parsed_cache_new or parsed_cache_global
 /// - key must be a valid null-terminated UTF-8 string
 /// - Returns 1 if exists, 0 if not
@@ -171,13 +171,17 @@ pub unsafe extern "C" fn parsed_cache_contains(
         Err(_) => return 0,
     };
 
-    if cache.contains_key(key_str) { 1 } else { 0 }
+    if cache.contains_key(key_str) {
+        1
+    } else {
+        0
+    }
 }
 
 /// Remove a schema from the cache
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from parsed_cache_new or parsed_cache_global
 /// - key must be a valid null-terminated UTF-8 string
 /// - Returns 1 if removed, 0 if key not found
@@ -197,13 +201,17 @@ pub unsafe extern "C" fn parsed_cache_remove(
         Err(_) => return 0,
     };
 
-    if cache.remove(key_str).is_some() { 1 } else { 0 }
+    if cache.remove(key_str).is_some() {
+        1
+    } else {
+        0
+    }
 }
 
 /// Clear all entries from the cache
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from parsed_cache_new or parsed_cache_global
 #[no_mangle]
 pub unsafe extern "C" fn parsed_cache_clear(handle: *mut ParsedSchemaCacheHandle) {
@@ -216,9 +224,9 @@ pub unsafe extern "C" fn parsed_cache_clear(handle: *mut ParsedSchemaCacheHandle
 }
 
 /// Get the number of entries in the cache
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from parsed_cache_new or parsed_cache_global
 #[no_mangle]
 pub unsafe extern "C" fn parsed_cache_len(handle: *const ParsedSchemaCacheHandle) -> usize {
@@ -231,9 +239,9 @@ pub unsafe extern "C" fn parsed_cache_len(handle: *const ParsedSchemaCacheHandle
 }
 
 /// Check if the cache is empty
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from parsed_cache_new or parsed_cache_global
 /// - Returns 1 if empty, 0 if not
 #[no_mangle]
@@ -243,13 +251,17 @@ pub unsafe extern "C" fn parsed_cache_is_empty(handle: *const ParsedSchemaCacheH
     }
 
     let cache = &(*handle).inner;
-    if cache.is_empty() { 1 } else { 0 }
+    if cache.is_empty() {
+        1
+    } else {
+        0
+    }
 }
 
 /// Get cache statistics (entry count and keys)
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from parsed_cache_new or parsed_cache_global
 /// - Returns JSON string with stats, caller must free with json_eval_free_result
 #[no_mangle]
@@ -271,9 +283,9 @@ pub unsafe extern "C" fn parsed_cache_stats(handle: *const ParsedSchemaCacheHand
 }
 
 /// Get all keys in the cache as JSON array
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from parsed_cache_new or parsed_cache_global
 /// - Returns JSON array of keys, caller must free with json_eval_free_result
 #[no_mangle]
@@ -290,9 +302,9 @@ pub unsafe extern "C" fn parsed_cache_keys(handle: *const ParsedSchemaCacheHandl
 }
 
 /// Free a ParsedSchemaCache instance
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from parsed_cache_new
 /// - Do NOT call this on the global cache pointer!
 /// - handle should not be used after calling this function

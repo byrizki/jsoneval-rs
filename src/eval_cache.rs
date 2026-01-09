@@ -5,12 +5,12 @@ use std::cell::RefCell;
 #[cfg(not(feature = "parallel"))]
 use std::collections::HashMap;
 
-use serde_json::Value;
-use std::hash::{Hash, Hasher};
-use std::sync::Arc;
 use ahash::AHasher;
 use indexmap::IndexSet;
+use serde_json::Value;
+use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 /// Fast hash computation for cache keys
 /// Uses AHash for performance and FxHash-like quality
@@ -35,12 +35,14 @@ impl CacheKey {
     /// Create cache key from evaluation key and dependency values
     /// Dependencies are pre-filtered by caller (JSONEval)
     /// Hashes all dependency values together in one pass for efficiency
-    pub fn new(eval_key: String, dependencies: &IndexSet<String>, values: &[(String, &Value)]) -> Self {
+    pub fn new(
+        eval_key: String,
+        dependencies: &IndexSet<String>,
+        values: &[(String, &Value)],
+    ) -> Self {
         // Build hash map for fast lookup
-        let value_map: std::collections::HashMap<&str, &Value> = values
-            .iter()
-            .map(|(k, v)| (k.as_str(), *v))
-            .collect();
+        let value_map: std::collections::HashMap<&str, &Value> =
+            values.iter().map(|(k, v)| (k.as_str(), *v)).collect();
 
         // Combine all dependency values into a single string for hashing
         // This is more efficient than hashing each value separately
@@ -55,7 +57,7 @@ impl CacheKey {
             }
             combined.push(';');
         }
-        
+
         // Compute single hash for all dependencies
         let deps_hash = compute_hash(&combined);
 
@@ -82,11 +84,11 @@ pub struct EvalCache {
     #[cfg(feature = "parallel")]
     /// Cache storage: DashMap for thread-safe concurrent access
     cache: DashMap<CacheKey, Arc<Value>>,
-    
+
     #[cfg(not(feature = "parallel"))]
     /// Cache storage: HashMap + RefCell for ultra-fast single-threaded access
     cache: RefCell<HashMap<CacheKey, Arc<Value>>>,
-    
+
     /// Cache statistics (atomic for thread safety)
     hits: AtomicUsize,
     misses: AtomicUsize,
@@ -270,7 +272,7 @@ impl EvalCache {
     pub fn remove(&self, key: &CacheKey) -> Option<Arc<Value>> {
         self.cache.borrow_mut().remove(key)
     }
-    
+
     /// Remove entries based on a predicate function
     /// Predicate returns true to keep the entry, false to remove it
     #[cfg(feature = "parallel")]
@@ -299,9 +301,8 @@ impl EvalCache {
         let changed_hashes: IndexSet<String> = changed_paths.iter().cloned().collect();
 
         // Remove cache entries whose eval_key is in the changed set
-        self.cache.retain(|cache_key, _| {
-            !changed_hashes.contains(&cache_key.eval_key)
-        });
+        self.cache
+            .retain(|cache_key, _| !changed_hashes.contains(&cache_key.eval_key));
     }
 
     /// Invalidate cache entries that depend on changed paths
@@ -312,9 +313,9 @@ impl EvalCache {
         let changed_hashes: IndexSet<String> = changed_paths.iter().cloned().collect();
 
         // Remove cache entries whose eval_key is in the changed set
-        self.cache.borrow_mut().retain(|cache_key, _| {
-            !changed_hashes.contains(&cache_key.eval_key)
-        });
+        self.cache
+            .borrow_mut()
+            .retain(|cache_key, _| !changed_hashes.contains(&cache_key.eval_key));
     }
 }
 
@@ -367,7 +368,7 @@ mod tests {
 
         let key1 = CacheKey::new(eval_key.clone(), &deps, &values);
         let key2 = CacheKey::new(eval_key.clone(), &deps, &values);
-        
+
         // Same inputs should produce same key
         assert_eq!(key1, key2);
     }
@@ -385,7 +386,7 @@ mod tests {
 
         let key1 = CacheKey::new(eval_key.clone(), &deps, &values1);
         let key2 = CacheKey::new(eval_key.clone(), &deps, &values2);
-        
+
         // Different values should produce different keys
         assert_ne!(key1, key2);
     }
@@ -393,7 +394,7 @@ mod tests {
     #[test]
     fn test_cache_operations() {
         let cache = EvalCache::new();
-        
+
         let key = CacheKey::simple("test".to_string());
         let value = json!({"result": 42});
 
@@ -416,7 +417,7 @@ mod tests {
     fn test_cache_clear() {
         let cache = EvalCache::new();
         cache.insert(CacheKey::simple("test".to_string()), json!(42));
-        
+
         assert_eq!(cache.len(), 1);
         cache.clear();
         assert_eq!(cache.len(), 0);
@@ -426,19 +427,23 @@ mod tests {
     #[test]
     fn test_invalidate_dependencies() {
         let cache = EvalCache::new();
-        
+
         // Add cache entries
         cache.insert(CacheKey::simple("$params.foo".to_string()), json!(1));
         cache.insert(CacheKey::simple("$params.bar".to_string()), json!(2));
         cache.insert(CacheKey::simple("$params.baz".to_string()), json!(3));
-        
+
         assert_eq!(cache.len(), 3);
-        
+
         // Invalidate one path
         cache.invalidate_dependencies(&["$params.foo".to_string()]);
-        
+
         assert_eq!(cache.len(), 2);
-        assert!(cache.get(&CacheKey::simple("$params.foo".to_string())).is_none());
-        assert!(cache.get(&CacheKey::simple("$params.bar".to_string())).is_some());
+        assert!(cache
+            .get(&CacheKey::simple("$params.foo".to_string()))
+            .is_none());
+        assert!(cache
+            .get(&CacheKey::simple("$params.bar".to_string()))
+            .is_some());
     }
 }

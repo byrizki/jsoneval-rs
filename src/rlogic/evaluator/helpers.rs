@@ -1,15 +1,18 @@
-use serde_json::{Value, Number};
 use crate::path_utils;
+use serde_json::{Number, Value};
 
 /// Convert f64 to JSON number
 #[inline(always)]
 pub fn f64_to_json(f: f64, safe_nan_handling: bool) -> Value {
     if f.is_finite() {
         // Check if it's an integer value (within safe precision range)
-        if f == f.floor() && f.abs() < 9007199254740991.0 { // MAX_SAFE_INTEGER
+        if f == f.floor() && f.abs() < 9007199254740991.0 {
+            // MAX_SAFE_INTEGER
             return Value::Number(Number::from(f as i64));
         }
-        Number::from_f64(f).map(Value::Number).unwrap_or(Value::Null)
+        Number::from_f64(f)
+            .map(Value::Number)
+            .unwrap_or(Value::Null)
     } else if safe_nan_handling {
         Value::Number(Number::from(0))
     } else {
@@ -98,7 +101,11 @@ pub fn get_var<'a>(data: &'a Value, name: &str) -> Option<&'a Value> {
 
 /// Get variable with layered context (primary first, then fallback)
 #[inline]
-pub fn get_var_layered<'a>(primary: &'a Value, fallback: &'a Value, name: &str) -> Option<&'a Value> {
+pub fn get_var_layered<'a>(
+    primary: &'a Value,
+    fallback: &'a Value,
+    name: &str,
+) -> Option<&'a Value> {
     get_var(primary, name).or_else(|| get_var(fallback, name))
 }
 
@@ -135,7 +142,7 @@ pub fn is_null_like(value: &Value) -> bool {
         Value::Null => true,
         Value::String(s) if s.is_empty() => true,
         Value::Number(n) if n.is_f64() && n.as_f64().unwrap().is_nan() => true,
-        _ => false
+        _ => false,
     }
 }
 
@@ -191,7 +198,9 @@ pub fn loose_equal(a: &Value, b: &Value) -> bool {
         // Number and String: convert string to number
         (Value::Number(n), Value::String(s)) | (Value::String(s), Value::Number(n)) => {
             let n_val = n.as_f64().unwrap_or(0.0);
-            parse_string_to_f64(s).map(|parsed| n_val == parsed).unwrap_or(false)
+            parse_string_to_f64(s)
+                .map(|parsed| n_val == parsed)
+                .unwrap_or(false)
         }
 
         // Boolean and Number: convert boolean to number (true=1, false=0)
@@ -203,7 +212,9 @@ pub fn loose_equal(a: &Value, b: &Value) -> bool {
         // Boolean and String: convert both to number
         (Value::Bool(b), Value::String(s)) | (Value::String(s), Value::Bool(b)) => {
             let b_num = if *b { 1.0 } else { 0.0 };
-            parse_string_to_f64(s).map(|parsed| b_num == parsed).unwrap_or(false)
+            parse_string_to_f64(s)
+                .map(|parsed| b_num == parsed)
+                .unwrap_or(false)
         }
 
         // Null comparisons: null only equals null (and undefined, but we don't have that)

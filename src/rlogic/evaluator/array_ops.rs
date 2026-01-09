@@ -1,7 +1,7 @@
-use super::{Evaluator, types::*};
-use serde_json::{Value, Map as JsonMap};
 use super::super::compiled::CompiledLogic;
 use super::helpers;
+use super::{types::*, Evaluator};
+use serde_json::{Map as JsonMap, Value};
 
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
@@ -11,8 +11,17 @@ const PARALLEL_THRESHOLD: usize = 1000; // Parallelize arrays with 10+ elements 
 
 impl Evaluator {
     /// Execute array quantifier (all/some/none) - ZERO-COPY
-    pub(super) fn eval_quantifier(&self, quantifier: Quantifier, array_expr: &CompiledLogic, logic_expr: &CompiledLogic, user_data: &Value, internal_context: &Value, depth: usize) -> Result<Value, String> {
-        let array_val = self.evaluate_with_context(array_expr, user_data, internal_context, depth + 1)?;
+    pub(super) fn eval_quantifier(
+        &self,
+        quantifier: Quantifier,
+        array_expr: &CompiledLogic,
+        logic_expr: &CompiledLogic,
+        user_data: &Value,
+        internal_context: &Value,
+        depth: usize,
+    ) -> Result<Value, String> {
+        let array_val =
+            self.evaluate_with_context(array_expr, user_data, internal_context, depth + 1)?;
         if let Value::Array(arr) = array_val {
             // Parallelize for large arrays
             #[cfg(feature = "parallel")]
@@ -20,35 +29,58 @@ impl Evaluator {
                 let result = match quantifier {
                     Quantifier::All => {
                         arr.par_iter()
-                            .try_fold(|| true, |_, item| -> Result<bool, String> {
-                                // Use item as user_data, no internal context needed
-                                let result = self.evaluate_with_context(logic_expr, item, &Value::Null, depth + 1)?;
-                                Ok(helpers::is_truthy(&result))
-                            })
-                            .try_reduce(|| true, |a, b| -> Result<bool, String> { Ok(a && b) })?
-                    },
-                    Quantifier::Some => {
-                        arr.par_iter()
-                            .try_fold(|| false, |_, item| -> Result<bool, String> {
-                                let result = self.evaluate_with_context(logic_expr, item, &Value::Null, depth + 1)?;
-                                Ok(helpers::is_truthy(&result))
-                            })
-                            .try_reduce(|| false, |a, b| -> Result<bool, String> { Ok(a || b) })?
-                    },
-                    Quantifier::None => {
-                        arr.par_iter()
-                            .try_fold(|| true, |_, item| -> Result<bool, String> {
-                                let result = self.evaluate_with_context(logic_expr, item, &Value::Null, depth + 1)?;
-                                Ok(!helpers::is_truthy(&result))
-                            })
+                            .try_fold(
+                                || true,
+                                |_, item| -> Result<bool, String> {
+                                    // Use item as user_data, no internal context needed
+                                    let result = self.evaluate_with_context(
+                                        logic_expr,
+                                        item,
+                                        &Value::Null,
+                                        depth + 1,
+                                    )?;
+                                    Ok(helpers::is_truthy(&result))
+                                },
+                            )
                             .try_reduce(|| true, |a, b| -> Result<bool, String> { Ok(a && b) })?
                     }
+                    Quantifier::Some => arr
+                        .par_iter()
+                        .try_fold(
+                            || false,
+                            |_, item| -> Result<bool, String> {
+                                let result = self.evaluate_with_context(
+                                    logic_expr,
+                                    item,
+                                    &Value::Null,
+                                    depth + 1,
+                                )?;
+                                Ok(helpers::is_truthy(&result))
+                            },
+                        )
+                        .try_reduce(|| false, |a, b| -> Result<bool, String> { Ok(a || b) })?,
+                    Quantifier::None => arr
+                        .par_iter()
+                        .try_fold(
+                            || true,
+                            |_, item| -> Result<bool, String> {
+                                let result = self.evaluate_with_context(
+                                    logic_expr,
+                                    item,
+                                    &Value::Null,
+                                    depth + 1,
+                                )?;
+                                Ok(!helpers::is_truthy(&result))
+                            },
+                        )
+                        .try_reduce(|| true, |a, b| -> Result<bool, String> { Ok(a && b) })?,
                 };
                 return Ok(Value::Bool(result));
             }
-            
+
             for item in arr {
-                let result = self.evaluate_with_context(logic_expr, &item, &Value::Null, depth + 1)?;
+                let result =
+                    self.evaluate_with_context(logic_expr, &item, &Value::Null, depth + 1)?;
                 let truthy = helpers::is_truthy(&result);
                 match quantifier {
                     Quantifier::All if !truthy => return Ok(Value::Bool(false)),
@@ -71,21 +103,37 @@ impl Evaluator {
     }
 
     /// Evaluate map operation - ZERO-COPY
-    pub(super) fn eval_map(&self, array_expr: &CompiledLogic, logic_expr: &CompiledLogic, user_data: &Value, internal_context: &Value, depth: usize) -> Result<Value, String> {
-        let array_val = self.evaluate_with_context(array_expr, user_data, internal_context, depth + 1)?;
+    pub(super) fn eval_map(
+        &self,
+        array_expr: &CompiledLogic,
+        logic_expr: &CompiledLogic,
+        user_data: &Value,
+        internal_context: &Value,
+        depth: usize,
+    ) -> Result<Value, String> {
+        let array_val =
+            self.evaluate_with_context(array_expr, user_data, internal_context, depth + 1)?;
         if let Value::Array(arr) = array_val {
             // Parallelize for large arrays
             #[cfg(feature = "parallel")]
             if arr.len() >= PARALLEL_THRESHOLD {
-                let results: Result<Vec<_>, String> = arr.par_iter()
-                    .map(|item| self.evaluate_with_context(logic_expr, item, &Value::Null, depth + 1))
+                let results: Result<Vec<_>, String> = arr
+                    .par_iter()
+                    .map(|item| {
+                        self.evaluate_with_context(logic_expr, item, &Value::Null, depth + 1)
+                    })
                     .collect();
                 return Ok(Value::Array(results?));
             }
-            
+
             let mut results = Vec::with_capacity(arr.len());
             for item in &arr {
-                results.push(self.evaluate_with_context(logic_expr, item, &Value::Null, depth + 1)?);
+                results.push(self.evaluate_with_context(
+                    logic_expr,
+                    item,
+                    &Value::Null,
+                    depth + 1,
+                )?);
             }
             Ok(Value::Array(results))
         } else {
@@ -94,15 +142,25 @@ impl Evaluator {
     }
 
     /// Evaluate filter operation - ZERO-COPY
-    pub(super) fn eval_filter(&self, array_expr: &CompiledLogic, logic_expr: &CompiledLogic, user_data: &Value, internal_context: &Value, depth: usize) -> Result<Value, String> {
-        let array_val = self.evaluate_with_context(array_expr, user_data, internal_context, depth + 1)?;
+    pub(super) fn eval_filter(
+        &self,
+        array_expr: &CompiledLogic,
+        logic_expr: &CompiledLogic,
+        user_data: &Value,
+        internal_context: &Value,
+        depth: usize,
+    ) -> Result<Value, String> {
+        let array_val =
+            self.evaluate_with_context(array_expr, user_data, internal_context, depth + 1)?;
         if let Value::Array(arr) = array_val {
             // Parallelize for large arrays
             #[cfg(feature = "parallel")]
             if arr.len() >= PARALLEL_THRESHOLD {
-                let results: Result<Vec<_>, String> = arr.into_par_iter()
+                let results: Result<Vec<_>, String> = arr
+                    .into_par_iter()
                     .filter_map(|item| {
-                        match self.evaluate_with_context(logic_expr, &item, &Value::Null, depth + 1) {
+                        match self.evaluate_with_context(logic_expr, &item, &Value::Null, depth + 1)
+                        {
                             Ok(result) if helpers::is_truthy(&result) => Some(Ok(item)),
                             Ok(_) => None,
                             Err(e) => Some(Err(e)),
@@ -111,10 +169,11 @@ impl Evaluator {
                     .collect();
                 return Ok(Value::Array(results?));
             }
-            
+
             let mut results = Vec::with_capacity(arr.len());
             for item in arr.into_iter() {
-                let result = self.evaluate_with_context(logic_expr, &item, &Value::Null, depth + 1)?;
+                let result =
+                    self.evaluate_with_context(logic_expr, &item, &Value::Null, depth + 1)?;
                 if helpers::is_truthy(&result) {
                     results.push(item);
                 }
@@ -126,9 +185,19 @@ impl Evaluator {
     }
 
     /// Evaluate reduce operation - ZERO-COPY
-    pub(super) fn eval_reduce(&self, array_expr: &CompiledLogic, logic_expr: &CompiledLogic, initial_expr: &CompiledLogic, user_data: &Value, internal_context: &Value, depth: usize) -> Result<Value, String> {
-        let array_val = self.evaluate_with_context(array_expr, user_data, internal_context, depth + 1)?;
-        let mut accumulator = self.evaluate_with_context(initial_expr, user_data, internal_context, depth + 1)?;
+    pub(super) fn eval_reduce(
+        &self,
+        array_expr: &CompiledLogic,
+        logic_expr: &CompiledLogic,
+        initial_expr: &CompiledLogic,
+        user_data: &Value,
+        internal_context: &Value,
+        depth: usize,
+    ) -> Result<Value, String> {
+        let array_val =
+            self.evaluate_with_context(array_expr, user_data, internal_context, depth + 1)?;
+        let mut accumulator =
+            self.evaluate_with_context(initial_expr, user_data, internal_context, depth + 1)?;
 
         if let Value::Array(arr) = array_val {
             for item in arr {
@@ -137,14 +206,21 @@ impl Evaluator {
                 context.insert("current".to_string(), item);
                 context.insert("accumulator".to_string(), accumulator);
                 let combined = Value::Object(context);
-                accumulator = self.evaluate_with_context(logic_expr, &combined, &Value::Null, depth + 1)?;
+                accumulator =
+                    self.evaluate_with_context(logic_expr, &combined, &Value::Null, depth + 1)?;
             }
         }
         Ok(accumulator)
     }
 
     /// Evaluate merge operation - ZERO-COPY
-    pub(super) fn eval_merge(&self, items: &[CompiledLogic], user_data: &Value, internal_context: &Value, depth: usize) -> Result<Value, String> {
+    pub(super) fn eval_merge(
+        &self,
+        items: &[CompiledLogic],
+        user_data: &Value,
+        internal_context: &Value,
+        depth: usize,
+    ) -> Result<Value, String> {
         let mut merged = Vec::new();
         for item in items {
             let val = self.evaluate_with_context(item, user_data, internal_context, depth + 1)?;
@@ -158,13 +234,22 @@ impl Evaluator {
     }
 
     /// Evaluate in operation (check if value exists in array) - ZERO-COPY
-    pub(super) fn eval_in(&self, value_expr: &CompiledLogic, array_expr: &CompiledLogic, user_data: &Value, internal_context: &Value, depth: usize) -> Result<Value, String> {
+    pub(super) fn eval_in(
+        &self,
+        value_expr: &CompiledLogic,
+        array_expr: &CompiledLogic,
+        user_data: &Value,
+        internal_context: &Value,
+        depth: usize,
+    ) -> Result<Value, String> {
         use ahash::{AHashSet, RandomState};
 
         const HASH_SET_THRESHOLD: usize = 32;
 
-        let value = self.evaluate_with_context(value_expr, user_data, internal_context, depth + 1)?;
-        let array_val = self.evaluate_with_context(array_expr, user_data, internal_context, depth + 1)?;
+        let value =
+            self.evaluate_with_context(value_expr, user_data, internal_context, depth + 1)?;
+        let array_val =
+            self.evaluate_with_context(array_expr, user_data, internal_context, depth + 1)?;
 
         if let Value::Array(arr) = array_val {
             if arr.len() > HASH_SET_THRESHOLD {
@@ -202,31 +287,46 @@ impl Evaluator {
     }
 
     /// Evaluate Sum operation with optional indexThreshold - ZERO-COPY
-    pub(super) fn eval_sum(&self, array_expr: &CompiledLogic, field_expr: &Option<Box<CompiledLogic>>, threshold_expr: &Option<Box<CompiledLogic>>, user_data: &Value, internal_context: &Value, depth: usize) -> Result<Value, String> {
-        let array_val = self.evaluate_with_context(array_expr, user_data, internal_context, depth + 1)?;
-        
+    pub(super) fn eval_sum(
+        &self,
+        array_expr: &CompiledLogic,
+        field_expr: &Option<Box<CompiledLogic>>,
+        threshold_expr: &Option<Box<CompiledLogic>>,
+        user_data: &Value,
+        internal_context: &Value,
+        depth: usize,
+    ) -> Result<Value, String> {
+        let array_val =
+            self.evaluate_with_context(array_expr, user_data, internal_context, depth + 1)?;
+
         // Evaluate threshold if provided
         let threshold = if let Some(thresh_e) = threshold_expr {
-            let thresh_val = self.evaluate_with_context(thresh_e, user_data, internal_context, depth + 1)?;
+            let thresh_val =
+                self.evaluate_with_context(thresh_e, user_data, internal_context, depth + 1)?;
             helpers::to_f64(&thresh_val) as i64
         } else {
-            -1  // No threshold
+            -1 // No threshold
         };
 
         let sum = match &array_val {
             Value::Array(arr) => {
                 // Check if field is provided and is a non-null string
                 let field_name_opt = if let Some(field_e) = field_expr {
-                    let field_val = self.evaluate_with_context(field_e, user_data, internal_context, depth + 1)?;
+                    let field_val = self.evaluate_with_context(
+                        field_e,
+                        user_data,
+                        internal_context,
+                        depth + 1,
+                    )?;
                     match field_val {
                         Value::String(s) => Some(s),
-                        Value::Null => None,  // Treat null as no field
+                        Value::Null => None, // Treat null as no field
                         _ => None,
                     }
                 } else {
                     None
                 };
-                
+
                 // Apply threshold if specified
                 let items_to_process = if threshold >= 0 {
                     let limit = (threshold as usize + 1).min(arr.len());
@@ -234,12 +334,13 @@ impl Evaluator {
                 } else {
                     arr
                 };
-                
+
                 if let Some(field_name) = field_name_opt {
                     // Sum with field name
                     #[cfg(feature = "parallel")]
                     if items_to_process.len() >= PARALLEL_THRESHOLD {
-                        items_to_process.par_iter()
+                        items_to_process
+                            .par_iter()
                             .filter_map(|item| {
                                 if let Value::Object(obj) = item {
                                     obj.get(&field_name).map(|val| helpers::to_f64(val))
@@ -259,7 +360,7 @@ impl Evaluator {
                         }
                         sum
                     }
-                    
+
                     #[cfg(not(feature = "parallel"))]
                     {
                         let mut sum = 0.0_f64;
@@ -276,13 +377,22 @@ impl Evaluator {
                     // Sum without field name (threshold already applied above)
                     #[cfg(feature = "parallel")]
                     if items_to_process.len() >= PARALLEL_THRESHOLD {
-                        items_to_process.par_iter().map(|item| helpers::to_f64(item)).sum()
+                        items_to_process
+                            .par_iter()
+                            .map(|item| helpers::to_f64(item))
+                            .sum()
                     } else {
-                        items_to_process.iter().map(|item| helpers::to_f64(item)).sum()
+                        items_to_process
+                            .iter()
+                            .map(|item| helpers::to_f64(item))
+                            .sum()
                     }
-                    
+
                     #[cfg(not(feature = "parallel"))]
-                    items_to_process.iter().map(|item| helpers::to_f64(item)).sum()
+                    items_to_process
+                        .iter()
+                        .map(|item| helpers::to_f64(item))
+                        .sum()
                 }
             }
             _ => helpers::to_f64(&array_val),
@@ -292,13 +402,23 @@ impl Evaluator {
     }
 
     /// Evaluate For loop operation - TRUE ZERO-COPY IMPLEMENTATION
-    /// 
+    ///
     /// This is the key optimization: instead of cloning the entire user_data context,
     /// we create a tiny internal_context with just $loopIteration and pass user_data by reference.
-    pub(super) fn eval_for(&self, start_expr: &CompiledLogic, end_expr: &CompiledLogic, logic_expr: &CompiledLogic, user_data: &Value, internal_context: &Value, depth: usize) -> Result<Value, String> {
+    pub(super) fn eval_for(
+        &self,
+        start_expr: &CompiledLogic,
+        end_expr: &CompiledLogic,
+        logic_expr: &CompiledLogic,
+        user_data: &Value,
+        internal_context: &Value,
+        depth: usize,
+    ) -> Result<Value, String> {
         let next_depth = depth + 1;
-        let start_val = self.evaluate_with_context(start_expr, user_data, internal_context, next_depth)?;
-        let end_val = self.evaluate_with_context(end_expr, user_data, internal_context, next_depth)?;
+        let start_val =
+            self.evaluate_with_context(start_expr, user_data, internal_context, next_depth)?;
+        let end_val =
+            self.evaluate_with_context(end_expr, user_data, internal_context, next_depth)?;
         let start = helpers::to_number(&start_val) as i64;
         let end = helpers::to_number(&end_val) as i64;
 
@@ -311,9 +431,10 @@ impl Evaluator {
             let loop_context = serde_json::json!({
                 "$loopIteration": i
             });
-            
+
             // Evaluate with loop context as internal_context, user_data remains untouched
-            let result = self.evaluate_with_context(logic_expr, user_data, &loop_context, next_depth)?;
+            let result =
+                self.evaluate_with_context(logic_expr, user_data, &loop_context, next_depth)?;
             results.push(result);
         }
 
@@ -322,31 +443,58 @@ impl Evaluator {
 
     /// Evaluate Multiplies operation (product of array values) - ZERO-COPY
     /// Optimized for MULTIPLIES+FOR pattern
-    pub(super) fn eval_multiplies(&self, items: &[CompiledLogic], user_data: &Value, internal_context: &Value, depth: usize) -> Result<Value, String> {
+    pub(super) fn eval_multiplies(
+        &self,
+        items: &[CompiledLogic],
+        user_data: &Value,
+        internal_context: &Value,
+        depth: usize,
+    ) -> Result<Value, String> {
         // OPTIMIZATION: Detect MULTIPLIES containing single FOR loop
         // Pattern: MULTIPLIES([FOR(start, end, body)])
         // Instead of: FOR creates array -> flatten -> multiply
         // Optimize to: compute product directly in loop (with parallelization)
         if items.len() == 1 {
             if let CompiledLogic::For(start_expr, end_expr, logic_expr) = &items[0] {
-                return self.eval_multiplies_for(start_expr, end_expr, logic_expr, user_data, internal_context, depth);
+                return self.eval_multiplies_for(
+                    start_expr,
+                    end_expr,
+                    logic_expr,
+                    user_data,
+                    internal_context,
+                    depth,
+                );
             }
         }
 
         // Standard path: flatten and multiply
         let values = self.flatten_array_values(items, user_data, internal_context, depth)?;
-        if values.is_empty() { return Ok(Value::Null); }
-        if values.len() == 1 { return Ok(self.f64_to_json(values[0])); }
+        if values.is_empty() {
+            return Ok(Value::Null);
+        }
+        if values.len() == 1 {
+            return Ok(self.f64_to_json(values[0]));
+        }
         let result = values.iter().skip(1).fold(values[0], |acc, n| acc * n);
         Ok(self.f64_to_json(result))
     }
 
     /// Optimized MULTIPLIES+FOR: compute product directly without intermediate array
     /// Uses parallel computation for large ranges (>= PARALLEL_THRESHOLD)
-    fn eval_multiplies_for(&self, start_expr: &CompiledLogic, end_expr: &CompiledLogic, logic_expr: &CompiledLogic, user_data: &Value, internal_context: &Value, depth: usize) -> Result<Value, String> {
+    fn eval_multiplies_for(
+        &self,
+        start_expr: &CompiledLogic,
+        end_expr: &CompiledLogic,
+        logic_expr: &CompiledLogic,
+        user_data: &Value,
+        internal_context: &Value,
+        depth: usize,
+    ) -> Result<Value, String> {
         let next_depth = depth + 1;
-        let start_val = self.evaluate_with_context(start_expr, user_data, internal_context, next_depth)?;
-        let end_val = self.evaluate_with_context(end_expr, user_data, internal_context, next_depth)?;
+        let start_val =
+            self.evaluate_with_context(start_expr, user_data, internal_context, next_depth)?;
+        let end_val =
+            self.evaluate_with_context(end_expr, user_data, internal_context, next_depth)?;
         let start = helpers::to_number(&start_val) as i64;
         let end = helpers::to_number(&end_val) as i64;
 
@@ -362,38 +510,58 @@ impl Evaluator {
         if range_size >= PARALLEL_THRESHOLD {
             let result = (start..end)
                 .into_par_iter()
-                .try_fold(|| 1.0_f64, |product, i| -> Result<f64, String> {
-                    let loop_context = serde_json::json!({
-                        "$loopIteration": i
-                    });
-                    let val = self.evaluate_with_context(logic_expr, user_data, &loop_context, next_depth)?;
-                    Ok(product * helpers::to_f64(&val))
-                })
+                .try_fold(
+                    || 1.0_f64,
+                    |product, i| -> Result<f64, String> {
+                        let loop_context = serde_json::json!({
+                            "$loopIteration": i
+                        });
+                        let val = self.evaluate_with_context(
+                            logic_expr,
+                            user_data,
+                            &loop_context,
+                            next_depth,
+                        )?;
+                        Ok(product * helpers::to_f64(&val))
+                    },
+                )
                 .try_reduce(|| 1.0, |a, b| -> Result<f64, String> { Ok(a * b) })?;
-            
+
             return Ok(self.f64_to_json(result));
         }
-        
+
         // Sequential for small ranges or when parallel feature is disabled
         let mut product = 1.0_f64;
         for i in start..end {
             let loop_context = serde_json::json!({
                 "$loopIteration": i
             });
-            let val = self.evaluate_with_context(logic_expr, user_data, &loop_context, next_depth)?;
+            let val =
+                self.evaluate_with_context(logic_expr, user_data, &loop_context, next_depth)?;
             product *= helpers::to_f64(&val);
         }
         Ok(self.f64_to_json(product))
     }
 
     /// Evaluate Divides operation (division of array values) - ZERO-COPY
-    pub(super) fn eval_divides(&self, items: &[CompiledLogic], user_data: &Value, internal_context: &Value, depth: usize) -> Result<Value, String> {
+    pub(super) fn eval_divides(
+        &self,
+        items: &[CompiledLogic],
+        user_data: &Value,
+        internal_context: &Value,
+        depth: usize,
+    ) -> Result<Value, String> {
         let values = self.flatten_array_values(items, user_data, internal_context, depth)?;
-        if values.is_empty() { return Ok(Value::Null); }
-        if values.len() == 1 { return Ok(self.f64_to_json(values[0])); }
-        let result = values.iter().skip(1).fold(values[0], |acc, n| {
-            if *n == 0.0 { acc } else { acc / n }
-        });
+        if values.is_empty() {
+            return Ok(Value::Null);
+        }
+        if values.len() == 1 {
+            return Ok(self.f64_to_json(values[0]));
+        }
+        let result = values
+            .iter()
+            .skip(1)
+            .fold(values[0], |acc, n| if *n == 0.0 { acc } else { acc / n });
         Ok(self.f64_to_json(result))
     }
 }

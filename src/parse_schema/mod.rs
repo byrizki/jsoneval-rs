@@ -1,5 +1,4 @@
 /// Schema parsing module - coordinates between legacy and parsed implementations
-
 pub mod common;
 pub mod legacy;
 pub mod parsed;

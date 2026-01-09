@@ -1,9 +1,8 @@
-/// Topological sorting for ParsedSchema
-
-use indexmap::{IndexMap, IndexSet};
-use crate::ParsedSchema;
 use crate::path_utils;
-use crate::topo_sort::common::{compute_parallel_batches, collect_transitive_deps};
+use crate::topo_sort::common::{collect_transitive_deps, compute_parallel_batches};
+use crate::ParsedSchema;
+/// Topological sorting for ParsedSchema
+use indexmap::{IndexMap, IndexSet};
 
 pub fn topological_sort_parsed(parsed: &ParsedSchema) -> Result<Vec<Vec<String>>, String> {
     let mut sorted = IndexSet::new();
@@ -57,7 +56,7 @@ pub fn topological_sort_parsed(parsed: &ParsedSchema) -> Result<Vec<Vec<String>>
         let pointer = path_utils::normalize_to_json_pointer(eval_key);
         pointer_to_eval.insert(pointer, eval_key.clone());
     }
-    
+
     for table_path in &table_paths {
         let pointer = path_utils::normalize_to_json_pointer(table_path);
         pointer_to_eval.insert(pointer, table_path.clone());
@@ -146,7 +145,7 @@ pub fn topological_sort_parsed(parsed: &ParsedSchema) -> Result<Vec<Vec<String>>
     for (eval_key, deps) in &filtered_evaluations {
         if !evaluation_to_table.contains_key(eval_key) {
             let mut normalized_deps: IndexSet<String> = IndexSet::new();
-            
+
             for dep in deps {
                 if let Some(eval_key) = pointer_to_eval.get(dep) {
                     normalized_deps.insert(eval_key.clone());
@@ -163,24 +162,25 @@ pub fn topological_sort_parsed(parsed: &ParsedSchema) -> Result<Vec<Vec<String>>
                         break;
                     }
                 }
-                
+
                 if found_table {
                     continue;
                 }
-                
+
                 let dep_as_pointer = path_utils::normalize_to_json_pointer(dep);
                 let dep_as_eval_prefix = format!("#{}", dep_as_pointer);
                 let has_field_evaluations = parsed.evaluations.keys().any(|k| {
-                    k.starts_with(&dep_as_eval_prefix) 
-                    && k.len() > dep_as_eval_prefix.len()
-                    && k[dep_as_eval_prefix.len()..].starts_with('/')
+                    k.starts_with(&dep_as_eval_prefix)
+                        && k.len() > dep_as_eval_prefix.len()
+                        && k[dep_as_eval_prefix.len()..].starts_with('/')
                 });
-                
+
                 if has_field_evaluations {
                     for field_eval_key in parsed.evaluations.keys() {
-                        if field_eval_key.starts_with(&dep_as_eval_prefix) 
+                        if field_eval_key.starts_with(&dep_as_eval_prefix)
                             && field_eval_key.len() > dep_as_eval_prefix.len()
-                            && field_eval_key[dep_as_eval_prefix.len()..].starts_with('/') {
+                            && field_eval_key[dep_as_eval_prefix.len()..].starts_with('/')
+                        {
                             normalized_deps.insert(field_eval_key.clone());
                         }
                     }
@@ -196,15 +196,10 @@ pub fn topological_sort_parsed(parsed: &ParsedSchema) -> Result<Vec<Vec<String>>
     let mut table_dependencies = IndexSet::new();
     for table_path in &table_paths {
         if let Some(deps) = unified_graph.get(table_path) {
-            collect_transitive_deps(
-                deps,
-                &unified_graph,
-                &table_paths,
-                &mut table_dependencies,
-            );
+            collect_transitive_deps(deps, &unified_graph, &table_paths, &mut table_dependencies);
         }
     }
-    
+
     let mut expanded = true;
     while expanded {
         expanded = false;
@@ -221,11 +216,11 @@ pub fn topological_sort_parsed(parsed: &ParsedSchema) -> Result<Vec<Vec<String>>
             }
         }
     }
-    
+
     let mut phase1_nodes = Vec::new();
     let mut phase2_nodes = Vec::new();
     let mut phase3_nodes = Vec::new();
-    
+
     for node in unified_graph.keys() {
         if table_paths.contains(node) {
             phase2_nodes.push(node.clone());
@@ -235,34 +230,44 @@ pub fn topological_sort_parsed(parsed: &ParsedSchema) -> Result<Vec<Vec<String>>
             phase3_nodes.push(node.clone());
         }
     }
-    
+
     let sort_by_deps = |a: &String, b: &String| {
         let a_deps = unified_graph.get(a).map(|d| d.len()).unwrap_or(0);
         let b_deps = unified_graph.get(b).map(|d| d.len()).unwrap_or(0);
         a_deps.cmp(&b_deps).then_with(|| a.cmp(b))
     };
-    
+
     phase1_nodes.sort_by(sort_by_deps);
     phase3_nodes.sort_by(sort_by_deps);
-    
+
     for node in &phase1_nodes {
         if !visited.contains(node) {
             let deps = unified_graph.get(node).cloned().unwrap_or_default();
-            visit_node_parsed(parsed, node, &deps, &unified_graph, &mut visited, &mut visiting, &mut sorted)?;
+            visit_node_parsed(
+                parsed,
+                node,
+                &deps,
+                &unified_graph,
+                &mut visited,
+                &mut visiting,
+                &mut sorted,
+            )?;
         }
     }
-    
+
     phase2_nodes.sort_by(|a, b| {
         let a_deps = unified_graph.get(a).map(|d| d.len()).unwrap_or(0);
         let b_deps = unified_graph.get(b).map(|d| d.len()).unwrap_or(0);
-        
-        let a_deps_on_b = unified_graph.get(a)
+
+        let a_deps_on_b = unified_graph
+            .get(a)
             .map(|deps| deps.contains(b))
             .unwrap_or(false);
-        let b_deps_on_a = unified_graph.get(b)
+        let b_deps_on_a = unified_graph
+            .get(b)
             .map(|deps| deps.contains(a))
             .unwrap_or(false);
-        
+
         if a_deps_on_b {
             std::cmp::Ordering::Greater
         } else if b_deps_on_a {
@@ -271,23 +276,39 @@ pub fn topological_sort_parsed(parsed: &ParsedSchema) -> Result<Vec<Vec<String>>
             a_deps.cmp(&b_deps).then_with(|| a.cmp(b))
         }
     });
-    
+
     for node in &phase2_nodes {
         if !visited.contains(node) {
             let deps = unified_graph.get(node).cloned().unwrap_or_default();
-            visit_node_parsed(parsed, node, &deps, &unified_graph, &mut visited, &mut visiting, &mut sorted)?;
+            visit_node_parsed(
+                parsed,
+                node,
+                &deps,
+                &unified_graph,
+                &mut visited,
+                &mut visiting,
+                &mut sorted,
+            )?;
         }
     }
-    
+
     for node in &phase3_nodes {
         if !visited.contains(node) {
             let deps = unified_graph.get(node).cloned().unwrap_or_default();
-            visit_node_parsed(parsed, node, &deps, &unified_graph, &mut visited, &mut visiting, &mut sorted)?;
+            visit_node_parsed(
+                parsed,
+                node,
+                &deps,
+                &unified_graph,
+                &mut visited,
+                &mut visiting,
+                &mut sorted,
+            )?;
         }
     }
 
     let batches = compute_parallel_batches(&sorted, &unified_graph, &table_paths);
-    
+
     Ok(batches)
 }
 

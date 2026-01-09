@@ -1,14 +1,14 @@
 //! FFI evaluation functions
 
+use super::types::{FFIResult, JSONEvalHandle};
+use serde_json::json;
 use std::ffi::CStr;
 use std::os::raw::c_char;
-use serde_json::json;
-use super::types::{FFIResult, JSONEvalHandle};
 
 /// Evaluate the schema with provided data
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - data must be a valid null-terminated UTF-8 string
 /// - context can be NULL
@@ -29,17 +29,13 @@ pub unsafe extern "C" fn json_eval_evaluate(
 
     let data_str = match CStr::from_ptr(data).to_str() {
         Ok(s) => s,
-        Err(_) => {
-            return FFIResult::error("Invalid UTF-8 in data".to_string())
-        }
+        Err(_) => return FFIResult::error("Invalid UTF-8 in data".to_string()),
     };
 
     let context_str = if !context.is_null() {
         match CStr::from_ptr(context).to_str() {
             Ok(s) => Some(s),
-            Err(_) => {
-                return FFIResult::error("Invalid UTF-8 in context".to_string())
-            }
+            Err(_) => return FFIResult::error("Invalid UTF-8 in context".to_string()),
         }
     } else {
         None
@@ -47,15 +43,11 @@ pub unsafe extern "C" fn json_eval_evaluate(
 
     let paths = if !paths_json.is_null() {
         match CStr::from_ptr(paths_json).to_str() {
-            Ok(s) => {
-                match serde_json::from_str::<Vec<String>>(s) {
-                    Ok(p) => Some(p),
-                    Err(e) => return FFIResult::error(format!("Failed to parse paths JSON: {}", e)),
-                }
+            Ok(s) => match serde_json::from_str::<Vec<String>>(s) {
+                Ok(p) => Some(p),
+                Err(e) => return FFIResult::error(format!("Failed to parse paths JSON: {}", e)),
             },
-            Err(_) => {
-                return FFIResult::error("Invalid UTF-8 in paths".to_string())
-            }
+            Err(_) => return FFIResult::error("Invalid UTF-8 in paths".to_string()),
         }
     } else {
         None
@@ -72,9 +64,9 @@ pub unsafe extern "C" fn json_eval_evaluate(
 }
 
 /// Validate data against schema rules
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - data must be a valid null-terminated UTF-8 string
 /// - Caller must call json_eval_free_result when done
@@ -92,17 +84,13 @@ pub unsafe extern "C" fn json_eval_validate(
 
     let data_str = match CStr::from_ptr(data).to_str() {
         Ok(s) => s,
-        Err(_) => {
-            return FFIResult::error("Invalid UTF-8 in data".to_string())
-        }
+        Err(_) => return FFIResult::error("Invalid UTF-8 in data".to_string()),
     };
 
     let context_str = if !context.is_null() {
         match CStr::from_ptr(context).to_str() {
             Ok(s) => Some(s),
-            Err(_) => {
-                return FFIResult::error("Invalid UTF-8 in context".to_string())
-            }
+            Err(_) => return FFIResult::error("Invalid UTF-8 in context".to_string()),
         }
     } else {
         None
@@ -118,7 +106,7 @@ pub unsafe extern "C" fn json_eval_validate(
                         "type": v.rule_type,
                         "message": v.message
                     });
-                    
+
                     if let Some(code) = &v.code {
                         error_obj["code"] = json!(code);
                     }
@@ -131,11 +119,11 @@ pub unsafe extern "C" fn json_eval_validate(
                     if let Some(data) = &v.data {
                         error_obj["data"] = data.clone();
                     }
-                    
+
                     error_obj
                 }).collect::<Vec<_>>()
             });
-            
+
             let result_bytes = serde_json::to_vec(&result_json).unwrap_or_default();
             FFIResult::success(result_bytes)
         }
@@ -144,9 +132,9 @@ pub unsafe extern "C" fn json_eval_validate(
 }
 
 /// Evaluate dependents (fields that depend on changed paths)
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - changed_paths_json must be a valid null-terminated UTF-8 string containing a JSON array of paths
 /// - data can be null (uses existing data)
@@ -168,25 +156,19 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents(
 
     let paths_json_str = match CStr::from_ptr(changed_paths_json).to_str() {
         Ok(s) => s,
-        Err(_) => {
-            return FFIResult::error("Invalid UTF-8 in paths".to_string())
-        }
+        Err(_) => return FFIResult::error("Invalid UTF-8 in paths".to_string()),
     };
 
     // Parse JSON array of paths
     let paths: Vec<String> = match serde_json::from_str(paths_json_str) {
         Ok(p) => p,
-        Err(e) => {
-            return FFIResult::error(format!("Failed to parse paths JSON: {}", e))
-        }
+        Err(e) => return FFIResult::error(format!("Failed to parse paths JSON: {}", e)),
     };
 
     let data_str = if !data.is_null() {
         match CStr::from_ptr(data).to_str() {
             Ok(s) => Some(s),
-            Err(_) => {
-                return FFIResult::error("Invalid UTF-8 in data".to_string())
-            }
+            Err(_) => return FFIResult::error("Invalid UTF-8 in data".to_string()),
         }
     } else {
         None
@@ -195,9 +177,7 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents(
     let context_str = if !context.is_null() {
         match CStr::from_ptr(context).to_str() {
             Ok(s) => Some(s),
-            Err(_) => {
-                return FFIResult::error("Invalid UTF-8 in context".to_string())
-            }
+            Err(_) => return FFIResult::error("Invalid UTF-8 in context".to_string()),
         }
     } else {
         None
@@ -213,9 +193,9 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents(
 }
 
 /// Compile and run logic expression
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - logic_str must be a valid null-terminated UTF-8 string (JSON Logic)
 /// - data can be NULL (uses existing data)
@@ -236,17 +216,13 @@ pub unsafe extern "C" fn json_eval_compile_and_run_logic(
 
     let logic = match CStr::from_ptr(logic_str).to_str() {
         Ok(s) => s,
-        Err(_) => {
-            return FFIResult::error("Invalid UTF-8 in logic".to_string())
-        }
+        Err(_) => return FFIResult::error("Invalid UTF-8 in logic".to_string()),
     };
 
     let data_str = if !data.is_null() {
         match CStr::from_ptr(data).to_str() {
             Ok(s) => Some(s),
-            Err(_) => {
-                return FFIResult::error("Invalid UTF-8 in data".to_string())
-            }
+            Err(_) => return FFIResult::error("Invalid UTF-8 in data".to_string()),
         }
     } else {
         None
@@ -255,9 +231,7 @@ pub unsafe extern "C" fn json_eval_compile_and_run_logic(
     let context_str = if !context.is_null() {
         match CStr::from_ptr(context).to_str() {
             Ok(s) => Some(s),
-            Err(_) => {
-                return FFIResult::error("Invalid UTF-8 in context".to_string())
-            }
+            Err(_) => return FFIResult::error("Invalid UTF-8 in context".to_string()),
         }
     } else {
         None

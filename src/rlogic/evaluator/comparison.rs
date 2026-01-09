@@ -1,12 +1,20 @@
-use super::{Evaluator, types::*};
-use serde_json::Value;
 use super::super::compiled::CompiledLogic;
 use super::helpers;
+use super::{types::*, Evaluator};
+use serde_json::Value;
 
 impl Evaluator {
     /// Execute binary comparison
     #[inline]
-    pub(super) fn eval_binary_compare(&self, op: CompOp, a: &CompiledLogic, b: &CompiledLogic, user_data: &Value, internal_context: &Value, depth: usize) -> Result<Value, String> {
+    pub(super) fn eval_binary_compare(
+        &self,
+        op: CompOp,
+        a: &CompiledLogic,
+        b: &CompiledLogic,
+        user_data: &Value,
+        internal_context: &Value,
+        depth: usize,
+    ) -> Result<Value, String> {
         let val_a = self.evaluate_with_context(a, user_data, internal_context, depth + 1)?;
         let val_b = self.evaluate_with_context(b, user_data, internal_context, depth + 1)?;
         let result = match op {

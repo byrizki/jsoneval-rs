@@ -1,13 +1,12 @@
 /// ParsedSchema parsing for schema caching and reuse
-
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{Map, Value};
 use std::sync::Arc;
 
 use crate::parse_schema::common::compute_column_partitions;
-use crate::{topo_sort, LogicId, RLogic, path_utils};
 use crate::table_metadata::{ColumnMetadata, RepeatBoundMetadata, RowMetadata, TableMetadata};
 use crate::ParsedSchema;
+use crate::{path_utils, topo_sort, LogicId, RLogic};
 
 pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
     /// Single-pass schema walker that collects everything
@@ -103,7 +102,7 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                         layout_paths.push(layout_elements_path);
                     }
                 }
-                
+
                 // Check for rules object - collect field path for efficient validation
                 if map.contains_key("rules") && !path.is_empty() && !path.starts_with("#/$") {
                     // Convert JSON pointer path to dotted notation for validation
@@ -114,7 +113,7 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                         .trim_start_matches('/')
                         .trim_start_matches('.')
                         .to_string();
-                    
+
                     if !field_path.is_empty() && !field_path.starts_with("$") {
                         fields_with_rules.push(field_path);
                     }
@@ -125,12 +124,14 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                     // Check if URL contains template pattern {variable}
                     if url.contains('{') && url.contains('}') {
                         // Convert to JSON pointer format for evaluated_schema access
-                        let url_path = path_utils::normalize_to_json_pointer(&format!("{}/url", path));
-                        let params_path = path_utils::normalize_to_json_pointer(&format!("{}/params", path));
+                        let url_path =
+                            path_utils::normalize_to_json_pointer(&format!("{}/url", path));
+                        let params_path =
+                            path_utils::normalize_to_json_pointer(&format!("{}/params", path));
                         options_templates.push((url_path, url.clone(), params_path));
                     }
                 }
-                
+
                 // Check for array fields with items (subforms)
                 if let Some(Value::String(type_str)) = map.get("type") {
                     if type_str == "array" {
@@ -146,7 +147,7 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                 // Check for dependents array
                 if let Some(Value::Array(dependents_arr)) = map.get("dependents") {
                     let mut dependent_items = Vec::new();
-                    
+
                     for (dep_idx, dep_item) in dependents_arr.iter().enumerate() {
                         if let Value::Object(dep_obj) = dep_item {
                             if let Some(Value::String(ref_path)) = dep_obj.get("$ref") {
@@ -156,7 +157,8 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                                         if clear_obj.contains_key("$evaluation") {
                                             // Compile and store the evaluation
                                             let clear_eval = clear_obj.get("$evaluation").unwrap();
-                                            let clear_key = format!("{}/dependents/{}/clear", path, dep_idx);
+                                            let clear_key =
+                                                format!("{}/dependents/{}/clear", path, dep_idx);
                                             let logic_id = engine.compile(clear_eval)
                                                 .map_err(|e| format!("Failed to compile dependent clear at {}: {}", clear_key, e))?;
                                             evaluations.insert(clear_key.clone(), logic_id);
@@ -171,14 +173,15 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                                 } else {
                                     None
                                 };
-                                
+
                                 // Process value - compile if it's an $evaluation
                                 let value_val = if let Some(value) = dep_obj.get("value") {
                                     if let Value::Object(value_obj) = value {
                                         if value_obj.contains_key("$evaluation") {
                                             // Compile and store the evaluation
                                             let value_eval = value_obj.get("$evaluation").unwrap();
-                                            let value_key = format!("{}/dependents/{}/value", path, dep_idx);
+                                            let value_key =
+                                                format!("{}/dependents/{}/value", path, dep_idx);
                                             let logic_id = engine.compile(value_eval)
                                                 .map_err(|e| format!("Failed to compile dependent value at {}: {}", value_key, e))?;
                                             evaluations.insert(value_key.clone(), logic_id);
@@ -193,7 +196,7 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                                 } else {
                                     None
                                 };
-                                
+
                                 dependent_items.push(crate::DependentItem {
                                     ref_path: ref_path.clone(),
                                     clear: clear_val,
@@ -202,7 +205,7 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                             }
                         }
                     }
-                    
+
                     if !dependent_items.is_empty() {
                         dependents.insert(path.to_string(), dependent_items);
                     }
@@ -214,29 +217,40 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                     if key == "$evaluation" || key == "dependents" {
                         continue;
                     }
-                    
+
                     let next_path = if path == "#" {
                         format!("#/{key}")
                     } else {
                         format!("{path}/{key}")
                     };
-                    
-                    
+
                     // Check if this is a "value" field
                     // Allow $params but exclude other special $ paths like $layout, $items, etc.
-                    let is_excluded_special_path = next_path.contains("/$layout/") 
-                        || next_path.contains("/$items/") 
-                        || next_path.contains("/$options/") 
-                        || next_path.contains("/$dependents/") 
+                    let is_excluded_special_path = next_path.contains("/$layout/")
+                        || next_path.contains("/$items/")
+                        || next_path.contains("/$options/")
+                        || next_path.contains("/$dependents/")
                         || next_path.contains("/$rules/");
-                    
+
                     if key == "value" && !is_excluded_special_path {
                         value_fields.push(next_path.clone());
                     }
 
-                    
                     // Recurse into all children (including $ keys like $table, $datas, etc.)
-                    walk(val, &next_path, engine, evaluations, tables, deps, value_fields, layout_paths, dependents, options_templates, subforms, fields_with_rules)?;
+                    walk(
+                        val,
+                        &next_path,
+                        engine,
+                        evaluations,
+                        tables,
+                        deps,
+                        value_fields,
+                        layout_paths,
+                        dependents,
+                        options_templates,
+                        subforms,
+                        fields_with_rules,
+                    )?;
                 })
             }
             Value::Array(arr) => Ok(for (index, item) in arr.iter().enumerate() {
@@ -245,7 +259,20 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                 } else {
                     format!("{path}/{index}")
                 };
-                walk(item, &next_path, engine, evaluations, tables, deps, value_fields, layout_paths, dependents, options_templates, subforms, fields_with_rules)?;
+                walk(
+                    item,
+                    &next_path,
+                    engine,
+                    evaluations,
+                    tables,
+                    deps,
+                    value_fields,
+                    layout_paths,
+                    dependents,
+                    options_templates,
+                    subforms,
+                    fields_with_rules,
+                )?;
             }),
             _ => Ok(()),
         }
@@ -295,13 +322,13 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
     let mut dependents_evaluations = IndexMap::new();
     let mut options_templates = Vec::new();
     let mut subforms_data = Vec::new();
-    
+
     // Get mutable access to engine through Arc
     let engine = Arc::get_mut(&mut parsed.engine)
         .ok_or("Cannot get mutable reference to engine - ParsedSchema is shared")?;
-    
+
     let mut fields_with_rules = Vec::new();
-    
+
     walk(
         &parsed.schema,
         "#",
@@ -316,7 +343,7 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
         &mut subforms_data,
         &mut fields_with_rules,
     )?;
-    
+
     parsed.evaluations = Arc::new(evaluations);
     parsed.tables = Arc::new(tables);
     parsed.dependencies = Arc::new(dependencies);
@@ -333,24 +360,24 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
     parsed.dependents_evaluations = Arc::new(dependents_evaluations);
     parsed.options_templates = Arc::new(options_templates);
     parsed.fields_with_rules = Arc::new(fields_with_rules);
-    
+
     // Build subforms from collected data (after walk completes)
     parsed.subforms = build_subforms_from_data_parsed(subforms_data, parsed)?;
-    
+
     // Collect table-level dependencies by aggregating all column dependencies
     collect_table_dependencies_parsed(parsed);
-    
+
     parsed.sorted_evaluations = Arc::new(topo_sort::parsed::topological_sort_parsed(parsed)?);
-    
+
     // Categorize evaluations for result handling
     categorize_evaluations_parsed(parsed);
-    
+
     // Process collected value fields
     process_value_fields_parsed(parsed, value_fields);
-    
+
     // Pre-compile all table metadata for zero-copy evaluation
     build_table_metadata_parsed(parsed)?;
-    
+
     Ok(())
 }
 
@@ -362,16 +389,16 @@ fn build_subforms_from_data_parsed(
     parsed: &ParsedSchema,
 ) -> Result<IndexMap<String, Arc<ParsedSchema>>, String> {
     let mut subforms = IndexMap::new();
-    
+
     for (path, field_map, items) in subforms_data {
         create_subform_parsed(&path, &field_map, &items, &mut subforms, parsed)?;
     }
-    
+
     Ok(subforms)
 }
 
 /// Create an isolated ParsedSchema for a subform (ParsedSchema version)
-/// 
+///
 /// This creates an Arc<ParsedSchema> instead of Box<JSONEval> for efficient sharing.
 /// Subforms can now be cloned cheaply across multiple JSONEval instances.
 fn create_subform_parsed(
@@ -383,58 +410,58 @@ fn create_subform_parsed(
 ) -> Result<(), String> {
     // Extract field key from path (e.g., "#/riders" -> "riders")
     let field_key = path.trim_start_matches('#').trim_start_matches('/');
-    
+
     // Build subform schema: { $params: from parent, [field_key]: items content }
     let mut subform_schema = serde_json::Map::new();
-    
+
     // Copy $params from parent schema
     if let Some(params) = parsed.schema.get("$params") {
         subform_schema.insert("$params".to_string(), params.clone());
     }
-    
+
     // Create field object with items content
     let mut field_obj = serde_json::Map::new();
-    
+
     // Copy properties from items
     if let Value::Object(items_map) = items {
         for (key, value) in items_map {
             field_obj.insert(key.clone(), value.clone());
         }
     }
-    
+
     // Copy field-level properties (title, etc.) but exclude items and type="array"
     for (key, value) in field_map {
         if key != "items" && key != "type" {
             field_obj.insert(key.clone(), value.clone());
         }
     }
-    
+
     // Set type to "object" for the subform root
     field_obj.insert("type".to_string(), Value::String("object".to_string()));
-    
+
     subform_schema.insert(field_key.to_string(), Value::Object(field_obj));
-    
+
     // Parse into ParsedSchema (more efficient than JSONEval)
     // This allows the subform to be shared via Arc across multiple evaluations
     let subform_schema_value = Value::Object(subform_schema);
     let subform_parsed = ParsedSchema::parse_value(subform_schema_value)
         .map_err(|e| format!("Failed to parse subform schema for {}: {}", field_key, e))?;
-    
+
     subforms.insert(path.to_string(), Arc::new(subform_parsed));
-    
+
     Ok(())
 }
 
 /// Collect dependencies for tables (ParsedSchema version)
 fn collect_table_dependencies_parsed(parsed: &mut ParsedSchema) {
     let table_keys: Vec<String> = parsed.tables.keys().cloned().collect();
-    
+
     // Clone the dependencies to a mutable map
     let mut dependencies = (*parsed.dependencies).clone();
-    
+
     for table_key in table_keys {
         let mut table_deps = IndexSet::new();
-        
+
         // Collect dependencies from all evaluations that belong to this table
         for (eval_key, deps) in &dependencies {
             // Check if this evaluation is within the table
@@ -448,13 +475,13 @@ fn collect_table_dependencies_parsed(parsed: &mut ParsedSchema) {
                 }
             }
         }
-        
+
         // Store aggregated dependencies for the table
         if !table_deps.is_empty() {
             dependencies.insert(table_key.clone(), table_deps);
         }
     }
-    
+
     // Wrap the updated dependencies in Arc
     parsed.dependencies = Arc::new(dependencies);
 }
@@ -462,24 +489,29 @@ fn collect_table_dependencies_parsed(parsed: &mut ParsedSchema) {
 /// Categorize evaluations for different result handling (ParsedSchema version)
 fn categorize_evaluations_parsed(parsed: &mut ParsedSchema) {
     // Collect all evaluation keys that are in sorted_evaluations (batches)
-    let batched_keys: IndexSet<String> = parsed.sorted_evaluations
+    let batched_keys: IndexSet<String> = parsed
+        .sorted_evaluations
         .iter()
         .flatten()
         .cloned()
         .collect();
-    
+
     let mut rules_evaluations = Vec::new();
     let mut others_evaluations = Vec::new();
-    
+
     // Find evaluations NOT in batches and categorize them
     for eval_key in parsed.evaluations.keys() {
         // Skip if already in sorted_evaluations batches
         if batched_keys.contains(eval_key) {
             continue;
         }
-        
+
         // Skip table-related evaluations
-        if parsed.tables.iter().any(|(key, _)| eval_key.starts_with(key)) {
+        if parsed
+            .tables
+            .iter()
+            .any(|(key, _)| eval_key.starts_with(key))
+        {
             continue;
         }
 
@@ -491,7 +523,7 @@ fn categorize_evaluations_parsed(parsed: &mut ParsedSchema) {
             others_evaluations.push(eval_key.clone());
         }
     }
-    
+
     // Wrap in Arc
     parsed.rules_evaluations = Arc::new(rules_evaluations);
     parsed.others_evaluations = Arc::new(others_evaluations);
@@ -500,21 +532,21 @@ fn categorize_evaluations_parsed(parsed: &mut ParsedSchema) {
 /// Process collected value fields (ParsedSchema version)
 fn process_value_fields_parsed(parsed: &mut ParsedSchema, value_fields: Vec<String>) {
     let mut value_evaluations = Vec::new();
-    
+
     for path in value_fields {
         // Skip if already collected from evaluations in categorize_evaluations
         if value_evaluations.contains(&path) {
             continue;
         }
-        
+
         // Skip table-related paths
         if parsed.tables.iter().any(|(key, _)| path.starts_with(key)) {
             continue;
         }
-        
+
         value_evaluations.push(path);
     }
-    
+
     // Wrap in Arc
     parsed.value_evaluations = Arc::new(value_evaluations);
 }
@@ -522,12 +554,12 @@ fn process_value_fields_parsed(parsed: &mut ParsedSchema, value_fields: Vec<Stri
 /// Build pre-compiled table metadata (ParsedSchema version)
 fn build_table_metadata_parsed(parsed: &mut ParsedSchema) -> Result<(), String> {
     let mut table_metadata = IndexMap::new();
-    
+
     for (eval_key, table) in parsed.tables.iter() {
         let metadata = compile_table_metadata_parsed(parsed, eval_key, table)?;
         table_metadata.insert(eval_key.to_string(), metadata);
     }
-    
+
     parsed.table_metadata = Arc::new(table_metadata);
     Ok(())
 }
@@ -551,7 +583,9 @@ fn compile_table_metadata_parsed(
     // Pre-compile data plans with Arc sharing
     let mut data_plans = Vec::with_capacity(datas.len());
     for (idx, entry) in datas.iter().enumerate() {
-        let Some(name) = entry.get("name").and_then(|v| v.as_str()) else { continue };
+        let Some(name) = entry.get("name").and_then(|v| v.as_str()) else {
+            continue;
+        };
         let logic_path = format!("{eval_key}/$datas/{idx}/data");
         let logic = parsed.evaluations.get(&logic_path).copied();
         let literal = entry.get("data").map(|v| Arc::new(v.clone()));
@@ -586,21 +620,31 @@ fn compile_table_metadata_parsed(
                         } else {
                             None
                         };
-                        
+
                         // Extract dependencies ONCE at parse time (not during evaluation)
                         let (dependencies, has_forward_ref) = if let Some(logic_id) = logic {
-                            let deps = parsed.engine.get_referenced_vars(&logic_id)
+                            let deps = parsed
+                                .engine
+                                .get_referenced_vars(&logic_id)
                                 .unwrap_or_default()
                                 .into_iter()
-                                .filter(|v| v.starts_with('$') && v != "$iteration" && v != "$threshold")
+                                .filter(|v| {
+                                    v.starts_with('$') && v != "$iteration" && v != "$threshold"
+                                })
                                 .collect();
                             let has_fwd = parsed.engine.has_forward_reference(&logic_id);
                             (deps, has_fwd)
                         } else {
                             (Vec::new(), false)
                         };
-                        
-                        columns.push(ColumnMetadata::new(col_name, logic, literal, dependencies, has_forward_ref));
+
+                        columns.push(ColumnMetadata::new(
+                            col_name,
+                            logic,
+                            literal,
+                            dependencies,
+                            has_forward_ref,
+                        ));
                     }
 
                     // Pre-compute forward column propagation (transitive closure)
@@ -637,10 +681,12 @@ fn compile_table_metadata_parsed(
             } else {
                 None
             };
-            
+
             // Extract dependencies ONCE at parse time
             let (dependencies, has_forward_ref) = if let Some(logic_id) = logic {
-                let deps = parsed.engine.get_referenced_vars(&logic_id)
+                let deps = parsed
+                    .engine
+                    .get_referenced_vars(&logic_id)
                     .unwrap_or_default()
                     .into_iter()
                     .filter(|v| v.starts_with('$') && v != "$iteration" && v != "$threshold")
@@ -650,16 +696,30 @@ fn compile_table_metadata_parsed(
             } else {
                 (Vec::new(), false)
             };
-            
-            columns.push(ColumnMetadata::new(col_name, logic, literal, dependencies, has_forward_ref));
+
+            columns.push(ColumnMetadata::new(
+                col_name,
+                logic,
+                literal,
+                dependencies,
+                has_forward_ref,
+            ));
         }
-        row_plans.push(RowMetadata::Static { columns: columns.into() });
+        row_plans.push(RowMetadata::Static {
+            columns: columns.into(),
+        });
     }
 
     // Pre-compile skip/clear logic
-    let skip_logic = parsed.evaluations.get(&format!("{eval_key}/$skip")).copied();
+    let skip_logic = parsed
+        .evaluations
+        .get(&format!("{eval_key}/$skip"))
+        .copied();
     let skip_literal = table.get("skip").and_then(Value::as_bool).unwrap_or(false);
-    let clear_logic = parsed.evaluations.get(&format!("{eval_key}/$clear")).copied();
+    let clear_logic = parsed
+        .evaluations
+        .get(&format!("{eval_key}/$clear"))
+        .copied();
     let clear_literal = table.get("clear").and_then(Value::as_bool).unwrap_or(false);
 
     Ok(TableMetadata {

@@ -1,13 +1,13 @@
 //! FFI layout and validation functions
 
+use super::types::{FFIResult, JSONEvalHandle};
 use std::ffi::CStr;
 use std::os::raw::c_char;
-use super::types::{FFIResult, JSONEvalHandle};
 
 /// Validate data against schema rules with optional path filtering
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - data must be a valid null-terminated UTF-8 string
 /// - paths_json can be NULL for no filtering, or a JSON array string
@@ -27,17 +27,13 @@ pub unsafe extern "C" fn json_eval_validate_paths(
 
     let data_str = match CStr::from_ptr(data).to_str() {
         Ok(s) => s,
-        Err(_) => {
-            return FFIResult::error("Invalid UTF-8 in data".to_string())
-        }
+        Err(_) => return FFIResult::error("Invalid UTF-8 in data".to_string()),
     };
 
     let context_str = if !context.is_null() {
         match CStr::from_ptr(context).to_str() {
             Ok(s) => Some(s),
-            Err(_) => {
-                return FFIResult::error("Invalid UTF-8 in context".to_string())
-            }
+            Err(_) => return FFIResult::error("Invalid UTF-8 in context".to_string()),
         }
     } else {
         None
@@ -46,16 +42,12 @@ pub unsafe extern "C" fn json_eval_validate_paths(
     let paths: Option<Vec<String>> = if !paths_json.is_null() {
         let paths_str = match CStr::from_ptr(paths_json).to_str() {
             Ok(s) => s,
-            Err(_) => {
-                return FFIResult::error("Invalid UTF-8 in paths".to_string())
-            }
+            Err(_) => return FFIResult::error("Invalid UTF-8 in paths".to_string()),
         };
-        
+
         match serde_json::from_str(paths_str) {
             Ok(p) => Some(p),
-            Err(_) => {
-                return FFIResult::error("Invalid JSON array for paths".to_string())
-            }
+            Err(_) => return FFIResult::error("Invalid JSON array for paths".to_string()),
         }
     } else {
         None
@@ -75,7 +67,7 @@ pub unsafe extern "C" fn json_eval_validate_paths(
                     })
                 }).collect::<Vec<_>>()
             });
-            
+
             let result_bytes = serde_json::to_vec(&result_json).unwrap_or_default();
             FFIResult::success(result_bytes)
         }
@@ -84,9 +76,9 @@ pub unsafe extern "C" fn json_eval_validate_paths(
 }
 
 /// Resolve layout with optional evaluation
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - evaluate: if true, runs evaluation before resolving layout
 #[no_mangle]

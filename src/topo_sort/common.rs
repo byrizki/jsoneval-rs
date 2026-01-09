@@ -1,12 +1,11 @@
 /// Shared utilities for topological sorting
-
 use indexmap::{IndexMap, IndexSet};
 
 /// Compute parallel execution batches from sorted dependencies
-/// 
+///
 /// Groups evaluations into batches where items in the same batch can be evaluated in parallel.
 /// Each batch depends only on items from previous batches.
-/// 
+///
 /// Handles table column dependencies by mapping them back to their parent table.
 pub fn compute_parallel_batches(
     sorted: &IndexSet<String>,
@@ -15,11 +14,11 @@ pub fn compute_parallel_batches(
 ) -> Vec<Vec<String>> {
     let mut batches: Vec<Vec<String>> = Vec::new();
     let mut node_to_batch: IndexMap<String, usize> = IndexMap::new();
-    
+
     for node in sorted {
         // Find the maximum batch level of all dependencies that are in the graph
         let deps = graph.get(node);
-        
+
         let max_dep_batch = if let Some(deps) = deps {
             deps.iter()
                 .filter_map(|dep| {
@@ -27,7 +26,7 @@ pub fn compute_parallel_batches(
                     if sorted.contains(dep) {
                         return node_to_batch.get(dep).copied();
                     }
-                    
+
                     // Check if dependency is a table column path (e.g., TABLE/$table/0/column)
                     // If so, map it to the parent table path
                     if dep.contains("/$table/") {
@@ -38,16 +37,19 @@ pub fn compute_parallel_batches(
                             }
                         }
                     }
-                    
+
                     // Check for other table-related paths like $datas, $skip, $clear
-                    if dep.contains("/$datas/") || dep.ends_with("/$skip") || dep.ends_with("/$clear") {
+                    if dep.contains("/$datas/")
+                        || dep.ends_with("/$skip")
+                        || dep.ends_with("/$clear")
+                    {
                         for table_path in table_paths {
                             if dep.starts_with(table_path) {
                                 return node_to_batch.get(table_path).copied();
                             }
                         }
                     }
-                    
+
                     // Dependency is external (not in our graph), ignore it
                     None
                 })
@@ -55,19 +57,19 @@ pub fn compute_parallel_batches(
         } else {
             None
         };
-        
+
         // This node goes in the batch after the max dependency batch
         let batch_idx = max_dep_batch.map(|b| b + 1).unwrap_or(0);
-        
+
         // Ensure we have enough batches
         while batches.len() <= batch_idx {
             batches.push(Vec::new());
         }
-        
+
         batches[batch_idx].push(node.clone());
         node_to_batch.insert(node.clone(), batch_idx);
     }
-    
+
     batches
 }
 
@@ -83,7 +85,7 @@ pub fn collect_transitive_deps(
         if table_paths.contains(dep) {
             continue;
         }
-        
+
         // Add this dependency if not already added
         if result.insert(dep.clone()) {
             // Recursively collect its dependencies
@@ -93,4 +95,3 @@ pub fn collect_transitive_deps(
         }
     }
 }
-

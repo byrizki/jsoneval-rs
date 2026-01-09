@@ -1,8 +1,8 @@
 //! WASM type definitions
 
-use wasm_bindgen::prelude::*;
-use serde::{Serialize, Deserialize};
 use crate::JSONEval;
+use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::*;
 
 /// Validation error for JavaScript
 #[wasm_bindgen]
@@ -55,7 +55,8 @@ impl ValidationError {
 
     #[wasm_bindgen(getter)]
     pub fn data(&self) -> JsValue {
-        self.data.as_ref()
+        self.data
+            .as_ref()
             .and_then(|d| super::to_value(d).ok())
             .unwrap_or(JsValue::NULL)
     }
@@ -110,9 +111,9 @@ pub(super) fn create_validation_error(
 }
 
 // Helper function to create ValidationResult from internal type
-pub(super) fn create_validation_result(has_error: bool, errors: Vec<ValidationError>) -> ValidationResult {
-    ValidationResult {
-        has_error,
-        errors,
-    }
+pub(super) fn create_validation_result(
+    has_error: bool,
+    errors: Vec<ValidationError>,
+) -> ValidationResult {
+    ValidationResult { has_error, errors }
 }

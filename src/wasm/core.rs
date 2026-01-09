@@ -1,8 +1,8 @@
 //! WASM core functions: constructors and utilities
 
-use wasm_bindgen::prelude::*;
-use crate::JSONEval;
 use super::types::JSONEvalWasm;
+use crate::JSONEval;
+use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 extern "C" {
@@ -31,17 +31,21 @@ pub fn init() {
 #[wasm_bindgen]
 impl JSONEvalWasm {
     /// Create a new JSONEval instance
-    /// 
+    ///
     /// @param schema - JSON schema string
     /// @param context - Optional context data JSON string
     /// @param data - Optional initial data JSON string
     #[wasm_bindgen(constructor)]
-    pub fn new(schema: &str, context: Option<String>, data: Option<String>) -> Result<JSONEvalWasm, JsValue> {
+    pub fn new(
+        schema: &str,
+        context: Option<String>,
+        data: Option<String>,
+    ) -> Result<JSONEvalWasm, JsValue> {
         console_error_panic_hook::set_once();
-        
+
         let ctx = context.as_deref();
         let dt = data.as_deref();
-        
+
         match JSONEval::new(schema, ctx, dt) {
             Ok(eval) => Ok(JSONEvalWasm { inner: eval }),
             Err(e) => {
@@ -53,21 +57,26 @@ impl JSONEvalWasm {
     }
 
     /// Create a new JSONEval instance from MessagePack-encoded schema
-    /// 
+    ///
     /// @param schemaMsgpack - MessagePack-encoded schema bytes (Uint8Array)
     /// @param context - Optional context data JSON string
     /// @param data - Optional initial data JSON string
     #[wasm_bindgen(js_name = newFromMsgpack)]
-    pub fn new_from_msgpack(schema_msgpack: &[u8], context: Option<String>, data: Option<String>) -> Result<JSONEvalWasm, JsValue> {
+    pub fn new_from_msgpack(
+        schema_msgpack: &[u8],
+        context: Option<String>,
+        data: Option<String>,
+    ) -> Result<JSONEvalWasm, JsValue> {
         console_error_panic_hook::set_once();
-        
+
         let ctx = context.as_deref();
         let dt = data.as_deref();
-        
+
         match JSONEval::new_from_msgpack(schema_msgpack, ctx, dt) {
             Ok(eval) => Ok(JSONEvalWasm { inner: eval }),
             Err(e) => {
-                let error_msg = format!("Failed to create JSONEval instance from MessagePack: {}", e);
+                let error_msg =
+                    format!("Failed to create JSONEval instance from MessagePack: {}", e);
                 log(&format!("[WASM ERROR] {}", error_msg));
                 Err(JsValue::from_str(&error_msg))
             }
@@ -75,25 +84,28 @@ impl JSONEvalWasm {
     }
 
     /// Create a new JSONEval instance from a cached ParsedSchema
-    /// 
+    ///
     /// @param cacheKey - Cache key to lookup in the global ParsedSchemaCache
     /// @param context - Optional context data JSON string
     /// @param data - Optional initial data JSON string
     #[wasm_bindgen(js_name = newFromCache)]
-    pub fn new_from_cache(cache_key: &str, context: Option<String>, data: Option<String>) -> Result<JSONEvalWasm, JsValue> {
+    pub fn new_from_cache(
+        cache_key: &str,
+        context: Option<String>,
+        data: Option<String>,
+    ) -> Result<JSONEvalWasm, JsValue> {
         console_error_panic_hook::set_once();
-        
+
         let ctx = context.as_deref();
         let dt = data.as_deref();
-        
+
         // Get the cached ParsedSchema
-        let parsed = crate::PARSED_SCHEMA_CACHE.get(cache_key)
-            .ok_or_else(|| {
-                let error_msg = format!("Schema '{}' not found in cache", cache_key);
-                log(&format!("[WASM ERROR] {}", error_msg));
-                JsValue::from_str(&error_msg)
-            })?;
-        
+        let parsed = crate::PARSED_SCHEMA_CACHE.get(cache_key).ok_or_else(|| {
+            let error_msg = format!("Schema '{}' not found in cache", cache_key);
+            log(&format!("[WASM ERROR] {}", error_msg));
+            JsValue::from_str(&error_msg)
+        })?;
+
         // Create JSONEval from the cached ParsedSchema
         match JSONEval::with_parsed_schema(parsed, ctx, dt) {
             Ok(eval) => Ok(JSONEvalWasm { inner: eval }),
@@ -106,7 +118,7 @@ impl JSONEvalWasm {
     }
 
     /// Set timezone offset for datetime operations (TODAY, NOW)
-    /// 
+    ///
     /// @param offsetMinutes - Timezone offset in minutes from UTC (e.g., 420 for UTC+7, -300 for UTC-5)
     ///                        Pass null or undefined to reset to UTC
     #[wasm_bindgen(js_name = setTimezoneOffset)]

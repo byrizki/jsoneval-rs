@@ -1,6 +1,6 @@
+use crate::LogicId;
 use serde_json::Value;
 use std::sync::Arc;
-use crate::LogicId;
 
 /// Pre-compiled column metadata computed at parse time (zero-copy design)
 #[derive(Clone, Debug)]

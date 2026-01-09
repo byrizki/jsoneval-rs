@@ -1,9 +1,8 @@
-/// Topological sorting for legacy JSONEval
-
-use indexmap::{IndexMap, IndexSet};
-use crate::JSONEval;
 use crate::path_utils;
-use crate::topo_sort::common::{compute_parallel_batches, collect_transitive_deps};
+use crate::topo_sort::common::{collect_transitive_deps, compute_parallel_batches};
+use crate::JSONEval;
+/// Topological sorting for legacy JSONEval
+use indexmap::{IndexMap, IndexSet};
 
 pub fn topological_sort(lib: &JSONEval) -> Result<Vec<Vec<String>>, String> {
     let mut sorted = IndexSet::new();
@@ -60,7 +59,7 @@ pub fn topological_sort(lib: &JSONEval) -> Result<Vec<Vec<String>>, String> {
         let pointer = path_utils::normalize_to_json_pointer(eval_key);
         pointer_to_eval.insert(pointer, eval_key.clone());
     }
-    
+
     // Also add table paths to pointer_to_eval for dependency resolution
     for table_path in &table_paths {
         let pointer = path_utils::normalize_to_json_pointer(table_path);
@@ -152,7 +151,7 @@ pub fn topological_sort(lib: &JSONEval) -> Result<Vec<Vec<String>>, String> {
                 if dep == table_path {
                     return None;
                 }
-                
+
                 // Try to resolve JSON pointer path to evaluation key
                 if let Some(eval_key) = pointer_to_eval.get(dep) {
                     // Also filter out resolved self-references
@@ -174,7 +173,7 @@ pub fn topological_sort(lib: &JSONEval) -> Result<Vec<Vec<String>>, String> {
         if !evaluation_to_table.contains_key(eval_key) {
             // Normalize dependencies for non-table evaluations
             let mut normalized_deps: IndexSet<String> = IndexSet::new();
-            
+
             for dep in deps {
                 // Check if dependency is a JSON pointer path that maps to an evaluation
                 if let Some(eval_key) = pointer_to_eval.get(dep) {
@@ -197,27 +196,28 @@ pub fn topological_sort(lib: &JSONEval) -> Result<Vec<Vec<String>>, String> {
                         break;
                     }
                 }
-                
+
                 if found_table {
                     continue;
                 }
-                
+
                 // OPTIMIZED: Check if dependency is a static array with evaluated fields
                 // Use consistent path utilities for conversion
                 let dep_as_pointer = path_utils::normalize_to_json_pointer(dep);
                 let dep_as_eval_prefix = format!("#{}", dep_as_pointer);
                 let has_field_evaluations = lib.evaluations.keys().any(|k| {
-                    k.starts_with(&dep_as_eval_prefix) 
-                    && k.len() > dep_as_eval_prefix.len()
-                    && k[dep_as_eval_prefix.len()..].starts_with('/')
+                    k.starts_with(&dep_as_eval_prefix)
+                        && k.len() > dep_as_eval_prefix.len()
+                        && k[dep_as_eval_prefix.len()..].starts_with('/')
                 });
-                
+
                 if has_field_evaluations {
                     // Add all field evaluations as dependencies
                     for field_eval_key in lib.evaluations.keys() {
-                        if field_eval_key.starts_with(&dep_as_eval_prefix) 
+                        if field_eval_key.starts_with(&dep_as_eval_prefix)
                             && field_eval_key.len() > dep_as_eval_prefix.len()
-                            && field_eval_key[dep_as_eval_prefix.len()..].starts_with('/') {
+                            && field_eval_key[dep_as_eval_prefix.len()..].starts_with('/')
+                        {
                             normalized_deps.insert(field_eval_key.clone());
                         }
                     }
@@ -233,21 +233,16 @@ pub fn topological_sort(lib: &JSONEval) -> Result<Vec<Vec<String>>, String> {
     // ==========================================
     // 3-PHASE PROCESSING: Dependencies → Tables → Rest
     // ==========================================
-    
+
     // Identify all table dependencies (transitive)
     // This includes all non-table nodes that tables transitively depend on
     let mut table_dependencies = IndexSet::new();
     for table_path in &table_paths {
         if let Some(deps) = unified_graph.get(table_path) {
-            collect_transitive_deps(
-                deps,
-                &unified_graph,
-                &table_paths,
-                &mut table_dependencies,
-            );
+            collect_transitive_deps(deps, &unified_graph, &table_paths, &mut table_dependencies);
         }
     }
-    
+
     // CRITICAL: Expand to complete transitive closure
     // Ensure ALL non-table dependencies of phase 1 nodes are also in phase 1
     // Example: If table depends on A, and A depends on B, then both A and B are in phase 1
@@ -268,12 +263,12 @@ pub fn topological_sort(lib: &JSONEval) -> Result<Vec<Vec<String>>, String> {
             }
         }
     }
-    
+
     // Separate nodes into phases
     let mut phase1_nodes = Vec::new(); // Table dependencies (non-tables needed by tables)
     let mut phase2_nodes = Vec::new(); // Tables
     let mut phase3_nodes = Vec::new(); // Everything else
-    
+
     for node in unified_graph.keys() {
         if table_paths.contains(node) {
             // Phase 2: Tables
@@ -286,7 +281,7 @@ pub fn topological_sort(lib: &JSONEval) -> Result<Vec<Vec<String>>, String> {
             phase3_nodes.push(node.clone());
         }
     }
-    
+
     // Sort phase 1 and phase 3 by dependency order (nodes with fewer deps first)
     // This provides a better starting order for topological processing
     let sort_by_deps = |a: &String, b: &String| {
@@ -294,33 +289,43 @@ pub fn topological_sort(lib: &JSONEval) -> Result<Vec<Vec<String>>, String> {
         let b_deps = unified_graph.get(b).map(|d| d.len()).unwrap_or(0);
         a_deps.cmp(&b_deps).then_with(|| a.cmp(b))
     };
-    
+
     phase1_nodes.sort_by(sort_by_deps);
     phase3_nodes.sort_by(sort_by_deps);
-    
+
     // PHASE 1: Process table dependencies (respecting their internal dependencies)
     for node in &phase1_nodes {
         if !visited.contains(node) {
             let deps = unified_graph.get(node).cloned().unwrap_or_default();
             // visit_node will recursively process dependencies in correct order
-            visit_node(lib, node, &deps, &unified_graph, &mut visited, &mut visiting, &mut sorted)?;
+            visit_node(
+                lib,
+                node,
+                &deps,
+                &unified_graph,
+                &mut visited,
+                &mut visiting,
+                &mut sorted,
+            )?;
         }
     }
-    
+
     // PHASE 2: Process tables in dependency order
     // Sort tables by their dependencies (tables with fewer/no table deps come first)
     phase2_nodes.sort_by(|a, b| {
         let a_deps = unified_graph.get(a).map(|d| d.len()).unwrap_or(0);
         let b_deps = unified_graph.get(b).map(|d| d.len()).unwrap_or(0);
-        
+
         // Check if A depends on B or B depends on A
-        let a_deps_on_b = unified_graph.get(a)
+        let a_deps_on_b = unified_graph
+            .get(a)
             .map(|deps| deps.contains(b))
             .unwrap_or(false);
-        let b_deps_on_a = unified_graph.get(b)
+        let b_deps_on_a = unified_graph
+            .get(b)
             .map(|deps| deps.contains(a))
             .unwrap_or(false);
-        
+
         if a_deps_on_b {
             std::cmp::Ordering::Greater // A depends on B, so B comes first
         } else if b_deps_on_a {
@@ -330,32 +335,48 @@ pub fn topological_sort(lib: &JSONEval) -> Result<Vec<Vec<String>>, String> {
             a_deps.cmp(&b_deps).then_with(|| a.cmp(b))
         }
     });
-    
+
     for node in &phase2_nodes {
         if !visited.contains(node) {
             let deps = unified_graph.get(node).cloned().unwrap_or_default();
-            visit_node(lib, node, &deps, &unified_graph, &mut visited, &mut visiting, &mut sorted)?;
+            visit_node(
+                lib,
+                node,
+                &deps,
+                &unified_graph,
+                &mut visited,
+                &mut visiting,
+                &mut sorted,
+            )?;
         }
     }
-    
+
     // PHASE 3: Process remaining nodes (respecting their internal dependencies)
     for node in &phase3_nodes {
         if !visited.contains(node) {
             let deps = unified_graph.get(node).cloned().unwrap_or_default();
             // visit_node will recursively process dependencies in correct order
-            visit_node(lib, node, &deps, &unified_graph, &mut visited, &mut visiting, &mut sorted)?;
+            visit_node(
+                lib,
+                node,
+                &deps,
+                &unified_graph,
+                &mut visited,
+                &mut visiting,
+                &mut sorted,
+            )?;
         }
     }
 
     // Now convert the flat sorted list into parallel batches
     // Batch nodes by their "level" - all nodes at the same level can run in parallel
     let batches = compute_parallel_batches(&sorted, &unified_graph, &table_paths);
-    
+
     Ok(batches)
 }
 
 /// Compute parallel execution batches from a topologically sorted list
-/// 
+///
 /// Algorithm: Assign each node to the earliest batch where all its dependencies
 /// have been processed in previous batches.
 
@@ -384,18 +405,27 @@ pub fn visit_node_with_priority(
     sorted_deps.sort_by(|a, b| {
         let a_is_table = table_paths.contains(a);
         let b_is_table = table_paths.contains(b);
-        
+
         match (a_is_table, b_is_table) {
-            (false, true) => std::cmp::Ordering::Less,  // non-table before table
+            (false, true) => std::cmp::Ordering::Less, // non-table before table
             (true, false) => std::cmp::Ordering::Greater, // table after non-table
-            _ => a.cmp(b), // same priority, sort alphabetically
+            _ => a.cmp(b),                             // same priority, sort alphabetically
         }
     });
 
     // Process dependencies in priority order
     for dep in sorted_deps {
         if let Some(dep_deps) = graph.get(&dep) {
-            visit_node_with_priority(lib, &dep, dep_deps, graph, visited, visiting, sorted, table_paths)?;
+            visit_node_with_priority(
+                lib,
+                &dep,
+                dep_deps,
+                graph,
+                visited,
+                visiting,
+                sorted,
+                table_paths,
+            )?;
         }
     }
 
@@ -437,4 +467,3 @@ pub fn visit_node(
 
     Ok(())
 }
-

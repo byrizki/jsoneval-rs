@@ -2,15 +2,33 @@ use serde_json::Value;
 
 /// Arithmetic operation types for fast path evaluation
 #[derive(Debug, Clone, Copy)]
-pub enum ArithOp { Add, Sub, Mul, Div }
+pub enum ArithOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+}
 
 /// Comparison operation types
 #[derive(Debug, Clone, Copy)]
-pub enum CompOp { Eq, StrictEq, Ne, StrictNe, Lt, Le, Gt, Ge }
+pub enum CompOp {
+    Eq,
+    StrictEq,
+    Ne,
+    StrictNe,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+}
 
 /// Array quantifier types
 #[derive(Debug, Clone, Copy)]
-pub enum Quantifier { All, Some, None }
+pub enum Quantifier {
+    All,
+    Some,
+    None,
+}
 
 /// Helper enum for zero-copy or owned table access
 pub enum TableRef<'a> {

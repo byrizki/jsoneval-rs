@@ -1,13 +1,13 @@
 //! Core FFI functions: version, constructors, memory management
 
+use super::types::{FFIResult, JSONEvalHandle};
+use crate::JSONEval;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::ptr;
-use crate::JSONEval;
-use super::types::{FFIResult, JSONEvalHandle};
 
 /// Get the library version
-/// 
+///
 /// Returns a pointer to a static null-terminated string containing the version.
 /// This pointer does not need to be freed.
 #[no_mangle]
@@ -16,9 +16,9 @@ pub extern "C" fn json_eval_version() -> *const c_char {
 }
 
 /// Create a new JSONEval instance from MessagePack-encoded schema
-/// 
+///
 /// # Safety
-/// 
+///
 /// - schema_msgpack must be a valid pointer to MessagePack-encoded bytes
 /// - schema_len must be the exact length of the MessagePack data
 /// - context can be NULL for no context
@@ -43,7 +43,10 @@ pub unsafe extern "C" fn json_eval_new_from_msgpack(
         match CStr::from_ptr(context).to_str() {
             Ok(s) => Some(s),
             Err(e) => {
-                eprintln!("[FFI ERROR] json_eval_new_from_msgpack: invalid UTF-8 in context: {}", e);
+                eprintln!(
+                    "[FFI ERROR] json_eval_new_from_msgpack: invalid UTF-8 in context: {}",
+                    e
+                );
                 return ptr::null_mut();
             }
         }
@@ -55,7 +58,10 @@ pub unsafe extern "C" fn json_eval_new_from_msgpack(
         match CStr::from_ptr(data).to_str() {
             Ok(s) => Some(s),
             Err(e) => {
-                eprintln!("[FFI ERROR] json_eval_new_from_msgpack: invalid UTF-8 in data: {}", e);
+                eprintln!(
+                    "[FFI ERROR] json_eval_new_from_msgpack: invalid UTF-8 in data: {}",
+                    e
+                );
                 return ptr::null_mut();
             }
         }
@@ -79,9 +85,9 @@ pub unsafe extern "C" fn json_eval_new_from_msgpack(
 }
 
 /// Create a new JSONEval instance
-/// 
+///
 /// # Safety
-/// 
+///
 /// - schema must be a valid null-terminated UTF-8 string
 /// - context can be NULL for no context
 /// - data can be NULL for no initial data
@@ -145,9 +151,9 @@ pub unsafe extern "C" fn json_eval_new(
 }
 
 /// Create a new JSONEval instance with detailed error reporting
-/// 
+///
 /// # Safety
-/// 
+///
 /// - schema must be a valid null-terminated UTF-8 string
 /// - context can be NULL for no context
 /// - data can be NULL for no initial data
@@ -226,9 +232,9 @@ pub unsafe extern "C" fn json_eval_new_with_error(
 }
 
 /// Free an FFIResult
-/// 
+///
 /// # Safety
-/// 
+///
 /// - result must be a valid FFIResult from one of the evaluate functions
 /// - result should not be used after calling this function
 #[no_mangle]
@@ -242,9 +248,9 @@ pub unsafe extern "C" fn json_eval_free_result(result: super::types::FFIResult) 
 }
 
 /// Free a string returned by the library
-/// 
+///
 /// # Safety
-/// 
+///
 /// - ptr must be a valid pointer from a library function
 #[no_mangle]
 pub unsafe extern "C" fn json_eval_free_string(ptr: *mut c_char) {
@@ -254,9 +260,9 @@ pub unsafe extern "C" fn json_eval_free_string(ptr: *mut c_char) {
 }
 
 /// Free a JSONEval instance
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - handle should not be used after calling this function
 #[no_mangle]
@@ -267,9 +273,9 @@ pub unsafe extern "C" fn json_eval_free(handle: *mut JSONEvalHandle) {
 }
 
 /// Reload schema with new data
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - schema must be a valid null-terminated UTF-8 string
 /// - context and data can be NULL
@@ -288,17 +294,13 @@ pub unsafe extern "C" fn json_eval_reload_schema(
 
     let schema_str = match CStr::from_ptr(schema).to_str() {
         Ok(s) => s,
-        Err(_) => {
-            return FFIResult::error("Invalid UTF-8 in schema".to_string())
-        }
+        Err(_) => return FFIResult::error("Invalid UTF-8 in schema".to_string()),
     };
 
     let context_str = if !context.is_null() {
         match CStr::from_ptr(context).to_str() {
             Ok(s) => Some(s),
-            Err(_) => {
-                return FFIResult::error("Invalid UTF-8 in context".to_string())
-            }
+            Err(_) => return FFIResult::error("Invalid UTF-8 in context".to_string()),
         }
     } else {
         None
@@ -307,9 +309,7 @@ pub unsafe extern "C" fn json_eval_reload_schema(
     let data_str = if !data.is_null() {
         match CStr::from_ptr(data).to_str() {
             Ok(s) => Some(s),
-            Err(_) => {
-                return FFIResult::error("Invalid UTF-8 in data".to_string())
-            }
+            Err(_) => return FFIResult::error("Invalid UTF-8 in data".to_string()),
         }
     } else {
         None
@@ -322,9 +322,9 @@ pub unsafe extern "C" fn json_eval_reload_schema(
 }
 
 /// Reload schema from MessagePack-encoded bytes
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - schema_msgpack must be a valid pointer to MessagePack bytes
 /// - schema_len must be the exact length of the MessagePack data
@@ -348,9 +348,7 @@ pub unsafe extern "C" fn json_eval_reload_schema_msgpack(
     let context_str = if !context.is_null() {
         match CStr::from_ptr(context).to_str() {
             Ok(s) => Some(s),
-            Err(_) => {
-                return FFIResult::error("Invalid UTF-8 in context".to_string())
-            }
+            Err(_) => return FFIResult::error("Invalid UTF-8 in context".to_string()),
         }
     } else {
         None
@@ -359,9 +357,7 @@ pub unsafe extern "C" fn json_eval_reload_schema_msgpack(
     let data_str = if !data.is_null() {
         match CStr::from_ptr(data).to_str() {
             Ok(s) => Some(s),
-            Err(_) => {
-                return FFIResult::error("Invalid UTF-8 in data".to_string())
-            }
+            Err(_) => return FFIResult::error("Invalid UTF-8 in data".to_string()),
         }
     } else {
         None
@@ -374,9 +370,9 @@ pub unsafe extern "C" fn json_eval_reload_schema_msgpack(
 }
 
 /// Create a new JSONEval instance from a cached ParsedSchema
-/// 
+///
 /// # Safety
-/// 
+///
 /// - cache_key must be a valid null-terminated UTF-8 string
 /// - context and data can be NULL
 /// - Returns non-null handle on success, null on failure
@@ -395,7 +391,10 @@ pub unsafe extern "C" fn json_eval_new_from_cache(
     let key_str = match CStr::from_ptr(cache_key).to_str() {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("[FFI ERROR] json_eval_new_from_cache: invalid UTF-8 in cache_key: {}", e);
+            eprintln!(
+                "[FFI ERROR] json_eval_new_from_cache: invalid UTF-8 in cache_key: {}",
+                e
+            );
             return ptr::null_mut();
         }
     };
@@ -404,7 +403,10 @@ pub unsafe extern "C" fn json_eval_new_from_cache(
         match CStr::from_ptr(context).to_str() {
             Ok(s) => Some(s),
             Err(e) => {
-                eprintln!("[FFI ERROR] json_eval_new_from_cache: invalid UTF-8 in context: {}", e);
+                eprintln!(
+                    "[FFI ERROR] json_eval_new_from_cache: invalid UTF-8 in context: {}",
+                    e
+                );
                 return ptr::null_mut();
             }
         }
@@ -416,7 +418,10 @@ pub unsafe extern "C" fn json_eval_new_from_cache(
         match CStr::from_ptr(data).to_str() {
             Ok(s) => Some(s),
             Err(e) => {
-                eprintln!("[FFI ERROR] json_eval_new_from_cache: invalid UTF-8 in data: {}", e);
+                eprintln!(
+                    "[FFI ERROR] json_eval_new_from_cache: invalid UTF-8 in data: {}",
+                    e
+                );
                 return ptr::null_mut();
             }
         }
@@ -428,7 +433,10 @@ pub unsafe extern "C" fn json_eval_new_from_cache(
     let parsed = match crate::PARSED_SCHEMA_CACHE.get(key_str) {
         Some(p) => p,
         None => {
-            eprintln!("[FFI ERROR] json_eval_new_from_cache: schema '{}' not found in cache", key_str);
+            eprintln!(
+                "[FFI ERROR] json_eval_new_from_cache: schema '{}' not found in cache",
+                key_str
+            );
             return ptr::null_mut();
         }
     };
@@ -436,7 +444,9 @@ pub unsafe extern "C" fn json_eval_new_from_cache(
     // Create JSONEval from the cached ParsedSchema
     match crate::JSONEval::with_parsed_schema(parsed, context_str, data_str) {
         Ok(eval) => {
-            let handle = Box::new(JSONEvalHandle { inner: Box::new(eval) });
+            let handle = Box::new(JSONEvalHandle {
+                inner: Box::new(eval),
+            });
             Box::into_raw(handle)
         }
         Err(e) => {
@@ -448,9 +458,9 @@ pub unsafe extern "C" fn json_eval_new_from_cache(
 }
 
 /// Create a new JSONEval instance from cache with detailed error reporting
-/// 
+///
 /// # Safety
-/// 
+///
 /// - cache_key must be a valid null-terminated UTF-8 string
 /// - context and data can be NULL
 /// - error_out must be a valid pointer to store error message (caller owns the string)
@@ -464,7 +474,9 @@ pub unsafe extern "C" fn json_eval_new_from_cache_with_error(
 ) -> *mut JSONEvalHandle {
     if cache_key.is_null() {
         if !error_out.is_null() {
-            *error_out = CString::new("cache_key pointer is null").unwrap().into_raw();
+            *error_out = CString::new("cache_key pointer is null")
+                .unwrap()
+                .into_raw();
         }
         return ptr::null_mut();
     }
@@ -528,7 +540,9 @@ pub unsafe extern "C" fn json_eval_new_from_cache_with_error(
             if !error_out.is_null() {
                 *error_out = ptr::null_mut(); // No error
             }
-            let handle = Box::new(JSONEvalHandle { inner: Box::new(eval) });
+            let handle = Box::new(JSONEvalHandle {
+                inner: Box::new(eval),
+            });
             Box::into_raw(handle)
         }
         Err(e) => {
@@ -542,9 +556,9 @@ pub unsafe extern "C" fn json_eval_new_from_cache_with_error(
 }
 
 /// Reload schema from ParsedSchemaCache using a cache key
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - cache_key must be a valid UTF-8 string
 /// - context and data can be NULL
@@ -563,17 +577,13 @@ pub unsafe extern "C" fn json_eval_reload_schema_from_cache(
 
     let key_str = match CStr::from_ptr(cache_key).to_str() {
         Ok(s) => s,
-        Err(_) => {
-            return FFIResult::error("Invalid UTF-8 in cache_key".to_string())
-        }
+        Err(_) => return FFIResult::error("Invalid UTF-8 in cache_key".to_string()),
     };
 
     let context_str = if !context.is_null() {
         match CStr::from_ptr(context).to_str() {
             Ok(s) => Some(s),
-            Err(_) => {
-                return FFIResult::error("Invalid UTF-8 in context".to_string())
-            }
+            Err(_) => return FFIResult::error("Invalid UTF-8 in context".to_string()),
         }
     } else {
         None
@@ -582,9 +592,7 @@ pub unsafe extern "C" fn json_eval_reload_schema_from_cache(
     let data_str = if !data.is_null() {
         match CStr::from_ptr(data).to_str() {
             Ok(s) => Some(s),
-            Err(_) => {
-                return FFIResult::error("Invalid UTF-8 in data".to_string())
-            }
+            Err(_) => return FFIResult::error("Invalid UTF-8 in data".to_string()),
         }
     } else {
         None
@@ -597,23 +605,23 @@ pub unsafe extern "C" fn json_eval_reload_schema_from_cache(
 }
 
 /// Set timezone offset for datetime operations (TODAY, NOW)
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - Pass offset_minutes as the timezone offset in minutes from UTC
 ///   (e.g., 420 for UTC+7, -300 for UTC-5)
 /// - Pass i32::MIN to reset to UTC (no offset)
-/// 
+///
 /// # Example
-/// 
+///
 /// ```c
 /// // Set to UTC+7 (Jakarta, Bangkok)
 /// json_eval_set_timezone_offset(handle, 420);
-/// 
+///
 /// // Set to UTC-5 (New York, EST)
 /// json_eval_set_timezone_offset(handle, -300);
-/// 
+///
 /// // Reset to UTC
 /// json_eval_set_timezone_offset(handle, i32::MIN);
 /// ```
@@ -628,13 +636,13 @@ pub unsafe extern "C" fn json_eval_set_timezone_offset(
     }
 
     let eval = &mut (*handle).inner;
-    
+
     // Use i32::MIN as sentinel value for None/reset to UTC
     let offset = if offset_minutes == i32::MIN {
         None
     } else {
         Some(offset_minutes)
     };
-    
+
     eval.set_timezone_offset(offset);
 }

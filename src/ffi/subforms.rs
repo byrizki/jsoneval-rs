@@ -1,14 +1,14 @@
 //! FFI subform functions
 
+use super::types::{FFIResult, JSONEvalHandle};
+use serde_json::json;
 use std::ffi::CStr;
 use std::os::raw::c_char;
-use serde_json::json;
-use super::types::{FFIResult, JSONEvalHandle};
 
 /// Evaluate a subform with data
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - subform_path must be a valid null-terminated UTF-8 string
 /// - data must be a valid null-terminated UTF-8 string
@@ -49,11 +49,9 @@ pub unsafe extern "C" fn json_eval_evaluate_subform(
 
     let paths: Option<Vec<String>> = if !paths_json.is_null() {
         match CStr::from_ptr(paths_json).to_str() {
-            Ok(s) => {
-                match serde_json::from_str(s) {
-                    Ok(p) => Some(p),
-                    Err(e) => return FFIResult::error(format!("Failed to parse paths JSON: {}", e)),
-                }
+            Ok(s) => match serde_json::from_str(s) {
+                Ok(p) => Some(p),
+                Err(e) => return FFIResult::error(format!("Failed to parse paths JSON: {}", e)),
             },
             Err(_) => return FFIResult::error("Invalid UTF-8 in paths_json".to_string()),
         }
@@ -68,9 +66,9 @@ pub unsafe extern "C" fn json_eval_evaluate_subform(
 }
 
 /// Validate subform data against its schema rules
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - subform_path must be a valid null-terminated UTF-8 string
 /// - data must be a valid null-terminated UTF-8 string
@@ -116,7 +114,7 @@ pub unsafe extern "C" fn json_eval_validate_subform(
                         "type": v.rule_type,
                         "message": v.message
                     });
-                    
+
                     if let Some(code) = &v.code {
                         error_obj["code"] = json!(code);
                     }
@@ -129,11 +127,11 @@ pub unsafe extern "C" fn json_eval_validate_subform(
                     if let Some(data) = &v.data {
                         error_obj["data"] = data.clone();
                     }
-                    
+
                     error_obj
                 }).collect::<Vec<_>>()
             });
-            
+
             let result_bytes = serde_json::to_vec(&result_json).unwrap_or_default();
             FFIResult::success(result_bytes)
         }
@@ -142,9 +140,9 @@ pub unsafe extern "C" fn json_eval_validate_subform(
 }
 
 /// Evaluate dependents in subform when a field changes
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - subform_path must be a valid null-terminated UTF-8 string
 /// - changed_path must be a valid null-terminated UTF-8 string
@@ -192,7 +190,7 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents_subform(
 
     // Wrap single path in a Vec for the new API
     let paths = vec![path_str.to_string()];
-    
+
     match eval.evaluate_dependents_subform(subform_str, &paths, data_str, context_str, false) {
         Ok(result) => {
             let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
@@ -203,9 +201,9 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents_subform(
 }
 
 /// Resolve layout for subform
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - subform_path must be a valid null-terminated UTF-8 string
 #[no_mangle]
@@ -232,9 +230,9 @@ pub unsafe extern "C" fn json_eval_resolve_layout_subform(
 }
 
 /// Get evaluated schema from subform
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - subform_path must be a valid null-terminated UTF-8 string
 #[no_mangle]
@@ -260,9 +258,9 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_subform(
 }
 
 /// Get schema value from subform (all .value fields)
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - subform_path must be a valid null-terminated UTF-8 string
 #[no_mangle]
@@ -287,9 +285,9 @@ pub unsafe extern "C" fn json_eval_get_schema_value_subform(
 }
 
 /// Get evaluated schema without $params from subform
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - subform_path must be a valid null-terminated UTF-8 string
 #[no_mangle]
@@ -315,9 +313,9 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_without_params_subform(
 }
 
 /// Get evaluated schema by specific path from subform
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - subform_path must be a valid null-terminated UTF-8 string
 /// - schema_path must be a valid null-terminated UTF-8 string
@@ -355,9 +353,9 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_by_path_subform(
 
 /// Get values from the evaluated schema of a subform using multiple dotted path notations
 /// Returns data in the specified format (skips paths that are not found)
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - subform_path must be a valid null-terminated UTF-8 string
 /// - schema_paths_json must be a valid null-terminated UTF-8 string containing a JSON array of paths
@@ -389,9 +387,7 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_by_paths_subform(
     // Parse JSON array of paths
     let paths: Vec<String> = match serde_json::from_str(paths_str) {
         Ok(p) => p,
-        Err(e) => {
-            return FFIResult::error(format!("Failed to parse paths JSON: {}", e))
-        }
+        Err(e) => return FFIResult::error(format!("Failed to parse paths JSON: {}", e)),
     };
 
     let return_format = match format {
@@ -400,15 +396,20 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_by_paths_subform(
         _ => crate::ReturnFormat::Nested,
     };
 
-    let result = eval.get_evaluated_schema_by_paths_subform(subform_str, &paths, skip_layout, Some(return_format));
+    let result = eval.get_evaluated_schema_by_paths_subform(
+        subform_str,
+        &paths,
+        skip_layout,
+        Some(return_format),
+    );
     let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
     FFIResult::success(result_bytes)
 }
 
 /// Get schema by specific path from subform
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - subform_path must be a valid null-terminated UTF-8 string
 /// - schema_path must be a valid null-terminated UTF-8 string
@@ -445,9 +446,9 @@ pub unsafe extern "C" fn json_eval_get_schema_by_path_subform(
 
 /// Get schema by multiple paths from subform
 /// Returns data in the specified format (skips paths that are not found)
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - subform_path must be a valid null-terminated UTF-8 string
 /// - schema_paths_json must be a valid null-terminated UTF-8 string containing a JSON array of paths
@@ -478,9 +479,7 @@ pub unsafe extern "C" fn json_eval_get_schema_by_paths_subform(
     // Parse JSON array of paths
     let paths: Vec<String> = match serde_json::from_str(paths_str) {
         Ok(p) => p,
-        Err(e) => {
-            return FFIResult::error(format!("Failed to parse paths JSON: {}", e))
-        }
+        Err(e) => return FFIResult::error(format!("Failed to parse paths JSON: {}", e)),
     };
 
     let return_format = match format {
@@ -495,14 +494,12 @@ pub unsafe extern "C" fn json_eval_get_schema_by_paths_subform(
 }
 
 /// Get list of available subform paths
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 #[no_mangle]
-pub unsafe extern "C" fn json_eval_get_subform_paths(
-    handle: *mut JSONEvalHandle,
-) -> FFIResult {
+pub unsafe extern "C" fn json_eval_get_subform_paths(handle: *mut JSONEvalHandle) -> FFIResult {
     if handle.is_null() {
         return FFIResult::error("Invalid handle pointer".to_string());
     }
@@ -514,9 +511,9 @@ pub unsafe extern "C" fn json_eval_get_subform_paths(
 }
 
 /// Check if a subform exists at the given path
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - subform_path must be a valid null-terminated UTF-8 string
 #[no_mangle]

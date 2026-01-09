@@ -1,9 +1,9 @@
 //! FFI type definitions
 
+use crate::JSONEval;
 use std::ffi::CString;
 use std::os::raw::c_char;
 use std::ptr;
-use crate::JSONEval;
 
 /// Opaque pointer type for JSONEval instances
 pub struct JSONEvalHandle {
@@ -11,22 +11,22 @@ pub struct JSONEvalHandle {
 }
 
 /// Zero-copy result type for FFI operations
-/// 
+///
 /// # Zero-Copy Architecture
-/// 
+///
 /// This structure implements true zero-copy data transfer across the FFI boundary:
-/// 
+///
 /// 1. **Rust Side**: Serialized data (JSON/MessagePack) is allocated in a Vec<u8>
 /// 2. **Boxing**: Vec is boxed and converted to raw pointer via Box::into_raw()
 /// 3. **Transfer**: Raw pointer and length are passed to caller (NO COPY)
 /// 4. **Caller Side**: Reads data directly from Rust-owned memory (NO COPY)
 /// 5. **Cleanup**: Caller must call json_eval_free_result() to drop the Box
-/// 
+///
 /// The data remains valid and owned by Rust until explicitly freed. The caller
 /// accesses Rust's memory directly without any intermediate copies.
-/// 
+///
 /// # Memory Layout
-/// 
+///
 /// ```text
 /// Rust Memory:        FFI Boundary:      Caller Memory:
 /// +-----------+       data_ptr ------>  Direct read (zero-copy)
@@ -75,7 +75,9 @@ impl FFIResult {
             success: false,
             data_ptr: ptr::null(),
             data_len: 0,
-            error: CString::new(msg).unwrap_or_else(|_| CString::new("Error message contains null byte").unwrap()).into_raw(),
+            error: CString::new(msg)
+                .unwrap_or_else(|_| CString::new("Error message contains null byte").unwrap())
+                .into_raw(),
             _owned_data: ptr::null_mut(),
         }
     }

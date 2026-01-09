@@ -1,13 +1,13 @@
 //! FFI functions for compiled logic operations
 
+use super::types::{FFIResult, JSONEvalHandle};
 use std::ffi::CStr;
 use std::os::raw::c_char;
-use super::types::{FFIResult, JSONEvalHandle};
 
 /// Compile logic and return a global ID
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - logic_str must be a valid null-terminated UTF-8 string (JSON Logic)
 /// - Returns 0 on error (check error via json_eval_get_last_error if needed)
@@ -34,9 +34,9 @@ pub unsafe extern "C" fn json_eval_compile_logic(
 }
 
 /// Run pre-compiled logic by ID
-/// 
+///
 /// # Safety
-/// 
+///
 /// - handle must be a valid pointer from json_eval_new
 /// - logic_id must be a valid ID from json_eval_compile_logic
 /// - data can be NULL (uses existing data)
@@ -58,12 +58,10 @@ pub unsafe extern "C" fn json_eval_run_logic(
 
     let data_value = if !data.is_null() {
         match CStr::from_ptr(data).to_str() {
-            Ok(s) => {
-                match crate::json_parser::parse_json_str(s) {
-                    Ok(v) => Some(v),
-                    Err(e) => return FFIResult::error(format!("Failed to parse data: {}", e)),
-                }
-            }
+            Ok(s) => match crate::json_parser::parse_json_str(s) {
+                Ok(v) => Some(v),
+                Err(e) => return FFIResult::error(format!("Failed to parse data: {}", e)),
+            },
             Err(_) => return FFIResult::error("Invalid UTF-8 in data".to_string()),
         }
     } else {
@@ -72,12 +70,10 @@ pub unsafe extern "C" fn json_eval_run_logic(
 
     let context_value = if !context.is_null() {
         match CStr::from_ptr(context).to_str() {
-            Ok(s) => {
-                match crate::json_parser::parse_json_str(s) {
-                    Ok(v) => Some(v),
-                    Err(e) => return FFIResult::error(format!("Failed to parse context: {}", e)),
-                }
-            }
+            Ok(s) => match crate::json_parser::parse_json_str(s) {
+                Ok(v) => Some(v),
+                Err(e) => return FFIResult::error(format!("Failed to parse context: {}", e)),
+            },
             Err(_) => return FFIResult::error("Invalid UTF-8 in context".to_string()),
         }
     } else {

@@ -50,12 +50,10 @@ fn parse_simd_bytes(bytes: &mut [u8]) -> Result<Value, String> {
 #[inline]
 fn convert_simd_to_serde(value: &simd_json::BorrowedValue) -> Result<Value, String> {
     use simd_json::prelude::*;
-    
+
     match value.value_type() {
         simd_json::ValueType::Null => Ok(Value::Null),
-        simd_json::ValueType::Bool => {
-            Ok(Value::Bool(value.as_bool().unwrap_or(false)))
-        }
+        simd_json::ValueType::Bool => Ok(Value::Bool(value.as_bool().unwrap_or(false))),
         simd_json::ValueType::I64 => {
             if let Some(i) = value.as_i64() {
                 Ok(serde_json::Number::from(i).into())
@@ -142,8 +140,6 @@ fn convert_simd_to_serde(value: &simd_json::BorrowedValue) -> Result<Value, Stri
 /// Read JSON file using SIMD acceleration
 /// Reads file into memory and uses fast SIMD parsing
 pub fn read_json_file(path: &str) -> Result<Value, String> {
-    let bytes = std::fs::read(path)
-        .map_err(|e| format!("Failed to read file {}: {}", path, e))?;
+    let bytes = std::fs::read(path).map_err(|e| format!("Failed to read file {}: {}", path, e))?;
     parse_json_bytes(bytes)
 }
-

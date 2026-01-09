@@ -1,7 +1,7 @@
+use crate::path_utils;
 use ahash::AHashMap;
 use serde::Serialize;
 use serde_json::Value;
-use crate::path_utils;
 
 /// Unique identifier for compiled logic expressions
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
@@ -16,17 +16,17 @@ pub enum CompiledLogic {
     Number(String), // Store as string to preserve precision with arbitrary_precision
     String(String),
     Array(Vec<CompiledLogic>),
-    
+
     // Variable access
     Var(String, Option<Box<CompiledLogic>>), // name, default
     Ref(String, Option<Box<CompiledLogic>>), // JSON Schema reference path, default
-    
+
     // Logical operators
     And(Vec<CompiledLogic>),
     Or(Vec<CompiledLogic>),
     Not(Box<CompiledLogic>),
     If(Box<CompiledLogic>, Box<CompiledLogic>, Box<CompiledLogic>), // condition, then, else
-    
+
     // Comparison operators
     Equal(Box<CompiledLogic>, Box<CompiledLogic>),
     StrictEqual(Box<CompiledLogic>, Box<CompiledLogic>),
@@ -36,7 +36,7 @@ pub enum CompiledLogic {
     LessThanOrEqual(Box<CompiledLogic>, Box<CompiledLogic>),
     GreaterThan(Box<CompiledLogic>, Box<CompiledLogic>),
     GreaterThanOrEqual(Box<CompiledLogic>, Box<CompiledLogic>),
-    
+
     // Arithmetic operators
     Add(Vec<CompiledLogic>),
     Subtract(Vec<CompiledLogic>),
@@ -44,7 +44,7 @@ pub enum CompiledLogic {
     Divide(Vec<CompiledLogic>),
     Modulo(Box<CompiledLogic>, Box<CompiledLogic>),
     Power(Box<CompiledLogic>, Box<CompiledLogic>),
-    
+
     // Array operators
     Map(Box<CompiledLogic>, Box<CompiledLogic>), // array, logic
     Filter(Box<CompiledLogic>, Box<CompiledLogic>), // array, logic
@@ -54,15 +54,19 @@ pub enum CompiledLogic {
     None(Box<CompiledLogic>, Box<CompiledLogic>), // array, logic
     Merge(Vec<CompiledLogic>),
     In(Box<CompiledLogic>, Box<CompiledLogic>), // value, array
-    
+
     // String operators
     Cat(Vec<CompiledLogic>),
-    Substr(Box<CompiledLogic>, Box<CompiledLogic>, Option<Box<CompiledLogic>>), // string, start, length
-    
+    Substr(
+        Box<CompiledLogic>,
+        Box<CompiledLogic>,
+        Option<Box<CompiledLogic>>,
+    ), // string, start, length
+
     // Utility operators
     Missing(Vec<String>),
     MissingSome(Box<CompiledLogic>, Vec<String>), // minimum, keys
-    
+
     // Custom operators - Math
     Abs(Box<CompiledLogic>),
     Max(Vec<CompiledLogic>),
@@ -74,26 +78,40 @@ pub enum CompiledLogic {
     Ceiling(Box<CompiledLogic>, Option<Box<CompiledLogic>>), // value, significance (Excel CEILING)
     Floor(Box<CompiledLogic>, Option<Box<CompiledLogic>>), // value, significance (Excel FLOOR)
     Trunc(Box<CompiledLogic>, Option<Box<CompiledLogic>>), // value, decimals (Excel TRUNC)
-    Mround(Box<CompiledLogic>, Box<CompiledLogic>), // value, multiple (Excel MROUND)
-    
+    Mround(Box<CompiledLogic>, Box<CompiledLogic>),        // value, multiple (Excel MROUND)
+
     // Custom operators - String
     Length(Box<CompiledLogic>),
-    Search(Box<CompiledLogic>, Box<CompiledLogic>, Option<Box<CompiledLogic>>), // find, within, start_num
+    Search(
+        Box<CompiledLogic>,
+        Box<CompiledLogic>,
+        Option<Box<CompiledLogic>>,
+    ), // find, within, start_num
     Left(Box<CompiledLogic>, Option<Box<CompiledLogic>>), // text, num_chars
     Right(Box<CompiledLogic>, Option<Box<CompiledLogic>>), // text, num_chars
     Mid(Box<CompiledLogic>, Box<CompiledLogic>, Box<CompiledLogic>), // text, start, num_chars
     Len(Box<CompiledLogic>),
-    SplitText(Box<CompiledLogic>, Box<CompiledLogic>, Option<Box<CompiledLogic>>), // value, separator, index
+    SplitText(
+        Box<CompiledLogic>,
+        Box<CompiledLogic>,
+        Option<Box<CompiledLogic>>,
+    ), // value, separator, index
     Concat(Vec<CompiledLogic>),
     SplitValue(Box<CompiledLogic>, Box<CompiledLogic>), // string, separator
-    StringFormat(Box<CompiledLogic>, Option<Box<CompiledLogic>>, Option<Box<CompiledLogic>>, Option<Box<CompiledLogic>>, Option<Box<CompiledLogic>>), // value, decimals, prefix, suffix, thousands_sep
-    
+    StringFormat(
+        Box<CompiledLogic>,
+        Option<Box<CompiledLogic>>,
+        Option<Box<CompiledLogic>>,
+        Option<Box<CompiledLogic>>,
+        Option<Box<CompiledLogic>>,
+    ), // value, decimals, prefix, suffix, thousands_sep
+
     // Custom operators - Logical
     Xor(Box<CompiledLogic>, Box<CompiledLogic>),
     IfNull(Box<CompiledLogic>, Box<CompiledLogic>),
     IsEmpty(Box<CompiledLogic>),
     Empty,
-    
+
     // Custom operators - Date
     Today,
     Now,
@@ -102,33 +120,55 @@ pub enum CompiledLogic {
     Month(Box<CompiledLogic>),
     Day(Box<CompiledLogic>),
     Date(Box<CompiledLogic>, Box<CompiledLogic>, Box<CompiledLogic>), // year, month, day
-    DateFormat(Box<CompiledLogic>, Option<Box<CompiledLogic>>), // date, format
-    
+    DateFormat(Box<CompiledLogic>, Option<Box<CompiledLogic>>),       // date, format
+
     // Custom operators - Array/Table
-    Sum(Box<CompiledLogic>, Option<Box<CompiledLogic>>, Option<Box<CompiledLogic>>), // array/value, optional field name, optional index threshold
+    Sum(
+        Box<CompiledLogic>,
+        Option<Box<CompiledLogic>>,
+        Option<Box<CompiledLogic>>,
+    ), // array/value, optional field name, optional index threshold
     For(Box<CompiledLogic>, Box<CompiledLogic>, Box<CompiledLogic>), // start, end, logic (with $iteration variable)
-    
+
     // Complex table operations
-    ValueAt(Box<CompiledLogic>, Box<CompiledLogic>, Option<Box<CompiledLogic>>), // table, row_idx, col_name
+    ValueAt(
+        Box<CompiledLogic>,
+        Box<CompiledLogic>,
+        Option<Box<CompiledLogic>>,
+    ), // table, row_idx, col_name
     MaxAt(Box<CompiledLogic>, Box<CompiledLogic>), // table, col_name
-    IndexAt(Box<CompiledLogic>, Box<CompiledLogic>, Box<CompiledLogic>, Option<Box<CompiledLogic>>), // lookup_val, table, field, range
+    IndexAt(
+        Box<CompiledLogic>,
+        Box<CompiledLogic>,
+        Box<CompiledLogic>,
+        Option<Box<CompiledLogic>>,
+    ), // lookup_val, table, field, range
     Match(Box<CompiledLogic>, Vec<CompiledLogic>), // table, conditions (pairs of value, field)
     MatchRange(Box<CompiledLogic>, Vec<CompiledLogic>), // table, conditions (triplets of min_col, max_col, value)
-    Choose(Box<CompiledLogic>, Vec<CompiledLogic>), // table, conditions (pairs of value, field)
-    FindIndex(Box<CompiledLogic>, Vec<CompiledLogic>), // table, conditions (complex nested logic)
-    
+    Choose(Box<CompiledLogic>, Vec<CompiledLogic>),     // table, conditions (pairs of value, field)
+    FindIndex(Box<CompiledLogic>, Vec<CompiledLogic>),  // table, conditions (complex nested logic)
+
     // Array operations
     Multiplies(Vec<CompiledLogic>), // flatten and multiply
-    Divides(Vec<CompiledLogic>), // flatten and divide
-    
+    Divides(Vec<CompiledLogic>),    // flatten and divide
+
     // Advanced date functions
-    YearFrac(Box<CompiledLogic>, Box<CompiledLogic>, Option<Box<CompiledLogic>>), // start_date, end_date, basis
+    YearFrac(
+        Box<CompiledLogic>,
+        Box<CompiledLogic>,
+        Option<Box<CompiledLogic>>,
+    ), // start_date, end_date, basis
     DateDif(Box<CompiledLogic>, Box<CompiledLogic>, Box<CompiledLogic>), // start_date, end_date, unit
-    
+
     // UI helpers
     RangeOptions(Box<CompiledLogic>, Box<CompiledLogic>), // min, max
     MapOptions(Box<CompiledLogic>, Box<CompiledLogic>, Box<CompiledLogic>), // table, field_label, field_value
-    MapOptionsIf(Box<CompiledLogic>, Box<CompiledLogic>, Box<CompiledLogic>, Vec<CompiledLogic>), // table, field_label, field_value, conditions
+    MapOptionsIf(
+        Box<CompiledLogic>,
+        Box<CompiledLogic>,
+        Box<CompiledLogic>,
+        Vec<CompiledLogic>,
+    ), // table, field_label, field_value, conditions
     Return(Box<Value>), // return value as-is (no-op, just returns the raw value)
 }
 
@@ -151,15 +191,15 @@ impl CompiledLogic {
                 if obj.is_empty() {
                     return Ok(CompiledLogic::Null);
                 }
-                
+
                 // Get the operator (first key)
                 let (op, args) = obj.iter().next().unwrap();
-                
+
                 Self::compile_operator(op, args)
             }
         }
     }
-    
+
     fn compile_operator(op: &str, args: &Value) -> Result<Self, String> {
         match op {
             // Variable access
@@ -172,8 +212,7 @@ impl CompiledLogic {
                     if arr.is_empty() {
                         return Err("var requires at least one argument".to_string());
                     }
-                    let name = arr[0].as_str()
-                        .ok_or("var name must be a string")?;
+                    let name = arr[0].as_str().ok_or("var name must be a string")?;
                     // OPTIMIZED: Pre-normalize path during compilation
                     let normalized = path_utils::normalize_to_json_pointer(name);
                     let default = if arr.len() > 1 {
@@ -195,8 +234,7 @@ impl CompiledLogic {
                     if arr.is_empty() {
                         return Err("$ref requires at least one argument".to_string());
                     }
-                    let path = arr[0].as_str()
-                        .ok_or("$ref path must be a string")?;
+                    let path = arr[0].as_str().ok_or("$ref path must be a string")?;
                     // OPTIMIZED: Pre-normalize path during compilation
                     let normalized = path_utils::normalize_to_json_pointer(path);
                     let default = if arr.len() > 1 {
@@ -209,7 +247,7 @@ impl CompiledLogic {
                     Err("$ref requires string or array".to_string())
                 }
             }
-            
+
             // Logical operators
             "and" => {
                 let arr = args.as_array().ok_or("and requires array")?;
@@ -235,7 +273,7 @@ impl CompiledLogic {
                 } else {
                     args
                 };
-                
+
                 let inner = Self::compile(value_to_negate)?;
                 // OPTIMIZATION: Eliminate double negation (!(!x) -> x)
                 if let CompiledLogic::Not(inner_expr) = inner {
@@ -255,7 +293,7 @@ impl CompiledLogic {
                     Box::new(Self::compile(&arr[2])?),
                 ))
             }
-            
+
             // Comparison operators
             "==" => Self::compile_binary(args, |a, b| CompiledLogic::Equal(a, b)),
             "===" => Self::compile_binary(args, |a, b| CompiledLogic::StrictEqual(a, b)),
@@ -265,7 +303,7 @@ impl CompiledLogic {
             "<=" => Self::compile_binary(args, |a, b| CompiledLogic::LessThanOrEqual(a, b)),
             ">" => Self::compile_binary(args, |a, b| CompiledLogic::GreaterThan(a, b)),
             ">=" => Self::compile_binary(args, |a, b| CompiledLogic::GreaterThanOrEqual(a, b)),
-            
+
             // Arithmetic operators
             "+" => {
                 let arr = args.as_array().ok_or("+ requires array")?;
@@ -293,7 +331,7 @@ impl CompiledLogic {
             }
             "%" => Self::compile_binary(args, |a, b| CompiledLogic::Modulo(a, b)),
             "^" => Self::compile_binary(args, |a, b| CompiledLogic::Power(a, b)),
-            
+
             // Array operators
             "map" => Self::compile_binary(args, |a, b| CompiledLogic::Map(a, b)),
             "filter" => Self::compile_binary(args, |a, b| CompiledLogic::Filter(a, b)),
@@ -317,7 +355,7 @@ impl CompiledLogic {
                 Ok(CompiledLogic::Merge(compiled?))
             }
             "in" => Self::compile_binary(args, |a, b| CompiledLogic::In(a, b)),
-            
+
             // String operators
             "cat" => {
                 let arr = args.as_array().ok_or("cat requires array")?;
@@ -342,12 +380,16 @@ impl CompiledLogic {
                     length,
                 ))
             }
-            
+
             // Utility operators
             "missing" => {
                 let keys = if let Value::Array(arr) = args {
                     arr.iter()
-                        .map(|v| v.as_str().ok_or("missing key must be string").map(|s| s.to_string()))
+                        .map(|v| {
+                            v.as_str()
+                                .ok_or("missing key must be string")
+                                .map(|s| s.to_string())
+                        })
                         .collect::<Result<Vec<_>, _>>()?
                 } else if let Value::String(s) = args {
                     vec![s.clone()]
@@ -363,15 +405,20 @@ impl CompiledLogic {
                 }
                 let minimum = Box::new(Self::compile(&arr[0])?);
                 let keys = if let Value::Array(key_arr) = &arr[1] {
-                    key_arr.iter()
-                        .map(|v| v.as_str().ok_or("key must be string").map(|s| s.to_string()))
+                    key_arr
+                        .iter()
+                        .map(|v| {
+                            v.as_str()
+                                .ok_or("key must be string")
+                                .map(|s| s.to_string())
+                        })
                         .collect::<Result<Vec<_>, _>>()?
                 } else {
                     return Err("missing_some keys must be array".to_string());
                 };
                 Ok(CompiledLogic::MissingSome(minimum, keys))
             }
-            
+
             // Custom operators - Math
             "abs" => {
                 let arg = if let Value::Array(arr) = args {
@@ -402,7 +449,10 @@ impl CompiledLogic {
                     } else {
                         None
                     };
-                    Ok(CompiledLogic::Round(Box::new(Self::compile(&arr[0])?), decimals))
+                    Ok(CompiledLogic::Round(
+                        Box::new(Self::compile(&arr[0])?),
+                        decimals,
+                    ))
                 } else {
                     Ok(CompiledLogic::Round(Box::new(Self::compile(args)?), None))
                 }
@@ -414,7 +464,10 @@ impl CompiledLogic {
                     } else {
                         None
                     };
-                    Ok(CompiledLogic::RoundUp(Box::new(Self::compile(&arr[0])?), decimals))
+                    Ok(CompiledLogic::RoundUp(
+                        Box::new(Self::compile(&arr[0])?),
+                        decimals,
+                    ))
                 } else {
                     Ok(CompiledLogic::RoundUp(Box::new(Self::compile(args)?), None))
                 }
@@ -426,9 +479,15 @@ impl CompiledLogic {
                     } else {
                         None
                     };
-                    Ok(CompiledLogic::RoundDown(Box::new(Self::compile(&arr[0])?), decimals))
+                    Ok(CompiledLogic::RoundDown(
+                        Box::new(Self::compile(&arr[0])?),
+                        decimals,
+                    ))
                 } else {
-                    Ok(CompiledLogic::RoundDown(Box::new(Self::compile(args)?), None))
+                    Ok(CompiledLogic::RoundDown(
+                        Box::new(Self::compile(args)?),
+                        None,
+                    ))
                 }
             }
             "ceiling" | "CEILING" => {
@@ -438,7 +497,10 @@ impl CompiledLogic {
                     } else {
                         None
                     };
-                    Ok(CompiledLogic::Ceiling(Box::new(Self::compile(&arr[0])?), significance))
+                    Ok(CompiledLogic::Ceiling(
+                        Box::new(Self::compile(&arr[0])?),
+                        significance,
+                    ))
                 } else {
                     Ok(CompiledLogic::Ceiling(Box::new(Self::compile(args)?), None))
                 }
@@ -450,7 +512,10 @@ impl CompiledLogic {
                     } else {
                         None
                     };
-                    Ok(CompiledLogic::Floor(Box::new(Self::compile(&arr[0])?), significance))
+                    Ok(CompiledLogic::Floor(
+                        Box::new(Self::compile(&arr[0])?),
+                        significance,
+                    ))
                 } else {
                     Ok(CompiledLogic::Floor(Box::new(Self::compile(args)?), None))
                 }
@@ -462,13 +527,16 @@ impl CompiledLogic {
                     } else {
                         None
                     };
-                    Ok(CompiledLogic::Trunc(Box::new(Self::compile(&arr[0])?), decimals))
+                    Ok(CompiledLogic::Trunc(
+                        Box::new(Self::compile(&arr[0])?),
+                        decimals,
+                    ))
                 } else {
                     Ok(CompiledLogic::Trunc(Box::new(Self::compile(args)?), None))
                 }
             }
             "mround" | "MROUND" => Self::compile_binary(args, |a, b| CompiledLogic::Mround(a, b)),
-            
+
             // Custom operators - String
             "length" => {
                 let arg = if let Value::Array(arr) = args {
@@ -515,7 +583,10 @@ impl CompiledLogic {
                     } else {
                         None
                     };
-                    Ok(CompiledLogic::Left(Box::new(Self::compile(&arr[0])?), num_chars))
+                    Ok(CompiledLogic::Left(
+                        Box::new(Self::compile(&arr[0])?),
+                        num_chars,
+                    ))
                 } else {
                     Ok(CompiledLogic::Left(Box::new(Self::compile(args)?), None))
                 }
@@ -527,7 +598,10 @@ impl CompiledLogic {
                     } else {
                         None
                     };
-                    Ok(CompiledLogic::Right(Box::new(Self::compile(&arr[0])?), num_chars))
+                    Ok(CompiledLogic::Right(
+                        Box::new(Self::compile(&arr[0])?),
+                        num_chars,
+                    ))
                 } else {
                     Ok(CompiledLogic::Right(Box::new(Self::compile(args)?), None))
                 }
@@ -564,7 +638,9 @@ impl CompiledLogic {
                 let compiled: Result<Vec<_>, _> = arr.iter().map(Self::compile).collect();
                 Ok(CompiledLogic::Concat(compiled?))
             }
-            "splitvalue" | "SPLITVALUE" => Self::compile_binary(args, |a, b| CompiledLogic::SplitValue(a, b)),
+            "splitvalue" | "SPLITVALUE" => {
+                Self::compile_binary(args, |a, b| CompiledLogic::SplitValue(a, b))
+            }
             "stringformat" | "STRINGFORMAT" => {
                 let arr = args.as_array().ok_or("stringformat requires array")?;
                 if arr.is_empty() {
@@ -598,7 +674,7 @@ impl CompiledLogic {
                     thousands_sep,
                 ))
             }
-            
+
             // Custom operators - Logical
             "xor" => Self::compile_binary(args, |a, b| CompiledLogic::Xor(a, b)),
             "ifnull" | "IFNULL" => Self::compile_binary(args, |a, b| CompiledLogic::IfNull(a, b)),
@@ -614,7 +690,7 @@ impl CompiledLogic {
                 Ok(CompiledLogic::IsEmpty(Box::new(Self::compile(arg)?)))
             }
             "empty" | "EMPTY" => Ok(CompiledLogic::Empty),
-            
+
             // Custom operators - Date
             "today" | "TODAY" => Ok(CompiledLogic::Today),
             "now" | "NOW" => Ok(CompiledLogic::Now),
@@ -673,12 +749,18 @@ impl CompiledLogic {
                     } else {
                         None
                     };
-                    Ok(CompiledLogic::DateFormat(Box::new(Self::compile(&arr[0])?), format))
+                    Ok(CompiledLogic::DateFormat(
+                        Box::new(Self::compile(&arr[0])?),
+                        format,
+                    ))
                 } else {
-                    Ok(CompiledLogic::DateFormat(Box::new(Self::compile(args)?), None))
+                    Ok(CompiledLogic::DateFormat(
+                        Box::new(Self::compile(args)?),
+                        None,
+                    ))
                 }
             }
-            
+
             // Custom operators - Array/Table
             "sum" | "SUM" => {
                 if let Value::Array(arr) = args {
@@ -695,9 +777,17 @@ impl CompiledLogic {
                     } else {
                         None
                     };
-                    Ok(CompiledLogic::Sum(Box::new(Self::compile(&arr[0])?), field, threshold))
+                    Ok(CompiledLogic::Sum(
+                        Box::new(Self::compile(&arr[0])?),
+                        field,
+                        threshold,
+                    ))
                 } else {
-                    Ok(CompiledLogic::Sum(Box::new(Self::compile(args)?), None, None))
+                    Ok(CompiledLogic::Sum(
+                        Box::new(Self::compile(args)?),
+                        None,
+                        None,
+                    ))
                 }
             }
             "FOR" => {
@@ -711,7 +801,7 @@ impl CompiledLogic {
                     Box::new(Self::compile(&arr[2])?),
                 ))
             }
-            
+
             // Complex table operations
             "VALUEAT" => {
                 let arr = args.as_array().ok_or("VALUEAT requires array")?;
@@ -788,7 +878,7 @@ impl CompiledLogic {
                     .collect();
                 Ok(CompiledLogic::FindIndex(table, conditions?))
             }
-            
+
             // Array operations
             "MULTIPLIES" => {
                 let arr = args.as_array().ok_or("MULTIPLIES requires array")?;
@@ -800,7 +890,7 @@ impl CompiledLogic {
                 let compiled: Result<Vec<_>, _> = arr.iter().map(Self::compile).collect();
                 Ok(CompiledLogic::Divides(compiled?))
             }
-            
+
             // Advanced date functions
             "YEARFRAC" => {
                 let arr = args.as_array().ok_or("YEARFRAC requires array")?;
@@ -829,7 +919,7 @@ impl CompiledLogic {
                     Box::new(Self::compile(&arr[2])?),
                 ))
             }
-            
+
             // UI helpers
             "RANGEOPTIONS" => Self::compile_binary(args, |a, b| CompiledLogic::RangeOptions(a, b)),
             "MAPOPTIONS" => {
@@ -851,17 +941,17 @@ impl CompiledLogic {
                 let table = Box::new(Self::compile(&arr[0])?);
                 let field_label = Box::new(Self::compile(&arr[1])?);
                 let field_value = Box::new(Self::compile(&arr[2])?);
-                
+
                 // Handle triplet syntax: value, operator, field -> {operator: [value, {var: field}]}
                 let condition_args = &arr[3..];
                 let mut conditions = Vec::new();
-                
+
                 let mut i = 0;
                 while i + 2 < condition_args.len() {
                     let value = &condition_args[i];
                     let operator = &condition_args[i + 1];
                     let field = &condition_args[i + 2];
-                    
+
                     if let Value::String(op) = operator {
                         // Create comparison: {op: [value, {var: field}]}
                         let field_var = if let Value::String(f) = field {
@@ -869,31 +959,38 @@ impl CompiledLogic {
                         } else {
                             field.clone()
                         };
-                        
+
                         let comparison = serde_json::json!({
                             op: [value.clone(), field_var]
                         });
-                        
+
                         conditions.push(Self::compile(&comparison)?);
                     }
-                    
+
                     i += 3;
                 }
-                
+
                 // Handle any remaining individual conditions
                 while i < condition_args.len() {
-                    conditions.push(Self::compile(&Self::preprocess_table_condition(&condition_args[i]))?);
+                    conditions.push(Self::compile(&Self::preprocess_table_condition(
+                        &condition_args[i],
+                    ))?);
                     i += 1;
                 }
-                
-                Ok(CompiledLogic::MapOptionsIf(table, field_label, field_value, conditions))
+
+                Ok(CompiledLogic::MapOptionsIf(
+                    table,
+                    field_label,
+                    field_value,
+                    conditions,
+                ))
             }
             "return" => Ok(CompiledLogic::Return(Box::new(args.clone()))),
-            
+
             _ => Err(format!("Unknown operator: {}", op)),
         }
     }
-    
+
     fn compile_binary<F>(args: &Value, f: F) -> Result<Self, String>
     where
         F: FnOnce(Box<CompiledLogic>, Box<CompiledLogic>) -> CompiledLogic,
@@ -907,10 +1004,10 @@ impl CompiledLogic {
             Box::new(Self::compile(&arr[1])?),
         ))
     }
-    
+
     /// Preprocess table condition to convert string literals to var references
     /// This allows ergonomic syntax in FINDINDEX/MATCH/CHOOSE conditions
-    /// 
+    ///
     /// Handles formats:
     /// - Comparison triplets: ["==", value, "col"] -> {"==": [value, {"var": "col"}]}
     /// - Logical operators: ["&&", cond1, cond2] -> {"and": [cond1, cond2]}
@@ -926,14 +1023,17 @@ impl CompiledLogic {
                 if !arr.is_empty() {
                     if let Some(op_str) = arr[0].as_str() {
                         // Check for comparison operators: [op, value, col]
-                        let is_comparison = matches!(op_str, "==" | "!=" | "===" | "!==" | "<" | ">" | "<=" | ">=");
-                        
+                        let is_comparison = matches!(
+                            op_str,
+                            "==" | "!=" | "===" | "!==" | "<" | ">" | "<=" | ">="
+                        );
+
                         if is_comparison && arr.len() >= 3 {
                             // Comparison triplet: [op, value, col] -> {op: [col_var, value]}
                             // Evaluates as: row[col] op value
                             // DON'T preprocess the value (2nd arg) - keep it as-is
                             let value_arg = arr[1].clone();
-                            
+
                             // Only convert the column name (3rd arg) to var reference if it's a string
                             let col_arg = if let Value::String(col) = &arr[2] {
                                 // Convert column name string to var reference
@@ -942,13 +1042,13 @@ impl CompiledLogic {
                                 // If it's not a string, preprocess it (could be nested expression)
                                 Self::preprocess_table_condition(&arr[2])
                             };
-                            
+
                             // Order matters: {op: [col_var, value]} means row[col] op value
                             let mut obj = serde_json::Map::new();
                             obj.insert(op_str.to_string(), Value::Array(vec![col_arg, value_arg]));
                             return Value::Object(obj);
                         }
-                        
+
                         // Check for logical operators: [op, arg1, arg2, ...]
                         let canonical_op = match op_str {
                             "&&" => Some("and"),
@@ -956,10 +1056,11 @@ impl CompiledLogic {
                             "and" | "or" | "!" | "not" | "if" => Some(op_str),
                             _ => None,
                         };
-                        
+
                         if let Some(op_name) = canonical_op {
                             // Convert ["op", arg1, arg2, ...] to {"op": [arg1, arg2, ...]}
-                            let args: Vec<Value> = arr[1..].iter()
+                            let args: Vec<Value> = arr[1..]
+                                .iter()
                                 .map(Self::preprocess_table_condition)
                                 .collect();
                             let mut obj = serde_json::Map::new();
@@ -987,12 +1088,15 @@ impl CompiledLogic {
             _ => value.clone(),
         }
     }
-    
+
     /// Check if this is a simple reference that doesn't need caching
     pub fn is_simple_ref(&self) -> bool {
-        matches!(self, CompiledLogic::Ref(_, None) | CompiledLogic::Var(_, None))
+        matches!(
+            self,
+            CompiledLogic::Ref(_, None) | CompiledLogic::Var(_, None)
+        )
     }
-    
+
     /// Extract all variable names referenced in this logic
     pub fn referenced_vars(&self) -> Vec<String> {
         let mut vars = Vec::new();
@@ -1001,7 +1105,7 @@ impl CompiledLogic {
         vars.dedup();
         vars
     }
-    
+
     /// Flatten nested And operations only
     fn flatten_and(items: Vec<CompiledLogic>) -> Vec<CompiledLogic> {
         let mut flattened = Vec::new();
@@ -1016,7 +1120,7 @@ impl CompiledLogic {
         }
         flattened
     }
-    
+
     /// Flatten nested Or operations only
     fn flatten_or(items: Vec<CompiledLogic>) -> Vec<CompiledLogic> {
         let mut flattened = Vec::new();
@@ -1031,7 +1135,7 @@ impl CompiledLogic {
         }
         flattened
     }
-    
+
     /// Flatten nested Add operations only
     fn flatten_add(items: Vec<CompiledLogic>) -> Vec<CompiledLogic> {
         let mut flattened = Vec::new();
@@ -1046,7 +1150,7 @@ impl CompiledLogic {
         }
         flattened
     }
-    
+
     /// Flatten nested Multiply operations only
     fn flatten_multiply(items: Vec<CompiledLogic>) -> Vec<CompiledLogic> {
         let mut flattened = Vec::new();
@@ -1061,7 +1165,7 @@ impl CompiledLogic {
         }
         flattened
     }
-    
+
     /// Flatten nested Cat (concatenation) operations
     /// Combines nested Cat operations into a single flat operation
     fn flatten_cat(items: Vec<CompiledLogic>) -> Vec<CompiledLogic> {
@@ -1077,15 +1181,15 @@ impl CompiledLogic {
         }
         flattened
     }
-    
+
     /// Check if this logic contains forward references (e.g., VALUEAT with $iteration + N where N > 0)
     /// Returns true if it references future iterations in a table
     pub fn has_forward_reference(&self) -> bool {
         let result = self.check_forward_reference();
         result
     }
-    
-    fn check_forward_reference(&self) -> bool {        
+
+    fn check_forward_reference(&self) -> bool {
         match self {
             // VALUEAT with $iteration arithmetic
             CompiledLogic::ValueAt(table, idx_logic, col_name) => {
@@ -1097,106 +1201,172 @@ impl CompiledLogic {
                 // Recursively check all parameters
                 let table_fwd = table.check_forward_reference();
                 let idx_fwd = idx_logic.check_forward_reference();
-                let col_fwd = col_name.as_ref().map(|c| c.check_forward_reference()).unwrap_or(false);
+                let col_fwd = col_name
+                    .as_ref()
+                    .map(|c| c.check_forward_reference())
+                    .unwrap_or(false);
                 table_fwd || idx_fwd || col_fwd
             }
             // Recursively check compound operations
-            CompiledLogic::Array(arr) => {
-                arr.iter().any(|item| item.check_forward_reference())
-            }
-            CompiledLogic::And(items) | CompiledLogic::Or(items) 
-            | CompiledLogic::Add(items) | CompiledLogic::Subtract(items)
-            | CompiledLogic::Multiply(items) | CompiledLogic::Divide(items)
-            | CompiledLogic::Merge(items) | CompiledLogic::Cat(items)
-            | CompiledLogic::Max(items) | CompiledLogic::Min(items)
-            | CompiledLogic::Concat(items) | CompiledLogic::Multiplies(items)
+            CompiledLogic::Array(arr) => arr.iter().any(|item| item.check_forward_reference()),
+            CompiledLogic::And(items)
+            | CompiledLogic::Or(items)
+            | CompiledLogic::Add(items)
+            | CompiledLogic::Subtract(items)
+            | CompiledLogic::Multiply(items)
+            | CompiledLogic::Divide(items)
+            | CompiledLogic::Merge(items)
+            | CompiledLogic::Cat(items)
+            | CompiledLogic::Max(items)
+            | CompiledLogic::Min(items)
+            | CompiledLogic::Concat(items)
+            | CompiledLogic::Multiplies(items)
             | CompiledLogic::Divides(items) => {
                 items.iter().any(|item| item.check_forward_reference())
             }
-            CompiledLogic::Not(a) | CompiledLogic::Abs(a)
-            | CompiledLogic::Length(a) | CompiledLogic::Len(a) | CompiledLogic::IsEmpty(a)
-            | CompiledLogic::Year(a) | CompiledLogic::Month(a) | CompiledLogic::Day(a) => a.check_forward_reference(),
-            CompiledLogic::Round(a, decimals) | CompiledLogic::RoundUp(a, decimals) | CompiledLogic::RoundDown(a, decimals)
-            | CompiledLogic::Ceiling(a, decimals) | CompiledLogic::Floor(a, decimals) | CompiledLogic::Trunc(a, decimals)
+            CompiledLogic::Not(a)
+            | CompiledLogic::Abs(a)
+            | CompiledLogic::Length(a)
+            | CompiledLogic::Len(a)
+            | CompiledLogic::IsEmpty(a)
+            | CompiledLogic::Year(a)
+            | CompiledLogic::Month(a)
+            | CompiledLogic::Day(a) => a.check_forward_reference(),
+            CompiledLogic::Round(a, decimals)
+            | CompiledLogic::RoundUp(a, decimals)
+            | CompiledLogic::RoundDown(a, decimals)
+            | CompiledLogic::Ceiling(a, decimals)
+            | CompiledLogic::Floor(a, decimals)
+            | CompiledLogic::Trunc(a, decimals)
             | CompiledLogic::DateFormat(a, decimals) => {
-                a.check_forward_reference() || decimals.as_ref().map_or(false, |d| d.check_forward_reference())
+                a.check_forward_reference()
+                    || decimals
+                        .as_ref()
+                        .map_or(false, |d| d.check_forward_reference())
             }
             CompiledLogic::StringFormat(a, decimals, prefix, suffix, sep) => {
-                a.check_forward_reference() 
-                || decimals.as_ref().map_or(false, |d| d.check_forward_reference())
-                || prefix.as_ref().map_or(false, |p| p.check_forward_reference())
-                || suffix.as_ref().map_or(false, |s| s.check_forward_reference())
-                || sep.as_ref().map_or(false, |s| s.check_forward_reference())
+                a.check_forward_reference()
+                    || decimals
+                        .as_ref()
+                        .map_or(false, |d| d.check_forward_reference())
+                    || prefix
+                        .as_ref()
+                        .map_or(false, |p| p.check_forward_reference())
+                    || suffix
+                        .as_ref()
+                        .map_or(false, |s| s.check_forward_reference())
+                    || sep.as_ref().map_or(false, |s| s.check_forward_reference())
             }
-            CompiledLogic::Mround(a, b) => a.check_forward_reference() || b.check_forward_reference(),
+            CompiledLogic::Mround(a, b) => {
+                a.check_forward_reference() || b.check_forward_reference()
+            }
             CompiledLogic::Return(_) => false, // Raw values don't have forward references
             CompiledLogic::If(cond, then_val, else_val) => {
-                cond.check_forward_reference() || then_val.check_forward_reference() || else_val.check_forward_reference()
+                cond.check_forward_reference()
+                    || then_val.check_forward_reference()
+                    || else_val.check_forward_reference()
             }
-            CompiledLogic::Equal(a, b) | CompiledLogic::StrictEqual(a, b)
-            | CompiledLogic::NotEqual(a, b) | CompiledLogic::StrictNotEqual(a, b)
-            | CompiledLogic::LessThan(a, b) | CompiledLogic::LessThanOrEqual(a, b)
-            | CompiledLogic::GreaterThan(a, b) | CompiledLogic::GreaterThanOrEqual(a, b)
-            | CompiledLogic::Modulo(a, b) | CompiledLogic::Power(a, b)
-            | CompiledLogic::Map(a, b) | CompiledLogic::Filter(a, b) 
-            | CompiledLogic::All(a, b) | CompiledLogic::Some(a, b) 
-            | CompiledLogic::None(a, b) | CompiledLogic::In(a, b) 
-            | CompiledLogic::Pow(a, b) | CompiledLogic::Xor(a, b) 
-            | CompiledLogic::IfNull(a, b) | CompiledLogic::Days(a, b) 
-            | CompiledLogic::SplitValue(a, b) | CompiledLogic::MaxAt(a, b) 
+            CompiledLogic::Equal(a, b)
+            | CompiledLogic::StrictEqual(a, b)
+            | CompiledLogic::NotEqual(a, b)
+            | CompiledLogic::StrictNotEqual(a, b)
+            | CompiledLogic::LessThan(a, b)
+            | CompiledLogic::LessThanOrEqual(a, b)
+            | CompiledLogic::GreaterThan(a, b)
+            | CompiledLogic::GreaterThanOrEqual(a, b)
+            | CompiledLogic::Modulo(a, b)
+            | CompiledLogic::Power(a, b)
+            | CompiledLogic::Map(a, b)
+            | CompiledLogic::Filter(a, b)
+            | CompiledLogic::All(a, b)
+            | CompiledLogic::Some(a, b)
+            | CompiledLogic::None(a, b)
+            | CompiledLogic::In(a, b)
+            | CompiledLogic::Pow(a, b)
+            | CompiledLogic::Xor(a, b)
+            | CompiledLogic::IfNull(a, b)
+            | CompiledLogic::Days(a, b)
+            | CompiledLogic::SplitValue(a, b)
+            | CompiledLogic::MaxAt(a, b)
             | CompiledLogic::RangeOptions(a, b) => {
                 a.check_forward_reference() || b.check_forward_reference()
             }
-            CompiledLogic::Reduce(a, b, c) | CompiledLogic::Mid(a, b, c)
-            | CompiledLogic::Date(a, b, c) | CompiledLogic::DateDif(a, b, c)
-            | CompiledLogic::MapOptions(a, b, c) | CompiledLogic::For(a, b, c) => {
-                a.check_forward_reference() || b.check_forward_reference() || c.check_forward_reference()
+            CompiledLogic::Reduce(a, b, c)
+            | CompiledLogic::Mid(a, b, c)
+            | CompiledLogic::Date(a, b, c)
+            | CompiledLogic::DateDif(a, b, c)
+            | CompiledLogic::MapOptions(a, b, c)
+            | CompiledLogic::For(a, b, c) => {
+                a.check_forward_reference()
+                    || b.check_forward_reference()
+                    || c.check_forward_reference()
             }
-            CompiledLogic::Substr(s, start, len) | CompiledLogic::Search(s, start, len)
-            | CompiledLogic::SplitText(s, start, len) | CompiledLogic::YearFrac(s, start, len) => {
-                s.check_forward_reference() || start.check_forward_reference() 
-                || len.as_ref().map(|l| l.check_forward_reference()).unwrap_or(false)
+            CompiledLogic::Substr(s, start, len)
+            | CompiledLogic::Search(s, start, len)
+            | CompiledLogic::SplitText(s, start, len)
+            | CompiledLogic::YearFrac(s, start, len) => {
+                s.check_forward_reference()
+                    || start.check_forward_reference()
+                    || len
+                        .as_ref()
+                        .map(|l| l.check_forward_reference())
+                        .unwrap_or(false)
             }
             CompiledLogic::Left(a, opt) | CompiledLogic::Right(a, opt) => {
-                a.check_forward_reference() || opt.as_ref().map(|o| o.check_forward_reference()).unwrap_or(false)
+                a.check_forward_reference()
+                    || opt
+                        .as_ref()
+                        .map(|o| o.check_forward_reference())
+                        .unwrap_or(false)
             }
             CompiledLogic::Sum(a, opt1, opt2) => {
-                a.check_forward_reference() 
-                || opt1.as_ref().map(|o| o.check_forward_reference()).unwrap_or(false)
-                || opt2.as_ref().map(|o| o.check_forward_reference()).unwrap_or(false)
+                a.check_forward_reference()
+                    || opt1
+                        .as_ref()
+                        .map(|o| o.check_forward_reference())
+                        .unwrap_or(false)
+                    || opt2
+                        .as_ref()
+                        .map(|o| o.check_forward_reference())
+                        .unwrap_or(false)
             }
             CompiledLogic::IndexAt(a, b, c, opt) => {
-                a.check_forward_reference() || b.check_forward_reference() 
-                || c.check_forward_reference() || opt.as_ref().map(|o| o.check_forward_reference()).unwrap_or(false)
+                a.check_forward_reference()
+                    || b.check_forward_reference()
+                    || c.check_forward_reference()
+                    || opt
+                        .as_ref()
+                        .map(|o| o.check_forward_reference())
+                        .unwrap_or(false)
             }
-            CompiledLogic::Match(table, conds) | CompiledLogic::MatchRange(table, conds)
-            | CompiledLogic::Choose(table, conds) | CompiledLogic::FindIndex(table, conds) => {
+            CompiledLogic::Match(table, conds)
+            | CompiledLogic::MatchRange(table, conds)
+            | CompiledLogic::Choose(table, conds)
+            | CompiledLogic::FindIndex(table, conds) => {
                 table.check_forward_reference() || conds.iter().any(|c| c.check_forward_reference())
             }
             CompiledLogic::MapOptionsIf(table, label, value, conds) => {
-                table.check_forward_reference() || label.check_forward_reference() 
-                || value.check_forward_reference() || conds.iter().any(|c| c.check_forward_reference())
+                table.check_forward_reference()
+                    || label.check_forward_reference()
+                    || value.check_forward_reference()
+                    || conds.iter().any(|c| c.check_forward_reference())
             }
-            CompiledLogic::MissingSome(min, _) => {
-                min.check_forward_reference()
-            }
+            CompiledLogic::MissingSome(min, _) => min.check_forward_reference(),
             _ => false,
         }
     }
-    
+
     /// Check if logic contains $iteration + positive_number pattern
     fn contains_iteration_plus_positive(&self) -> bool {
         match self {
             CompiledLogic::Add(items) => {
                 // Check if one operand references $iteration and another is a positive number literal
-                let has_iteration = items.iter().any(|item| {
-                    item.referenced_vars().iter().any(|v| v == "$iteration")
-                });
+                let has_iteration = items
+                    .iter()
+                    .any(|item| item.referenced_vars().iter().any(|v| v == "$iteration"));
 
                 let has_positive = items.iter().any(|item| match item {
-                    CompiledLogic::Number(n) => {
-                        n.parse::<f64>().unwrap_or(0.0) > 0.0
-                    },
+                    CompiledLogic::Number(n) => n.parse::<f64>().unwrap_or(0.0) > 0.0,
                     _ => false,
                 });
 
@@ -1206,38 +1376,38 @@ impl CompiledLogic {
             _ => false,
         }
     }
-    
+
     /// Normalize JSON Schema reference path to dot notation
     /// Handles: #/schema/path, #/properties/field, /properties/field, field.path
     /// Trims /properties/ and .properties. segments
     fn normalize_ref_path(path: &str) -> String {
         let mut normalized = path.to_string();
-        
+
         // Remove leading #/ if present
         if normalized.starts_with("#/") {
             normalized = normalized[2..].to_string();
         } else if normalized.starts_with('/') {
             normalized = normalized[1..].to_string();
         }
-        
+
         // Replace / with . for JSON pointer notation
         normalized = normalized.replace('/', ".");
-        
+
         // Remove /properties/ or .properties. segments
         normalized = normalized.replace("properties.", "");
         normalized = normalized.replace(".properties.", ".");
-        
+
         // Clean up any double dots
         while normalized.contains("..") {
             normalized = normalized.replace("..", ".");
         }
-        
+
         // Remove leading/trailing dots
         normalized = normalized.trim_matches('.').to_string();
-        
+
         normalized
     }
-    
+
     pub fn collect_vars(&self, vars: &mut Vec<String>) {
         match self {
             CompiledLogic::Var(name, default) => {
@@ -1258,23 +1428,37 @@ impl CompiledLogic {
                     item.collect_vars(vars);
                 }
             }
-            CompiledLogic::And(items) | CompiledLogic::Or(items) 
-            | CompiledLogic::Add(items) | CompiledLogic::Subtract(items)
-            | CompiledLogic::Multiply(items) | CompiledLogic::Divide(items)
-            | CompiledLogic::Merge(items) | CompiledLogic::Cat(items)
-            | CompiledLogic::Max(items) | CompiledLogic::Min(items)
+            CompiledLogic::And(items)
+            | CompiledLogic::Or(items)
+            | CompiledLogic::Add(items)
+            | CompiledLogic::Subtract(items)
+            | CompiledLogic::Multiply(items)
+            | CompiledLogic::Divide(items)
+            | CompiledLogic::Merge(items)
+            | CompiledLogic::Cat(items)
+            | CompiledLogic::Max(items)
+            | CompiledLogic::Min(items)
             | CompiledLogic::Concat(items) => {
                 for item in items {
                     item.collect_vars(vars);
                 }
             }
-            CompiledLogic::Not(a) | CompiledLogic::Abs(a)
-            | CompiledLogic::Length(a) | CompiledLogic::Len(a) | CompiledLogic::IsEmpty(a)
-            | CompiledLogic::Year(a) | CompiledLogic::Month(a) | CompiledLogic::Day(a) => {
+            CompiledLogic::Not(a)
+            | CompiledLogic::Abs(a)
+            | CompiledLogic::Length(a)
+            | CompiledLogic::Len(a)
+            | CompiledLogic::IsEmpty(a)
+            | CompiledLogic::Year(a)
+            | CompiledLogic::Month(a)
+            | CompiledLogic::Day(a) => {
                 a.collect_vars(vars);
             }
-            CompiledLogic::Round(a, decimals) | CompiledLogic::RoundUp(a, decimals) | CompiledLogic::RoundDown(a, decimals)
-            | CompiledLogic::Ceiling(a, decimals) | CompiledLogic::Floor(a, decimals) | CompiledLogic::Trunc(a, decimals)
+            CompiledLogic::Round(a, decimals)
+            | CompiledLogic::RoundUp(a, decimals)
+            | CompiledLogic::RoundDown(a, decimals)
+            | CompiledLogic::Ceiling(a, decimals)
+            | CompiledLogic::Floor(a, decimals)
+            | CompiledLogic::Trunc(a, decimals)
             | CompiledLogic::DateFormat(a, decimals) => {
                 a.collect_vars(vars);
                 if let Some(d) = decimals {
@@ -1283,10 +1467,18 @@ impl CompiledLogic {
             }
             CompiledLogic::StringFormat(a, decimals, prefix, suffix, sep) => {
                 a.collect_vars(vars);
-                if let Some(d) = decimals { d.collect_vars(vars); }
-                if let Some(p) = prefix { p.collect_vars(vars); }
-                if let Some(s) = suffix { s.collect_vars(vars); }
-                if let Some(s) = sep { s.collect_vars(vars); }
+                if let Some(d) = decimals {
+                    d.collect_vars(vars);
+                }
+                if let Some(p) = prefix {
+                    p.collect_vars(vars);
+                }
+                if let Some(s) = suffix {
+                    s.collect_vars(vars);
+                }
+                if let Some(s) = sep {
+                    s.collect_vars(vars);
+                }
             }
             CompiledLogic::Mround(a, b) => {
                 a.collect_vars(vars);
@@ -1298,37 +1490,54 @@ impl CompiledLogic {
                 then_val.collect_vars(vars);
                 else_val.collect_vars(vars);
             }
-            CompiledLogic::Equal(a, b) | CompiledLogic::StrictEqual(a, b)
-            | CompiledLogic::NotEqual(a, b) | CompiledLogic::StrictNotEqual(a, b)
-            | CompiledLogic::LessThan(a, b) | CompiledLogic::LessThanOrEqual(a, b)
-            | CompiledLogic::GreaterThan(a, b) | CompiledLogic::GreaterThanOrEqual(a, b)
-            | CompiledLogic::Modulo(a, b) | CompiledLogic::Power(a, b)
-            | CompiledLogic::Map(a, b) | CompiledLogic::Filter(a, b) 
-            | CompiledLogic::All(a, b) | CompiledLogic::Some(a, b) 
-            | CompiledLogic::None(a, b) | CompiledLogic::In(a, b) 
-            | CompiledLogic::Pow(a, b) | CompiledLogic::Xor(a, b) 
-            | CompiledLogic::IfNull(a, b) | CompiledLogic::Days(a, b) 
-            | CompiledLogic::SplitValue(a, b) | CompiledLogic::MaxAt(a, b) 
+            CompiledLogic::Equal(a, b)
+            | CompiledLogic::StrictEqual(a, b)
+            | CompiledLogic::NotEqual(a, b)
+            | CompiledLogic::StrictNotEqual(a, b)
+            | CompiledLogic::LessThan(a, b)
+            | CompiledLogic::LessThanOrEqual(a, b)
+            | CompiledLogic::GreaterThan(a, b)
+            | CompiledLogic::GreaterThanOrEqual(a, b)
+            | CompiledLogic::Modulo(a, b)
+            | CompiledLogic::Power(a, b)
+            | CompiledLogic::Map(a, b)
+            | CompiledLogic::Filter(a, b)
+            | CompiledLogic::All(a, b)
+            | CompiledLogic::Some(a, b)
+            | CompiledLogic::None(a, b)
+            | CompiledLogic::In(a, b)
+            | CompiledLogic::Pow(a, b)
+            | CompiledLogic::Xor(a, b)
+            | CompiledLogic::IfNull(a, b)
+            | CompiledLogic::Days(a, b)
+            | CompiledLogic::SplitValue(a, b)
+            | CompiledLogic::MaxAt(a, b)
             | CompiledLogic::RangeOptions(a, b) => {
                 a.collect_vars(vars);
                 b.collect_vars(vars);
             }
-            CompiledLogic::Reduce(a, b, c) | CompiledLogic::Mid(a, b, c)
-            | CompiledLogic::Date(a, b, c) | CompiledLogic::DateDif(a, b, c)
-            | CompiledLogic::MapOptions(a, b, c) | CompiledLogic::For(a, b, c) => {
+            CompiledLogic::Reduce(a, b, c)
+            | CompiledLogic::Mid(a, b, c)
+            | CompiledLogic::Date(a, b, c)
+            | CompiledLogic::DateDif(a, b, c)
+            | CompiledLogic::MapOptions(a, b, c)
+            | CompiledLogic::For(a, b, c) => {
                 a.collect_vars(vars);
                 b.collect_vars(vars);
                 c.collect_vars(vars);
             }
-            CompiledLogic::Substr(s, start, len) | CompiledLogic::Search(s, start, len)
-            | CompiledLogic::SplitText(s, start, len) | CompiledLogic::YearFrac(s, start, len) => {
+            CompiledLogic::Substr(s, start, len)
+            | CompiledLogic::Search(s, start, len)
+            | CompiledLogic::SplitText(s, start, len)
+            | CompiledLogic::YearFrac(s, start, len) => {
                 s.collect_vars(vars);
                 start.collect_vars(vars);
                 if let Some(l) = len {
                     l.collect_vars(vars);
                 }
             }
-            CompiledLogic::Left(a, opt) | CompiledLogic::Right(a, opt)
+            CompiledLogic::Left(a, opt)
+            | CompiledLogic::Right(a, opt)
             | CompiledLogic::ValueAt(a, _, opt) => {
                 a.collect_vars(vars);
                 if let Some(o) = opt {
@@ -1352,8 +1561,10 @@ impl CompiledLogic {
                     o.collect_vars(vars);
                 }
             }
-            CompiledLogic::Match(table, conds) | CompiledLogic::MatchRange(table, conds)
-            | CompiledLogic::Choose(table, conds) | CompiledLogic::FindIndex(table, conds) => {
+            CompiledLogic::Match(table, conds)
+            | CompiledLogic::MatchRange(table, conds)
+            | CompiledLogic::Choose(table, conds)
+            | CompiledLogic::FindIndex(table, conds) => {
                 table.collect_vars(vars);
                 for cond in conds {
                     cond.collect_vars(vars);
@@ -1381,7 +1592,7 @@ impl CompiledLogic {
 }
 
 /// Storage for compiled logic expressions with dependency tracking
-/// 
+///
 /// This store uses the global compiled logic cache to avoid recompiling
 /// the same logic across different instances. Each instance maintains
 /// its own local ID mapping to the global storage.
@@ -1399,45 +1610,45 @@ impl CompiledLogicStore {
             dependencies: AHashMap::default(),
         }
     }
-    
+
     /// Compile and store a JSON Logic expression
-    /// 
+    ///
     /// Uses global storage to avoid recompiling the same logic across instances.
     /// The logic is compiled once globally and reused, with this instance maintaining
     /// its own local ID for tracking dependencies.
     pub fn compile(&mut self, logic: &Value) -> Result<LogicId, String> {
         // Use global storage - compiles once and caches globally
         let _global_id = super::compiled_logic_store::compile_logic_value(logic)?;
-        
+
         // Get the compiled logic from global store (O(1) lookup)
         let compiled = super::compiled_logic_store::get_compiled_logic(_global_id)
             .ok_or_else(|| "Failed to retrieve compiled logic from global store".to_string())?;
-        
+
         // Track dependencies locally
         let deps = compiled.referenced_vars();
-        
+
         // Assign local ID for this instance
         let id = LogicId(self.next_id);
         self.next_id += 1;
-        
+
         // Store locally with instance-specific ID
         self.store.insert(id, compiled);
         self.dependencies.insert(id, deps);
-        
+
         Ok(id)
     }
-    
+
     /// Get a compiled logic by ID
     pub fn get(&self, id: &LogicId) -> Option<&CompiledLogic> {
         self.store.get(id)
     }
-    
+
     /// Remove a compiled logic by ID
     pub fn remove(&mut self, id: &LogicId) -> Option<CompiledLogic> {
         self.dependencies.remove(id);
         self.store.remove(id)
     }
-    
+
     /// Get dependencies for a logic ID
     pub fn get_dependencies(&self, id: &LogicId) -> Option<&[String]> {
         self.dependencies.get(id).map(|v| v.as_slice())
