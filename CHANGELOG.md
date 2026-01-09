@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.48] - 2026-01-09
+
+### Fixed
+
+- [core] fix eval depends
+
 ## [0.0.47] - 2026-01-09
 
 ### Fixed
