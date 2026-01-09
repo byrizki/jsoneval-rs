@@ -65,10 +65,10 @@ impl JSONEvalWasm {
         }
     }
 
-    /// Evaluate dependents in subform when a field changes
+    /// Evaluate dependents in subform when fields change
     ///
     /// @param subformPath - Path to the subform
-    /// @param changedPath - Path of the field that changed
+    /// @param changedPaths - JSON array of paths that changed
     /// @param data - Optional updated JSON data string
     /// @param context - Optional context data JSON string
     /// @returns Array of dependent change objects as JSON string
@@ -76,15 +76,18 @@ impl JSONEvalWasm {
     pub fn evaluate_dependents_subform(
         &mut self,
         subform_path: &str,
-        changed_path: &str,
+        changed_paths_json: &str,
         data: Option<String>,
         context: Option<String>,
     ) -> Result<String, JsValue> {
         let data_str = data.as_deref();
         let ctx = context.as_deref();
 
-        // Wrap single path in a Vec for the new API
-        let paths = vec![changed_path.to_string()];
+        // Parse JSON array of paths
+        let paths: Vec<String> = serde_json::from_str(changed_paths_json).map_err(|e| {
+            let error_msg = format!("Failed to parse paths JSON: {}", e);
+            JsValue::from_str(&error_msg)
+        })?;
 
         match self
             .inner
@@ -108,16 +111,18 @@ impl JSONEvalWasm {
     pub fn evaluate_dependents_subform_js(
         &mut self,
         subform_path: &str,
-        changed_paths: JsValue,
+        changed_paths_json: &str,
         data: Option<String>,
         context: Option<String>,
     ) -> Result<JsValue, JsValue> {
         let data_str = data.as_deref();
         let ctx = context.as_deref();
 
-        // Parse array of paths
-        let paths: Vec<String> = serde_wasm_bindgen::from_value(changed_paths).map_err(|e| {
-             JsValue::from_str(&format!("Failed to parse paths array: {}", e))
+        // Parse JSON array of paths
+        let paths: Vec<String> = serde_json::from_str(changed_paths_json).map_err(|e| {
+            let error_msg = format!("Failed to parse paths JSON: {}", e);
+            console_log(&format!("[WASM ERROR] {}", error_msg));
+            JsValue::from_str(&error_msg)
         })?;
 
         match self
@@ -311,12 +316,13 @@ impl JSONEvalWasm {
     pub fn get_evaluated_schema_by_paths_subform_js(
         &mut self,
         subform_path: &str,
-        paths_val: JsValue,
+        paths_json: &str,
         skip_layout: bool,
         format: u8,
     ) -> Result<JsValue, JsValue> {
-        let paths: Vec<String> = serde_wasm_bindgen::from_value(paths_val)
-            .map_err(|e| JsValue::from_str(&format!("Failed to parse paths array: {}", e)))?;
+        // Parse JSON array of paths
+        let paths: Vec<String> = serde_json::from_str(paths_json)
+            .map_err(|e| JsValue::from_str(&format!("Failed to parse paths JSON: {}", e)))?;
 
         let return_format = match format {
             1 => crate::ReturnFormat::Flat,
@@ -404,11 +410,12 @@ impl JSONEvalWasm {
     pub fn get_schema_by_paths_subform_js(
         &self,
         subform_path: &str,
-        paths_val: JsValue,
+        paths_json: &str,
         format: u8,
     ) -> Result<JsValue, JsValue> {
-        let paths: Vec<String> = serde_wasm_bindgen::from_value(paths_val)
-            .map_err(|e| JsValue::from_str(&format!("Failed to parse paths array: {}", e)))?;
+        // Parse JSON array of paths
+        let paths: Vec<String> = serde_json::from_str(paths_json)
+            .map_err(|e| JsValue::from_str(&format!("Failed to parse paths JSON: {}", e)))?;
 
         let return_format = match format {
             1 => crate::ReturnFormat::Flat,

@@ -478,8 +478,11 @@ export class JSONEvalCore {
   async evaluateDependents({ changedPaths, data, context, reEvaluate = false }: EvaluateDependentsOptions): Promise<DependentChange[]> {
     await this.init();
     try {
+      // Ensure paths is an array for WASM
+      const paths = Array.isArray(changedPaths) ? changedPaths : [changedPaths];
+
       return this._instance.evaluateDependentsJS(
-        changedPaths, // Pass array directly
+        JSON.stringify(paths),
         data ? JSON.stringify(data) : null,
         context ? JSON.stringify(context) : null,
         reEvaluate
@@ -535,7 +538,7 @@ export class JSONEvalCore {
    */
   async getEvaluatedSchemaByPaths({ paths, skipLayout = false, format = 0 }: GetValueByPathsOptions): Promise<any> {
     await this.init();
-    return this._instance.getEvaluatedSchemaByPathsJS(paths, skipLayout, format);
+    return this._instance.getEvaluatedSchemaByPathsJS(JSON.stringify(paths), skipLayout, format);
   }
 
   /**
@@ -552,7 +555,7 @@ export class JSONEvalCore {
    */
   async getSchemaByPaths({ paths, format = 0 }: GetSchemaByPathsOptions): Promise<any> {
     await this.init();
-    return this._instance.getSchemaByPathsJS(paths, format);
+    return this._instance.getSchemaByPathsJS(JSON.stringify(paths), format);
   }
 
   /**
@@ -801,7 +804,7 @@ export class JSONEvalCore {
 
     return this._instance.evaluateDependentsSubformJS(
       subformPath,
-      paths, // Pass array directly (WASM now accepts array)
+      JSON.stringify(paths),
       data ? JSON.stringify(data) : null,
       context ? JSON.stringify(context) : null
     );
@@ -853,7 +856,7 @@ export class JSONEvalCore {
    */
   async getEvaluatedSchemaByPathsSubform({ subformPath, schemaPaths, skipLayout = false, format = 0 }: GetEvaluatedSchemaByPathsSubformOptions): Promise<any> {
     await this.init();
-    return this._instance.getEvaluatedSchemaByPathsSubformJS(subformPath, schemaPaths, skipLayout, format);
+    return this._instance.getEvaluatedSchemaByPathsSubformJS(subformPath, JSON.stringify(schemaPaths), skipLayout, format);
   }
 
   /**
@@ -878,7 +881,7 @@ export class JSONEvalCore {
    */
   async getSchemaByPathsSubform({ subformPath, schemaPaths, format = 0 }: GetSchemaByPathsSubformOptions): Promise<any> {
     await this.init();
-    return this._instance.getSchemaByPathsSubformJS(subformPath, schemaPaths, format);
+    return this._instance.getSchemaByPathsSubformJS(subformPath, JSON.stringify(schemaPaths), format);
   }
 
   /**
