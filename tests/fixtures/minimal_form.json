@@ -116,6 +116,12 @@
                         },
                         {
                             "$ref": "#/illustration/properties/header/properties/form_date"
+                        },
+                        {
+                            "$ref": "#/illustration/properties/header/properties/extra_comments"
+                        },
+                        {
+                            "$ref": "#/illustration/properties/header/properties/recursive_test"
                         }
                     ]
                 },
@@ -144,6 +150,86 @@
                         "value": {
                             "$evaluation": {
                                 "NOW": []
+                            }
+                        }
+                    },
+                    "recursive_test": {
+                        "type": "object",
+                        "title": "Recursive Test",
+                        "$layout": {
+                            "type": "VerticalLayout",
+                            "elements": [
+                                {
+                                    "$ref": "#/illustration/properties/header/properties/recursive_test/properties/field_c"
+                                },
+                                {
+                                    "$ref": "#/illustration/properties/header/properties/recursive_test/properties/field_b"
+                                },
+                                {
+                                    "$ref": "#/illustration/properties/header/properties/recursive_test/properties/field_a"
+                                }
+                            ]
+                        },
+                        "properties": {
+                            "field_c": {
+                                "type": "boolean",
+                                "title": "Field C",
+                                "fieldType": "checkbox"
+                            },
+                            "field_b": {
+                                "type": "boolean",
+                                "title": "Field B",
+                                "fieldType": "checkbox",
+                                "condition": {
+                                    "hidden": {
+                                        "$evaluation": {
+                                            "==": [
+                                                {
+                                                    "$ref": "#/illustration/properties/header/properties/recursive_test/properties/field_c"
+                                                },
+                                                true
+                                            ]
+                                        }
+                                    }
+                                }
+                            },
+                            "field_a": {
+                                "type": "string",
+                                "title": "Field A",
+                                "fieldType": "textinput",
+                                "condition": {
+                                    "hidden": {
+                                        "$evaluation": {
+                                            "ISEMPTY": [
+                                                {
+                                                    "$ref": "#/illustration/properties/header/properties/recursive_test/properties/field_b"
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "extra_comments": {
+                        "type": "string",
+                        "title": "Extra Comments",
+                        "fieldType": "textarea",
+                        "condition": {
+                            "hidden": {
+                                "$evaluation": {
+                                    "==": [
+                                        {
+                                            "$ref": "#/illustration/properties/header/properties/form_number"
+                                        },
+                                        "HIDE"
+                                    ]
+                                }
+                            }
+                        },
+                        "config": {
+                            "all": {
+                                "keepHiddenValue": true
                             }
                         }
                     }

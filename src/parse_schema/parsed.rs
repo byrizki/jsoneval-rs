@@ -23,6 +23,8 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
         options_templates: &mut Vec<(String, String, String)>,
         subforms: &mut Vec<(String, serde_json::Map<String, Value>, Value)>,
         fields_with_rules: &mut Vec<String>,
+        conditional_hidden_fields: &mut Vec<String>,
+        conditional_readonly_fields: &mut Vec<String>,
     ) -> Result<(), String> {
         match value {
             Value::Object(map) => {
@@ -36,7 +38,6 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                     evaluations.insert(key.clone(), logic_id);
 
                     // Collect dependencies with smart table inheritance
-                    // Normalize all dependencies to JSON pointer format to avoid duplicates
                     let mut refs: IndexSet<String> = engine
                         .get_referenced_vars(&logic_id)
                         .unwrap_or_default()
@@ -46,7 +47,8 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                             // Filter out simple column references (e.g., "/INSAGE_YEAR", "/PREM_PP")
                             // These are FINDINDEX/MATCH column names, not actual data dependencies
                             // Real dependencies have multiple path segments (e.g., "/illustration/properties/...")
-                            dep.matches('/').count() > 1 || dep.starts_with("/$")
+                            // Update: allow top-level fields (count >= 1 e.g. "/B")
+                            dep.matches('/').count() >= 1 || dep.starts_with("/$")
                         })
                         .collect();
                     let mut extra_refs = IndexSet::new();
@@ -141,6 +143,18 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                             // Don't recurse into items - it will be processed as a separate subform
                             return Ok(());
                         }
+                    }
+                }
+
+                // Check for conditional hidden/disabled fields
+                if let Some(Value::Object(condition)) = map.get("condition") {
+                    // Hidden
+                    if condition.contains_key("hidden") {
+                        conditional_hidden_fields.push(path.to_string());
+                    }
+                    // Disabled (Read Only) - only relevant if it has a value enforce
+                    if condition.contains_key("disabled") && map.contains_key("value") {
+                         conditional_readonly_fields.push(path.to_string());
                     }
                 }
 
@@ -250,6 +264,8 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                         options_templates,
                         subforms,
                         fields_with_rules,
+                        conditional_hidden_fields,
+                        conditional_readonly_fields,
                     )?;
                 })
             }
@@ -272,6 +288,8 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                     options_templates,
                     subforms,
                     fields_with_rules,
+                    conditional_hidden_fields,
+                    conditional_readonly_fields,
                 )?;
             }),
             _ => Ok(()),
@@ -328,6 +346,8 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
         .ok_or("Cannot get mutable reference to engine - ParsedSchema is shared")?;
 
     let mut fields_with_rules = Vec::new();
+    let mut conditional_hidden_fields = Vec::new();
+    let mut conditional_readonly_fields = Vec::new();
 
     walk(
         &parsed.schema,
@@ -342,11 +362,15 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
         &mut options_templates,
         &mut subforms_data,
         &mut fields_with_rules,
+        &mut conditional_hidden_fields,
+        &mut conditional_readonly_fields,
     )?;
 
     parsed.evaluations = Arc::new(evaluations);
     parsed.tables = Arc::new(tables);
     parsed.dependencies = Arc::new(dependencies);
+    parsed.conditional_hidden_fields = Arc::new(conditional_hidden_fields);
+    parsed.conditional_readonly_fields = Arc::new(conditional_readonly_fields);
     // Sort layout paths by depth descending (deepest first)
     // This ensures nested layouts are resolved before their parents
     // Count '/' to determine depth
@@ -374,6 +398,9 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
 
     // Process collected value fields
     process_value_fields_parsed(parsed, value_fields);
+
+    // Build reffed_by graph (reverse dependencies for hidden conditions)
+    build_reffed_by_parsed(parsed);
 
     // Pre-compile all table metadata for zero-copy evaluation
     build_table_metadata_parsed(parsed)?;
@@ -730,4 +757,46 @@ fn compile_table_metadata_parsed(
         clear_logic,
         clear_literal,
     })
+}
+
+/// Build reffed_by graph for ParsedSchema
+/// This maps fields to the fields that reference them in hidden conditions
+fn build_reffed_by_parsed(parsed: &mut ParsedSchema) {
+    let mut reffed_by: IndexMap<String, Vec<String>> = IndexMap::new();
+
+    // Iterate over all dependencies
+    for (eval_path, deps) in parsed.dependencies.iter() {
+        // We only care about hidden condition evaluations
+        // Path format: .../condition/hidden
+        // (Evaluation keys are schema paths)
+        if eval_path.ends_with("/condition/hidden") {
+            // Extract the subject field path (the one being hidden)
+            // e.g. #/properties/foo/condition/hidden -> #/properties/foo
+            // Remove /condition/hidden (17 chars)
+            let subject_path = eval_path[..eval_path.len() - 17].to_string();
+
+            for dep in deps {
+                // dep is a dependency path (usually data pointer, e.g. /bar or /properties/bar depending on logic)
+                // Normalize dep to pure data pointer for consistency
+                let normalized_dep = path_utils::normalize_to_json_pointer(dep)
+                    .replace("/properties/", "/")
+                    .trim_start_matches('#')
+                    .to_string();
+
+                let dep_key = if normalized_dep.starts_with('/') {
+                    normalized_dep
+                } else {
+                    format!("/{}", normalized_dep)
+                };
+
+                // Add subject_path to the list of fields that depend on dep_key
+                reffed_by
+                    .entry(dep_key)
+                    .or_insert_with(Vec::new)
+                    .push(subject_path.clone());
+            }
+        }
+    }
+
+    parsed.reffed_by = Arc::new(reffed_by);
 }

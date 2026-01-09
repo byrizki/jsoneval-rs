@@ -76,6 +76,17 @@ pub struct ParsedSchema {
     /// Key is the schema path (e.g., "#/riders"), value is Arc<ParsedSchema> for cheap cloning
     /// This allows subforms to be shared across multiple JSONEval instances efficiently
     pub subforms: IndexMap<String, Arc<ParsedSchema>>,
+
+    /// Reverse dependency graph for hidden field logic (wrapped in Arc for zero-copy sharing)
+    /// Map from a field path (source) to list of fields (targets) that reference it in their hidden condition
+    /// Used for recursive hiding logic
+    pub reffed_by: Arc<IndexMap<String, Vec<String>>>,
+    
+    /// Cached paths of fields that have hidden conditions (wrapped in Arc for zero-copy sharing)
+    pub conditional_hidden_fields: Arc<Vec<String>>,
+    
+    /// Cached paths of fields that have disabled conditions and value property (wrapped in Arc for zero-copy sharing)
+    pub conditional_readonly_fields: Arc<Vec<String>>,
 }
 
 impl ParsedSchema {
@@ -122,6 +133,9 @@ impl ParsedSchema {
             layout_paths: Arc::new(Vec::new()),
             options_templates: Arc::new(Vec::new()),
             subforms: IndexMap::new(),
+            reffed_by: Arc::new(IndexMap::new()),
+            conditional_hidden_fields: Arc::new(Vec::new()),
+            conditional_readonly_fields: Arc::new(Vec::new()),
         };
 
         // Parse the schema to populate all fields
