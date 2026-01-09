@@ -1,6 +1,13 @@
 # Changelog
 
-## [0.0.48] - 2026-01-09
+## [0.0.49] - 2026-01-10
+
+### Fixed
+
+- [core] fix eval depends
+- [wasm] fix return value to JS Object
+
+## [0.0.49] - 2026-01-09
 
 ### Fixed
 
