@@ -62,5 +62,4 @@ opt-level = 3
 
 # Windows resource compiler for adding version info to DLL
 [build-dependencies]
-[target.'cfg(windows)'.build-dependencies]
 winres = "0.1"

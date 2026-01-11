@@ -1,12 +1,13 @@
 fn main() {
     // Add version resource to Windows DLL
-    // Check if we are actually compiling FOR Windows (target), not just ON Windows (host)
+    // IMPORTANT: Check CARGO_CFG_TARGET_OS to detect what we're building FOR (target),
+    // not what we're building ON (host). This is crucial for cross-compilation.
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     
     if target_os == "windows" {
         let version = env!("CARGO_PKG_VERSION");
         
-        // Parse version string (e.g., "0.0.49" -> parts [0, 0, 3])
+        // Parse version string (e.g., "0.0.49" -> parts [0, 0, 49])
         let version_parts: Vec<u64> = version
             .split('.')
             .filter_map(|s| s.parse().ok())
@@ -39,7 +40,7 @@ fn main() {
         }
     }
     
-    // Print version info for other platforms
+    // Print version info for all platforms
     println!("cargo:rustc-env=BUILD_VERSION={}", env!("CARGO_PKG_VERSION"));
     println!("cargo:rerun-if-changed=Cargo.toml");
 }
