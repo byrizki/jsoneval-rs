@@ -1,4 +1,4 @@
-use json_eval_rs::json_parser::{parse_json_str, parse_json_bytes};
+use json_eval_rs::jsoneval::json_parser::{parse_json_str, parse_json_bytes};
 
 #[test]
 fn test_parse_simple_json() {

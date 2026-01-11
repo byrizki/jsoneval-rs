@@ -1,6 +1,7 @@
-use crate::eval_data::EvalData;
-use crate::table_metadata::RowMetadata;
-use crate::{path_utils, JSONEval};
+use crate::jsoneval::eval_data::EvalData;
+use crate::jsoneval::table_metadata::RowMetadata;
+use crate::jsoneval::path_utils;
+use crate::JSONEval;
 use serde_json::{Map, Value};
 use std::mem;
 

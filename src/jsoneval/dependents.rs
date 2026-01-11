@@ -1,8 +1,8 @@
 use super::JSONEval;
-use crate::json_parser;
-use crate::path_utils;
+use crate::jsoneval::json_parser;
+use crate::jsoneval::path_utils;
 use crate::rlogic::{LogicId, RLogic};
-use crate::types::DependentItem;
+use crate::jsoneval::types::DependentItem;
 use crate::utils::clean_float_noise;
 use crate::EvalData;
 

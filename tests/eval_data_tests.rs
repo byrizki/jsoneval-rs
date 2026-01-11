@@ -1,4 +1,4 @@
-use json_eval_rs::EvalData;
+use json_eval_rs::jsoneval::eval_data::EvalData;
 use serde_json::json;
 
 #[test]

@@ -1,5 +1,5 @@
-use crate::path_utils;
-use crate::table_metadata::ColumnMetadata;
+use crate::jsoneval::path_utils;
+use crate::jsoneval::table_metadata::ColumnMetadata;
 /// Shared utilities for schema parsing (used by both legacy and parsed implementations)
 use indexmap::IndexSet;
 use serde_json::Value;

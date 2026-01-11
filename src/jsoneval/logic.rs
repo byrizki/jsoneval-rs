@@ -1,5 +1,5 @@
 use super::JSONEval;
-use crate::json_parser;
+use crate::jsoneval::json_parser;
 use crate::rlogic::{
     CompiledLogicId, Evaluator, compiled_logic_store
 };

@@ -1,4 +1,4 @@
-use crate::path_utils;
+use crate::jsoneval::path_utils;
 use crate::topo_sort::common::{collect_transitive_deps, compute_parallel_batches};
 use crate::JSONEval;
 /// Topological sorting for legacy JSONEval

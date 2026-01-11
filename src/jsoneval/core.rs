@@ -1,10 +1,10 @@
 use super::JSONEval;
-use crate::eval_cache::EvalCache;
-use crate::eval_data::EvalData;
-use crate::json_parser;
+use crate::jsoneval::eval_cache::EvalCache;
+use crate::jsoneval::eval_data::EvalData;
+use crate::jsoneval::json_parser;
 use crate::parse_schema;
-use crate::parsed_schema::ParsedSchema;
-use crate::parsed_schema_cache::PARSED_SCHEMA_CACHE;
+use crate::jsoneval::parsed_schema::ParsedSchema;
+use crate::jsoneval::parsed_schema_cache::PARSED_SCHEMA_CACHE;
 use crate::rlogic::{RLogic, RLogicConfig};
 
 use crate::time_block;

@@ -1,5 +1,5 @@
 use super::JSONEval;
-use crate::path_utils;
+use crate::jsoneval::path_utils;
 use crate::time_block;
 
 use serde_json::Value;

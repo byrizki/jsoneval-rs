@@ -1,4 +1,4 @@
-use json_eval_rs::path_utils::{normalize_to_json_pointer, get_value_by_pointer, dot_notation_to_schema_pointer, pointer_to_dot_notation};
+use json_eval_rs::jsoneval::path_utils::{normalize_to_json_pointer, get_value_by_pointer, dot_notation_to_schema_pointer, pointer_to_dot_notation};
 use serde_json::json;
 
 #[test]

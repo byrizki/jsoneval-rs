@@ -1,7 +1,7 @@
 use super::JSONEval;
-use crate::json_parser;
-use crate::path_utils;
-use crate::table_evaluate;
+use crate::jsoneval::json_parser;
+use crate::jsoneval::path_utils;
+use crate::jsoneval::table_evaluate;
 use crate::utils::clean_float_noise;
 use crate::time_block;
 

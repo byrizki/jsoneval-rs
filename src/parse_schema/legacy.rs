@@ -4,8 +4,9 @@ use serde_json::{Map, Value};
 use std::sync::Arc;
 
 use crate::parse_schema::common::compute_column_partitions;
-use crate::table_metadata::{ColumnMetadata, RepeatBoundMetadata, RowMetadata, TableMetadata};
-use crate::{path_utils, topo_sort, JSONEval, LogicId, RLogic};
+use crate::jsoneval::table_metadata::{ColumnMetadata, RepeatBoundMetadata, RowMetadata, TableMetadata};
+use crate::jsoneval::path_utils;
+use crate::{topo_sort, JSONEval, LogicId, RLogic};
 
 pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
     /// Single-pass schema walker that collects everything

@@ -1,4 +1,6 @@
-use json_eval_rs::{JSONEval, ParsedSchema, ParsedSchemaCache};
+use json_eval_rs::JSONEval;
+use json_eval_rs::jsoneval::parsed_schema::ParsedSchema;
+use json_eval_rs::jsoneval::parsed_schema_cache::ParsedSchemaCache;
 use serde_json::json;
 use std::sync::Arc;
 
@@ -125,7 +127,7 @@ fn test_compile_and_run_logic_with_custom_data() {
 
 #[test]
 fn test_compile_and_run_logic_from_global_cache() {
-    use json_eval_rs::PARSED_SCHEMA_CACHE;
+    use json_eval_rs::jsoneval::parsed_schema_cache::PARSED_SCHEMA_CACHE;
 
     let schema = json!({
         "type": "object",

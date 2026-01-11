@@ -5,7 +5,7 @@ use std::sync::{
     Arc,
 };
 
-use crate::path_utils;
+use crate::jsoneval::path_utils;
 
 static NEXT_INSTANCE_ID: AtomicU64 = AtomicU64::new(0);
 

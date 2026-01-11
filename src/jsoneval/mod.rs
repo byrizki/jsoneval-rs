@@ -1,30 +1,36 @@
 use std::sync::{Arc, Mutex};
 
-use crate::eval_cache::EvalCache;
-use crate::eval_data::EvalData;
+use crate::jsoneval::eval_cache::EvalCache;
+use crate::jsoneval::eval_data::EvalData;
 
-use crate::table_metadata::TableMetadata;
+use crate::jsoneval::table_metadata::TableMetadata;
 
 use crate::rlogic::{
     LogicId, RLogic,
 };
-use crate::types::DependentItem;
+use crate::jsoneval::types::DependentItem;
 
 use indexmap::{IndexMap, IndexSet};
 
 use serde_json::Value;
 
-
-#[cfg(feature = "parallel")]
-use rayon::prelude::*;
-
-pub mod core;
-pub mod evaluate;
-pub mod dependents;
 pub mod cache;
+pub mod dependents;
+pub mod eval_cache;
+pub mod eval_data;
+pub mod evaluate;
 pub mod getters;
+pub mod core;
+pub mod json_parser;
 pub mod layout;
 pub mod logic;
+pub mod parsed_schema;
+pub mod parsed_schema_cache;
+pub mod path_utils;
+pub mod subform_methods;
+pub mod table_evaluate;
+pub mod table_metadata;
+pub mod types;
 pub mod validation;
 
 pub struct JSONEval {

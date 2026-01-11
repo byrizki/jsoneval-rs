@@ -58,7 +58,7 @@ pub unsafe extern "C" fn json_eval_run_logic(
 
     let data_value = if !data.is_null() {
         match CStr::from_ptr(data).to_str() {
-            Ok(s) => match crate::json_parser::parse_json_str(s) {
+            Ok(s) => match crate::jsoneval::json_parser::parse_json_str(s) {
                 Ok(v) => Some(v),
                 Err(e) => return FFIResult::error(format!("Failed to parse data: {}", e)),
             },
@@ -70,7 +70,7 @@ pub unsafe extern "C" fn json_eval_run_logic(
 
     let context_value = if !context.is_null() {
         match CStr::from_ptr(context).to_str() {
-            Ok(s) => match crate::json_parser::parse_json_str(s) {
+            Ok(s) => match crate::jsoneval::json_parser::parse_json_str(s) {
                 Ok(v) => Some(v),
                 Err(e) => return FFIResult::error(format!("Failed to parse context: {}", e)),
             },

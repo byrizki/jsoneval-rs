@@ -2,7 +2,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
-use json_eval_rs::{json_parser, JSONEval, ParsedSchema};
+use json_eval_rs::jsoneval::json_parser;
+use json_eval_rs::{JSONEval, ParsedSchema};
 use serde_json::Value;
 use rmp_serde;
 

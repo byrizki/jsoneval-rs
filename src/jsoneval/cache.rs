@@ -1,7 +1,8 @@
 use super::JSONEval;
-use crate::eval_cache::{CacheKey, CacheStats};
-use crate::eval_data::EvalData;
-use crate::{is_timing_enabled, path_utils};
+use crate::jsoneval::eval_cache::{CacheKey, CacheStats};
+use crate::jsoneval::eval_data::EvalData;
+use crate::is_timing_enabled;
+use crate::jsoneval::path_utils;
 
 
 use indexmap::IndexSet;

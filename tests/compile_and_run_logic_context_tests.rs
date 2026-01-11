@@ -1,4 +1,6 @@
-use json_eval_rs::{JSONEval, ParsedSchema, ParsedSchemaCache};
+use json_eval_rs::JSONEval;
+use json_eval_rs::jsoneval::parsed_schema::ParsedSchema;
+use json_eval_rs::jsoneval::parsed_schema_cache::ParsedSchemaCache;
 use serde_json::json;
 use std::sync::Arc;
 

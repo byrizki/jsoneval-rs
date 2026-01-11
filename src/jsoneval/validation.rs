@@ -1,7 +1,7 @@
 use super::JSONEval;
-use crate::json_parser;
-use crate::path_utils;
-use crate::types::{ValidationError, ValidationResult};
+use crate::jsoneval::json_parser;
+use crate::jsoneval::path_utils;
+use crate::jsoneval::types::{ValidationError, ValidationResult};
 
 use crate::time_block;
 
