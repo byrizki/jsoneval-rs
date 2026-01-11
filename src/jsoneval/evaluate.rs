@@ -10,6 +10,9 @@ use serde_json::Value;
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 
+#[cfg(feature = "parallel")]
+use std::sync::Mutex;
+
 impl JSONEval {
     /// Evaluate the schema with the given data and context.
     ///
