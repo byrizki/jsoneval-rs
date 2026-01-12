@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.51] - 2026-01-12
+
+### Fixed
+
+- [core] fix layout resolver
+
 ## [0.0.50] - 2026-01-12
 
 ### Fixed
