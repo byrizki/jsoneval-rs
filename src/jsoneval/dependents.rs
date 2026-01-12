@@ -96,19 +96,20 @@ impl JSONEval {
             let _lock = self.eval_lock.lock().unwrap();
 
             // 1. Read-Only Pass
-            // Collect read-only fields that don't match data
+            // Collect read-only fields - include ALL readonly values in the result
             let mut readonly_changes = Vec::new();
+            let mut readonly_values = Vec::new();  // Track all readonly values (including unchanged)
             
             // OPTIMIZATION: Use conditional_readonly_fields cache instead of recursing whole schema
             // self.collect_readonly_fixes(&self.evaluated_schema, "#", &mut readonly_changes);
             for path in self.conditional_readonly_fields.iter() {
                 let normalized = path_utils::normalize_to_json_pointer(path);
                 if let Some(schema_element) = self.evaluated_schema.pointer(&normalized) {
-                    self.check_readonly_fix(schema_element, path, &mut readonly_changes);
+                    self.check_readonly_for_dependents(schema_element, path, &mut readonly_changes, &mut readonly_values);
                 }
             }
 
-            // Apply fixes and add to queue
+            // Apply fixes for changed values and add to queue
             for (path, schema_value) in readonly_changes {
                 // Set data to match schema value
                 let data_path = path_utils::normalize_to_json_pointer(&path)
@@ -118,19 +119,22 @@ impl JSONEval {
                 
                 self.eval_data.set(&data_path, schema_value.clone());
                 
-                // Add to result as "value" change (implicit)
-                // Actually JS implementation might push these to dependents result?
-                // JS: dependents.push({ $ref: cleanRef, $readonly: true, value: rv.value, ... })
-                // We should replicate this structure
-                
-                 let mut change_obj = serde_json::Map::new();
-                 change_obj.insert("$ref".to_string(), Value::String(path_utils::pointer_to_dot_notation(&data_path)));
-                 change_obj.insert("$readonly".to_string(), Value::Bool(true));
-                 change_obj.insert("value".to_string(), schema_value);
-
-                // Add to process queue
+                // Add to process queue for changed values
                 to_process.push((path, true));
-                // Add to result
+            }
+            
+            // Add ALL readonly values to result (both changed and unchanged)
+            for (path, schema_value) in readonly_values {
+                let data_path = path_utils::normalize_to_json_pointer(&path)
+                    .replace("/properties/", "/")
+                    .trim_start_matches('#')
+                    .to_string();
+                
+                let mut change_obj = serde_json::Map::new();
+                change_obj.insert("$ref".to_string(), Value::String(path_utils::pointer_to_dot_notation(&data_path)));
+                change_obj.insert("$readonly".to_string(), Value::Bool(true));
+                change_obj.insert("value".to_string(), schema_value);
+                
                 result.push(Value::Object(change_obj));
             }
             
@@ -229,12 +233,13 @@ impl JSONEval {
         }
     }
 
-    /// Check if a single field needs readonly fix (Optimized non-recursive)
-    pub(crate) fn check_readonly_fix(
+    /// Check if a single field is readonly and populate vectors for both changes and all values
+    pub(crate) fn check_readonly_for_dependents(
         &self,
         schema_element: &Value,
         path: &str,
         changes: &mut Vec<(String, Value)>,
+        all_values: &mut Vec<(String, Value)>,
     ) {
         match schema_element {
             Value::Object(map) => {
@@ -265,6 +270,10 @@ impl JSONEval {
                          
                          let current_data = self.eval_data.data().pointer(&data_path).unwrap_or(&Value::Null);
                          
+                         // Add to all_values (include in dependents result regardless of change)
+                         all_values.push((path.to_string(), schema_value.clone()));
+                         
+                         // Only add to changes if value doesn't match
                          if current_data != schema_value {
                              changes.push((path.to_string(), schema_value.clone()));
                          }
