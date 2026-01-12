@@ -28,7 +28,7 @@ fn main() {
 
     // Helper to check visibility
     let check_visibility = |eval: &mut JSONEval, expected_hidden: bool, step: &str| {
-        let result = eval.get_evaluated_schema(true);
+        let result = eval.get_evaluated_schema(false);
         let hidden = result.pointer("/illustration/properties/basicinformation/properties/print_poladdress/condition/hidden")
             .and_then(|v| v.as_bool());
         
@@ -80,7 +80,7 @@ fn main() {
     }
 
     // Debug: Print current flag value
-    if let Some(val) = eval.get_evaluated_schema(true).pointer("/illustration/properties/basicinformation/properties/print_polflag/value") {
+    if let Some(val) = eval.get_evaluated_schema(false).pointer("/illustration/properties/basicinformation/properties/print_polflag/value") {
          println!("Debug: print_polflag value is: {}", val);
     }
 
