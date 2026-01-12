@@ -66,7 +66,7 @@ impl JSONEval {
             .get_mut(subform_path)
             .ok_or_else(|| format!("Subform not found: {}", subform_path))?;
 
-        subform.resolve_layout(evaluate);
+        let _ = subform.resolve_layout(evaluate);
         Ok(())
     }
 
@@ -113,7 +113,7 @@ impl JSONEval {
         skip_layout: bool,
     ) -> Option<Value> {
         if let Some(subform) = self.subforms.get_mut(subform_path) {
-            Some(subform.get_evaluated_schema_by_paths(&[schema_path.to_string()], skip_layout, ReturnFormat::Nested))
+            Some(subform.get_evaluated_schema_by_paths(&[schema_path.to_string()], skip_layout, Some(ReturnFormat::Nested)))
         } else {
             None
         }
@@ -128,7 +128,7 @@ impl JSONEval {
         format: Option<crate::ReturnFormat>,
     ) -> Value {
         if let Some(subform) = self.subforms.get_mut(subform_path) {
-            subform.get_evaluated_schema_by_paths(schema_paths, skip_layout, format.unwrap_or(ReturnFormat::Flat))
+            subform.get_evaluated_schema_by_paths(schema_paths, skip_layout, Some(format.unwrap_or(ReturnFormat::Flat)))
         } else {
             match format.unwrap_or_default() {
                 crate::ReturnFormat::Array => Value::Array(vec![]),
@@ -158,7 +158,7 @@ impl JSONEval {
         format: Option<crate::ReturnFormat>,
     ) -> Value {
         if let Some(subform) = self.subforms.get(subform_path) {
-            subform.get_schema_by_paths(schema_paths, format.unwrap_or(ReturnFormat::Flat))
+            subform.get_schema_by_paths(schema_paths, Some(format.unwrap_or(ReturnFormat::Flat)))
         } else {
             match format.unwrap_or_default() {
                 crate::ReturnFormat::Array => Value::Array(vec![]),

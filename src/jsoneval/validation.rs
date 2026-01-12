@@ -18,58 +18,35 @@ impl JSONEval {
         paths: Option<&[String]>,
     ) -> Result<ValidationResult, String> {
         time_block!("validate() [total]", {
-             // context is currently unused in validate implementation but kept for API compatibility?
-             // Or should we update self.context?
-             if let Some(ctx) = context {
-                 // Parse context if needed?
-                 // But validation primarily checks data.
-                 // If rules depend on context (via $evaluation), we need to update context.
-                 // Original validate implementation in lib.rs?
-                 // I will assume simple implementation for now: parse data as before.
-                 // But handle context update if provided?
-                 // For safety/compat, let's parse context if provided.
-                 if let Ok(ctx_val) = json_parser::parse_json_str(ctx) {
-                     self.context = ctx_val;
-                     // Purge cache for context change will be handled?
-                     // My previous implementation only handled data change.
-                 }
-             }
-
-            // Update data if provided
-            let data_value = {
-                let val = json_parser::parse_json_str(data)?;
-                self.data = val.clone();
-                // Update eval_data as well?
-                // Ideally yes, validation runs on current state.
-                // But validate usually assumes evaluate has been called or data is up to date?
-                val
-            };
-
-            // Acquire lock for evaluating dependent rules
+            // Acquire lock for synchronous execution
             let _lock = self.eval_lock.lock().unwrap();
 
-            // We need to ensure rules are evaluated against THIS data.
-            // If data changed, we need to update cache/eval_data logic.
-            // Since data is passed as reference, we always check.
-            {
-                 let old_data = self.eval_data.clone_data_without(&["$params"]);
-                 self.eval_data.replace_data_and_context(data_value.clone(), self.context.clone());
-                 
-                 // Purge cache
-                 // Selectively purge cache for rule evaluations that depend on changed data
-                 // Collect all top-level data keys as potentially changed paths
-                 let changed_data_paths: Vec<String> = if let Some(obj) = data_value.as_object() {
-                     obj.keys().map(|k| format!("/{}", k)).collect()
-                 } else {
-                     Vec::new()
-                 };
-                 self.purge_cache_for_changed_data_with_comparison(
-                     &changed_data_paths,
-                     &old_data,
-                     &data_value,
-                 );
-            }
+            // Save old data for comparison
+            let old_data = self.eval_data.clone_data_without(&["$params"]);
 
+             // Parse and update data
+            let data_value = json_parser::parse_json_str(data)?;
+            let context_value = if let Some(ctx) = context {
+                json_parser::parse_json_str(ctx)?
+            } else {
+                Value::Object(serde_json::Map::new())
+            };
+
+            // Update eval_data with new data/context
+            self.eval_data.replace_data_and_context(data_value.clone(), context_value);
+
+            // Calculate changed paths for cache purging (root changed)
+            // Selectively purge cache entries that depend on root data
+            // Convert changed_paths to data pointer format for cache purging
+             let changed_data_paths = vec!["/".to_string()];
+            
+             // Selectively purge cache entries
+             self.purge_cache_for_changed_data_with_comparison(&changed_data_paths, &old_data, &data_value);
+             
+             if context.is_some() {
+                 self.purge_cache_for_context_change();
+             }
+            
             // Drop lock before calling evaluate_others which needs mutable access
             drop(_lock);
 

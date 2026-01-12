@@ -7,15 +7,24 @@ use std::mem;
 
 impl JSONEval {
     /// Resolve layout references with optional evaluation
-    pub fn resolve_layout(&mut self, evaluate: bool) {
+    ///
+    /// # Arguments
+    ///
+    /// * `evaluate` - If true, runs evaluation before resolving layout. If false, only resolves layout.
+    ///
+    /// # Returns
+    ///
+    /// A Result indicating success or an error message.
+    pub fn resolve_layout(&mut self, evaluate: bool) -> Result<(), String> {
         if evaluate {
             // Use existing data
-            if let Ok(data_str) = serde_json::to_string(&self.data) {
-                let _ = self.evaluate(&data_str, None, None);
-            }
+            let data_str = serde_json::to_string(&self.data)
+                .map_err(|e| format!("Failed to serialize data: {}", e))?;
+            self.evaluate(&data_str, None, None)?;
         }
 
         self.resolve_layout_internal();
+        Ok(())
     }
 
     fn resolve_layout_internal(&mut self) {

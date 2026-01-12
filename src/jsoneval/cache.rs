@@ -1,278 +1,277 @@
 use super::JSONEval;
 use crate::jsoneval::eval_cache::{CacheKey, CacheStats};
 use crate::jsoneval::eval_data::EvalData;
-use crate::is_timing_enabled;
-use crate::jsoneval::path_utils;
 
 
 use indexmap::IndexSet;
 use serde_json::Value;
-use std::time::Instant;
+
 
 impl JSONEval {
     /// Check if a dependency should be part of the cache key
-    pub fn should_cache_dependency(&self, dep_path: &str) -> bool {
-        // Cache based on:
-        // 1. Data paths (starting with /)
-        // 2. Context paths (starting with /) - treated same as data
-        // 3. Schema paths that point to data (e.g. #/properties/foo/value)
-
-        // Don't cache structural dependencies like loop indices or temporary variables if we can identify them
-        // For now, cache everything that looks like a path
-        if dep_path.starts_with('/') || dep_path.starts_with("#/") {
-            return true;
+    /// Check if a dependency should be cached
+    /// Caches everything except keys starting with $ (except $context)
+    #[inline]
+    pub fn should_cache_dependency(&self, key: &str) -> bool {
+        if key.starts_with("/$") || key.starts_with('$') {
+            // Only cache $context, exclude other $ keys like $params
+            key == "$context" || key.starts_with("$context.") || key.starts_with("/$context")
+        } else {
+            true
         }
-        false
     }
 
     /// Try to get a result from cache
+    /// Helper: Try to get cached result for an evaluation (thread-safe)
+    /// Helper: Try to get cached result (zero-copy via Arc)
     pub(crate) fn try_get_cached(
         &self,
         eval_key: &str,
         eval_data_snapshot: &EvalData,
     ) -> Option<Value> {
+        // Skip cache lookup if caching is disabled
         if !self.cache_enabled {
             return None;
         }
 
+        // Get dependencies for this evaluation
         let deps = self.dependencies.get(eval_key)?;
 
-        // Buffer to hold pairs of (dep_key, value_ref)
-        let mut key_values = Vec::with_capacity(deps.len());
+        // If no dependencies, use simple cache key
+        let cache_key = if deps.is_empty() {
+            CacheKey::simple(eval_key.to_string())
+        } else {
+            // Filter dependencies (exclude $ keys except $context)
+            let filtered_deps: IndexSet<String> = deps
+                .iter()
+                .filter(|dep_key| self.should_cache_dependency(dep_key))
+                .cloned()
+                .collect();
 
-        for dep in deps {
-            if self.should_cache_dependency(dep) {
-                // Get value from snapshot
-                // Normalize path first
-                let pointer_path = path_utils::normalize_to_json_pointer(dep);
-                let value = if pointer_path.starts_with("#/") {
-                    // It's a schema path - check if it points to a value we track
-                    // For caching purposes, we care about the DATA value at that schema path
-                    // So convert to data path
-                    let data_path = pointer_path.replace("/properties/", "/").replace("#", "");
-                    eval_data_snapshot
-                        .data()
-                        .pointer(&data_path)
-                        .unwrap_or(&Value::Null)
-                } else {
-                    // Direct data path
-                    eval_data_snapshot
-                        .data()
-                        .pointer(&pointer_path)
-                        .unwrap_or(&Value::Null)
-                };
+            // Collect dependency values
+            let dep_values: Vec<(String, &Value)> = filtered_deps
+                .iter()
+                .filter_map(|dep_key| eval_data_snapshot.get(dep_key).map(|v| (dep_key.clone(), v)))
+                .collect();
 
-                key_values.push((dep.clone(), value));
-            }
-        }
+            CacheKey::new(eval_key.to_string(), &filtered_deps, &dep_values)
+        };
 
-        let key = CacheKey::new(eval_key.to_string(), deps, &key_values);
-
-        self.eval_cache.get(&key).map(|v| v.as_ref().clone())
+        // Try cache lookup (zero-copy via Arc, thread-safe)
+        self.eval_cache
+            .get(&cache_key)
+            .map(|arc_val| (*arc_val).clone())
     }
 
     /// Cache a result
+    /// Helper: Store evaluation result in cache (thread-safe)
     pub(crate) fn cache_result(
         &self,
         eval_key: &str,
-        _result: Value,
+        value: Value,
         eval_data_snapshot: &EvalData,
     ) {
+        // Skip cache insertion if caching is disabled
         if !self.cache_enabled {
             return;
         }
 
-        if let Some(deps) = self.dependencies.get(eval_key) {
-             // Buffer to hold pairs of (dep_key, value_ref)
-            let mut key_values = Vec::with_capacity(deps.len());
-
-            for dep in deps {
-                if self.should_cache_dependency(dep) {
-                    let pointer_path = path_utils::normalize_to_json_pointer(dep);
-                    let value = if pointer_path.starts_with("#/") {
-                        let data_path = pointer_path.replace("/properties/", "/").replace("#", "");
-                        eval_data_snapshot
-                            .data()
-                            .pointer(&data_path)
-                            .unwrap_or(&Value::Null)
-                    } else {
-                        eval_data_snapshot
-                            .data()
-                            .pointer(&pointer_path)
-                            .unwrap_or(&Value::Null)
-                    };
-
-                    key_values.push((dep.clone(), value));
-                }
+        // Get dependencies for this evaluation
+        let deps = match self.dependencies.get(eval_key) {
+            Some(d) => d,
+            None => {
+                // No dependencies - use simple cache key
+                let cache_key = CacheKey::simple(eval_key.to_string());
+                self.eval_cache.insert(cache_key, value);
+                return;
             }
+        };
 
-            let key = CacheKey::new(eval_key.to_string(), deps, &key_values);
+        // Filter and collect dependency values (exclude $ keys except $context)
+        let filtered_deps: IndexSet<String> = deps
+            .iter()
+            .filter(|dep_key| self.should_cache_dependency(dep_key))
+            .cloned()
+            .collect();
 
-            self.eval_cache.insert(key, _result);
-        }
+        let dep_values: Vec<(String, &Value)> = filtered_deps
+            .iter()
+            .filter_map(|dep_key| eval_data_snapshot.get(dep_key).map(|v| (dep_key.clone(), v)))
+            .collect();
+
+        let cache_key = CacheKey::new(eval_key.to_string(), &filtered_deps, &dep_values);
+        self.eval_cache.insert(cache_key, value);
     }
 
     /// Purge cache entries affected by changed data paths, comparing old and new values
+    /// Selectively purge cache entries that depend on changed data paths
+    /// Only removes cache entries whose dependencies intersect with changed_paths
+    /// Compares old vs new values and only purges if values actually changed
     pub fn purge_cache_for_changed_data_with_comparison(
         &self,
-        changed_paths: &[String],
+        changed_data_paths: &[String],
         old_data: &Value,
         new_data: &Value,
     ) {
-        // Collect actual changed paths by comparing values
-        let mut actual_changes = Vec::new();
-
-        for path in changed_paths {
-            let pointer = if path.starts_with('/') {
-                path.clone()
-            } else {
-                format!("/{}", path)
-            };
-
-            let old_val = old_data.pointer(&pointer).unwrap_or(&Value::Null);
-            let new_val = new_data.pointer(&pointer).unwrap_or(&Value::Null);
-
-            if old_val != new_val {
-                actual_changes.push(path.clone());
-            }
-        }
-
-        if !actual_changes.is_empty() {
-            self.purge_cache_for_changed_data(&actual_changes);
-        }
-    }
-
-    /// Purge cache entries affected by changed data paths
-    pub fn purge_cache_for_changed_data(&self, changed_paths: &[String]) {
-        if changed_paths.is_empty() {
+        if changed_data_paths.is_empty() {
             return;
         }
 
-        // We need to find cache entries that depend on these paths.
-        // Since we don't have a reverse mapping from dependency -> cache keys readily available for specific values,
-        // we iterate the cache.
-        // IMPROVEMENT: Maintain a dependency graph for cache invalidation?
-        // Current implementation: Iterate all cache keys and check if they depend on changed paths.
+        // Check which paths actually have different values
+        let mut actually_changed_paths = Vec::new();
+        for path in changed_data_paths {
+            let old_val = old_data.pointer(path);
+            let new_val = new_data.pointer(path);
 
-        // Collect keys to remove to avoid borrowing issues
-        // EvalCache internal structure (DashMap) allows concurrent removal, but we don't have direct access here easily w/o iterating
-        // `eval_cache` in struct is `EvalCache`.
-
-        let start = Instant::now();
-        let initial_size = self.eval_cache.len();
-
-        // Convert changed paths to a format easier to match against dependencies
-        // Cache dependencies are stored as original strings from logic (e.g. "path/to/field", "#/path", "/path")
-        // We need flexible matching.
-        let paths_set: IndexSet<String> = changed_paths.iter().cloned().collect();
-
-        self.eval_cache.retain(|key, _| {
-            // key.dependencies is Vec<(String, Value)> (Wait, CacheKey deps logic might be different?)
-            // Actually CacheKey doesn't expose dependencies easily? 
-            // Ah, CacheKey struct: pub eval_key: String. It does NOT store dependencies list publically?
-            // checking eval_cache.rs: struct CacheKey { pub eval_key: String, pub deps_hash: u64 }.
-            // It does NOT store the dependencies themselves! 
-            // So we CANNOT check dependencies from key!
-            
-            // This implies my purge logic is BROKEN if I can't access dependencies.
-            // But strict adherence to `lib.rs`: How did `lib.rs` do it?
-            // `lib.rs` view 1600+?
-            // If CacheKey doesn't store dependencies, then we can't iterate dependencies.
-            // But `JSONEval` has `dependencies: Arc<IndexMap<String, IndexSet<String>>>`.
-            // We can look up dependencies using `key.eval_key`!
-            
-            if let Some(deps) = self.dependencies.get(&key.eval_key) {
-                !deps.iter().any(|dep_path| {
-                    self.paths_match_flexible(dep_path, &paths_set)
-                })
-            } else {
-                // No dependencies recorded? Keep it.
-                true
-            }
-        });
-
-        if is_timing_enabled() {
-            let _duration = start.elapsed();
-            let removed = initial_size - self.eval_cache.len();
-            if removed > 0 {
-                // Record timing if needed, or just debug log
-                // println!("Purged {} cache entries in {:?}", removed, duration);
+            // Only add to changed list if values differ
+            if old_val != new_val {
+                actually_changed_paths.push(path.clone());
             }
         }
+
+        // If no values actually changed, no need to purge
+        if actually_changed_paths.is_empty() {
+            return;
+        }
+
+        // Find all eval_keys that depend on the actually changed data paths
+        let mut affected_eval_keys = IndexSet::new();
+
+        for (eval_key, deps) in self.dependencies.iter() {
+            // Check if this evaluation depends on any of the changed paths
+            let is_affected = deps.iter().any(|dep| {
+                // Check if the dependency matches any changed path
+                actually_changed_paths.iter().any(|changed_path| {
+                    // Exact match or prefix match (for nested fields)
+                    dep == changed_path
+                        || dep.starts_with(&format!("{}/", changed_path))
+                        || changed_path.starts_with(&format!("{}/", dep))
+                })
+            });
+
+            if is_affected {
+                affected_eval_keys.insert(eval_key.clone());
+            }
+        }
+
+        // Remove all cache entries for affected eval_keys using retain
+        // Keep entries whose eval_key is NOT in the affected set
+        self.eval_cache
+            .retain(|cache_key, _| !affected_eval_keys.contains(&cache_key.eval_key));
     }
 
-    /// Helper to check if a dependency path matches any of the changed paths
-    pub(crate) fn paths_match_flexible(
-        &self,
-        dep_path: &str,
-        changed_paths: &IndexSet<String>,
-    ) -> bool {
-        // Normalize dep_path to slash format for comparison
-        let normalized_dep = path_utils::normalize_to_json_pointer(dep_path);
-        let normalized_dep_slash = normalized_dep.replace("#", ""); // e.g. /properties/foo
+    /// Selectively purge cache entries that depend on changed data paths
+    /// Finds all eval_keys that depend on the changed paths and removes them
+    /// Selectively purge cache entries that depend on changed data paths
+    /// Simpler version without value comparison for cases where we don't have old data
+    pub fn purge_cache_for_changed_data(&self, changed_data_paths: &[String]) {
+        if changed_data_paths.is_empty() {
+            return;
+        }
 
-        for changed in changed_paths {
-            // changed is usually like "/foo" or "/foo/bar"
-            // normalized_dep like "/properties/foo" or "/foo"
+        // Find all eval_keys that depend on the changed paths
+        let mut affected_eval_keys = IndexSet::new();
 
-            // 1. Exact match (ignoring /properties/ noise)
-            // stripped_dep: /foo
-            let stripped_dep = normalized_dep_slash.replace("/properties/", "/");
+        for (eval_key, deps) in self.dependencies.iter() {
+            // Check if this evaluation depends on any of the changed paths
+            let is_affected = deps.iter().any(|dep| {
+                // Check if dependency path matches any changed data path using flexible matching
+                changed_data_paths.iter().any(|changed_for_purge| {
+                    // Check both directions:
+                    // 1. Dependency matches changed data (dependency is child of change)
+                    // 2. Changed data matches dependency (change is child of dependency)
+                    Self::paths_match_flexible(dep, changed_for_purge)
+                        || Self::paths_match_flexible(changed_for_purge, dep)
+                })
+            });
 
-            if stripped_dep == *changed {
-                return true;
-            }
-
-            // 2. Ancestor/Descendant check
-            // If data at "/foo" changed, then dependency on "/foo/bar" is invalid
-            if stripped_dep.starts_with(changed) && stripped_dep.chars().nth(changed.len()) == Some('/') {
-                return true;
-            }
-
-            // If data at "/foo/bar" changed, then dependency on "/foo" is invalid (if it evaluates object)
-            // But we don't know if it evaluates object or is just a structural parent.
-            // Safe bet: invalidate.
-            if changed.starts_with(&stripped_dep) && changed.chars().nth(stripped_dep.len()) == Some('/') {
-                // EXCEPTION: If dep is purely structural (e.g. existence check), might be fine?
-                // But generally safe to invalidate.
-                return true;
+            if is_affected {
+                affected_eval_keys.insert(eval_key.clone());
             }
         }
 
-        false
+        // Remove all cache entries for affected eval_keys using retain
+        // Keep entries whose eval_key is NOT in the affected set
+        self.eval_cache
+            .retain(|cache_key, _| !affected_eval_keys.contains(&cache_key.eval_key));
+    }
+
+    /// Flexible path matching that handles structural schema keywords (e.g. properties, oneOf)
+    /// Returns true if schema_path structurally matches data_path
+    fn paths_match_flexible(schema_path: &str, data_path: &str) -> bool {
+        let s_segs: Vec<&str> = schema_path
+            .trim_start_matches('#')
+            .trim_start_matches('/')
+            .split('/')
+            .filter(|s| !s.is_empty())
+            .collect();
+        let d_segs: Vec<&str> = data_path
+            .trim_start_matches('/')
+            .split('/')
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        let mut d_idx = 0;
+
+        for s_seg in s_segs {
+            // If we matched all data segments, we are good (schema is deeper/parent)
+            if d_idx >= d_segs.len() {
+                return true;
+            }
+
+            let d_seg = d_segs[d_idx];
+
+            if s_seg == d_seg {
+                // Exact match, advance data pointer
+                d_idx += 1;
+            } else if s_seg == "items"
+                || s_seg == "additionalProperties"
+                || s_seg == "patternProperties"
+            {
+                // Wildcard match for arrays/maps - consume data segment if it looks valid
+                // Note: items matches array index (numeric). additionalProperties matches any key.
+                if s_seg == "items" {
+                    // Only match if data segment is numeric (array index)
+                    if d_seg.chars().all(|c| c.is_ascii_digit()) {
+                        d_idx += 1;
+                    }
+                } else {
+                    // additionalProperties/patternProperties matches any string key
+                    d_idx += 1;
+                }
+            } else if Self::is_structural_keyword(s_seg)
+                || s_seg.chars().all(|c| c.is_ascii_digit())
+            {
+                // Skip structural keywords (properties, oneOf, etc) and numeric indices in schema (e.g. oneOf/0)
+                continue;
+            } else {
+                // Mismatch: schema has a named segment that data doesn't have
+                return false;
+            }
+        }
+
+        // Return true if we consumed all data segments
+        true
     }
     
     /// Purge cache entries affected by context changes
+    /// Purge cache entries that depend on context
     pub fn purge_cache_for_context_change(&self) {
-        // Invalidate anything that depends on context
-        // Context dependencies usually start with "/" but point to context?
-        // Or they are special variables?
-        // For now, invalidate all keys that have dependencies NOT starting with # (assuming # is schema/internal)
-        // AND not starting with / (data).
-        // Actually, context is accessed via /variables etc?
-        // If we can't distinguish, we might need to clear all?
-        // Or check if dependency is in context?
-        
-        // Safer approach: Clear everything if context changes?
-        // Or iterate and check if dependency is NOT found in data?
-        
-        // Current implementation in lib.rs purges everything if context provided?
-        // Line 1160 in lib.rs: "if context_provided { self.purge_cache_for_context_change(); }"
-        // And implementation?
-        
-        // Let's implement based on checking dependencies for context-like paths
-        // Assuming context paths start with / and data paths also start with /.
-        // If we can't distinguish, we have to clear all entries with / dependencies.
-        
-        self.eval_cache.retain(|key, _| {
-             if let Some(deps) = self.dependencies.get(&key.eval_key) {
-                 !deps.iter().any(|dep_path| {
-                     dep_path.starts_with('/') && !dep_path.starts_with("#")
-                 })
-             } else {
-                 true
-             }
-        });
+        // Find all eval_keys that depend on $context
+        let mut affected_eval_keys = IndexSet::new();
+
+        for (eval_key, deps) in self.dependencies.iter() {
+            let is_affected = deps.iter().any(|dep| {
+                dep == "$context" || dep.starts_with("$context.") || dep.starts_with("/$context")
+            });
+
+            if is_affected {
+                affected_eval_keys.insert(eval_key.clone());
+            }
+        }
+
+        self.eval_cache
+            .retain(|cache_key, _| !affected_eval_keys.contains(&cache_key.eval_key));
     }
 
     /// Get cache statistics
@@ -305,6 +304,27 @@ impl JSONEval {
     /// Check if cache is enabled
     pub fn is_cache_enabled(&self) -> bool {
         self.cache_enabled
+    }
+
+    /// Helper to check if a key is a structural JSON Schema keyword
+    /// Helper to check if a key is a structural JSON Schema keyword
+    fn is_structural_keyword(key: &str) -> bool {
+        matches!(
+            key,
+            "properties"
+                | "definitions"
+                | "$defs"
+                | "allOf"
+                | "anyOf"
+                | "oneOf"
+                | "not"
+                | "if"
+                | "then"
+                | "else"
+                | "dependentSchemas"
+                | "$params"
+                | "dependencies"
+        )
     }
     
     /// Get cache size

@@ -585,7 +585,7 @@ impl JSONEval {
 
         // Step 3: Resolve layout logic (metadata injection, hidden propagation)
         time_block!("      resolve_layout", {
-            self.resolve_layout(false);
+            let _ = self.resolve_layout(false);
         });
     }
 

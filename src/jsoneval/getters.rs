@@ -132,13 +132,13 @@ impl JSONEval {
         &self,
         paths: &[String],
         _skip_layout: bool, // Unused for now but kept for API
-        format: ReturnFormat,
+        format: Option<ReturnFormat>,
     ) -> Value {
         // If skip_layout is true, we might want to ensure layout is not applied or filter it?
         // But get_evaluated_schema usually returns schema which has layout resolved?
         // Or not?
         // For now, ignoring skip_layout.
-        match format {
+        match format.unwrap_or(ReturnFormat::Nested) {
             ReturnFormat::Nested => {
                 let mut result = Value::Object(serde_json::Map::new());
                 for path in paths {
@@ -182,9 +182,9 @@ impl JSONEval {
     pub fn get_schema_by_paths(
         &self,
         paths: &[String],
-        format: ReturnFormat,
+        format: Option<ReturnFormat>,
     ) -> Value {
-        match format {
+        match format.unwrap_or(ReturnFormat::Nested) {
             ReturnFormat::Nested => {
                 let mut result = Value::Object(serde_json::Map::new());
                 for path in paths {
