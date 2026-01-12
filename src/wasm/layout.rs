@@ -11,7 +11,7 @@ impl JSONEvalWasm {
     /// @throws Error if resolve fails
     #[wasm_bindgen(js_name = resolveLayout)]
     pub fn resolve_layout(&mut self, evaluate: bool) -> Result<(), JsValue> {
-        self.inner.resolve_layout(evaluate);
+        let _ = self.inner.resolve_layout(evaluate);
         Ok(())
     }
 }
