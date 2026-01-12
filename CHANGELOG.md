@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.53] - 2026-01-12
+
+### Fixed
+
+- [core] fix eval dependents for readonly values
+
 ## [0.0.52] - 2026-01-12
 
 ### Fixed
