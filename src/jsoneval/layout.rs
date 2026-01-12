@@ -168,8 +168,7 @@ impl JSONEval {
                             if let Some(Value::Object(layout_obj)) = resolved_map.remove("$layout") {
                                 let mut result = layout_obj.clone();
 
-                                // Remove properties from resolved
-                                resolved_map.remove("properties");
+                                // properties are now preserved and will be merged below
 
                                 // Merge remaining resolved_map properties
                                 for (key, value) in resolved_map {
