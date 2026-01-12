@@ -172,7 +172,7 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_by_paths(
         _ => crate::ReturnFormat::Nested,
     };
 
-    let result = eval.get_evaluated_schema_by_paths(&paths, skip_layout, return_format);
+    let result = eval.get_evaluated_schema_by_paths(&paths, skip_layout, Some(return_format));
     let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
     FFIResult::success(result_bytes)
 }
@@ -247,7 +247,7 @@ pub unsafe extern "C" fn json_eval_get_schema_by_paths(
         _ => crate::ReturnFormat::Nested,
     };
 
-    let result = eval.get_schema_by_paths(&paths, return_format);
+    let result = eval.get_schema_by_paths(&paths, Some(return_format));
     let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
     FFIResult::success(result_bytes)
 }

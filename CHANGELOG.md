@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.50] - 2026-01-12
+
+### Fixed
+
+- [core] fix discrepancy
+
 ## [0.0.49] - 2026-01-10
 
 ### Fixed
