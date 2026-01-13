@@ -479,9 +479,6 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
         return true
     }
 
-            promise.reject("VERSION_ERROR", e.message, e)
-        }
-    }
 
     @ReactMethod
     fun cancel(handle: String) {
