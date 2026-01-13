@@ -54,6 +54,8 @@ extern "C" {
     FFIResult json_eval_resolve_layout_subform(JSONEvalHandle* handle, const char* subform_path, bool evaluate);
     FFIResult json_eval_get_evaluated_schema_subform(JSONEvalHandle* handle, const char* subform_path, bool resolve_layout);
     FFIResult json_eval_get_schema_value_subform(JSONEvalHandle* handle, const char* subform_path);
+    FFIResult json_eval_get_schema_value_array_subform(JSONEvalHandle* handle, const char* subform_path);
+    FFIResult json_eval_get_schema_value_object_subform(JSONEvalHandle* handle, const char* subform_path);
     FFIResult json_eval_get_evaluated_schema_without_params_subform(JSONEvalHandle* handle, const char* subform_path, bool resolve_layout);
     FFIResult json_eval_get_evaluated_schema_by_path_subform(JSONEvalHandle* handle, const char* subform_path, const char* schema_path, bool skip_layout);
     FFIResult json_eval_get_evaluated_schema_by_paths_subform(JSONEvalHandle* handle, const char* subform_path, const char* schema_paths_json, bool skip_layout, uint8_t format);
@@ -456,6 +458,66 @@ void JsonEvalBridge::getSchemaValueAsync(
         }
         
         // Zero-copy: construct string directly from raw pointer
+        std::string resultStr;
+        if (result.data_ptr && result.data_len > 0) {
+            resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+        } else {
+            resultStr = "{}";
+        }
+        json_eval_free_result(result);
+        return resultStr;
+    }, callback);
+}
+
+void JsonEvalBridge::getSchemaValueArrayAsync(
+    const std::string& handleId,
+    std::function<void(const std::string&, const std::string&)> callback
+) {
+    runAsync([handleId]() -> std::string {
+        std::lock_guard<std::mutex> lock(handlesMutex);
+        auto it = handles.find(handleId);
+        if (it == handles.end()) {
+            throw std::runtime_error("Invalid handle");
+        }
+        
+        FFIResult result = json_eval_get_schema_value_array(it->second);
+        
+        if (!result.success) {
+            std::string error = result.error ? result.error : "Unknown error";
+            json_eval_free_result(result);
+            throw std::runtime_error(error);
+        }
+        
+        std::string resultStr;
+        if (result.data_ptr && result.data_len > 0) {
+            resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+        } else {
+            resultStr = "[]";
+        }
+        json_eval_free_result(result);
+        return resultStr;
+    }, callback);
+}
+
+void JsonEvalBridge::getSchemaValueObjectAsync(
+    const std::string& handleId,
+    std::function<void(const std::string&, const std::string&)> callback
+) {
+    runAsync([handleId]() -> std::string {
+        std::lock_guard<std::mutex> lock(handlesMutex);
+        auto it = handles.find(handleId);
+        if (it == handles.end()) {
+            throw std::runtime_error("Invalid handle");
+        }
+        
+        FFIResult result = json_eval_get_schema_value_object(it->second);
+        
+        if (!result.success) {
+            std::string error = result.error ? result.error : "Unknown error";
+            json_eval_free_result(result);
+            throw std::runtime_error(error);
+        }
+        
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -1153,6 +1215,68 @@ void JsonEvalBridge::getSchemaValueSubformAsync(
         }
         
         FFIResult result = json_eval_get_schema_value_subform(it->second, subformPath.c_str());
+        
+        if (!result.success) {
+            std::string error = result.error ? result.error : "Unknown error";
+            json_eval_free_result(result);
+            throw std::runtime_error(error);
+        }
+        
+        std::string resultStr;
+        if (result.data_ptr && result.data_len > 0) {
+            resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+        } else {
+            resultStr = "{}";
+        }
+        json_eval_free_result(result);
+        return resultStr;
+    }, callback);
+}
+
+void JsonEvalBridge::getSchemaValueArraySubformAsync(
+    const std::string& handleId,
+    const std::string& subformPath,
+    std::function<void(const std::string&, const std::string&)> callback
+) {
+    runAsync([handleId, subformPath]() -> std::string {
+        std::lock_guard<std::mutex> lock(handlesMutex);
+        auto it = handles.find(handleId);
+        if (it == handles.end()) {
+            throw std::runtime_error("Invalid handle");
+        }
+        
+        FFIResult result = json_eval_get_schema_value_array_subform(it->second, subformPath.c_str());
+        
+        if (!result.success) {
+            std::string error = result.error ? result.error : "Unknown error";
+            json_eval_free_result(result);
+            throw std::runtime_error(error);
+        }
+        
+        std::string resultStr;
+        if (result.data_ptr && result.data_len > 0) {
+            resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+        } else {
+            resultStr = "[]";
+        }
+        json_eval_free_result(result);
+        return resultStr;
+    }, callback);
+}
+
+void JsonEvalBridge::getSchemaValueObjectSubformAsync(
+    const std::string& handleId,
+    const std::string& subformPath,
+    std::function<void(const std::string&, const std::string&)> callback
+) {
+    runAsync([handleId, subformPath]() -> std::string {
+        std::lock_guard<std::mutex> lock(handlesMutex);
+        auto it = handles.find(handleId);
+        if (it == handles.end()) {
+            throw std::runtime_error("Invalid handle");
+        }
+        
+        FFIResult result = json_eval_get_schema_value_object_subform(it->second, subformPath.c_str());
         
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";

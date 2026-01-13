@@ -114,6 +114,96 @@ impl JSONEval {
         crate::utils::clean_float_noise(current_data)
     }
 
+    /// Get all schema values as array of path-value pairs
+    /// Returns [{path: "", value: ""}, ...]
+    ///
+    /// # Returns
+    ///
+    /// Array of objects containing path (dotted notation) and value pairs from value evaluations
+    pub fn get_schema_value_array(&self) -> Value {
+        let mut result = Vec::new();
+        
+        for eval_key in self.value_evaluations.iter() {
+            let clean_key = eval_key.replace('#', "");
+
+            // Exclude rules.*.value, options.*.value, and $params
+            if clean_key.starts_with("/$params")
+                || (clean_key.ends_with("/value")
+                    && (clean_key.contains("/rules/") || clean_key.contains("/options/")))
+            {
+                continue;
+            }
+
+            // Convert JSON pointer to dotted notation
+            let dotted_path = clean_key
+                .replace("/properties", "")
+                .replace("/value", "")
+                .trim_start_matches('/')
+                .replace('/', ".");
+
+            if dotted_path.is_empty() {
+                continue;
+            }
+
+            // Get the value from evaluated_schema
+            let value = match self.evaluated_schema.pointer(&clean_key) {
+                Some(v) => crate::utils::clean_float_noise(v.clone()),
+                None => continue,
+            };
+
+            // Create {path, value} object
+            let mut item = serde_json::Map::new();
+            item.insert("path".to_string(), Value::String(dotted_path));
+            item.insert("value".to_string(), value);
+            result.push(Value::Object(item));
+        }
+        
+        Value::Array(result)
+    }
+
+    /// Get all schema values as object with dotted path keys
+    /// Returns {path: value, ...}
+    ///
+    /// # Returns
+    ///
+    /// Flat object with dotted notation paths as keys and evaluated values
+    pub fn get_schema_value_object(&self) -> Value {
+        let mut result = serde_json::Map::new();
+        
+        for eval_key in self.value_evaluations.iter() {
+            let clean_key = eval_key.replace('#', "");
+
+            // Exclude rules.*.value, options.*.value, and $params
+            if clean_key.starts_with("/$params")
+                || (clean_key.ends_with("/value")
+                    && (clean_key.contains("/rules/") || clean_key.contains("/options/")))
+            {
+                continue;
+            }
+
+            // Convert JSON pointer to dotted notation
+            let dotted_path = clean_key
+                .replace("/properties", "")
+                .replace("/value", "")
+                .trim_start_matches('/')
+                .replace('/', ".");
+
+            if dotted_path.is_empty() {
+                continue;
+            }
+
+            // Get the value from evaluated_schema
+            let value = match self.evaluated_schema.pointer(&clean_key) {
+                Some(v) => crate::utils::clean_float_noise(v.clone()),
+                None => continue,
+            };
+
+            result.insert(dotted_path, value);
+        }
+        
+        Value::Object(result)
+    }
+
     /// Get evaluated schema without $params
     pub fn get_evaluated_schema_without_params(&mut self, skip_layout: bool) -> Value {
         let mut schema = self.get_evaluated_schema(skip_layout);

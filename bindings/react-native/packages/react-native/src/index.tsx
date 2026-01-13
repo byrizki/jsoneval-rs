@@ -19,6 +19,16 @@ const JsonEvalRs = NativeModules.JsonEvalRs
     );
 
 /**
+ * Item for get schema value array results
+ */
+export interface SchemaValueItem {
+  /** Dotted path (e.g., "field1.field2") */
+  path: string;
+  /** Value at this path */
+  value: any;
+}
+
+/**
  * Return format for path-based methods
  */
 export enum ReturnFormat {
@@ -27,7 +37,7 @@ export enum ReturnFormat {
   /** Flat object with dotted keys */
   Flat = 1,
   /** Array of values in the order of requested paths */
-  Array = 2
+  Array = 2,
 }
 
 /**
@@ -260,22 +270,22 @@ export interface GetSchemaByPathsSubformOptions {
 
 /**
  * High-performance JSON Logic evaluator with schema validation for React Native
- * 
+ *
  * ## Zero-Copy Architecture
- * 
+ *
  * This binding is optimized for minimal memory copies:
  * - **Rust FFI Layer**: Returns raw pointers (zero-copy)
  * - **C++ Bridge**: Uses direct pointer access with single-copy string construction
  * - **Native Platform**: Minimizes intermediate conversions
  * - **JS Bridge**: React Native's architecture requires serialization (unavoidable)
- * 
+ *
  * While true zero-copy across JS/Native boundary is not possible due to React Native's
  * architecture, we minimize copies within the native layer to maximize performance.
- * 
+ *
  * @example
  * ```typescript
  * import { JSONEval } from '@json-eval-rs/react-native';
- * 
+ *
  * const schema = {
  *   type: 'object',
  *   properties: {
@@ -292,18 +302,18 @@ export interface GetSchemaByPathsSubformOptions {
  *     }
  *   }
  * };
- * 
+ *
  * const eval = new JSONEval({ schema });
- * 
+ *
  * const data = { user: { name: 'John' } };
  * const result = await eval.evaluate({ data });
  * console.log(result);
- * 
+ *
  * const validation = await eval.validate({ data });
  * if (validation.hasError) {
  *   console.error('Validation errors:', validation.errors);
  * }
- * 
+ *
  * await eval.dispose();
  * ```
  */
@@ -324,9 +334,17 @@ export class JSONEval {
     context?: string | object | null,
     data?: string | object | null
   ): JSONEval {
-    const contextStr = context ? (typeof context === 'string' ? context : JSON.stringify(context)) : null;
-    const dataStr = data ? (typeof data === 'string' ? data : JSON.stringify(data)) : null;
-    
+    const contextStr = context
+      ? typeof context === 'string'
+        ? context
+        : JSON.stringify(context)
+      : null;
+    const dataStr = data
+      ? typeof data === 'string'
+        ? data
+        : JSON.stringify(data)
+      : null;
+
     const handle = JsonEvalRs.createFromCache(cacheKey, contextStr, dataStr);
     return new JSONEval({ schema: {}, _handle: handle });
   }
@@ -343,11 +361,24 @@ export class JSONEval {
     data?: string | object | null,
     context?: string | object | null
   ): Promise<any> {
-    const logic = typeof logicStr === 'string' ? logicStr : JSON.stringify(logicStr);
-    const dataStr = data ? (typeof data === 'string' ? data : JSON.stringify(data)) : null;
-    const contextStr = context ? (typeof context === 'string' ? context : JSON.stringify(context)) : null;
+    const logic =
+      typeof logicStr === 'string' ? logicStr : JSON.stringify(logicStr);
+    const dataStr = data
+      ? typeof data === 'string'
+        ? data
+        : JSON.stringify(data)
+      : null;
+    const contextStr = context
+      ? typeof context === 'string'
+        ? context
+        : JSON.stringify(context)
+      : null;
 
-    const resultStr = await JsonEvalRs.evaluateLogic(logic, dataStr, contextStr);
+    const resultStr = await JsonEvalRs.evaluateLogic(
+      logic,
+      dataStr,
+      contextStr
+    );
     return JSON.parse(resultStr);
   }
 
@@ -362,17 +393,27 @@ export class JSONEval {
       this.handle = options._handle;
       return;
     }
-    
+
     const { schema, context, data } = options;
-    
+
     try {
-      const schemaStr = typeof schema === 'string' ? schema : JSON.stringify(schema);
-      const contextStr = context ? (typeof context === 'string' ? context : JSON.stringify(context)) : null;
-      const dataStr = data ? (typeof data === 'string' ? data : JSON.stringify(data)) : null;
-      
+      const schemaStr =
+        typeof schema === 'string' ? schema : JSON.stringify(schema);
+      const contextStr = context
+        ? typeof context === 'string'
+          ? context
+          : JSON.stringify(context)
+        : null;
+      const dataStr = data
+        ? typeof data === 'string'
+          ? data
+          : JSON.stringify(data)
+        : null;
+
       this.handle = JsonEvalRs.create(schemaStr, contextStr, dataStr);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to create JSONEval instance: ${errorMessage}`);
     }
   }
@@ -394,7 +435,7 @@ export class JSONEval {
 
   /**
    * Cancel any running evaluation
-   * The generic auto-cancellation on new evaluation will still work, 
+   * The generic auto-cancellation on new evaluation will still work,
    * but this allows manual cancellation.
    */
   async cancel(): Promise<void> {
@@ -410,16 +451,24 @@ export class JSONEval {
    */
   async evaluate(options: EvaluateOptions): Promise<any> {
     this.throwIfDisposed();
-    
+
     try {
       const dataStr = this.toJsonString(options.data);
-      const contextStr = options.context ? this.toJsonString(options.context) : null;
+      const contextStr = options.context
+        ? this.toJsonString(options.context)
+        : null;
       const pathsJson = options.paths ? JSON.stringify(options.paths) : null;
-      
-      const resultStr = await JsonEvalRs.evaluate(this.handle, dataStr, contextStr, pathsJson);
+
+      const resultStr = await JsonEvalRs.evaluate(
+        this.handle,
+        dataStr,
+        contextStr,
+        pathsJson
+      );
       return JSON.parse(resultStr);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       throw new Error(`Evaluation failed: ${errorMessage}`);
     }
   }
@@ -432,15 +481,22 @@ export class JSONEval {
    */
   async validate(options: EvaluateOptions): Promise<ValidationResult> {
     this.throwIfDisposed();
-    
+
     try {
       const dataStr = this.toJsonString(options.data);
-      const contextStr = options.context ? this.toJsonString(options.context) : null;
-      
-      const resultStr = await JsonEvalRs.validate(this.handle, dataStr, contextStr);
+      const contextStr = options.context
+        ? this.toJsonString(options.context)
+        : null;
+
+      const resultStr = await JsonEvalRs.validate(
+        this.handle,
+        dataStr,
+        contextStr
+      );
       return JSON.parse(resultStr);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       throw new Error(`Validation failed: ${errorMessage}`);
     }
   }
@@ -451,15 +507,17 @@ export class JSONEval {
    * @returns Promise resolving to array of dependent field changes
    * @throws {Error} If evaluation fails
    */
-  async evaluateDependents(options: EvaluateDependentsOptions): Promise<DependentChange[]> {
+  async evaluateDependents(
+    options: EvaluateDependentsOptions
+  ): Promise<DependentChange[]> {
     this.throwIfDisposed();
-    
+
     try {
       const { changedPaths, data, context, reEvaluate = true } = options;
       const changedPathsJson = JSON.stringify(changedPaths);
       const dataStr = data ? this.toJsonString(data) : null;
       const contextStr = context ? this.toJsonString(context) : null;
-      
+
       const resultStr = await JsonEvalRs.evaluateDependents(
         this.handle,
         changedPathsJson,
@@ -469,7 +527,8 @@ export class JSONEval {
       );
       return JSON.parse(resultStr);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       throw new Error(`Dependent evaluation failed: ${errorMessage}`);
     }
   }
@@ -482,7 +541,10 @@ export class JSONEval {
    */
   async getEvaluatedSchema(skipLayout: boolean = false): Promise<any> {
     this.throwIfDisposed();
-    const resultStr = await JsonEvalRs.getEvaluatedSchema(this.handle, skipLayout);
+    const resultStr = await JsonEvalRs.getEvaluatedSchema(
+      this.handle,
+      skipLayout
+    );
     return JSON.parse(resultStr);
   }
 
@@ -498,14 +560,43 @@ export class JSONEval {
   }
 
   /**
+   * Get all schema values as array of path-value pairs
+   * Returns [{path: "", value: ""}, ...]
+   * @returns Promise resolving to array of SchemaValueItem objects
+   * @throws {Error} If operation fails
+   */
+  async getSchemaValueArray(): Promise<SchemaValueItem[]> {
+    this.throwIfDisposed();
+    const resultStr = await JsonEvalRs.getSchemaValueArray(this.handle);
+    return JSON.parse(resultStr);
+  }
+
+  /**
+   * Get all schema values as object with dotted path keys
+   * Returns {path: value, ...}
+   * @returns Promise resolving to flat object with dotted paths as keys
+   * @throws {Error} If operation fails
+   */
+  async getSchemaValueObject(): Promise<Record<string, any>> {
+    this.throwIfDisposed();
+    const resultStr = await JsonEvalRs.getSchemaValueObject(this.handle);
+    return JSON.parse(resultStr);
+  }
+
+  /**
    * Get the evaluated schema without $params field
    * @param skipLayout - Whether to skip layout resolution (default: false)
    * @returns Promise resolving to evaluated schema object
    * @throws {Error} If operation fails
    */
-  async getEvaluatedSchemaWithoutParams(skipLayout: boolean = false): Promise<any> {
+  async getEvaluatedSchemaWithoutParams(
+    skipLayout: boolean = false
+  ): Promise<any> {
     this.throwIfDisposed();
-    const resultStr = await JsonEvalRs.getEvaluatedSchemaWithoutParams(this.handle, skipLayout);
+    const resultStr = await JsonEvalRs.getEvaluatedSchemaWithoutParams(
+      this.handle,
+      skipLayout
+    );
     return JSON.parse(resultStr);
   }
 
@@ -516,9 +607,16 @@ export class JSONEval {
    * @returns Promise resolving to the value at the path, or null if not found
    * @throws {Error} If operation fails
    */
-  async getEvaluatedSchemaByPath(path: string, skipLayout: boolean = false): Promise<any | null> {
+  async getEvaluatedSchemaByPath(
+    path: string,
+    skipLayout: boolean = false
+  ): Promise<any | null> {
     this.throwIfDisposed();
-    const resultStr = await JsonEvalRs.getEvaluatedSchemaByPath(this.handle, path, skipLayout);
+    const resultStr = await JsonEvalRs.getEvaluatedSchemaByPath(
+      this.handle,
+      path,
+      skipLayout
+    );
     return resultStr ? JSON.parse(resultStr) : null;
   }
 
@@ -531,10 +629,19 @@ export class JSONEval {
    * @returns Promise resolving to data in the specified format
    * @throws {Error} If operation fails
    */
-  async getEvaluatedSchemaByPaths(paths: string[], skipLayout: boolean = false, format: ReturnFormat = ReturnFormat.Nested): Promise<any> {
+  async getEvaluatedSchemaByPaths(
+    paths: string[],
+    skipLayout: boolean = false,
+    format: ReturnFormat = ReturnFormat.Nested
+  ): Promise<any> {
     this.throwIfDisposed();
     const pathsJson = JSON.stringify(paths);
-    const resultStr = await JsonEvalRs.getEvaluatedSchemaByPaths(this.handle, pathsJson, skipLayout, format);
+    const resultStr = await JsonEvalRs.getEvaluatedSchemaByPaths(
+      this.handle,
+      pathsJson,
+      skipLayout,
+      format
+    );
     return JSON.parse(resultStr);
   }
 
@@ -558,10 +665,17 @@ export class JSONEval {
    * @returns Promise resolving to data in the specified format
    * @throws {Error} If operation fails
    */
-  async getSchemaByPaths(paths: string[], format: ReturnFormat = ReturnFormat.Nested): Promise<any> {
+  async getSchemaByPaths(
+    paths: string[],
+    format: ReturnFormat = ReturnFormat.Nested
+  ): Promise<any> {
     this.throwIfDisposed();
     const pathsJson = JSON.stringify(paths);
-    const resultStr = await JsonEvalRs.getSchemaByPaths(this.handle, pathsJson, format);
+    const resultStr = await JsonEvalRs.getSchemaByPaths(
+      this.handle,
+      pathsJson,
+      format
+    );
     return JSON.parse(resultStr);
   }
 
@@ -572,16 +686,31 @@ export class JSONEval {
    */
   async reloadSchema(options: JSONEvalOptions): Promise<void> {
     this.throwIfDisposed();
-    
+
     try {
       const { schema, context, data } = options;
-      const schemaStr = typeof schema === 'string' ? schema : JSON.stringify(schema);
-      const contextStr = context ? (typeof context === 'string' ? context : JSON.stringify(context)) : null;
-      const dataStr = data ? (typeof data === 'string' ? data : JSON.stringify(data)) : null;
-      
-      await JsonEvalRs.reloadSchema(this.handle, schemaStr, contextStr, dataStr);
+      const schemaStr =
+        typeof schema === 'string' ? schema : JSON.stringify(schema);
+      const contextStr = context
+        ? typeof context === 'string'
+          ? context
+          : JSON.stringify(context)
+        : null;
+      const dataStr = data
+        ? typeof data === 'string'
+          ? data
+          : JSON.stringify(data)
+        : null;
+
+      await JsonEvalRs.reloadSchema(
+        this.handle,
+        schemaStr,
+        contextStr,
+        dataStr
+      );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to reload schema: ${errorMessage}`);
     }
   }
@@ -599,20 +728,37 @@ export class JSONEval {
     data?: string | object | null
   ): Promise<void> {
     this.throwIfDisposed();
-    
+
     try {
       // Convert Uint8Array to number array if needed
-      const msgpackArray = schemaMsgpack instanceof Uint8Array 
-        ? Array.from(schemaMsgpack) 
-        : schemaMsgpack;
-      
-      const contextStr = context ? (typeof context === 'string' ? context : JSON.stringify(context)) : null;
-      const dataStr = data ? (typeof data === 'string' ? data : JSON.stringify(data)) : null;
-      
-      await JsonEvalRs.reloadSchemaMsgpack(this.handle, msgpackArray, contextStr, dataStr);
+      const msgpackArray =
+        schemaMsgpack instanceof Uint8Array
+          ? Array.from(schemaMsgpack)
+          : schemaMsgpack;
+
+      const contextStr = context
+        ? typeof context === 'string'
+          ? context
+          : JSON.stringify(context)
+        : null;
+      const dataStr = data
+        ? typeof data === 'string'
+          ? data
+          : JSON.stringify(data)
+        : null;
+
+      await JsonEvalRs.reloadSchemaMsgpack(
+        this.handle,
+        msgpackArray,
+        contextStr,
+        dataStr
+      );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to reload schema from MessagePack: ${errorMessage}`);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Failed to reload schema from MessagePack: ${errorMessage}`
+      );
     }
   }
 
@@ -629,14 +775,28 @@ export class JSONEval {
     data?: string | object | null
   ): Promise<void> {
     this.throwIfDisposed();
-    
+
     try {
-      const contextStr = context ? (typeof context === 'string' ? context : JSON.stringify(context)) : null;
-      const dataStr = data ? (typeof data === 'string' ? data : JSON.stringify(data)) : null;
-      
-      await JsonEvalRs.reloadSchemaFromCache(this.handle, cacheKey, contextStr, dataStr);
+      const contextStr = context
+        ? typeof context === 'string'
+          ? context
+          : JSON.stringify(context)
+        : null;
+      const dataStr = data
+        ? typeof data === 'string'
+          ? data
+          : JSON.stringify(data)
+        : null;
+
+      await JsonEvalRs.reloadSchemaFromCache(
+        this.handle,
+        cacheKey,
+        contextStr,
+        dataStr
+      );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to reload schema from cache: ${errorMessage}`);
     }
   }
@@ -722,15 +882,15 @@ export class JSONEval {
    *                        Pass null to reset to UTC
    * @returns Promise that resolves when timezone is set
    * @throws {Error} If operation fails
-   * 
+   *
    * @example
    * ```typescript
    * // Set to UTC+7 (Jakarta, Bangkok)
    * await eval.setTimezoneOffset(420);
-   * 
+   *
    * // Set to UTC-5 (New York, EST)
    * await eval.setTimezoneOffset(-300);
-   * 
+   *
    * // Reset to UTC
    * await eval.setTimezoneOffset(null);
    * ```
@@ -748,14 +908,23 @@ export class JSONEval {
    * @returns Promise resolving to the result of the evaluation
    * @throws {Error} If compilation or evaluation fails
    */
-  async compileAndRunLogic(logicStr: string | object, data?: string | object, context?: string | object): Promise<any> {
+  async compileAndRunLogic(
+    logicStr: string | object,
+    data?: string | object,
+    context?: string | object
+  ): Promise<any> {
     this.throwIfDisposed();
-    
+
     const logic = this.toJsonString(logicStr);
     const dataStr = data ? this.toJsonString(data) : null;
     const contextStr = context ? this.toJsonString(context) : null;
-    
-    const resultStr = await JsonEvalRs.compileAndRunLogic(this.handle, logic, dataStr, contextStr);
+
+    const resultStr = await JsonEvalRs.compileAndRunLogic(
+      this.handle,
+      logic,
+      dataStr,
+      contextStr
+    );
     return JSON.parse(resultStr);
   }
 
@@ -767,7 +936,7 @@ export class JSONEval {
    */
   async compileLogic(logicStr: string | object): Promise<number> {
     this.throwIfDisposed();
-    
+
     const logic = this.toJsonString(logicStr);
     return await JsonEvalRs.compileLogic(this.handle, logic);
   }
@@ -780,13 +949,22 @@ export class JSONEval {
    * @returns Promise resolving to the result of the evaluation
    * @throws {Error} If execution fails
    */
-  async runLogic(logicId: number, data?: string | object, context?: string | object): Promise<any> {
+  async runLogic(
+    logicId: number,
+    data?: string | object,
+    context?: string | object
+  ): Promise<any> {
     this.throwIfDisposed();
-    
+
     const dataStr = data ? this.toJsonString(data) : null;
     const contextStr = context ? this.toJsonString(context) : null;
-    
-    const resultStr = await JsonEvalRs.runLogic(this.handle, logicId, dataStr, contextStr);
+
+    const resultStr = await JsonEvalRs.runLogic(
+      this.handle,
+      logicId,
+      dataStr,
+      contextStr
+    );
     return JSON.parse(resultStr);
   }
 
@@ -796,14 +974,23 @@ export class JSONEval {
    * @returns Promise resolving to ValidationResult
    * @throws {Error} If validation operation fails
    */
-  async validatePaths(options: ValidatePathsOptions): Promise<ValidationResult> {
+  async validatePaths(
+    options: ValidatePathsOptions
+  ): Promise<ValidationResult> {
     this.throwIfDisposed();
-    
+
     const dataStr = this.toJsonString(options.data);
-    const contextStr = options.context ? this.toJsonString(options.context) : null;
+    const contextStr = options.context
+      ? this.toJsonString(options.context)
+      : null;
     const paths = options.paths || null;
-    
-    const resultStr = await JsonEvalRs.validatePaths(this.handle, dataStr, contextStr, paths);
+
+    const resultStr = await JsonEvalRs.validatePaths(
+      this.handle,
+      dataStr,
+      contextStr,
+      paths
+    );
     return JSON.parse(resultStr);
   }
 
@@ -819,11 +1006,19 @@ export class JSONEval {
    */
   async evaluateSubform(options: EvaluateSubformOptions): Promise<void> {
     this.throwIfDisposed();
-    
+
     const dataStr = this.toJsonString(options.data);
-    const contextStr = options.context ? this.toJsonString(options.context) : null;
-    
-    return JsonEvalRs.evaluateSubform(this.handle, options.subformPath, dataStr, contextStr, options.paths);
+    const contextStr = options.context
+      ? this.toJsonString(options.context)
+      : null;
+
+    return JsonEvalRs.evaluateSubform(
+      this.handle,
+      options.subformPath,
+      dataStr,
+      contextStr,
+      options.paths
+    );
   }
 
   /**
@@ -832,13 +1027,22 @@ export class JSONEval {
    * @returns Promise resolving to ValidationResult
    * @throws {Error} If validation fails
    */
-  async validateSubform(options: ValidateSubformOptions): Promise<ValidationResult> {
+  async validateSubform(
+    options: ValidateSubformOptions
+  ): Promise<ValidationResult> {
     this.throwIfDisposed();
-    
+
     const dataStr = this.toJsonString(options.data);
-    const contextStr = options.context ? this.toJsonString(options.context) : null;
-    
-    const resultStr = await JsonEvalRs.validateSubform(this.handle, options.subformPath, dataStr, contextStr);
+    const contextStr = options.context
+      ? this.toJsonString(options.context)
+      : null;
+
+    const resultStr = await JsonEvalRs.validateSubform(
+      this.handle,
+      options.subformPath,
+      dataStr,
+      contextStr
+    );
     return JSON.parse(resultStr);
   }
 
@@ -848,15 +1052,19 @@ export class JSONEval {
    * @returns Promise resolving to dependent evaluation results
    * @throws {Error} If evaluation fails
    */
-  async evaluateDependentsSubform(options: EvaluateDependentsSubformOptions): Promise<DependentChange[]> {
+  async evaluateDependentsSubform(
+    options: EvaluateDependentsSubformOptions
+  ): Promise<DependentChange[]> {
     this.throwIfDisposed();
-    
+
     const dataStr = options.data ? this.toJsonString(options.data) : null;
-    const contextStr = options.context ? this.toJsonString(options.context) : null;
-    
+    const contextStr = options.context
+      ? this.toJsonString(options.context)
+      : null;
+
     // For now, pass the first path since native bridge expects single path (wraps internally)
     const changedPath = options.changedPaths[0] || '';
-    
+
     const resultStr = await JsonEvalRs.evaluateDependentsSubform(
       this.handle,
       options.subformPath,
@@ -874,10 +1082,16 @@ export class JSONEval {
    * @returns Promise that resolves when layout is resolved
    * @throws {Error} If layout resolution fails
    */
-  async resolveLayoutSubform(options: ResolveLayoutSubformOptions): Promise<void> {
+  async resolveLayoutSubform(
+    options: ResolveLayoutSubformOptions
+  ): Promise<void> {
     this.throwIfDisposed();
-    
-    return JsonEvalRs.resolveLayoutSubform(this.handle, options.subformPath, options.evaluate || false);
+
+    return JsonEvalRs.resolveLayoutSubform(
+      this.handle,
+      options.subformPath,
+      options.evaluate || false
+    );
   }
 
   /**
@@ -886,9 +1100,11 @@ export class JSONEval {
    * @returns Promise resolving to evaluated schema
    * @throws {Error} If operation fails
    */
-  async getEvaluatedSchemaSubform(options: GetEvaluatedSchemaSubformOptions): Promise<any> {
+  async getEvaluatedSchemaSubform(
+    options: GetEvaluatedSchemaSubformOptions
+  ): Promise<any> {
     this.throwIfDisposed();
-    
+
     const resultStr = await JsonEvalRs.getEvaluatedSchemaSubform(
       this.handle,
       options.subformPath,
@@ -903,10 +1119,53 @@ export class JSONEval {
    * @returns Promise resolving to schema values
    * @throws {Error} If operation fails
    */
-  async getSchemaValueSubform(options: GetSchemaValueSubformOptions): Promise<any> {
+  async getSchemaValueSubform(
+    options: GetSchemaValueSubformOptions
+  ): Promise<any> {
     this.throwIfDisposed();
-    
-    const resultStr = await JsonEvalRs.getSchemaValueSubform(this.handle, options.subformPath);
+
+    const resultStr = await JsonEvalRs.getSchemaValueSubform(
+      this.handle,
+      options.subformPath
+    );
+    return JSON.parse(resultStr);
+  }
+
+  /**
+   * Get schema values from subform as a flat array of path-value pairs.
+   * Returns an array like `[{path: "field.sub", value: 123}, ...]`.
+   * @param options - Options including subform path
+   * @returns Promise resolving to array of SchemaValueItem objects
+   * @throws {Error} If operation fails
+   */
+  async getSchemaValueArraySubform(
+    options: GetSchemaValueSubformOptions
+  ): Promise<SchemaValueItem[]> {
+    this.throwIfDisposed();
+
+    const resultStr = await JsonEvalRs.getSchemaValueArraySubform(
+      this.handle,
+      options.subformPath
+    );
+    return JSON.parse(resultStr);
+  }
+
+  /**
+   * Get schema values from subform as a flat object with dotted path keys.
+   * Returns an object like `{"field.sub": 123, ...}`.
+   * @param options - Options including subform path
+   * @returns Promise resolving to flat object with dotted paths
+   * @throws {Error} If operation fails
+   */
+  async getSchemaValueObjectSubform(
+    options: GetSchemaValueSubformOptions
+  ): Promise<Record<string, any>> {
+    this.throwIfDisposed();
+
+    const resultStr = await JsonEvalRs.getSchemaValueObjectSubform(
+      this.handle,
+      options.subformPath
+    );
     return JSON.parse(resultStr);
   }
 
@@ -916,9 +1175,11 @@ export class JSONEval {
    * @returns Promise resolving to evaluated schema without $params
    * @throws {Error} If operation fails
    */
-  async getEvaluatedSchemaWithoutParamsSubform(options: GetEvaluatedSchemaSubformOptions): Promise<any> {
+  async getEvaluatedSchemaWithoutParamsSubform(
+    options: GetEvaluatedSchemaSubformOptions
+  ): Promise<any> {
     this.throwIfDisposed();
-    
+
     const resultStr = await JsonEvalRs.getEvaluatedSchemaWithoutParamsSubform(
       this.handle,
       options.subformPath,
@@ -933,9 +1194,11 @@ export class JSONEval {
    * @returns Promise resolving to value at path or null if not found
    * @throws {Error} If operation fails
    */
-  async getEvaluatedSchemaByPathSubform(options: GetEvaluatedSchemaByPathSubformOptions): Promise<any | null> {
+  async getEvaluatedSchemaByPathSubform(
+    options: GetEvaluatedSchemaByPathSubformOptions
+  ): Promise<any | null> {
     this.throwIfDisposed();
-    
+
     const resultStr = await JsonEvalRs.getEvaluatedSchemaByPathSubform(
       this.handle,
       options.subformPath,
@@ -952,9 +1215,11 @@ export class JSONEval {
    * @returns Promise resolving to data in the specified format
    * @throws {Error} If operation fails
    */
-  async getEvaluatedSchemaByPathsSubform(options: GetEvaluatedSchemaByPathsSubformOptions): Promise<any> {
+  async getEvaluatedSchemaByPathsSubform(
+    options: GetEvaluatedSchemaByPathsSubformOptions
+  ): Promise<any> {
     this.throwIfDisposed();
-    
+
     const pathsJson = JSON.stringify(options.schemaPaths);
     const resultStr = await JsonEvalRs.getEvaluatedSchemaByPathsSubform(
       this.handle,
@@ -973,7 +1238,7 @@ export class JSONEval {
    */
   async getSubformPaths(): Promise<string[]> {
     this.throwIfDisposed();
-    
+
     const resultStr = await JsonEvalRs.getSubformPaths(this.handle);
     return JSON.parse(resultStr);
   }
@@ -984,9 +1249,11 @@ export class JSONEval {
    * @returns Promise resolving to value at path or null if not found
    * @throws {Error} If operation fails
    */
-  async getSchemaByPathSubform(options: GetSchemaByPathSubformOptions): Promise<any | null> {
+  async getSchemaByPathSubform(
+    options: GetSchemaByPathSubformOptions
+  ): Promise<any | null> {
     this.throwIfDisposed();
-    
+
     const resultStr = await JsonEvalRs.getSchemaByPathSubform(
       this.handle,
       options.subformPath,
@@ -1002,9 +1269,11 @@ export class JSONEval {
    * @returns Promise resolving to data in the specified format
    * @throws {Error} If operation fails
    */
-  async getSchemaByPathsSubform(options: GetSchemaByPathsSubformOptions): Promise<any> {
+  async getSchemaByPathsSubform(
+    options: GetSchemaByPathsSubformOptions
+  ): Promise<any> {
     this.throwIfDisposed();
-    
+
     const pathsJson = JSON.stringify(options.schemaPaths);
     const resultStr = await JsonEvalRs.getSchemaByPathsSubform(
       this.handle,
@@ -1023,7 +1292,7 @@ export class JSONEval {
    */
   async hasSubform(subformPath: string): Promise<boolean> {
     this.throwIfDisposed();
-    
+
     return JsonEvalRs.hasSubform(this.handle, subformPath);
   }
 
@@ -1034,7 +1303,7 @@ export class JSONEval {
    */
   async dispose(): Promise<void> {
     if (this.disposed) return;
-    
+
     await JsonEvalRs.dispose(this.handle);
     this.disposed = true;
   }
@@ -1052,20 +1321,20 @@ export class JSONEval {
  * Hook for using JSONEval in React components with automatic cleanup
  * @param options - Configuration options
  * @returns JSONEval instance or null if not yet initialized
- * 
+ *
  * @example
  * ```typescript
  * import { useJSONEval } from '@json-eval-rs/react-native';
- * 
+ *
  * function MyComponent() {
  *   const eval = useJSONEval({ schema: mySchema });
- *   
+ *
  *   const handleValidate = async () => {
  *     if (!eval) return;
  *     const result = await eval.validate({ data: myData });
  *     console.log(result);
  *   };
- *   
+ *
  *   return <Button onPress={handleValidate} title="Validate" />;
  * }
  * ```

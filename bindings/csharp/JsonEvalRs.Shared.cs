@@ -67,6 +67,18 @@ namespace JsonEvalRs
     }
 
     /// <summary>
+    /// Schema value item for path-value pairs
+    /// </summary>
+    public class SchemaValueItem
+    {
+        [JsonProperty("path")]
+        public string Path { get; set; } = string.Empty;
+
+        [JsonProperty("value")]
+        public object? Value { get; set; }
+    }
+
+    /// <summary>
     /// Exception thrown when JSON evaluation operations fail
     /// </summary>
     public class JsonEvalException : Exception

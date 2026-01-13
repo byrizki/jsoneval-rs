@@ -331,6 +331,82 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeGetSchemaValueAsync(
 }
 
 JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeGetSchemaValueArrayAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    
+    runAsyncWithPromise(env, promise, "GET_SCHEMA_VALUE_ARRAY_ERROR", [handleStr](auto callback) {
+        JsonEvalBridge::getSchemaValueArrayAsync(handleStr, callback);
+    });
+}
+
+JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeGetSchemaValueObjectAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    
+    runAsyncWithPromise(env, promise, "GET_SCHEMA_VALUE_OBJECT_ERROR", [handleStr](auto callback) {
+        JsonEvalBridge::getSchemaValueObjectAsync(handleStr, callback);
+    });
+}
+
+JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeGetSchemaValueSubformAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jstring subformPath,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    std::string subformPathStr = jstringToString(env, subformPath);
+    
+    runAsyncWithPromise(env, promise, "GET_SCHEMA_VALUE_SUBFORM_ERROR", [handleStr, subformPathStr](auto callback) {
+        JsonEvalBridge::getSchemaValueSubformAsync(handleStr, subformPathStr, callback);
+    });
+}
+
+JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeGetSchemaValueArraySubformAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jstring subformPath,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    std::string subformPathStr = jstringToString(env, subformPath);
+    
+    runAsyncWithPromise(env, promise, "GET_SCHEMA_VALUE_ARRAY_SUBFORM_ERROR", [handleStr, subformPathStr](auto callback) {
+        JsonEvalBridge::getSchemaValueArraySubformAsync(handleStr, subformPathStr, callback);
+    });
+}
+
+JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeGetSchemaValueObjectSubformAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jstring subformPath,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    std::string subformPathStr = jstringToString(env, subformPath);
+    
+    runAsyncWithPromise(env, promise, "GET_SCHEMA_VALUE_OBJECT_SUBFORM_ERROR", [handleStr, subformPathStr](auto callback) {
+        JsonEvalBridge::getSchemaValueObjectSubformAsync(handleStr, subformPathStr, callback);
+    });
+}
+
+JNIEXPORT void JNICALL
 Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedSchemaWithoutParamsAsync(
     JNIEnv* env,
     jobject /* this */,

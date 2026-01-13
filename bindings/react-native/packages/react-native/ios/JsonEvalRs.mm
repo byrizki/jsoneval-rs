@@ -242,6 +242,40 @@ RCT_EXPORT_METHOD(getSchemaValue:(NSString *)handle
     );
 }
 
+RCT_EXPORT_METHOD(getSchemaValueArray:(NSString *)handle
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    
+    JsonEvalBridge::getSchemaValueArrayAsync(handleStr,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"GET_SCHEMA_VALUE_ARRAY_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_METHOD(getSchemaValueObject:(NSString *)handle
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    
+    JsonEvalBridge::getSchemaValueObjectAsync(handleStr,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"GET_SCHEMA_VALUE_OBJECT_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
 RCT_EXPORT_METHOD(getEvaluatedSchemaWithoutParams:(NSString *)handle
                   skipLayout:(BOOL)skipLayout
                   resolver:(RCTPromiseResolveBlock)resolve
@@ -709,6 +743,44 @@ RCT_EXPORT_METHOD(getSchemaValueSubform:(NSString *)handle
                 resolve([NSString stringWithUTF8String:result.c_str()]);
             } else {
                 reject(@"GET_SCHEMA_VALUE_SUBFORM_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_METHOD(getSchemaValueArraySubform:(NSString *)handle
+                  subformPath:(NSString *)subformPath
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    std::string pathStr = [self stdStringFromNSString:subformPath];
+    
+    JsonEvalBridge::getSchemaValueArraySubformAsync(handleStr, pathStr,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"GET_SCHEMA_VALUE_ARRAY_SUBFORM_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_METHOD(getSchemaValueObjectSubform:(NSString *)handle
+                  subformPath:(NSString *)subformPath
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    std::string pathStr = [self stdStringFromNSString:subformPath];
+    
+    JsonEvalBridge::getSchemaValueObjectSubformAsync(handleStr, pathStr,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"GET_SCHEMA_VALUE_OBJECT_SUBFORM_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
             }
         }
     );

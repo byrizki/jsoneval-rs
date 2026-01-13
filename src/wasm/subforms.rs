@@ -190,13 +190,36 @@ impl JSONEvalWasm {
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
-    /// Get schema value from subform (all .value fields)
+    /// Get schema value from subform in nested object format (all .value fields).
+    /// Returns a hierarchical object structure mimicking the schema.
     ///
     /// @param subformPath - Path to the subform
-    /// @returns Modified data as JavaScript object
+    /// @returns Modified data as JavaScript object (Nested)
     #[wasm_bindgen(js_name = getSchemaValueSubform)]
     pub fn get_schema_value_subform(&mut self, subform_path: &str) -> Result<JsValue, JsValue> {
         let result = self.inner.get_schema_value_subform(subform_path);
+        super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Get schema values from subform as a flat array of path-value pairs.
+    /// Returns an array like `[{path: "field.sub", value: 123}, ...]`.
+    ///
+    /// @param subformPath - Path to the subform
+    /// @returns Array of {path, value} objects
+    #[wasm_bindgen(js_name = getSchemaValueArraySubform)]
+    pub fn get_schema_value_array_subform(&mut self, subform_path: &str) -> Result<JsValue, JsValue> {
+        let result = self.inner.get_schema_value_array_subform(subform_path);
+        super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Get schema values from subform as a flat object with dotted path keys.
+    /// Returns an object like `{"field.sub": 123, ...}`.
+    ///
+    /// @param subformPath - Path to the subform
+    /// @returns Flat object with dotted paths as keys
+    #[wasm_bindgen(js_name = getSchemaValueObjectSubform)]
+    pub fn get_schema_value_object_subform(&mut self, subform_path: &str) -> Result<JsValue, JsValue> {
+        let result = self.inner.get_schema_value_object_subform(subform_path);
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 

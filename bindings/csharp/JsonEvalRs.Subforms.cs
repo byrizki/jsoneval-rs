@@ -163,10 +163,11 @@ namespace JsonEvalRs
         }
 
         /// <summary>
-        /// Get schema value from subform (all .value fields)
+        /// Get schema value from subform in nested object format (all .value fields).
+        /// Returns a hierarchical object structure mimicking the schema.
         /// </summary>
         /// <param name="subformPath">Path to the subform</param>
-        /// <returns>Modified data as JObject</returns>
+        /// <returns>Modified data as JObject (Nested)</returns>
         public JObject GetSchemaValueSubform(string subformPath)
         {
             ThrowIfDisposed();
@@ -177,6 +178,48 @@ namespace JsonEvalRs
             var result = Native.json_eval_get_schema_value_subform(_handle, subformPath);
 #else
             var result = Native.json_eval_get_schema_value_subform(_handle, Native.ToUTF8Bytes(subformPath)!);
+#endif
+            
+            return ProcessResult(result);
+        }
+
+        /// <summary>
+        /// Get schema values from subform as a flat array of path-value pairs.
+        /// Returns an array like `[{path: "field.sub", value: 123}, ...]`.
+        /// </summary>
+        /// <param name="subformPath">Path to the subform</param>
+        /// <returns>Array of SchemaValueItem objects</returns>
+        public JArray GetSchemaValueArraySubform(string subformPath)
+        {
+            ThrowIfDisposed();
+            if (string.IsNullOrEmpty(subformPath))
+                throw new ArgumentNullException(nameof(subformPath));
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+            var result = Native.json_eval_get_schema_value_array_subform(_handle, subformPath);
+#else
+            var result = Native.json_eval_get_schema_value_array_subform(_handle, Native.ToUTF8Bytes(subformPath)!);
+#endif
+            
+            return ProcessResultAsArray(result);
+        }
+
+        /// <summary>
+        /// Get schema values from subform as a flat object with dotted path keys.
+        /// Returns an object like `{"field.sub": 123, ...}`.
+        /// </summary>
+        /// <param name="subformPath">Path to the subform</param>
+        /// <returns>Flat JObject with dotted paths as keys</returns>
+        public JObject GetSchemaValueObjectSubform(string subformPath)
+        {
+            ThrowIfDisposed();
+            if (string.IsNullOrEmpty(subformPath))
+                throw new ArgumentNullException(nameof(subformPath));
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+            var result = Native.json_eval_get_schema_value_object_subform(_handle, subformPath);
+#else
+            var result = Native.json_eval_get_schema_value_object_subform(_handle, Native.ToUTF8Bytes(subformPath)!);
 #endif
             
             return ProcessResult(result);

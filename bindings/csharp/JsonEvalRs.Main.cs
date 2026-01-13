@@ -419,6 +419,28 @@ namespace JsonEvalRs
         }
 
         /// <summary>
+        /// Gets all schema values as array of path-value pairs
+        /// </summary>
+        /// <returns>Array of SchemaValueItem objects [{path, value}, ...]</returns>
+        public JArray GetSchemaValueArray()
+        {
+            ThrowIfDisposed();
+            var result = Native.json_eval_get_schema_value_array(_handle);
+            return ProcessResultAsArray(result);
+        }
+
+        /// <summary>
+        /// Gets all schema values as object with dotted path keys
+        /// </summary>
+        /// <returns>Flat object with dotted paths as keys {path: value, ...}</returns>
+        public JObject GetSchemaValueObject()
+        {
+            ThrowIfDisposed();
+            var result = Native.json_eval_get_schema_value_object(_handle);
+            return ProcessResult(result);
+        }
+
+        /// <summary>
         /// Gets the evaluated schema without $params field
         /// </summary>
         /// <param name="skipLayout">Whether to skip layout resolution</param>

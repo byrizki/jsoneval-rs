@@ -267,9 +267,9 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_subform(
 /// Get schema value from subform (all .value fields)
 ///
 /// # Safety
+/// Get schema value from subform in nested object format
 ///
-/// - handle must be a valid pointer from json_eval_new
-/// - subform_path must be a valid null-terminated UTF-8 string
+/// Returns a hierarchical object structure mimicking the schema.
 #[no_mangle]
 pub unsafe extern "C" fn json_eval_get_schema_value_subform(
     handle: *mut JSONEvalHandle,
@@ -290,6 +290,65 @@ pub unsafe extern "C" fn json_eval_get_schema_value_subform(
     let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
     FFIResult::success(result_bytes)
 }
+
+/// Get schema values from subform as a flat array of path-value pairs
+///
+/// Returns keys as "path" and values as "value".
+///
+/// # Safety
+///
+/// - handle must be a valid pointer from json_eval_new
+/// - subform_path must be a valid UTF-8 string pointer
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_get_schema_value_array_subform(
+    handle: *mut JSONEvalHandle,
+    subform_path: *const c_char,
+) -> FFIResult {
+    if handle.is_null() || subform_path.is_null() {
+        return FFIResult::error("Invalid pointer".to_string());
+    }
+
+    let eval = &mut (*handle).inner;
+
+    let path_str = match CStr::from_ptr(subform_path).to_str() {
+        Ok(s) => s,
+        Err(_) => return FFIResult::error("Invalid UTF-8 in subform_path".to_string()),
+    };
+
+    let result = eval.get_schema_value_array_subform(path_str);
+    let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
+    FFIResult::success(result_bytes)
+}
+
+/// Get schema values from subform as a flat object with dotted path keys
+///
+/// Returns object with dotted paths as keys.
+///
+/// # Safety
+///
+/// - handle must be a valid pointer from json_eval_new
+/// - subform_path must be a valid UTF-8 string pointer
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_get_schema_value_object_subform(
+    handle: *mut JSONEvalHandle,
+    subform_path: *const c_char,
+) -> FFIResult {
+    if handle.is_null() || subform_path.is_null() {
+        return FFIResult::error("Invalid pointer".to_string());
+    }
+
+    let eval = &mut (*handle).inner;
+
+    let path_str = match CStr::from_ptr(subform_path).to_str() {
+        Ok(s) => s,
+        Err(_) => return FFIResult::error("Invalid UTF-8 in subform_path".to_string()),
+    };
+
+    let result = eval.get_schema_value_object_subform(path_str);
+    let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
+    FFIResult::success(result_bytes)
+}
+
 
 /// Get evaluated schema without $params from subform
 ///

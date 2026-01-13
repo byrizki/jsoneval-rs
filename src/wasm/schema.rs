@@ -56,6 +56,26 @@ impl JSONEvalWasm {
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
+    /// Get all schema values as array of path-value pairs
+    /// Returns [{path: "", value: ""}, ...]
+    ///
+    /// @returns Array of {path, value} objects as JavaScript array
+    #[wasm_bindgen(js_name = getSchemaValueArray)]
+    pub fn get_schema_value_array(&self) -> Result<JsValue, JsValue> {
+        let result = self.inner.get_schema_value_array();
+        super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Get all schema values as object with dotted path keys
+    /// Returns {path: value, ...}
+    ///
+    /// @returns Flat object with dotted paths as keys
+    #[wasm_bindgen(js_name = getSchemaValueObject)]
+    pub fn get_schema_value_object(&self) -> Result<JsValue, JsValue> {
+        let result = self.inner.get_schema_value_object();
+        super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
     /// Get the evaluated schema without $params field
     ///
     /// @param skipLayout - Whether to skip layout resolution

@@ -135,6 +135,28 @@ public:
     );
 
     /**
+     * Get all schema values as array of path-value pairs (async)
+     * Returns [{path: "", value: ""}, ...]
+     * @param handle Instance handle
+     * @param callback Result callback
+     */
+    static void getSchemaValueArrayAsync(
+        const std::string& handle,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Get all schema values as object with dotted path keys (async)
+     * Returns {path: value, ...}
+     * @param handle Instance handle
+     * @param callback Result callback
+     */
+    static void getSchemaValueObjectAsync(
+        const std::string& handle,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
      * Get evaluated schema without $params field (async)
      * @param handle Instance handle
      * @param skipLayout Whether to skip layout resolution

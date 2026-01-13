@@ -88,12 +88,30 @@ impl JSONEval {
         }
     }
 
-    /// Get schema value from subform (all .value fields)
+    /// Get schema value from subform in nested object format (all .value fields).
     pub fn get_schema_value_subform(&mut self, subform_path: &str) -> Value {
         if let Some(subform) = self.subforms.get_mut(subform_path) {
             subform.get_schema_value()
         } else {
             Value::Null
+        }
+    }
+
+    /// Get schema values from subform as a flat array of path-value pairs.
+    pub fn get_schema_value_array_subform(&self, subform_path: &str) -> Value {
+        if let Some(subform) = self.subforms.get(subform_path) {
+            subform.get_schema_value_array()
+        } else {
+            Value::Array(vec![])
+        }
+    }
+
+    /// Get schema values from subform as a flat object with dotted path keys.
+    pub fn get_schema_value_object_subform(&self, subform_path: &str) -> Value {
+        if let Some(subform) = self.subforms.get(subform_path) {
+            subform.get_schema_value_object()
+        } else {
+            Value::Object(serde_json::Map::new())
         }
     }
 

@@ -78,6 +78,46 @@ pub unsafe extern "C" fn json_eval_get_schema_value(handle: *mut JSONEvalHandle)
     FFIResult::success(result_bytes)
 }
 
+/// Get all schema values as array of path-value pairs
+/// Returns [{path: "", value: ""}, ...]
+///
+/// # Safety
+///
+/// - handle must be a valid pointer from json_eval_new
+/// - Caller must call json_eval_free_result when done
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_get_schema_value_array(handle: *mut JSONEvalHandle) -> FFIResult {
+    if handle.is_null() {
+        return FFIResult::error("Invalid handle pointer".to_string());
+    }
+
+    let eval = &(*handle).inner;
+    let result = eval.get_schema_value_array();
+    let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
+
+    FFIResult::success(result_bytes)
+}
+
+/// Get all schema values as object with dotted path keys
+/// Returns {path: value, ...}
+///
+/// # Safety
+///
+/// - handle must be a valid pointer from json_eval_new
+/// - Caller must call json_eval_free_result when done
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_get_schema_value_object(handle: *mut JSONEvalHandle) -> FFIResult {
+    if handle.is_null() {
+        return FFIResult::error("Invalid handle pointer".to_string());
+    }
+
+    let eval = &(*handle).inner;
+    let result = eval.get_schema_value_object();
+    let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
+
+    FFIResult::success(result_bytes)
+}
+
 /// Get the evaluated schema without $params field
 ///
 /// # Safety

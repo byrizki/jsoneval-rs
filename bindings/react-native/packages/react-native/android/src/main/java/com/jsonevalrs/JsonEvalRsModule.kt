@@ -84,6 +84,22 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun getSchemaValueArray(
+        handle: String,
+        promise: Promise
+    ) {
+        nativeGetSchemaValueArrayAsync(handle, promise)
+    }
+
+    @ReactMethod
+    fun getSchemaValueObject(
+        handle: String,
+        promise: Promise
+    ) {
+        nativeGetSchemaValueObjectAsync(handle, promise)
+    }
+
+    @ReactMethod
     fun getEvaluatedSchemaWithoutParams(
         handle: String,
         skipLayout: Boolean,
@@ -398,6 +414,24 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun getSchemaValueArraySubform(
+        handle: String,
+        subformPath: String,
+        promise: Promise
+    ) {
+        nativeGetSchemaValueArraySubformAsync(handle, subformPath, promise)
+    }
+
+    @ReactMethod
+    fun getSchemaValueObjectSubform(
+        handle: String,
+        subformPath: String,
+        promise: Promise
+    ) {
+        nativeGetSchemaValueObjectSubformAsync(handle, subformPath, promise)
+    }
+
+    @ReactMethod
     fun getEvaluatedSchemaWithoutParamsSubform(
         handle: String,
         subformPath: String,
@@ -534,6 +568,8 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     )
     private external fun nativeGetEvaluatedSchemaAsync(handle: String, skipLayout: Boolean, promise: Promise)
     private external fun nativeGetSchemaValueAsync(handle: String, promise: Promise)
+    private external fun nativeGetSchemaValueArrayAsync(handle: String, promise: Promise)
+    private external fun nativeGetSchemaValueObjectAsync(handle: String, promise: Promise)
     private external fun nativeGetEvaluatedSchemaWithoutParamsAsync(handle: String, skipLayout: Boolean, promise: Promise)
     private external fun nativeGetEvaluatedSchemaByPathAsync(handle: String, path: String, skipLayout: Boolean, promise: Promise)
     private external fun nativeGetEvaluatedSchemaByPathsAsync(handle: String, pathsJson: String, skipLayout: Boolean, format: Int, promise: Promise)
@@ -604,6 +640,8 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     private external fun nativeResolveLayoutSubformAsync(handle: String, subformPath: String, evaluate: Boolean, promise: Promise)
     private external fun nativeGetEvaluatedSchemaSubformAsync(handle: String, subformPath: String, resolveLayout: Boolean, promise: Promise)
     private external fun nativeGetSchemaValueSubformAsync(handle: String, subformPath: String, promise: Promise)
+    private external fun nativeGetSchemaValueArraySubformAsync(handle: String, subformPath: String, promise: Promise)
+    private external fun nativeGetSchemaValueObjectSubformAsync(handle: String, subformPath: String, promise: Promise)
     private external fun nativeGetEvaluatedSchemaWithoutParamsSubformAsync(handle: String, subformPath: String, resolveLayout: Boolean, promise: Promise)
     private external fun nativeGetEvaluatedSchemaByPathSubformAsync(handle: String, subformPath: String, schemaPath: String, skipLayout: Boolean, promise: Promise)
     private external fun nativeGetEvaluatedSchemaByPathsSubformAsync(handle: String, subformPath: String, schemaPathsJson: String, skipLayout: Boolean, format: Int, promise: Promise)
