@@ -45,6 +45,7 @@ extern "C" {
     FFIResult json_eval_disable_cache(JSONEvalHandle* handle);
     int json_eval_is_cache_enabled(JSONEvalHandle* handle);
     FFIResult json_eval_validate_paths(JSONEvalHandle* handle, const char* data, const char* context, const char* paths_json);
+    FFIResult json_eval_evaluate_logic_pure(const char* logic_str, const char* data, const char* context);
     
     // Subform FFI methods
     FFIResult json_eval_evaluate_subform(JSONEvalHandle* handle, const char* subform_path, const char* data, const char* context, const char* paths_json);
@@ -293,6 +294,35 @@ void JsonEvalBridge::validateAsync(
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
         } else {
             resultStr = "{}";
+        }
+        json_eval_free_result(result);
+        return resultStr;
+    }, callback);
+}
+
+void JsonEvalBridge::evaluateLogicAsync(
+    const std::string& logicStr,
+    const std::string& data,
+    const std::string& context,
+    std::function<void(const std::string&, const std::string&)> callback
+) {
+    runAsync([logicStr, data, context]() -> std::string {
+        const char* dt = data.empty() ? nullptr : data.c_str();
+        const char* ctx = context.empty() ? nullptr : context.c_str();
+        
+        FFIResult result = json_eval_evaluate_logic_pure(logicStr.c_str(), dt, ctx);
+        
+        if (!result.success) {
+            std::string error = result.error ? result.error : "Unknown error";
+            json_eval_free_result(result);
+            throw std::runtime_error(error);
+        }
+        
+        std::string resultStr;
+        if (result.data_ptr && result.data_len > 0) {
+            resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+        } else {
+            resultStr = "null";
         }
         json_eval_free_result(result);
         return resultStr;

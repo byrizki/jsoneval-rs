@@ -88,3 +88,53 @@ pub unsafe extern "C" fn json_eval_run_logic(
         Err(e) => FFIResult::error(e),
     }
 }
+
+/// Run logic evaluation without an instance handle (pure/static)
+/// 
+/// # Safety
+/// 
+/// - logic_str must be a valid null-terminated UTF-8 string (JSON Logic)
+/// - data can be NULL
+/// - context can be NULL
+/// - Caller must call json_eval_free_result when done
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_evaluate_logic_pure(
+    logic_str: *const c_char,
+    data: *const c_char,
+    context: *const c_char,
+) -> FFIResult {
+    if logic_str.is_null() {
+        return FFIResult::error("Logic string is null".to_string());
+    }
+
+    let logic = match CStr::from_ptr(logic_str).to_str() {
+        Ok(s) => s,
+        Err(_) => return FFIResult::error("Invalid UTF-8 in logic".to_string()),
+    };
+
+    let data_str = if !data.is_null() {
+        match CStr::from_ptr(data).to_str() {
+            Ok(s) => Some(s),
+            Err(_) => return FFIResult::error("Invalid UTF-8 in data".to_string()),
+        }
+    } else {
+        None
+    };
+
+    let context_str = if !context.is_null() {
+        match CStr::from_ptr(context).to_str() {
+            Ok(s) => Some(s),
+            Err(_) => return FFIResult::error("Invalid UTF-8 in context".to_string()),
+        }
+    } else {
+        None
+    };
+
+    match crate::jsoneval::logic::evaluate_logic_pure(logic, data_str, context_str) {
+        Ok(result) => {
+             let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
+             FFIResult::success(result_bytes)
+        }
+        Err(e) => FFIResult::error(e),
+    }
+}

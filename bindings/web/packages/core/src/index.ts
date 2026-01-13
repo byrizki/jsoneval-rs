@@ -466,6 +466,36 @@ export class JSONEvalCore {
   }
 
   /**
+   * Evaluate logic expression without creating an instance
+   * 
+   * @param wasmModule - WASM module
+   * @param logicStr - JSON Logic expression (string or object)
+   * @param data - Optional data (string or object)
+   * @param context - Optional context (string or object)
+   * @returns Evaluation result
+   */
+  static evaluateLogic(
+    wasmModule: any, 
+    logicStr: string | object, 
+    data?: any, 
+    context?: any
+  ): any {
+    if (!wasmModule) {
+      throw new Error('No WASM module provided.');
+    }
+    const { JSONEvalWasm } = wasmModule;
+    if (!JSONEvalWasm || typeof JSONEvalWasm.evaluateLogic !== 'function') {
+        throw new Error('WASM module does not support evaluateLogic.');
+    }
+
+    const logic = typeof logicStr === 'string' ? logicStr : JSON.stringify(logicStr);
+    const dataStr = data ? (typeof data === 'string' ? data : JSON.stringify(data)) : null;
+    const contextStr = context ? (typeof context === 'string' ? context : JSON.stringify(context)) : null;
+
+    return JSONEvalWasm.evaluateLogic(logic, dataStr, contextStr);
+  }
+
+  /**
    * Validate data against schema (returns parsed JavaScript object)
    * Uses validateJS for Worker-safe serialization
    */

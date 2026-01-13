@@ -68,5 +68,56 @@ impl JSONEval {
         };
         
         self.run_logic(id, data_value.as_ref(), context_value.as_ref())
+        }
+}
+
+/// Run logic evaluation directly without schema/form state
+/// 
+/// This is a "pure" evaluation that doesn't rely on JSONEval instance state.
+/// It creates a temporary evaluator and runs the logic against the provided data.
+/// 
+/// # Arguments
+/// * `logic_str` - JSON logic expression string
+/// * `data_str` - Data JSON string (optional)
+/// * `context_str` - Context JSON string (optional). Will be merged into data under "$context" key.
+pub fn evaluate_logic_pure(
+    logic_str: &str,
+    data_str: Option<&str>,
+    context_str: Option<&str>,
+) -> Result<Value, String> {
+    // Compile logic
+    let logic_value = json_parser::parse_json_str(logic_str)
+        .map_err(|e| format!("Invalid logic JSON: {}", e))?;
+    let compiled = crate::rlogic::CompiledLogic::compile(&logic_value)
+        .map_err(|e| format!("Logic compilation failed: {}", e))?;
+
+    // Parse data
+    let mut data_value = if let Some(d) = data_str {
+        json_parser::parse_json_str(d)
+            .map_err(|e| format!("Invalid data JSON: {}", e))?
+    } else {
+        Value::Null
+    };
+
+    // Merge context if provided
+    if let Some(c) = context_str {
+        let context_value = json_parser::parse_json_str(c)
+            .map_err(|e| format!("Invalid context JSON: {}", e))?;
+        
+        // Ensure data is an object to merge context
+        if data_value.is_null() {
+            let mut map = serde_json::Map::new();
+            map.insert("$context".to_string(), context_value);
+            data_value = Value::Object(map);
+        } else if let Some(obj) = data_value.as_object_mut() {
+            obj.insert("$context".to_string(), context_value);
+        }
+        // Note: If data is a primitive value, context cannot be merged
     }
+
+    // Run evaluation
+    let evaluator = Evaluator::new();
+    evaluator.evaluate(&compiled, &data_value)
+        .map(|v| clean_float_noise(v))
+        .map_err(|e| format!("Evaluation error: {}", e))
 }

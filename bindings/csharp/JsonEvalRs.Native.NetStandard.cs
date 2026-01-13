@@ -178,6 +178,13 @@ namespace JsonEvalRs
             byte[]? context
         );
 
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_evaluate_logic_pure(
+            byte[] logicStr,
+            byte[]? data,
+            byte[]? context
+        );
+
         // Subform methods
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_evaluate_subform(

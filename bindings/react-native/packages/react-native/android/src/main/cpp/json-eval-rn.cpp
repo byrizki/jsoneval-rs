@@ -684,6 +684,24 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeCompileAndRunLogicAsync(
     });
 }
 
+JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeEvaluateLogicAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring logicStr,
+    jstring data,
+    jstring context,
+    jobject promise
+) {
+    std::string logicStrCpp = jstringToString(env, logicStr);
+    std::string dataStr = jstringToString(env, data);
+    std::string contextStr = jstringToString(env, context);
+    
+    runAsyncWithPromise(env, promise, "EVALUATE_LOGIC_ERROR", [logicStrCpp, dataStr, contextStr](auto callback) {
+        JsonEvalBridge::evaluateLogicAsync(logicStrCpp, dataStr, contextStr, callback);
+    });
+}
+
 // ============================================================================
 // Subform Methods
 // ============================================================================

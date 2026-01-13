@@ -38,9 +38,80 @@ impl JSONEval {
     }
 
     /// Get all schema values (data view)
+    /// Mutates internal data state by overriding with values from value evaluations
     /// This corresponds to subform.get_schema_value() usage
-    pub fn get_schema_value(&self) -> Value {
-        self.eval_data.data().clone()
+    pub fn get_schema_value(&mut self) -> Value {
+        // Start with current authoritative data from eval_data
+        let mut current_data = self.eval_data.data().clone();
+
+        // Ensure it's an object
+        if !current_data.is_object() {
+            current_data = Value::Object(serde_json::Map::new());
+        }
+
+        // Override data with values from value evaluations
+        // We use value_evaluations which stores the paths of fields with .value
+        for eval_key in self.value_evaluations.iter() {
+            let clean_key = eval_key.replace('#', "");
+
+            // Exclude rules.*.value, options.*.value, and $params
+            if clean_key.starts_with("/$params")
+                || (clean_key.ends_with("/value")
+                    && (clean_key.contains("/rules/") || clean_key.contains("/options/")))
+            {
+                continue;
+            }
+
+            let path = clean_key.replace("/properties", "").replace("/value", "");
+
+            // Get the value from evaluated_schema
+            let value = match self.evaluated_schema.pointer(&clean_key) {
+                Some(v) => v.clone(),
+                None => continue,
+            };
+
+            // Parse the path and create nested structure as needed
+            let path_parts: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+
+            if path_parts.is_empty() {
+                continue;
+            }
+
+            // Navigate/create nested structure
+            let mut current = &mut current_data;
+            for (i, part) in path_parts.iter().enumerate() {
+                let is_last = i == path_parts.len() - 1;
+
+                if is_last {
+                    // Set the value at the final key
+                    if let Some(obj) = current.as_object_mut() {
+                        obj.insert(part.to_string(), crate::utils::clean_float_noise(value.clone()));
+                    }
+                } else {
+                    // Ensure current is an object, then navigate/create intermediate objects
+                    if let Some(obj) = current.as_object_mut() {
+                        // Use raw entry API or standard entry if possible, but borrowing is tricky
+                        // We need to re-borrow `current` for the next iteration
+                        // Since `entry` API consumes check, we might need a different approach or careful usage
+                        
+                        // Check presence first to avoid borrow issues if simpler
+                        if !obj.contains_key(*part) {
+                            obj.insert((*part).to_string(), Value::Object(serde_json::Map::new()));
+                        }
+                        
+                        current = obj.get_mut(*part).unwrap();
+                    } else {
+                        // Skip this path if current is not an object and can't be made into one
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Update self.data to persist the view changes (matching backup behavior)
+        self.data = current_data.clone();
+        
+        crate::utils::clean_float_noise(current_data)
     }
 
     /// Get evaluated schema without $params

@@ -301,6 +301,16 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun evaluateLogic(
+        logicStr: String,
+        data: String?,
+        context: String?,
+        promise: Promise
+    ) {
+        nativeEvaluateLogicAsync(logicStr, data ?: "", context ?: "", promise)
+    }
+
+    @ReactMethod
     fun compileLogic(
         handle: String,
         logicStr: String,
@@ -531,6 +541,7 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     private external fun nativeValidatePathsAsync(handle: String, data: String, context: String, pathsJson: String, promise: Promise)
     private external fun nativeResolveLayoutAsync(handle: String, evaluate: Boolean, promise: Promise)
     private external fun nativeCompileAndRunLogicAsync(handle: String, logicStr: String, data: String, context: String, promise: Promise)
+    private external fun nativeEvaluateLogicAsync(logicStr: String, data: String, context: String, promise: Promise)
     private external fun nativeCompileLogic(handle: String, logicStr: String): Double
     private external fun nativeRunLogicAsync(handle: String, logicId: Double, data: String, context: String, promise: Promise)
     private external fun nativeSetTimezoneOffset(handle: String, offsetMinutes: Int)

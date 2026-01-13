@@ -332,6 +332,26 @@ export class JSONEval {
   }
 
   /**
+   * Evaluates logic expression without creating an instance
+   * @param logicStr - JSON Logic expression as string or object
+   * @param data - Optional data as string or object
+   * @param context - Optional context as string or object
+   * @returns Promise resolving to evaluation result
+   */
+  static async evaluateLogic(
+    logicStr: string | object,
+    data?: string | object | null,
+    context?: string | object | null
+  ): Promise<any> {
+    const logic = typeof logicStr === 'string' ? logicStr : JSON.stringify(logicStr);
+    const dataStr = data ? (typeof data === 'string' ? data : JSON.stringify(data)) : null;
+    const contextStr = context ? (typeof context === 'string' ? context : JSON.stringify(context)) : null;
+
+    const resultStr = await JsonEvalRs.evaluateLogic(logic, dataStr, contextStr);
+    return JSON.parse(resultStr);
+  }
+
+  /**
    * Creates a new JSON evaluator instance
    * @param options - Configuration options with schema, context, and data
    * @throws {Error} If creation fails

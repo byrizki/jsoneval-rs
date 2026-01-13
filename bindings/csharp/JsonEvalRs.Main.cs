@@ -40,6 +40,61 @@ namespace JsonEvalRs
         }
 
         /// <summary>
+        /// Evaluates a logic expression against data without creating an instance.
+        /// </summary>
+        /// <param name="logic">JSON logic expression string</param>
+        /// <param name="data">Optional JSON data string</param>
+        /// <param name="context">Optional JSON context string</param>
+        /// <returns>Evaluation result as JToken</returns>
+        public static JToken EvaluateLogic(string logic, string? data = null, string? context = null)
+        {
+            if (string.IsNullOrEmpty(logic))
+                throw new ArgumentNullException(nameof(logic));
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+            var result = Native.json_eval_evaluate_logic_pure(logic, data, context);
+#else
+            var result = Native.json_eval_evaluate_logic_pure(Native.ToUTF8Bytes(logic)!, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context));
+#endif
+            
+            if (!result.Success)
+            {
+#if NETCOREAPP || NET5_0_OR_GREATER
+                string error = result.Error != IntPtr.Zero
+                    ? Marshal.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                    : "Unknown error";
+#else
+                string error = result.Error != IntPtr.Zero
+                    ? Native.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                    : "Unknown error";
+#endif
+                Native.json_eval_free_result(result);
+                throw new JsonEvalException(error);
+            }
+
+            try
+            {
+                if (result.DataPtr == IntPtr.Zero)
+                    return JValue.CreateNull();
+
+                int dataLen = (int)result.DataLen.ToUInt32();
+                if (dataLen == 0)
+                    return JValue.CreateNull();
+
+                // Zero-copy: read directly from Rust-owned memory
+                byte[] buffer = new byte[dataLen];
+                Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
+                
+                string json = Encoding.UTF8.GetString(buffer);
+                return JToken.Parse(json);
+            }
+            finally
+            {
+                Native.json_eval_free_result(result);
+            }
+        }
+
+        /// <summary>
         /// Creates a new JSON evaluator instance from a cached ParsedSchema
         /// </summary>
         /// <param name="cacheKey">Cache key to lookup in the global ParsedSchemaCache</param>

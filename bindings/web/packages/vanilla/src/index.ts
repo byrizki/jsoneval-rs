@@ -25,6 +25,19 @@ export class JSONEval extends JSONEvalCore {
   static async initWasm(input?: string | Request | Response | BufferSource | WebAssembly.Module): Promise<any> {
     return init(input);
   }
+
+  /**
+   * Evaluate logic expression without creating an instance.
+   * NOTE: You MUST call `JSONEval.initWasm()` or `init()` before using this method.
+   * 
+   * @param logicStr - JSON Logic expression (string or object)
+   * @param data - Optional data (string or object)
+   * @param context - Optional context (string or object)
+   * @returns Evaluation result
+   */
+  static evaluateLogic(logicStr: string | object, data?: any, context?: any): any {
+    return JSONEvalCore.evaluateLogic(wasm, logicStr, data, context);
+  }
 }
 
 /**

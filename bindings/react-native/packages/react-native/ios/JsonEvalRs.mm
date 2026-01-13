@@ -141,6 +141,27 @@ RCT_EXPORT_METHOD(runLogic:(NSString *)handle
     );
 }
 
+RCT_EXPORT_METHOD(evaluateLogic:(NSString *)logicStr
+                  data:(NSString *)data
+                  context:(NSString *)context
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string logicString = [self stdStringFromNSString:logicStr];
+    std::string dataStr = [self stdStringFromNSString:data];
+    std::string contextStr = [self stdStringFromNSString:context];
+
+    JsonEvalBridge::evaluateLogicAsync(logicString, dataStr, contextStr,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"EVALUATE_LOGIC_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
 RCT_EXPORT_METHOD(validate:(NSString *)handle
                   data:(NSString *)data
                   context:(NSString *)context

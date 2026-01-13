@@ -30,6 +30,17 @@ export class JSONEval extends JSONEvalCore {
       fromCache: true
     });
   }
+
+  /**
+   * Evaluate logic expression without creating an instance
+   * @param logicStr - JSON Logic expression (string or object)
+   * @param data - Optional data (string or object)
+   * @param context - Optional context (string or object)
+   * @returns Evaluation result
+   */
+  static evaluateLogic(logicStr: string | object, data?: any, context?: any): any {
+    return JSONEvalCore.evaluateLogic(wasm, logicStr, data, context);
+  }
 }
 
 /**

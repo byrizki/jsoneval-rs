@@ -232,4 +232,27 @@ impl JSONEvalWasm {
             Err(e) => Err(JsValue::from_str(&e)),
         }
     }
+
+    /// Static helper to evaluate logic without creating an instance
+    /// @param logic_str - JSON logic expression string
+    /// @param data - Optional JSON data string
+    /// @param context - Optional JSON context string
+    /// @returns Result as JavaScript object
+    #[wasm_bindgen(js_name = evaluateLogic)]
+    pub fn evaluate_logic_static(
+        logic_str: &str,
+        data: Option<String>,
+        context: Option<String>,
+    ) -> Result<JsValue, JsValue> {
+        let data_str = data.as_deref();
+        let ctx = context.as_deref();
+
+        match crate::jsoneval::logic::evaluate_logic_pure(logic_str, data_str, ctx) {
+            Ok(result) => super::to_value(&result).map_err(|e| {
+                let error_msg = format!("Failed to convert logic result: {}", e);
+                JsValue::from_str(&error_msg)
+            }),
+            Err(e) => Err(JsValue::from_str(&e)),
+        }
+    }
 }

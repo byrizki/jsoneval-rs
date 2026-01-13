@@ -378,6 +378,20 @@ public:
         std::function<void(const std::string&, const std::string&)> callback
     );
 
+    /**
+     * Evaluate independent logic expression (async) - No schema required
+     * @param logicStr JSON logic expression
+     * @param data Optional JSON data (can be empty/null)
+     * @param context Optional context data (can be empty/null)
+     * @param callback Result callback
+     */
+    static void evaluateLogicAsync(
+        const std::string& logicStr,
+        const std::string& data,
+        const std::string& context,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
     // ========================================================================
     // Subform Methods
     // ========================================================================
