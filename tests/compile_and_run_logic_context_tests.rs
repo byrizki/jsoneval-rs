@@ -29,7 +29,7 @@ fn test_compile_and_run_logic_with_context_ref() {
         .expect("Failed to create JSONEval");
 
     // Evaluate first to setup eval_data properly
-    eval.evaluate(&data, Some(&context), None)
+    eval.evaluate(&data, Some(&context), None, None)
         .expect("Failed to evaluate");
 
     // Test logic with $ref to $context
@@ -82,7 +82,7 @@ fn test_compile_and_run_logic_with_context_ref_from_cache() {
         .expect("Failed to create JSONEval from cached schema");
 
     // Evaluate first
-    eval.evaluate(&data, Some(&context), None)
+    eval.evaluate(&data, Some(&context), None, None)
         .expect("Failed to evaluate");
 
     // Test logic with $ref to both $context and $params
@@ -119,7 +119,7 @@ fn test_compile_and_run_logic_with_custom_data_and_context() {
     let mut eval = JSONEval::new(&schema, Some(&context), Some(&initial_data))
         .expect("Failed to create JSONEval");
 
-    eval.evaluate(&initial_data, Some(&context), None)
+    eval.evaluate(&initial_data, Some(&context), None, None)
         .expect("Failed to evaluate");
 
     // Use different data but context should still be available
@@ -168,7 +168,7 @@ fn test_compile_and_run_logic_nested_context_refs() {
     let mut eval = JSONEval::new(&schema, Some(&context), Some(&data))
         .expect("Failed to create JSONEval");
 
-    eval.evaluate(&data, Some(&context), None)
+    eval.evaluate(&data, Some(&context), None, None)
         .expect("Failed to evaluate");
 
 
@@ -219,7 +219,7 @@ fn test_compile_and_run_logic_missing_context_ref_returns_null() {
     let mut eval = JSONEval::new(&schema, Some(&context), Some(&data))
         .expect("Failed to create JSONEval");
 
-    eval.evaluate(&data, Some(&context), None)
+    eval.evaluate(&data, Some(&context), None, None)
         .expect("Failed to evaluate");
 
     // Reference non-existent path in context

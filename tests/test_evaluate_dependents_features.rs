@@ -43,7 +43,7 @@ fn test_evaluate_dependents_recursive_chain() {
     
     let changed_paths = vec!["illustration.insured.occupation".to_string()];
     
-    let result = je.evaluate_dependents(&changed_paths, Some(new_data_snippet), None, true).unwrap();
+    let result = je.evaluate_dependents(&changed_paths, Some(new_data_snippet), None, true, None, None).unwrap();
     
     let changes = result.as_array().unwrap();
     
@@ -101,7 +101,7 @@ fn test_evaluate_dependents_keep_hidden_value() {
     
     let changed_paths = vec!["illustration.header.form_number".to_string()];
     
-    let result = je.evaluate_dependents(&changed_paths, Some(new_data_snippet), None, true).unwrap();
+    let result = je.evaluate_dependents(&changed_paths, Some(new_data_snippet), None, true, None, None).unwrap();
     
     let changes = result.as_array().unwrap();
     
@@ -169,7 +169,7 @@ fn test_recursive_clearing() {
     
     let changed_paths = vec!["illustration.header.recursive_test.field_c".to_string()];
     
-    let result = je.evaluate_dependents(&changed_paths, Some(new_data_snippet), None, true).unwrap();
+    let result = je.evaluate_dependents(&changed_paths, Some(new_data_snippet), None, true, None, None).unwrap();
     let changes = result.as_array().unwrap();
     
     let data = je.eval_data.data();

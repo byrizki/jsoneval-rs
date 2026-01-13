@@ -25,7 +25,9 @@ pub unsafe extern "C" fn json_eval_evaluate(
         return FFIResult::error("Invalid handle or data pointer".to_string());
     }
 
-    let eval = &mut (*handle).inner;
+    let handle_ref = &mut *handle;
+    let token = handle_ref.reset_token();
+    let eval = &mut handle_ref.inner;
 
     let data_str = match CStr::from_ptr(data).to_str() {
         Ok(s) => s,
@@ -53,7 +55,7 @@ pub unsafe extern "C" fn json_eval_evaluate(
         None
     };
 
-    match eval.evaluate(data_str, context_str, paths.as_deref()) {
+    match eval.evaluate(data_str, context_str, paths.as_deref(), token.as_ref()) {
         Ok(_) => {
             // Don't serialize the schema here - massive performance waste!
             // C# can call get_evaluated_schema() explicitly if needed
@@ -80,7 +82,9 @@ pub unsafe extern "C" fn json_eval_validate(
         return FFIResult::error("Invalid handle or data pointer".to_string());
     }
 
-    let eval = &mut (*handle).inner;
+    let handle_ref = &mut *handle;
+    let token = handle_ref.reset_token();
+    let eval = &mut handle_ref.inner;
 
     let data_str = match CStr::from_ptr(data).to_str() {
         Ok(s) => s,
@@ -96,7 +100,7 @@ pub unsafe extern "C" fn json_eval_validate(
         None
     };
 
-    match eval.validate(data_str, context_str, None) {
+    match eval.validate(data_str, context_str, None, token.as_ref()) {
         Ok(validation_result) => {
             let result_json = serde_json::json!({
                 "hasError": validation_result.has_error,
@@ -152,7 +156,9 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents(
         return FFIResult::error("Invalid pointer".to_string());
     }
 
-    let eval = &mut (*handle).inner;
+    let handle_ref = &mut *handle;
+    let token = handle_ref.reset_token();
+    let eval = &mut handle_ref.inner;
 
     let paths_json_str = match CStr::from_ptr(changed_paths_json).to_str() {
         Ok(s) => s,
@@ -183,7 +189,7 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents(
         None
     };
 
-    match eval.evaluate_dependents(&paths, data_str, context_str, re_evaluate != 0) {
+    match eval.evaluate_dependents(&paths, data_str, context_str, re_evaluate != 0, token.as_ref(), None) {
         Ok(result) => {
             let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
             FFIResult::success(result_bytes)

@@ -1,6 +1,7 @@
 //! WASM type definitions
 
 use crate::JSONEval;
+use crate::jsoneval::cancellation::CancellationToken;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -92,6 +93,18 @@ impl ValidationResult {
 #[wasm_bindgen]
 pub struct JSONEvalWasm {
     pub(super) inner: JSONEval,
+    pub(super) current_token: Option<CancellationToken>,
+}
+
+impl JSONEvalWasm {
+    pub(super) fn reset_token(&mut self) -> Option<CancellationToken> {
+        if let Some(token) = &self.current_token {
+            token.cancel();
+        }
+        let new_token = CancellationToken::new();
+        self.current_token = Some(new_token.clone());
+        Some(new_token)
+    }
 }
 
 // Helper function to create ValidationError from internal type

@@ -46,7 +46,7 @@ fn test_get_evaluated_schema_layout_sync() {
 
     // EVALUATE: hide_flag = true
     // Expected: condition.hidden should be true
-    eval.evaluate(r#"{"illustration": {"hide_flag": true}}"#, None, None).unwrap();
+    eval.evaluate(r#"{"illustration": {"hide_flag": true}}"#, None, None, None).unwrap();
     let result_true = eval.get_evaluated_schema(false);
     
     let layout_elem_true = result_true
@@ -57,7 +57,7 @@ fn test_get_evaluated_schema_layout_sync() {
 
     // EVALUATE: hide_flag = false  
     // Expected: condition.hidden should be false (layout should re-sync from updated evaluation)
-    eval.evaluate(r#"{"illustration": {"hide_flag": false}}"#, None, None).unwrap();
+    eval.evaluate(r#"{"illustration": {"hide_flag": false}}"#, None, None, None).unwrap();
     let result_false = eval.get_evaluated_schema(false);
     
     let layout_elem_false = result_false
@@ -111,7 +111,7 @@ fn test_get_evaluated_schema_root_layout_sync() {
 
     // EVALUATE: hide_flag = true
     // Expected: condition.hidden should be true
-    eval.evaluate(r#"{"hide_flag": true}"#, None, None).unwrap();
+    eval.evaluate(r#"{"hide_flag": true}"#, None, None, None).unwrap();
     let result_true = eval.get_evaluated_schema(false);
     
     let layout_elem_true = result_true
@@ -122,7 +122,7 @@ fn test_get_evaluated_schema_root_layout_sync() {
 
     // EVALUATE: hide_flag = false  
     // Expected: condition.hidden should be false (layout should re-sync from updated evaluation)
-    eval.evaluate(r#"{"hide_flag": false}"#, None, None).unwrap();
+    eval.evaluate(r#"{"hide_flag": false}"#, None, None, None).unwrap();
     let result_false = eval.get_evaluated_schema(false);
     
     let layout_elem_false = result_false

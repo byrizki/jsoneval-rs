@@ -5,9 +5,23 @@ use std::ffi::CString;
 use std::os::raw::c_char;
 use std::ptr;
 
+use crate::jsoneval::cancellation::CancellationToken;
+
 /// Opaque pointer type for JSONEval instances
 pub struct JSONEvalHandle {
     pub(super) inner: Box<JSONEval>,
+    pub(super) current_token: Option<CancellationToken>,
+}
+
+impl JSONEvalHandle {
+    pub(super) fn reset_token(&mut self) -> Option<CancellationToken> {
+        if let Some(token) = &self.current_token {
+            token.cancel();
+        }
+        let new_token = CancellationToken::new();
+        self.current_token = Some(new_token.clone());
+        Some(new_token)
+    }
 }
 
 /// Zero-copy result type for FFI operations

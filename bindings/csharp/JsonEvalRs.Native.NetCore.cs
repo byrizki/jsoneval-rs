@@ -235,7 +235,8 @@ namespace JsonEvalRs
             [MarshalAs(UnmanagedType.LPUTF8Str)] string subformPath,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string changedPath,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string? data,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
+            int reEvaluate
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]

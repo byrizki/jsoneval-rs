@@ -71,7 +71,7 @@ fn demo_local_cache() -> Result<(), Box<dyn std::error::Error>> {
         
         // Create JSONEval from cached ParsedSchema
         let mut eval = JSONEval::with_parsed_schema(cached_schema, Some(r#"{"rate": 1.5}"#), None)?;
-        eval.evaluate("{}", None, None)?;
+        eval.evaluate("{}", None, None, None)?;
         
         let evaluated = eval.get_evaluated_schema(false);
         let result = evaluated.pointer("/result")
@@ -133,7 +133,7 @@ fn simulate_another_function() -> Result<(), Box<dyn std::error::Error>> {
         println!("✅ Retrieved schema from global cache");
         
         let mut eval = JSONEval::with_parsed_schema(cached, Some(r#"{"x": 10, "y": 20}"#), None)?;
-        eval.evaluate("{}", None, None)?;
+        eval.evaluate("{}", None, None, None)?;
         
         let evaluated = eval.get_evaluated_schema(false);
         let sum = evaluated.pointer("/sum")
@@ -171,7 +171,7 @@ fn demo_performance_comparison() -> Result<(), Box<dyn std::error::Error>> {
     for i in 0..iterations {
         let context = format!(r#"{{"value": {}}}"#, i);
         let mut eval = JSONEval::new(schema_json, Some(&context), None)?;
-        eval.evaluate("{}", None, None)?;
+        eval.evaluate("{}", None, None, None)?;
     }
     let without_cache = start.elapsed();
     println!("   Time: {:?}", without_cache);
@@ -193,7 +193,7 @@ fn demo_performance_comparison() -> Result<(), Box<dyn std::error::Error>> {
         if let Some(cached) = cache.get("perf-test") {
             let context = format!(r#"{{"value": {}}}"#, i);
             let mut eval = JSONEval::with_parsed_schema(cached.clone(), Some(&context), None)?;
-            eval.evaluate("{}", None, None)?;
+            eval.evaluate("{}", None, None, None)?;
         }
     }
     let eval_time = eval_start.elapsed();

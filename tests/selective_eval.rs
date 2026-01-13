@@ -95,7 +95,7 @@ fn test_selective_evaluation_basic() {
     let mut eval = JSONEval::new(&schema_str, Some(&ctx_str), Some(&data_str)).unwrap();
 
     // 1. Full evaluation
-    eval.evaluate(&data_str, Some(&ctx_str), None).unwrap();
+    eval.evaluate(&data_str, Some(&ctx_str), None, None).unwrap();
     
     // Check results
     let evaluated = eval.get_evaluated_schema(false);
@@ -110,7 +110,7 @@ fn test_selective_evaluation_basic() {
         }
     });
     let nctx_str = serde_json::to_string(&nctx).unwrap();
-    eval.evaluate(&data_str, Some(&nctx_str), Some(&["$params.others.MIN_SA".to_string()])).unwrap();
+    eval.evaluate(&data_str, Some(&nctx_str), Some(&["$params.others.MIN_SA".to_string()]), None).unwrap();
     
     // Check results
     let evaluated = eval.get_evaluated_schema(false);
@@ -124,7 +124,7 @@ fn test_selective_evaluation_basic() {
         }
     });
     let nctx_str = serde_json::to_string(&nctx).unwrap();
-    eval.evaluate(&data_str, Some(&nctx_str), Some(&["$params.accessList".to_string()])).unwrap();
+    eval.evaluate(&data_str, Some(&nctx_str), Some(&["$params.accessList".to_string()]), None).unwrap();
     
     // Check results
     let evaluated = eval.get_evaluated_schema(false);

@@ -28,7 +28,7 @@ impl JSONEvalWasm {
         let paths_ref = paths.as_deref();
 
         self.inner
-            .evaluate_subform(subform_path, data, ctx, paths_ref)
+            .evaluate_subform(subform_path, data, ctx, paths_ref, None)
             .map_err(|e| {
                 let error_msg = format!("Subform evaluation failed: {}", e);
                 console_log(&format!("[WASM ERROR] {}", error_msg));
@@ -51,7 +51,7 @@ impl JSONEvalWasm {
     ) -> Result<ValidationResult, JsValue> {
         let ctx = context.as_deref();
 
-        match self.inner.validate_subform(subform_path, data, ctx, None) {
+        match self.inner.validate_subform(subform_path, data, ctx, None, None) {
             Ok(result) => {
                 let errors: Vec<ValidationError> = result
                     .errors
@@ -79,6 +79,7 @@ impl JSONEvalWasm {
         changed_paths_json: &str,
         data: Option<String>,
         context: Option<String>,
+        re_evaluate: bool,
     ) -> Result<String, JsValue> {
         let data_str = data.as_deref();
         let ctx = context.as_deref();
@@ -91,7 +92,7 @@ impl JSONEvalWasm {
 
         match self
             .inner
-            .evaluate_dependents_subform(subform_path, &paths, data_str, ctx, false)
+            .evaluate_dependents_subform(subform_path, &paths, data_str, ctx, re_evaluate, None, None)
         {
             Ok(result) => {
                 serde_json::to_string(&result).map_err(|e| JsValue::from_str(&e.to_string()))
@@ -114,6 +115,7 @@ impl JSONEvalWasm {
         changed_paths_json: &str,
         data: Option<String>,
         context: Option<String>,
+        re_evaluate: bool,
     ) -> Result<JsValue, JsValue> {
         let data_str = data.as_deref();
         let ctx = context.as_deref();
@@ -127,7 +129,7 @@ impl JSONEvalWasm {
 
         match self
             .inner
-            .evaluate_dependents_subform(subform_path, &paths, data_str, ctx, false)
+            .evaluate_dependents_subform(subform_path, &paths, data_str, ctx, re_evaluate, None, None)
         {
             Ok(result) => super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string())),
             Err(e) => Err(JsValue::from_str(&e)),

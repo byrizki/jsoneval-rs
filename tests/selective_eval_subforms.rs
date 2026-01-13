@@ -36,8 +36,7 @@ fn test_selective_eval_subforms() {
         .expect("Failed to create JSONEval");
 
     // Initial evaluation (full)
-    eval.evaluate_subform("#/items", &data_initial, None, None)
-        .expect("Initial evaluation failed");
+    eval.evaluate_subform("#/items", &data_initial, None, None, None).expect("Initial evaluation failed");
 
     let schema_v1 = eval.get_evaluated_schema_subform("#/items", true);
     println!("Schema V1: {}", schema_v1);
@@ -61,8 +60,7 @@ fn test_selective_eval_subforms() {
     
     let selective_paths = vec!["items.properties.unrelated".to_string()];
     
-    eval.evaluate_subform("#/items", &data_updated, None, Some(&selective_paths))
-        .expect("Selective evaluation failed");
+    eval.evaluate_subform("#/items", &data_updated, None, Some(&selective_paths), None).expect("Selective evaluation failed");
         
     let schema_v2 = eval.get_evaluated_schema_subform("#/items", true);
     println!("Schema V2: {}", schema_v2);
@@ -77,8 +75,7 @@ fn test_selective_eval_subforms() {
         "items.properties.price".to_string(),
         "items.properties.tax".to_string()
     ]; 
-    eval.evaluate_subform("#/items", &data_updated, None, Some(&target_paths))
-        .expect("Selective evaluation failed 2");
+    eval.evaluate_subform("#/items", &data_updated, None, Some(&target_paths), None).expect("Selective evaluation failed 2");
         
     let schema_v3 = eval.get_evaluated_schema_subform("#/items", true);
     println!("Schema V3: {}", schema_v3);

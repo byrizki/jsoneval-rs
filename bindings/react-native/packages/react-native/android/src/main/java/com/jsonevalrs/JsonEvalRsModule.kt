@@ -478,14 +478,13 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
         return true
     }
 
-    @ReactMethod
-    fun version(promise: Promise) {
-        try {
-            val ver = nativeVersion()
-            promise.resolve(ver)
-        } catch (e: Exception) {
             promise.reject("VERSION_ERROR", e.message, e)
         }
+    }
+
+    @ReactMethod
+    fun cancel(handle: String) {
+        nativeCancel(handle)
     }
 
     @ReactMethod
@@ -595,5 +594,6 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     private external fun nativeHasSubformAsync(handle: String, subformPath: String, promise: Promise)
     
     private external fun nativeDispose(handle: String)
+    private external fun nativeCancel(handle: String)
     private external fun nativeVersion(): String
 }

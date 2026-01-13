@@ -32,6 +32,9 @@ namespace JsonEvalRs
         internal static extern void json_eval_free(IntPtr handle);
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void json_eval_cancel(IntPtr handle);
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern IntPtr json_eval_version();
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]

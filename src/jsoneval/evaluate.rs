@@ -2,6 +2,7 @@ use super::JSONEval;
 use crate::jsoneval::json_parser;
 use crate::jsoneval::path_utils;
 use crate::jsoneval::table_evaluate;
+use crate::jsoneval::cancellation::CancellationToken;
 use crate::utils::clean_float_noise;
 use crate::time_block;
 
@@ -29,7 +30,13 @@ impl JSONEval {
         data: &str,
         context: Option<&str>,
         paths: Option<&[String]>,
+        token: Option<&CancellationToken>,
     ) -> Result<(), String> {
+        if let Some(t) = token {
+            if t.is_cancelled() {
+                return Err("Cancelled".to_string());
+            }
+        }
         time_block!("evaluate() [total]", {
             let context_provided = context.is_some();
 
@@ -65,13 +72,18 @@ impl JSONEval {
             });
 
             // Call internal evaluate (uses existing data if not provided)
-            self.evaluate_internal(paths)
+            self.evaluate_internal(paths, token)
         })
     }
 
     /// Internal evaluate that can be called when data is already set
     /// This avoids double-locking and unnecessary data cloning for re-evaluation from evaluate_dependents
-    pub(crate) fn evaluate_internal(&mut self, paths: Option<&[String]>) -> Result<(), String> {
+    pub(crate) fn evaluate_internal(&mut self, paths: Option<&[String]>, token: Option<&CancellationToken>) -> Result<(), String> {
+        if let Some(t) = token {
+            if t.is_cancelled() {
+                return Err("Cancelled".to_string());
+            }
+        }
         time_block!("  evaluate_internal() [total]", {
             // Acquire lock for synchronous execution
             let _lock = self.eval_lock.lock().unwrap();
@@ -179,6 +191,11 @@ impl JSONEval {
                 let value_eval_items = &self.value_evaluations;
 
                 for eval_key in value_eval_items.iter() {
+                    if let Some(t) = token {
+                        if t.is_cancelled() {
+                            return Err("Cancelled".to_string());
+                        }
+                    }
                     // Skip if has dependencies (will be handled in sorted batches)
                     if let Some(deps) = self.dependencies.get(eval_key) {
                         if !deps.is_empty() {
@@ -223,6 +240,11 @@ impl JSONEval {
 
             time_block!("    process batches", {
                 for batch in eval_batches {
+                    if let Some(t) = token {
+                        if t.is_cancelled() {
+                            return Err("Cancelled".to_string());
+                        }
+                    }
                     // Skip empty batches
                     if batch.is_empty() {
                         continue;
@@ -287,6 +309,7 @@ impl JSONEval {
                                     self,
                                     eval_key,
                                     &eval_data_snapshot,
+                                    token
                                 ) {
                                     let value = Value::Array(rows);
                                     // Cache result (thread-safe)
@@ -345,6 +368,11 @@ impl JSONEval {
                     }; // Empty slice if already processed in parallel
 
                     for eval_key in batch_items {
+                        if let Some(t) = token {
+                            if t.is_cancelled() {
+                                return Err("Cancelled".to_string());
+                            }
+                        }
                         // Filter individual items if paths are provided
                         if let Some(filter_paths) = normalized_paths {
                             if !filter_paths.is_empty()
@@ -369,7 +397,7 @@ impl JSONEval {
 
                         if is_table {
                             if let Ok(rows) =
-                                table_evaluate::evaluate_table(self, eval_key, &eval_data_snapshot)
+                                table_evaluate::evaluate_table(self, eval_key, &eval_data_snapshot, token)
                             {
                                 let value = Value::Array(rows);
                                 // Cache result
@@ -408,13 +436,18 @@ impl JSONEval {
             // Drop lock before calling evaluate_others
             drop(_lock);
 
-            self.evaluate_others(paths);
+            self.evaluate_others(paths, token);
 
             Ok(())
         })
     }
 
-    pub(crate) fn evaluate_others(&mut self, paths: Option<&[String]>) {
+    pub(crate) fn evaluate_others(&mut self, paths: Option<&[String]>, token: Option<&CancellationToken>) {
+        if let Some(t) = token {
+            if t.is_cancelled() {
+                return;
+            }
+        }
         time_block!("    evaluate_others()", {
             // Step 1: Evaluate "rules" and "others" categories with caching
             // Rules are evaluated here so their values are available in evaluated_schema
@@ -523,6 +556,11 @@ impl JSONEval {
                             .collect();
 
                         for eval_key in combined_evals {
+                            if let Some(t) = token {
+                                if t.is_cancelled() {
+                                    return;
+                                }
+                            }
                             // Filter items if paths are provided
                             if let Some(filter_paths) = normalized_paths.as_ref() {
                                 if !filter_paths.is_empty()

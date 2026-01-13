@@ -22,7 +22,8 @@ impl JSONEvalWasm {
     ) -> Result<ValidationResult, JsValue> {
         let ctx = context.as_deref();
 
-        match self.inner.validate(data, ctx, None) {
+        let token = self.reset_token();
+        match self.inner.validate(data, ctx, None, token.as_ref()) {
             Ok(result) => {
                 let errors: Vec<ValidationError> = result
                     .errors
@@ -49,7 +50,8 @@ impl JSONEvalWasm {
     pub fn validate_js(&mut self, data: &str, context: Option<String>) -> Result<JsValue, JsValue> {
         let ctx = context.as_deref();
 
-        match self.inner.validate(data, ctx, None) {
+        let token = self.reset_token();
+        match self.inner.validate(data, ctx, None, token.as_ref()) {
             Ok(result) => {
                 let errors: Vec<serde_json::Value> = result
                     .errors
@@ -98,7 +100,8 @@ impl JSONEvalWasm {
         let ctx = context.as_deref();
         let paths_ref = paths.as_ref().map(|v| v.as_slice());
 
-        match self.inner.validate(data, ctx, paths_ref) {
+        let token = self.reset_token();
+        match self.inner.validate(data, ctx, paths_ref, token.as_ref()) {
             Ok(result) => {
                 let errors: Vec<ValidationError> = result
                     .errors
@@ -132,7 +135,8 @@ impl JSONEvalWasm {
         let ctx = context.as_deref();
         let paths_ref = paths.as_ref().map(|v| v.as_slice());
 
-        match self.inner.validate(data, ctx, paths_ref) {
+        let token = self.reset_token();
+        match self.inner.validate(data, ctx, paths_ref, token.as_ref()) {
             Ok(result) => {
                 let errors: Vec<serde_json::Value> = result
                     .errors

@@ -2,6 +2,7 @@
 
 use crate::JSONEval;
 use crate::ReturnFormat;
+use crate::jsoneval::cancellation::CancellationToken;
 use serde_json::Value;
 
 impl JSONEval {
@@ -13,13 +14,14 @@ impl JSONEval {
         data: &str,
         context: Option<&str>,
         paths: Option<&[String]>,
+        token: Option<&CancellationToken>,
     ) -> Result<(), String> {
         let subform = self
             .subforms
             .get_mut(subform_path)
             .ok_or_else(|| format!("Subform not found: {}", subform_path))?;
 
-        subform.evaluate(data, context, paths)
+        subform.evaluate(data, context, paths, token)
     }
 
     /// Validate subform data against its schema rules
@@ -29,13 +31,14 @@ impl JSONEval {
         data: &str,
         context: Option<&str>,
         paths: Option<&[String]>,
+        token: Option<&CancellationToken>,
     ) -> Result<crate::ValidationResult, String> {
         let subform = self
             .subforms
             .get_mut(subform_path)
             .ok_or_else(|| format!("Subform not found: {}", subform_path))?;
 
-        subform.validate(data, context, paths)
+        subform.validate(data, context, paths, token)
     }
 
     /// Evaluate dependents in subform when a field changes
@@ -46,13 +49,15 @@ impl JSONEval {
         data: Option<&str>,
         context: Option<&str>,
         re_evaluate: bool,
+        token: Option<&CancellationToken>,
+        canceled_paths: Option<&mut Vec<String>>,
     ) -> Result<Value, String> {
         let subform = self
             .subforms
             .get_mut(subform_path)
             .ok_or_else(|| format!("Subform not found: {}", subform_path))?;
 
-        subform.evaluate_dependents(changed_paths, data, context, re_evaluate)
+        subform.evaluate_dependents(changed_paths, data, context, re_evaluate, token, canceled_paths)
     }
 
     /// Resolve layout for subform

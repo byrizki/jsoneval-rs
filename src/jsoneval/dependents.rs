@@ -3,6 +3,7 @@ use crate::jsoneval::json_parser;
 use crate::jsoneval::path_utils;
 use crate::rlogic::{LogicId, RLogic};
 use crate::jsoneval::types::DependentItem;
+use crate::jsoneval::cancellation::CancellationToken;
 use crate::utils::clean_float_noise;
 use crate::EvalData;
 
@@ -19,7 +20,15 @@ impl JSONEval {
         data: Option<&str>,
         context: Option<&str>,
         re_evaluate: bool,
+        token: Option<&CancellationToken>,
+        mut canceled_paths: Option<&mut Vec<String>>,
     ) -> Result<Value, String> {
+        // Check cancellation
+        if let Some(t) = token {
+            if t.is_cancelled() {
+                return Err("Cancelled".to_string());
+            }
+        }
         // Acquire lock for synchronous execution
         let _lock = self.eval_lock.lock().unwrap();
 
@@ -82,7 +91,9 @@ impl JSONEval {
             &self.evaluated_schema,
             &mut to_process,
             &mut processed,
-            &mut result
+            &mut result,
+            token,
+            canceled_paths.as_mut().map(|v| &mut **v)
         )?;
 
         // If re_evaluate is true, perform full evaluation with the mutated eval_data
@@ -90,7 +101,7 @@ impl JSONEval {
         if re_evaluate {
             // Drop lock for evaluate_internal
             drop(_lock); 
-            self.evaluate_internal(None)?;
+            self.evaluate_internal(None, token)?;
             
             // Re-acquire lock for ReadOnly/Hidden processing
             let _lock = self.eval_lock.lock().unwrap();
@@ -148,7 +159,9 @@ impl JSONEval {
                     &self.evaluated_schema,
                     &mut to_process,
                     &mut processed,
-                    &mut result
+                    &mut result,
+                    token,
+                    canceled_paths.as_mut().map(|v| &mut **v)
                 )?;
             }
 
@@ -187,7 +200,9 @@ impl JSONEval {
                     &self.evaluated_schema,
                     &mut to_process,
                     &mut processed,
-                    &mut result
+                    &mut result,
+                    token,
+                    canceled_paths.as_mut().map(|v| &mut **v)
                 )?;
             }
         }
@@ -558,8 +573,27 @@ impl JSONEval {
         queue: &mut Vec<(String, bool)>,
         processed: &mut IndexSet<String>,
         result: &mut Vec<Value>,
+        token: Option<&CancellationToken>,
+        canceled_paths: Option<&mut Vec<String>>,
     ) -> Result<(), String> {
         while let Some((current_path, is_transitive)) = queue.pop() {
+            if let Some(t) = token {
+                if t.is_cancelled() {
+                    // Accumulate canceled paths if buffer provided
+                    if let Some(cp) = canceled_paths {
+                        cp.push(current_path.clone());
+                        // Also push remaining items in queue?
+                        // The user request says "accumulate canceled path if provided", usually implies what was actively cancelled 
+                        // or what was pending. Since we pop one by one, we can just dump the queue back or just push pending.
+                        // But since we just popped `current_path`, it is the one being cancelled on.
+                        // Let's also drain the queue.
+                        for (path, _) in queue.iter() {
+                             cp.push(path.clone());
+                        }
+                    }
+                    return Err("Cancelled".to_string());
+                }
+            }
             if processed.contains(&current_path) {
                 continue;
             }

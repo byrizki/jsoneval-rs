@@ -218,7 +218,7 @@ fn main() {
                                 Some(&data_str_clone)
                             ).unwrap();
                             
-                            eval_instance.evaluate(&data_str_clone, Some("{}"), None).unwrap();
+                            eval_instance.evaluate(&data_str_clone, Some("{}"), None, None).unwrap();
                             last_schema = eval_instance.get_evaluated_schema(false);
                             thread_times.push(iter_start.elapsed());
                         }
@@ -261,7 +261,7 @@ fn main() {
                 
                 for iter in 0..iterations {
                     let iter_start = Instant::now();
-                    eval_instance.evaluate(&data_str, Some("{}"), None)
+                    eval_instance.evaluate(&data_str, Some("{}"), None, None)
                         .unwrap_or_else(|e| panic!("evaluation failed: {}", e));
                     evaluated_schema = eval_instance.get_evaluated_schema(false);
                     iteration_times.push(iter_start.elapsed());
@@ -305,7 +305,7 @@ fn main() {
             
             for iter in 0..iterations {
                 let iter_start = Instant::now();
-                eval.evaluate(&data_str, Some("{}"), None)
+                eval.evaluate(&data_str, Some("{}"), None, None)
                     .unwrap_or_else(|e| panic!("evaluation failed: {}", e));
                 evaluated_schema = eval.get_evaluated_schema(false);
                 iteration_times.push(iter_start.elapsed());

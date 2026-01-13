@@ -12,7 +12,7 @@ fn test_minimal_form_path_conversion() {
     
     let data = json!({});
     let data_str = serde_json::to_string(&data).unwrap();
-    eval.evaluate(&data_str, None, None).unwrap();
+    eval.evaluate(&data_str, None, None, None).unwrap();
     
     let evaluated = eval.get_evaluated_schema(false);
     

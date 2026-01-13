@@ -136,7 +136,7 @@ fn main() {
         // Step 2: Evaluate
         let eval_start = Instant::now();
         
-        eval.evaluate(&data_str, Some("{}"), None)
+        eval.evaluate(&data_str, Some("{}"), None, None)
             .unwrap_or_else(|e| panic!("evaluation failed: {}", e));
         
         // Legacy behavior: get_evaluated_schema takes skip_layout: bool

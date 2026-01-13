@@ -24,7 +24,7 @@ fn test_jsoneval_with_timezone_offset() {
     eval.set_timezone_offset(Some(420)); // UTC+7
 
     // Evaluate
-    eval.evaluate(&json!({}).to_string(), None, None)
+    eval.evaluate(&json!({}).to_string(), None, None, None)
         .expect("Evaluation failed");
 
     // Get results
@@ -59,7 +59,7 @@ fn test_jsoneval_default_utc() {
         .expect("Failed to create JSONEval");
 
     // Evaluate
-    eval.evaluate(&json!({}).to_string(), None, None)
+    eval.evaluate(&json!({}).to_string(), None, None, None)
         .expect("Evaluation failed");
 
     // Get results
@@ -90,7 +90,7 @@ fn test_set_timezone_offset() {
         .expect("Failed to create JSONEval");
 
     // Evaluate with UTC
-    eval.evaluate(&json!({}).to_string(), None, None)
+    eval.evaluate(&json!({}).to_string(), None, None, None)
         .expect("Evaluation failed");
     
     let result_utc = eval.get_evaluated_schema(false);
@@ -105,7 +105,7 @@ fn test_set_timezone_offset() {
     eval.set_timezone_offset(Some(420));
     
     // Evaluate again with new timezone
-    eval.evaluate(&json!({}).to_string(), None, None)
+    eval.evaluate(&json!({}).to_string(), None, None, None)
         .expect("Evaluation failed");
     
     let result_utc7 = eval.get_evaluated_schema(false);
@@ -123,7 +123,7 @@ fn test_set_timezone_offset() {
     eval.set_timezone_offset(None);
     
     // Evaluate one more time
-    eval.evaluate(&json!({}).to_string(), None, None)
+    eval.evaluate(&json!({}).to_string(), None, None, None)
         .expect("Evaluation failed");
     
     let result_reset = eval.get_evaluated_schema(false);

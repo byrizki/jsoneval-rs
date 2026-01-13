@@ -17,7 +17,7 @@ fn test_evaluate_basic() {
     let mut eval = JSONEval::new(&schema, None, Some(&data))
         .expect("Failed to create JSONEval");
 
-    eval.evaluate(&data, Some("{}"), None)
+    eval.evaluate(&data, Some("{}"), None, None)
         .expect("Evaluation failed");
 
     // Check that schema was evaluated successfully
@@ -45,7 +45,7 @@ fn test_evaluate_with_context() {
     let mut eval = JSONEval::new(&schema, Some(&context), Some(&data))
         .expect("Failed to create JSONEval");
 
-    eval.evaluate(&data, Some(&context), None)
+    eval.evaluate(&data, Some(&context), None, None)
         .expect("Evaluation failed");
 
     // Verify evaluation completes successfully
@@ -61,7 +61,7 @@ fn test_validate_all_rules_pass() {
     let mut eval = JSONEval::new(&schema, None, Some(&data))
         .expect("Failed to create JSONEval");
 
-    let validation = eval.validate(&data, None, None)
+    let validation = eval.validate(&data, None, None, None)
         .expect("Validation failed");
 
     assert!(!validation.has_error, "Should have no validation errors");
@@ -79,7 +79,7 @@ fn test_validate_required_field_missing() {
     let mut eval = JSONEval::new(&schema, None, Some(&data_str))
         .expect("Failed to create JSONEval");
 
-    let validation = eval.validate(&data_str, None, None)
+    let validation = eval.validate(&data_str, None, None, None)
         .expect("Validation failed");
 
     // The name field has a required rule in minimal_form.json
@@ -104,7 +104,7 @@ fn test_validate_min_max_value() {
     let mut eval = JSONEval::new(&schema, None, Some(&data_min_str))
         .expect("Failed to create JSONEval");
 
-    let validation = eval.validate(&data_min_str, None, None)
+    let validation = eval.validate(&data_min_str, None, None, None)
         .expect("Validation failed");
 
     assert!(validation.has_error, "Should have validation error for age below minimum");
@@ -123,7 +123,7 @@ fn test_validate_min_max_value() {
     let mut eval2 = JSONEval::new(&schema, None, Some(&data_max_str))
         .expect("Failed to create JSONEval");
 
-    let validation2 = eval2.validate(&data_max_str, None, None)
+    let validation2 = eval2.validate(&data_max_str, None, None, None)
         .expect("Validation failed");
 
     assert!(validation2.has_error, "Should have validation error for age above maximum");
@@ -142,7 +142,7 @@ fn test_validate_min_max_value() {
     let mut eval3 = JSONEval::new(&schema, None, Some(&data_valid_str))
         .expect("Failed to create JSONEval");
 
-    let validation3 = eval3.validate(&data_valid_str, None, None)
+    let validation3 = eval3.validate(&data_valid_str, None, None, None)
         .expect("Validation failed");
 
     assert!(!validation3.has_error, "Should have no validation error for valid age");
@@ -162,7 +162,7 @@ fn test_validate_skip_hidden_fields() {
     let mut eval = JSONEval::new(&schema, None, Some(&data_str))
         .expect("Failed to create JSONEval");
 
-    let validation = eval.validate(&data_str, None, None)
+    let validation = eval.validate(&data_str, None, None, None)
         .expect("Validation failed");
 
     assert!(!validation.has_error, "Hidden fields should not be validated");
@@ -181,7 +181,7 @@ fn test_validate_with_path_filter() {
         .expect("Failed to create JSONEval");
 
     // Test 1: Validate all fields - should find both errors
-    let validation_all = eval.validate(&data_str, None, None)
+    let validation_all = eval.validate(&data_str, None, None, None)
         .expect("Validation failed");
     
     assert!(validation_all.has_error, "Should have validation errors");
@@ -193,7 +193,7 @@ fn test_validate_with_path_filter() {
     
     // Test 2: Validate only age field using path filter
     let paths = vec!["illustration.insured.age".to_string()];
-    let validation_filtered = eval.validate(&data_str, None, Some(&paths))
+    let validation_filtered = eval.validate(&data_str, None, Some(&paths), None)
         .expect("Validation failed");
     
     assert!(validation_filtered.has_error, "Should have validation error for age");
@@ -214,7 +214,7 @@ fn test_evaluate_dependents_basic() {
         .expect("Failed to create JSONEval");
 
     // Evaluate initial schema
-    eval.evaluate(&initial_data, None, None)
+    eval.evaluate(&initial_data, None, None, None)
         .expect("Initial evaluation failed");
 
     // Update date_of_birth field and trigger age calculation
@@ -227,6 +227,8 @@ fn test_evaluate_dependents_basic() {
         Some(&updated_data_str),
         None,
         false,
+        None,
+        None
     ).expect("evaluate_dependents failed");
 
     // Check result structure
@@ -258,7 +260,7 @@ fn test_evaluate_dependents_with_clear() {
     let mut eval = JSONEval::new(&schema, None, Some(&initial_data_str))
         .expect("Failed to create JSONEval");
 
-    eval.evaluate(&initial_data_str, None, None)
+    eval.evaluate(&initial_data_str, None, None, None)
         .expect("Initial evaluation failed");
 
     // Toggle off - should trigger dependent evaluation
@@ -271,6 +273,8 @@ fn test_evaluate_dependents_with_clear() {
         Some(&updated_data_str),
         None,
         false,
+        None,
+        None
     ).expect("evaluate_dependents failed");
 
     let changes = result.as_array().unwrap();
@@ -311,7 +315,7 @@ fn test_evaluate_dependents_transitive() {
     let mut eval = JSONEval::new(&schema, None, Some(&initial_data_str))
         .expect("Failed to create JSONEval");
 
-    eval.evaluate(&initial_data_str, None, None)
+    eval.evaluate(&initial_data_str, None, None, None)
         .expect("Initial evaluation failed");
 
     // Update occupation - should cascade to occupation_class and risk_category
@@ -324,6 +328,8 @@ fn test_evaluate_dependents_transitive() {
         Some(&updated_data_str),
         None,
         false,
+        None,
+        None
     ).expect("evaluate_dependents failed");
 
     let changes = result.as_array().unwrap();
@@ -386,7 +392,7 @@ fn test_evaluate_dependents_no_data_update() {
     let mut eval = JSONEval::new(&schema, None, Some(&data))
         .expect("Failed to create JSONEval");
 
-    eval.evaluate(&data, None, None)
+    eval.evaluate(&data, None, None, None)
         .expect("Initial evaluation failed");
 
     // Call evaluate_dependents without updating data (data=None)
@@ -395,6 +401,8 @@ fn test_evaluate_dependents_no_data_update() {
         None,  // No data update, use existing data
         None,
         false,
+        None,
+        None
     ).expect("evaluate_dependents failed");
 
     let changes = result.as_array().unwrap();
@@ -453,7 +461,7 @@ fn test_evaluate_dependents_output_structure() {
     let mut eval = JSONEval::new(&schema, None, Some(&data))
         .expect("Failed to create JSONEval");
 
-    eval.evaluate(&data, None, None)
+    eval.evaluate(&data, None, None, None)
         .expect("Initial evaluation failed");
 
     let result = eval.evaluate_dependents(
@@ -461,6 +469,8 @@ fn test_evaluate_dependents_output_structure() {
         None,
         None,
         false,
+        None,
+        None
     ).expect("evaluate_dependents failed");
 
     // Validate result is an array
@@ -578,7 +588,7 @@ fn test_evaluate_dependents_dot_notation() {
     let mut eval = JSONEval::new(&schema, None, Some(&data))
         .expect("Failed to create JSONEval");
 
-    eval.evaluate(&data, None, None)
+    eval.evaluate(&data, None, None, None)
         .expect("Initial evaluation failed");
 
     // Test with full schema path format (like zlw.json)
@@ -587,6 +597,8 @@ fn test_evaluate_dependents_dot_notation() {
         None,
         None,
         false,
+        None,
+        None
     ).expect("evaluate_dependents failed");
 
     let changes = result.as_array().unwrap();
@@ -613,7 +625,7 @@ fn test_evaluate_dependents_with_dot_notation_input() {
     let mut eval = JSONEval::new(&schema, None, Some(&initial_data_str))
         .expect("Failed to create JSONEval");
 
-    eval.evaluate(&initial_data_str, None, None)
+    eval.evaluate(&initial_data_str, None, None, None)
         .expect("Initial evaluation failed");
 
     // Test with DOT NOTATION - should work now!
@@ -622,6 +634,8 @@ fn test_evaluate_dependents_with_dot_notation_input() {
         None,
         None,
         false,
+        None,
+        None
     ).expect("evaluate_dependents with dot notation failed");
 
     let changes = result.as_array().unwrap();
@@ -646,25 +660,29 @@ fn test_evaluate_dependents_dot_vs_schema_path() {
     // Test with schema path
     let mut eval1 = JSONEval::new(&schema, None, Some(&data))
         .expect("Failed to create JSONEval");
-    eval1.evaluate(&data, None, None).expect("Initial evaluation failed");
+    eval1.evaluate(&data, None, None, None).expect("Initial evaluation failed");
     
     let result1 = eval1.evaluate_dependents(
         &[String::from("#/illustration/properties/insured/properties/occupation")],
         None,
         None,
         false,
+        None,
+        None
     ).expect("Schema path failed");
 
     // Test with dot notation
     let mut eval2 = JSONEval::new(&schema, None, Some(&data))
         .expect("Failed to create JSONEval");
-    eval2.evaluate(&data, None, None).expect("Initial evaluation failed");
+    eval2.evaluate(&data, None, None, None).expect("Initial evaluation failed");
     
     let result2 = eval2.evaluate_dependents(
         &[String::from("illustration.insured.occupation")],  // Same field, dot notation
         None,
         None,
         false,
+        None,
+        None
     ).expect("Dot notation failed");
 
     // Both should produce the same number of changes

@@ -202,7 +202,8 @@ namespace JsonEvalRs
             byte[] subformPath,
             byte[] changedPath,
             byte[]? data,
-            byte[]? context
+            byte[]? context,
+            int reEvaluate
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]

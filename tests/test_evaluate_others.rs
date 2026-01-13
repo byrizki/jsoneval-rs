@@ -39,7 +39,7 @@ fn test_options_url_dynamic_template_evaluation() {
     // Run evaluation
     let data = json!({});
     let data_str = serde_json::to_string(&data).unwrap();
-    eval.evaluate(&data_str, None, None).unwrap();
+    eval.evaluate(&data_str, None, None, None).unwrap();
 
     // Get evaluated schema
     let evaluated = eval.get_evaluated_schema(false);
@@ -86,7 +86,7 @@ fn test_options_url_template_evaluation() {
     // Run evaluation
     let data = json!({});
     let data_str = serde_json::to_string(&data).unwrap();
-    eval.evaluate(&data_str, None, None).unwrap();
+    eval.evaluate(&data_str, None, None, None).unwrap();
 
     // Get evaluated schema
     let evaluated = eval.get_evaluated_schema(false);
@@ -127,7 +127,7 @@ fn test_options_url_template_with_number_params() {
 
     let data = json!({});
     let data_str = serde_json::to_string(&data).unwrap();
-    eval.evaluate(&data_str, None, None).unwrap();
+    eval.evaluate(&data_str, None, None, None).unwrap();
 
     let evaluated = eval.get_evaluated_schema(false);
 
@@ -165,7 +165,7 @@ fn test_options_url_without_template_unchanged() {
 
     let data = json!({});
     let data_str = serde_json::to_string(&data).unwrap();
-    eval.evaluate(&data_str, None, None).unwrap();
+    eval.evaluate(&data_str, None, None, None).unwrap();
 
     let evaluated = eval.get_evaluated_schema(false);
 
@@ -219,7 +219,7 @@ fn test_layout_metadata_injection() {
 
     let data = json!({});
     let data_str = serde_json::to_string(&data).unwrap();
-    eval.evaluate(&data_str, None, None).unwrap();
+    eval.evaluate(&data_str, None, None, None).unwrap();
 
     let evaluated = eval.get_evaluated_schema(false);
 
@@ -307,7 +307,7 @@ fn test_layout_metadata_parent_hidden() {
 
     let data = json!({});
     let data_str = serde_json::to_string(&data).unwrap();
-    eval.evaluate(&data_str, None, None).unwrap();
+    eval.evaluate(&data_str, None, None, None).unwrap();
 
     let evaluated = eval.get_evaluated_schema(false);
 
@@ -393,7 +393,7 @@ fn test_hide_layout_propagation() {
 
     let data = json!({});
     let data_str = serde_json::to_string(&data).unwrap();
-    eval.evaluate(&data_str, None, None).unwrap();
+    eval.evaluate(&data_str, None, None, None).unwrap();
 
     let evaluated = eval.get_evaluated_schema(false);
 
@@ -506,7 +506,7 @@ fn test_direct_layout_elements_have_metadata() {
 
     let data = json!({});
     let data_str = serde_json::to_string(&data).unwrap();
-    eval.evaluate(&data_str, None, None).unwrap();
+    eval.evaluate(&data_str, None, None, None).unwrap();
 
     let evaluated = eval.get_evaluated_schema(false);
 
@@ -590,7 +590,7 @@ fn test_json_pointer_ref_conversion() {
 
     let data = json!({});
     let data_str = serde_json::to_string(&data).unwrap();
-    eval.evaluate(&data_str, None, None).unwrap();
+    eval.evaluate(&data_str, None, None, None).unwrap();
 
     let evaluated = eval.get_evaluated_schema(false);
 
@@ -644,7 +644,7 @@ fn test_multiple_options_templates_in_schema() {
 
     let data = json!({});
     let data_str = serde_json::to_string(&data).unwrap();
-    eval.evaluate(&data_str, None, None).unwrap();
+    eval.evaluate(&data_str, None, None, None).unwrap();
 
     let evaluated = eval.get_evaluated_schema(false);
 

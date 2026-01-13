@@ -23,7 +23,8 @@ impl JSONEvalWasm {
         // Convert Vec<String> to &[String] for evaluate
         // We need to keep the Vec alive if it exists
 
-        match self.inner.evaluate(data, ctx, paths_refs.as_deref()) {
+        let token = self.reset_token();
+        match self.inner.evaluate(data, ctx, paths_refs.as_deref(), token.as_ref()) {
             Ok(_) => Ok(()),
             Err(e) => {
                 let error_msg = format!("Evaluation failed: {}", e);
@@ -48,7 +49,8 @@ impl JSONEvalWasm {
         let ctx = context.as_deref();
         let paths_refs: Option<Vec<String>> = paths;
 
-        match self.inner.evaluate(data, ctx, paths_refs.as_deref()) {
+        let token = self.reset_token();
+        match self.inner.evaluate(data, ctx, paths_refs.as_deref(), token.as_ref()) {
             Ok(_) => {
                 let result = self.inner.get_evaluated_schema(false);
                 super::to_value(&result).map_err(|e| {
@@ -78,6 +80,7 @@ impl JSONEvalWasm {
         changed_path: &str,
         data: Option<String>,
         context: Option<String>,
+        re_evaluate: bool,
     ) -> Result<String, JsValue> {
         let data_str = data.as_deref();
         let ctx = context.as_deref();
@@ -85,8 +88,9 @@ impl JSONEvalWasm {
         // Wrap single path in a Vec for the new API
         let paths = vec![changed_path.to_string()];
 
-        match self.inner.evaluate_dependents(&paths, data_str, ctx, false) {
-            Ok(result) => serde_json::to_string(&result).map_err(|e| {
+        let token = self.reset_token();
+        match self.inner.evaluate_dependents(&paths, data_str, ctx, re_evaluate, token.as_ref(), None) {
+             Ok(result) => serde_json::to_string(&result).map_err(|e| {
                 let error_msg = format!("Failed to serialize dependents: {}", e);
                 console_log(&format!("[WASM ERROR] {}", error_msg));
                 JsValue::from_str(&error_msg)
@@ -124,9 +128,10 @@ impl JSONEvalWasm {
         let data_str = data.as_deref();
         let ctx = context.as_deref();
 
+        let token = self.reset_token();
         match self
             .inner
-            .evaluate_dependents(&paths, data_str, ctx, re_evaluate)
+            .evaluate_dependents(&paths, data_str, ctx, re_evaluate, token.as_ref(), None)
         {
             Ok(result) => super::to_value(&result).map_err(|e| {
                 let error_msg = format!("Failed to serialize dependents: {}", e);

@@ -26,7 +26,7 @@ pub struct DependentItem {
 }
 
 /// Validation error for a field
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ValidationError {
     #[serde(rename = "type")]
     pub rule_type: String,
@@ -42,7 +42,7 @@ pub struct ValidationError {
 }
 
 /// Result of validation
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ValidationResult {
     pub has_error: bool,
     pub errors: IndexMap<String, ValidationError>,

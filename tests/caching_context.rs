@@ -84,7 +84,7 @@ fn test_context_dependency_with_cache_disabled() {
 
     // 1. Initialize with Context 1
     let mut eval = JSONEval::new(&schema, Some(&context1), None).unwrap();
-    eval.evaluate("{}", Some(&context1), None).unwrap();
+    eval.evaluate("{}", Some(&context1), None, None).unwrap();
     
     // Verify initial state
     let data = eval.eval_data.data().as_object().unwrap();
@@ -97,7 +97,7 @@ fn test_context_dependency_with_cache_disabled() {
     assert!(!eval.is_cache_enabled(), "Cache should be disabled");
 
     // 3. Switch to Context 2
-    eval.evaluate("{}", Some(&context2), None).unwrap();
+    eval.evaluate("{}", Some(&context2), None, None).unwrap();
     
     // Verify update
     let data = eval.eval_data.data().as_object().unwrap();
@@ -106,7 +106,7 @@ fn test_context_dependency_with_cache_disabled() {
     assert_eq!(access_list, &json!([]), "Switching to context 2 should deny access");
 
     // 4. Switch back to Context 1
-    eval.evaluate("{}", Some(&context1), None).unwrap();
+    eval.evaluate("{}", Some(&context1), None, None).unwrap();
     
     // Verify update again
     let data = eval.eval_data.data().as_object().unwrap();

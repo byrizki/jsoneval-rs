@@ -64,6 +64,7 @@ extern "C" {
     void json_eval_set_timezone_offset(JSONEvalHandle* handle, int32_t offset_minutes);
     
     void json_eval_free(JSONEvalHandle* handle);
+    void json_eval_cancel(JSONEvalHandle* handle);
     void json_eval_free_result(FFIResult result);
     const char* json_eval_version();
     void json_eval_free_string(char* ptr);
@@ -1401,6 +1402,26 @@ void JsonEvalBridge::setTimezoneOffset(
     }
 
     json_eval_set_timezone_offset(it->second, offsetMinutes);
+}
+
+    json_eval_set_timezone_offset(it->second, offsetMinutes);
+}
+
+void JsonEvalBridge::dispose(const std::string& handle) {
+    std::lock_guard<std::mutex> lock(handlesMutex);
+    auto it = handles.find(handle);
+    if (it != handles.end()) {
+        json_eval_free(it->second);
+        handles.erase(it);
+    }
+}
+
+void JsonEvalBridge::cancel(const std::string& handle) {
+    std::lock_guard<std::mutex> lock(handlesMutex);
+    auto it = handles.find(handle);
+    if (it != handles.end()) {
+        json_eval_cancel(it->second);
+    }
 }
 
 std::string JsonEvalBridge::version() {

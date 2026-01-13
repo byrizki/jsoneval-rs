@@ -46,7 +46,7 @@ fn main() {
 
     // Step 1: Initial state (false)
     println!("Step 1: Initial State (print_polflag: false)");
-    eval.evaluate(&initial_data, Some(&context_str), None).expect("Evaluation failed");
+    eval.evaluate(&initial_data, Some(&context_str), None, None).expect("Evaluation failed");
     check_visibility(&mut eval, true, "Initial check");
 
     // Step 2: Toggle to true
@@ -58,7 +58,7 @@ fn main() {
             }
         }
     }).to_string();
-    eval.evaluate(&data_true, Some(&context_str), None).expect("Evaluation failed");
+    eval.evaluate(&data_true, Some(&context_str), None, None).expect("Evaluation failed");
     check_visibility(&mut eval, false, "Toggle ON check");
 
     // Step 3: Toggle back to false
@@ -70,7 +70,7 @@ fn main() {
             }
         }
     }).to_string();
-    eval.evaluate(&data_false, Some(&context_str), None).expect("Evaluation failed");
+    eval.evaluate(&data_false, Some(&context_str), None, None).expect("Evaluation failed");
     
     let hidden_path = "#/illustration/properties/basicinformation/properties/print_poladdress/condition/hidden";
     if let Some(deps) = eval.dependencies.get(hidden_path) {

@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.0.54] - 2026-01-13
+
+### Added
+
+- [core] add cancellation to evaluate, evaluate_dependents, and validate
+- [RN] add cancellation to evaluate, evaluate_dependents, and validate
+- [WASM] add cancellation to evaluate, evaluate_dependents, and validate
+- [FFI] add cancellation to evaluate, evaluate_dependents, and validate
+
+### Changed
+
+- [core] change default reEvaluate to true in evaluate_dependents
+- [RN] change default reEvaluate to true in evaluate_dependents
+- [WASM] change default reEvaluate to true in evaluate_dependents
+- [FFI] change default reEvaluate to true in evaluate_dependents
+
+
 ## [0.0.53] - 2026-01-12
 
 ### Fixed

@@ -32,7 +32,7 @@ fn test_repro_missing_properties_with_layout() {
     // JSONEval::new takes strings, not Arc<ParsedSchema>
     let mut je = JSONEval::new(&schema_str, None, None).unwrap();
 
-    je.evaluate("{}", None, None).unwrap();
+    je.evaluate("{}", None, None, None).unwrap();
 
     // Use get_evaluated_schema(false) to ensure layout is resolved and full schema is returned
     let evaluated = je.get_evaluated_schema(false);

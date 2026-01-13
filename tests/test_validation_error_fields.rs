@@ -42,8 +42,8 @@ fn test_validation_error_has_all_fields() {
     });
     let data_str = serde_json::to_string(&data).unwrap();
     
-    eval.evaluate(&data_str, None, None).unwrap();
-    let validation = eval.validate(&data_str, None, None).unwrap();
+    eval.evaluate(&data_str, None, None, None).unwrap();
+    let validation = eval.validate(&data_str, None, None, None).unwrap();
     
     assert!(validation.has_error, "Should have validation errors");
     assert_eq!(validation.errors.len(), 2, "Should have 2 errors");
@@ -92,8 +92,8 @@ fn test_validation_error_default_code() {
     let data = json!({});
     let data_str = serde_json::to_string(&data).unwrap();
     
-    eval.evaluate(&data_str, None, None).unwrap();
-    let validation = eval.validate(&data_str, None, None).unwrap();
+    eval.evaluate(&data_str, None, None, None).unwrap();
+    let validation = eval.validate(&data_str, None, None, None).unwrap();
     
     assert!(validation.has_error);
     let error = validation.errors.get("name").expect("Should have name error");
@@ -126,8 +126,8 @@ fn test_validation_error_serialization() {
     let data = json!({});
     let data_str = serde_json::to_string(&data).unwrap();
     
-    eval.evaluate(&data_str, None, None).unwrap();
-    let validation = eval.validate(&data_str, None, None).unwrap();
+    eval.evaluate(&data_str, None, None, None).unwrap();
+    let validation = eval.validate(&data_str, None, None, None).unwrap();
     
     // Serialize the validation result
     let json_str = serde_json::to_string(&validation).unwrap();

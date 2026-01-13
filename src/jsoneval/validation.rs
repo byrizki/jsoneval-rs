@@ -2,6 +2,7 @@ use super::JSONEval;
 use crate::jsoneval::json_parser;
 use crate::jsoneval::path_utils;
 use crate::jsoneval::types::{ValidationError, ValidationResult};
+use crate::jsoneval::cancellation::CancellationToken;
 
 use crate::time_block;
 
@@ -16,7 +17,13 @@ impl JSONEval {
         data: &str,
         context: Option<&str>,
         paths: Option<&[String]>,
+        token: Option<&CancellationToken>,
     ) -> Result<ValidationResult, String> {
+        if let Some(t) = token {
+            if t.is_cancelled() {
+                return Err("Cancelled".to_string());
+            }
+        }
         time_block!("validate() [total]", {
             // Acquire lock for synchronous execution
             let _lock = self.eval_lock.lock().unwrap();
@@ -52,7 +59,7 @@ impl JSONEval {
 
             // Re-evaluate rule evaluations to ensure fresh values
             // This ensures all rule.$evaluation expressions are re-computed
-            self.evaluate_others(paths);
+            self.evaluate_others(paths, token);
 
             // Update evaluated_schema with fresh evaluations
             self.evaluated_schema = self.get_evaluated_schema(false);
@@ -74,6 +81,12 @@ impl JSONEval {
                 }
 
                 self.validate_field(field_path, &data_value, &mut errors);
+
+                if let Some(t) = token {
+                    if t.is_cancelled() {
+                        return Err("Cancelled".to_string());
+                    }
+                }
             }
 
             let has_error = !errors.is_empty();

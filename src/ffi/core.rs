@@ -73,6 +73,7 @@ pub unsafe extern "C" fn json_eval_new_from_msgpack(
         Ok(eval) => {
             let handle = Box::new(JSONEvalHandle {
                 inner: Box::new(eval),
+                current_token: None,
             });
             Box::into_raw(handle)
         }
@@ -139,6 +140,7 @@ pub unsafe extern "C" fn json_eval_new(
         Ok(eval) => {
             let handle = Box::new(JSONEvalHandle {
                 inner: Box::new(eval),
+                current_token: None,
             });
             Box::into_raw(handle)
         }
@@ -218,6 +220,7 @@ pub unsafe extern "C" fn json_eval_new_with_error(
         Ok(eval) => {
             let handle = Box::new(JSONEvalHandle {
                 inner: Box::new(eval),
+                current_token: None,
             });
             Box::into_raw(handle)
         }
@@ -446,6 +449,7 @@ pub unsafe extern "C" fn json_eval_new_from_cache(
         Ok(eval) => {
             let handle = Box::new(JSONEvalHandle {
                 inner: Box::new(eval),
+                current_token: None,
             });
             Box::into_raw(handle)
         }
@@ -542,6 +546,7 @@ pub unsafe extern "C" fn json_eval_new_from_cache_with_error(
             }
             let handle = Box::new(JSONEvalHandle {
                 inner: Box::new(eval),
+                current_token: None,
             });
             Box::into_raw(handle)
         }
@@ -645,4 +650,19 @@ pub unsafe extern "C" fn json_eval_set_timezone_offset(
     };
 
     eval.set_timezone_offset(offset);
+}
+
+/// Cancel any currently running operation
+///
+/// # Safety
+///
+/// - handle must be a valid pointer from json_eval_new
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_cancel(handle: *mut JSONEvalHandle) {
+    if handle.is_null() {
+        return;
+    }
+    if let Some(token) = &(*handle).current_token {
+        token.cancel();
+    }
 }

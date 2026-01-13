@@ -501,7 +501,7 @@ export class JSONEvalCore {
   /**
    * Evaluate dependent fields (returns parsed JavaScript object, processes transitively)
    */
-  async evaluateDependents({ changedPaths, data, context, reEvaluate = false }: EvaluateDependentsOptions): Promise<DependentChange[]> {
+  async evaluateDependents({ changedPaths, data, context, reEvaluate = true }: EvaluateDependentsOptions): Promise<DependentChange[]> {
     await this.init();
     try {
       // Ensure paths is an array for WASM
@@ -788,6 +788,15 @@ export class JSONEvalCore {
     }
   }
 
+  /**
+   * Cancel any running evaluation
+   */
+  async cancel(): Promise<void> {
+    if (this._ready && this._instance) {
+      this._instance.cancel();
+    }
+  }
+
   // ============================================================================
   // Subform Methods
   // ============================================================================
@@ -820,7 +829,7 @@ export class JSONEvalCore {
   /**
    * Evaluate dependent fields in subform
    */
-  async evaluateDependentsSubform({ subformPath, changedPaths, data, context, reEvaluate = false }: EvaluateDependentsSubformOptions): Promise<DependentChange[]> {
+  async evaluateDependentsSubform({ subformPath, changedPaths, data, context, reEvaluate = true }: EvaluateDependentsSubformOptions): Promise<DependentChange[]> {
     await this.init();
 
     // For backward compatibility, accept single changedPath too (though types say array)
@@ -830,7 +839,8 @@ export class JSONEvalCore {
       subformPath,
       JSON.stringify(paths),
       data ? JSON.stringify(data) : null,
-      context ? JSON.stringify(context) : null
+      context ? JSON.stringify(context) : null,
+      reEvaluate
     );
   }
 

@@ -23,7 +23,9 @@ pub unsafe extern "C" fn json_eval_validate_paths(
         return FFIResult::error("Invalid handle or data pointer".to_string());
     }
 
-    let eval = &mut (*handle).inner;
+    let handle_ref = &mut *handle;
+    let token = handle_ref.reset_token();
+    let eval = &mut handle_ref.inner;
 
     let data_str = match CStr::from_ptr(data).to_str() {
         Ok(s) => s,
@@ -55,7 +57,7 @@ pub unsafe extern "C" fn json_eval_validate_paths(
 
     let paths_ref = paths.as_ref().map(|v| v.as_slice());
 
-    match eval.validate(data_str, context_str, paths_ref) {
+    match eval.validate(data_str, context_str, paths_ref, token.as_ref()) {
         Ok(validation_result) => {
             let result_json = serde_json::json!({
                 "hasError": validation_result.has_error,

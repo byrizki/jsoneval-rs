@@ -233,6 +233,16 @@ namespace JsonEvalRs
         }
 
         /// <summary>
+        /// Cancels any ongoing evaluation or validation on this handle.
+        /// This is thread-safe and can be called from another thread.
+        /// </summary>
+        public void Cancel()
+        {
+            ThrowIfDisposed();
+            Native.json_eval_cancel(_handle);
+        }
+
+        /// <summary>
         /// Evaluates the schema with provided data
         /// </summary>
         /// <param name="data">JSON data string</param>
@@ -301,7 +311,7 @@ namespace JsonEvalRs
         /// <param name="reEvaluate">If true, performs full evaluation after processing dependents</param>
         /// <returns>Array of dependent change objects as JArray</returns>
         public JArray EvaluateDependents(string[] changedPaths, string? data = null, 
-            string? context = null, bool reEvaluate = false)
+            string? context = null, bool reEvaluate = true)
         {
             ThrowIfDisposed();
 

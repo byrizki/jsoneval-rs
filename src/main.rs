@@ -338,7 +338,7 @@ fn main() {
                 std::process::exit(1);
             });
             
-            eval.evaluate(&data_str, Some("{}"), None)
+            eval.evaluate(&data_str, Some("{}"), None, None)
                 .unwrap_or_else(|e| {
                     eprintln!("Error: evaluation failed: {}", e);
                     std::process::exit(1);
@@ -395,7 +395,7 @@ fn main() {
         let mut result_schema = Value::Null;
         
         for iter in 0..iterations {
-            eval.evaluate(&data_str, Some("{}"), None)
+            eval.evaluate(&data_str, Some("{}"), None, None)
                 .unwrap_or_else(|e| {
                     eprintln!("Error: evaluation failed: {}", e);
                     std::process::exit(1);

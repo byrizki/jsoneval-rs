@@ -20,7 +20,7 @@ impl JSONEval {
             // Use existing data
             let data_str = serde_json::to_string(&self.data)
                 .map_err(|e| format!("Failed to serialize data: {}", e))?;
-            self.evaluate(&data_str, None, None)?;
+            self.evaluate(&data_str, None, None, None)?;
         }
 
         self.resolve_layout_internal();

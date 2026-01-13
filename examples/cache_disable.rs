@@ -45,7 +45,7 @@ fn main() {
         println!("Cache enabled: {}", eval.is_cache_enabled());
         println!("Initial cache size: {}", eval.cache_len());
         
-        eval.evaluate(&data_str, None, None).unwrap();
+        eval.evaluate(&data_str, None, None, None).unwrap();
         
         println!("After evaluation cache size: {}", eval.cache_len());
         let stats = eval.cache_stats();
@@ -65,7 +65,7 @@ fn main() {
         println!("Cache enabled: {}", eval.is_cache_enabled());
         println!("Initial cache size: {}", eval.cache_len());
         
-        eval.evaluate(&data_str, None, None).unwrap();
+        eval.evaluate(&data_str, None, None, None).unwrap();
         
         println!("After evaluation cache size: {}", eval.cache_len());
         let stats = eval.cache_stats();
@@ -86,7 +86,7 @@ fn main() {
         eval.enable_cache();
         
         println!("Cache enabled: {}", eval.is_cache_enabled());
-        eval.evaluate(&data_str, None, None).unwrap();
+        eval.evaluate(&data_str, None, None, None).unwrap();
         
         println!("Cache size after evaluation: {}", eval.cache_len());
         println!("\n✅ Cache can be toggled as needed!");

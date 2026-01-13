@@ -613,6 +613,16 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeDispose(
     JsonEvalBridge::dispose(handleStr);
 }
 
+JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeCancel(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle
+) {
+    std::string handleStr = jstringToString(env, handle);
+    JsonEvalBridge::cancel(handleStr);
+}
+
 JNIEXPORT jstring JNICALL
 Java_com_jsonevalrs_JsonEvalRsModule_nativeVersion(
     JNIEnv* env,

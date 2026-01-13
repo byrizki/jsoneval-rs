@@ -144,7 +144,7 @@ fn test_evaluate_subform() {
     });
     let data_str = serde_json::to_string(&data).unwrap();
     
-    eval.evaluate_subform("#/items", &data_str, None, None).unwrap();
+    eval.evaluate_subform("#/items", &data_str, None, None, None).unwrap();
     
     // Get evaluated schema
     let result = eval.get_evaluated_schema_subform("#/items", false);
@@ -205,7 +205,7 @@ fn test_validate_subform() {
     });
     let valid_data_str = serde_json::to_string(&valid_data).unwrap();
     
-    let valid_result = eval.validate_subform("#/contacts", &valid_data_str, None, None).unwrap();
+    let valid_result = eval.validate_subform("#/contacts", &valid_data_str, None, None, None).unwrap();
     assert!(!valid_result.has_error, "Valid data should pass validation");
     
     // Invalid data - missing required field
@@ -217,7 +217,7 @@ fn test_validate_subform() {
     });
     let invalid_data_str = serde_json::to_string(&invalid_data).unwrap();
     
-    let invalid_result = eval.validate_subform("#/contacts", &invalid_data_str, None, None).unwrap();
+    let invalid_result = eval.validate_subform("#/contacts", &invalid_data_str, None, None, None).unwrap();
     // Note: Validation behavior depends on schema structure in subform
     // The subform may need evaluation first for validation to work properly
     println!("Validation result: has_error={}, errors={:?}", invalid_result.has_error, invalid_result.errors);
@@ -270,7 +270,9 @@ fn test_evaluate_dependents_subform() {
         &[String::from("#/calculations/properties/base")],
         Some(&data_str),
         None,
-        false
+        false,
+        None,
+        None
     );
     
     assert!(result.is_ok(), "Should successfully evaluate dependents");
@@ -479,7 +481,7 @@ fn test_nonexistent_subform_error() {
     // Try to access nonexistent subform
     assert!(!eval.has_subform("#/nonexistent"));
     
-    let result = eval.evaluate_subform("#/nonexistent", "{}", None, None);
+    let result = eval.evaluate_subform("#/nonexistent", "{}", None, None, None);
     assert!(result.is_err());
     assert!(result.unwrap_err().contains("Subform not found"));
 }

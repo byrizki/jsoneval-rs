@@ -26,7 +26,9 @@ pub unsafe extern "C" fn json_eval_evaluate_subform(
         return FFIResult::error("Invalid pointer".to_string());
     }
 
-    let eval = &mut (*handle).inner;
+    let handle_ref = &mut *handle;
+    let token = handle_ref.reset_token();
+    let eval = &mut handle_ref.inner;
 
     let path_str = match CStr::from_ptr(subform_path).to_str() {
         Ok(s) => s,
@@ -59,7 +61,7 @@ pub unsafe extern "C" fn json_eval_evaluate_subform(
         None
     };
 
-    match eval.evaluate_subform(path_str, data_str, context_str, paths.as_deref()) {
+    match eval.evaluate_subform(path_str, data_str, context_str, paths.as_deref(), token.as_ref()) {
         Ok(_) => FFIResult::success(Vec::new()),
         Err(e) => FFIResult::error(e),
     }
@@ -83,7 +85,9 @@ pub unsafe extern "C" fn json_eval_validate_subform(
         return FFIResult::error("Invalid pointer".to_string());
     }
 
-    let eval = &mut (*handle).inner;
+    let handle_ref = &mut *handle;
+    let token = handle_ref.reset_token();
+    let eval = &mut handle_ref.inner;
 
     let path_str = match CStr::from_ptr(subform_path).to_str() {
         Ok(s) => s,
@@ -104,7 +108,7 @@ pub unsafe extern "C" fn json_eval_validate_subform(
         None
     };
 
-    match eval.validate_subform(path_str, data_str, context_str, None) {
+    match eval.validate_subform(path_str, data_str, context_str, None, token.as_ref()) {
         Ok(validation_result) => {
             let result_json = serde_json::json!({
                 "hasError": validation_result.has_error,
@@ -153,12 +157,15 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents_subform(
     changed_path: *const c_char,
     data: *const c_char,
     context: *const c_char,
+    re_evaluate: i32,
 ) -> FFIResult {
     if handle.is_null() || subform_path.is_null() || changed_path.is_null() {
         return FFIResult::error("Invalid pointer".to_string());
     }
 
-    let eval = &mut (*handle).inner;
+    let handle_ref = &mut *handle;
+    let token = handle_ref.reset_token();
+    let eval = &mut handle_ref.inner;
 
     let subform_str = match CStr::from_ptr(subform_path).to_str() {
         Ok(s) => s,
@@ -191,7 +198,7 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents_subform(
     // Wrap single path in a Vec for the new API
     let paths = vec![path_str.to_string()];
 
-    match eval.evaluate_dependents_subform(subform_str, &paths, data_str, context_str, false) {
+    match eval.evaluate_dependents_subform(subform_str, &paths, data_str, context_str, re_evaluate != 0, token.as_ref(), None) {
         Ok(result) => {
             let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
             FFIResult::success(result_bytes)

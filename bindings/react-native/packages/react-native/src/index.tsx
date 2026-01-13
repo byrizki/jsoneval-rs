@@ -373,6 +373,16 @@ export class JSONEval {
   }
 
   /**
+   * Cancel any running evaluation
+   * The generic auto-cancellation on new evaluation will still work, 
+   * but this allows manual cancellation.
+   */
+  async cancel(): Promise<void> {
+    this.throwIfDisposed();
+    JsonEvalRs.cancel(this.handle);
+  }
+
+  /**
    * Evaluate schema with provided data
    * @param options - Evaluation options
    * @returns Promise resolving to evaluated schema object
@@ -425,7 +435,7 @@ export class JSONEval {
     this.throwIfDisposed();
     
     try {
-      const { changedPaths, data, context, reEvaluate = false } = options;
+      const { changedPaths, data, context, reEvaluate = true } = options;
       const changedPathsJson = JSON.stringify(changedPaths);
       const dataStr = data ? this.toJsonString(data) : null;
       const contextStr = context ? this.toJsonString(context) : null;

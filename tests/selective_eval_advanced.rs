@@ -35,7 +35,7 @@ fn test_selective_eval_params_root() {
     let mut eval = JSONEval::new(&schema_str, None, Some(&data_str)).unwrap();
     
     // Initial full evaluation
-    eval.evaluate(&data_str, None, None).unwrap();
+    eval.evaluate(&data_str, None, None, None).unwrap();
     
     let result = eval.get_evaluated_schema(false);
     println!("value_evaluations count: {}", eval.value_evaluations.len());
@@ -73,7 +73,7 @@ fn test_selective_eval_params_root() {
     let mut eval2 = JSONEval::new(&updated_schema_str, None, Some(&data_str)).unwrap();
     
     // First do a full evaluation to process the $evaluation objects
-   eval2.evaluate(&data_str, None, None).unwrap();
+   eval2.evaluate(&data_str, None, None, None).unwrap();
     
     let result2 = eval2.get_evaluated_schema(false);
     assert_eq!(*result2.pointer("/$params/othersr/HAS_BEEN_PAID/value").unwrap(), json!(10));
@@ -131,7 +131,7 @@ fn test_selective_eval_explicit_properties() {
     let mut eval = JSONEval::new(&schema_str, None, Some(&data_str)).unwrap();
     
     // Initial evaluation
-    eval.evaluate(&data_str, None, None).unwrap();
+    eval.evaluate(&data_str, None, None, None).unwrap();
     
     let result = eval.get_evaluated_schema(false);
     assert_eq!(*result.pointer("/properties/illustration/properties/user/properties/fullname/value").unwrap(), json!("John Doe"));
@@ -145,7 +145,7 @@ fn test_selective_eval_explicit_properties() {
     
     // Test both path formats
     let paths_dot = vec!["illustration.user.fullname".to_string()];
-    eval.evaluate(&updated_data_str, None, Some(&paths_dot)).unwrap();
+    eval.evaluate(&updated_data_str, None, Some(&paths_dot), None).unwrap();
     
     let result2 = eval.get_evaluated_schema(false);
     let fullname = result2.pointer("/properties/illustration/properties/user/properties/fullname/value").unwrap();
@@ -201,7 +201,7 @@ fn test_selective_eval_explicit_properties_path() {
     let mut eval = JSONEval::new(&schema_str, None, Some(&data_str)).unwrap();
     
     // Initial evaluation
-    eval.evaluate(&data_str, None, None).unwrap();
+    eval.evaluate(&data_str, None, None, None).unwrap();
     
     // Update data and use explicit properties path (as user specified)
     let updated_data = json!({
@@ -212,7 +212,7 @@ fn test_selective_eval_explicit_properties_path() {
     
     // User's exact path format
     let paths = vec!["illustration.properties.user.properties.fullname".to_string()];
-    eval.evaluate(&updated_data_str, None, Some(&paths)).unwrap();
+    eval.evaluate(&updated_data_str, None, Some(&paths), None).unwrap();
     
     let result = eval.get_evaluated_schema(false);
     let fullname = result.pointer("/properties/illustration/properties/user/properties/fullname/value").unwrap();

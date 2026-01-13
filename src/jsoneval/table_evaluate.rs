@@ -5,6 +5,8 @@ use crate::JSONEval;
 use serde_json::{Map, Value};
 use std::mem;
 
+use crate::jsoneval::cancellation::CancellationToken;
+
 /// Sandboxed table evaluation for safe parallel execution
 ///
 /// All heavy operations (dependency analysis, forward reference checks) are done at parse time.
@@ -40,6 +42,7 @@ pub fn evaluate_table(
     lib: &JSONEval, // Changed to immutable - parallel-safe, only reads metadata and calls engine
     eval_key: &str,
     scope_data: &EvalData, // Now immutable - we read from parent scope
+    token: Option<&CancellationToken>,
 ) -> Result<Vec<Value>, String> {
     // Clone metadata (cheap since it uses Arc internally)
     let metadata = lib
@@ -47,6 +50,13 @@ pub fn evaluate_table(
         .get(eval_key)
         .ok_or_else(|| format!("Table metadata not found for {}", eval_key))?
         .clone();
+
+    // Check cancellation at start
+    if let Some(t) = token {
+        if t.is_cancelled() {
+            return Err("Cancelled".to_string());
+        }
+    }
 
     // Pre-compute table path once using JSON pointer format
     let table_pointer_path = path_utils::normalize_to_json_pointer(eval_key);
@@ -285,6 +295,12 @@ pub fn evaluate_table(
                 internal_context.insert("$threshold".to_string(), Value::from(end_idx));
 
                 for iteration in start_idx..=end_idx {
+                    // Check cancellation in forward loop
+                    if let Some(t) = token {
+                        if t.is_cancelled() {
+                            return Err("Cancelled".to_string());
+                        }
+                    }
                     let row_idx = (iteration - start_idx) as usize;
                     let target_idx = existing_row_count + row_idx;
 
@@ -348,6 +364,12 @@ pub fn evaluate_table(
                             vec![vec![false; forward_cols.len()]; iter_count];
 
                         for iter_offset in 0..iter_count {
+                            // Check cancellation in backward loop
+                            if let Some(t) = token {
+                                if t.is_cancelled() {
+                                    return Err("Cancelled".to_string());
+                                }
+                            }
                             let iteration = if scan_from_down {
                                 end_idx - iter_offset as i64
                             } else {

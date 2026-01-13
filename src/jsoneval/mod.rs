@@ -15,6 +15,7 @@ use indexmap::{IndexMap, IndexSet};
 use serde_json::Value;
 
 pub mod cache;
+pub mod cancellation;
 pub mod dependents;
 pub mod eval_cache;
 pub mod eval_data;

@@ -603,6 +603,12 @@ public:
     static void dispose(const std::string& handle);
 
     /**
+     * Cancel current operation
+     * @param handle Instance handle
+     */
+    static void cancel(const std::string& handle);
+
+    /**
      * Get library version
      * @return Version string
      */
