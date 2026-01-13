@@ -842,7 +842,8 @@ export class JSONEval {
       options.subformPath,
       changedPath,
       dataStr,
-      contextStr
+      contextStr,
+      options.reEvaluate ?? true
     );
     return JSON.parse(resultStr);
   }

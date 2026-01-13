@@ -49,7 +49,7 @@ extern "C" {
     // Subform FFI methods
     FFIResult json_eval_evaluate_subform(JSONEvalHandle* handle, const char* subform_path, const char* data, const char* context, const char* paths_json);
     FFIResult json_eval_validate_subform(JSONEvalHandle* handle, const char* subform_path, const char* data, const char* context);
-    FFIResult json_eval_evaluate_dependents_subform(JSONEvalHandle* handle, const char* subform_path, const char* changed_path, const char* data, const char* context);
+    FFIResult json_eval_evaluate_dependents_subform(JSONEvalHandle* handle, const char* subform_path, const char* changed_path, const char* data, const char* context, int re_evaluate);
     FFIResult json_eval_resolve_layout_subform(JSONEvalHandle* handle, const char* subform_path, bool evaluate);
     FFIResult json_eval_get_evaluated_schema_subform(JSONEvalHandle* handle, const char* subform_path, bool resolve_layout);
     FFIResult json_eval_get_schema_value_subform(JSONEvalHandle* handle, const char* subform_path);
@@ -1021,9 +1021,10 @@ void JsonEvalBridge::evaluateDependentsSubformAsync(
     const std::string& changedPath,
     const std::string& data,
     const std::string& context,
+    bool reEvaluate,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, subformPath, changedPath, data, context]() -> std::string {
+    runAsync([handleId, subformPath, changedPath, data, context, reEvaluate]() -> std::string {
         std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
@@ -1032,7 +1033,7 @@ void JsonEvalBridge::evaluateDependentsSubformAsync(
         
         const char* dt = data.empty() ? nullptr : data.c_str();
         const char* ctx = context.empty() ? nullptr : context.c_str();
-        FFIResult result = json_eval_evaluate_dependents_subform(it->second, subformPath.c_str(), changedPath.c_str(), dt, ctx);
+        FFIResult result = json_eval_evaluate_dependents_subform(it->second, subformPath.c_str(), changedPath.c_str(), dt, ctx, reEvaluate ? 1 : 0);
         
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
@@ -1404,17 +1405,7 @@ void JsonEvalBridge::setTimezoneOffset(
     json_eval_set_timezone_offset(it->second, offsetMinutes);
 }
 
-    json_eval_set_timezone_offset(it->second, offsetMinutes);
-}
 
-void JsonEvalBridge::dispose(const std::string& handle) {
-    std::lock_guard<std::mutex> lock(handlesMutex);
-    auto it = handles.find(handle);
-    if (it != handles.end()) {
-        json_eval_free(it->second);
-        handles.erase(it);
-    }
-}
 
 void JsonEvalBridge::cancel(const std::string& handle) {
     std::lock_guard<std::mutex> lock(handlesMutex);

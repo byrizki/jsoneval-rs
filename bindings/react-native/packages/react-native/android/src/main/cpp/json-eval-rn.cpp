@@ -719,6 +719,7 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeEvaluateDependentsSubformAsync(
     jstring changedPath,
     jstring data,
     jstring context,
+    jboolean reEvaluate,
     jobject promise
 ) {
     std::string handleStr = jstringToString(env, handle);
@@ -726,9 +727,10 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeEvaluateDependentsSubformAsync(
     std::string changedPathStr = jstringToString(env, changedPath);
     std::string dataStr = jstringToString(env, data);
     std::string contextStr = jstringToString(env, context);
+    bool reEval = static_cast<bool>(reEvaluate);
     
-    runAsyncWithPromise(env, promise, "EVALUATE_DEPENDENTS_SUBFORM_ERROR", [handleStr, subformPathStr, changedPathStr, dataStr, contextStr](auto callback) {
-        JsonEvalBridge::evaluateDependentsSubformAsync(handleStr, subformPathStr, changedPathStr, dataStr, contextStr, callback);
+    runAsyncWithPromise(env, promise, "EVALUATE_DEPENDENTS_SUBFORM_ERROR", [handleStr, subformPathStr, changedPathStr, dataStr, contextStr, reEval](auto callback) {
+        JsonEvalBridge::evaluateDependentsSubformAsync(handleStr, subformPathStr, changedPathStr, dataStr, contextStr, reEval, callback);
     });
 }
 

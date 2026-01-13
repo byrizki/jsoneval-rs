@@ -430,6 +430,7 @@ public:
         const std::string& changedPath,
         const std::string& data,
         const std::string& context,
+        bool reEvaluate,
         std::function<void(const std::string&, const std::string&)> callback
     );
 

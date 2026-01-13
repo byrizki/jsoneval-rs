@@ -352,9 +352,10 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
         changedPath: String,
         data: String?,
         context: String?,
+        reEvaluate: Boolean,
         promise: Promise
     ) {
-        nativeEvaluateDependentsSubformAsync(handle, subformPath, changedPath, data ?: "", context ?: "", promise)
+        nativeEvaluateDependentsSubformAsync(handle, subformPath, changedPath, data ?: "", context ?: "", reEvaluate, promise)
     }
 
     @ReactMethod
@@ -581,7 +582,7 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
 
     private external fun nativeEvaluateSubform(handle: String, subformPath: String, data: String, context: String, pathsJson: String, promise: Promise)
     private external fun nativeValidateSubformAsync(handle: String, subformPath: String, data: String, context: String, promise: Promise)
-    private external fun nativeEvaluateDependentsSubformAsync(handle: String, subformPath: String, changedPath: String, data: String, context: String, promise: Promise)
+    private external fun nativeEvaluateDependentsSubformAsync(handle: String, subformPath: String, changedPath: String, data: String, context: String, reEvaluate: Boolean, promise: Promise)
     private external fun nativeResolveLayoutSubformAsync(handle: String, subformPath: String, evaluate: Boolean, promise: Promise)
     private external fun nativeGetEvaluatedSchemaSubformAsync(handle: String, subformPath: String, resolveLayout: Boolean, promise: Promise)
     private external fun nativeGetSchemaValueSubformAsync(handle: String, subformPath: String, promise: Promise)
