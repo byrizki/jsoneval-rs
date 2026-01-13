@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.0.55] - 2026-01-13
+
+### Added
+
+- [core] Static logic evaluation
+
+### Fixed
+
+- [code] get schema values
+
 ## [0.0.54] - 2026-01-13
 
 ### Added
@@ -15,7 +25,6 @@
 - [RN] change default reEvaluate to true in evaluate_dependents
 - [WASM] change default reEvaluate to true in evaluate_dependents
 - [FFI] change default reEvaluate to true in evaluate_dependents
-
 
 ## [0.0.53] - 2026-01-12
 
