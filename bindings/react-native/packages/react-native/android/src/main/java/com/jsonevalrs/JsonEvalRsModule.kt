@@ -496,6 +496,16 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    fun version(promise: Promise) {
+        try {
+            val version = nativeVersion()
+            promise.resolve(version)
+        } catch (e: Exception) {
+            promise.reject("VERSION_ERROR", e.message, e)
+        }
+    }
+
+    @ReactMethod
     fun multiply(a: Double, b: Double, promise: Promise) {
         promise.resolve(a * b)
     }
