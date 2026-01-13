@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.56] - 2026-01-13
+
+### Added
+
+- [core] [RN] [WASM] [FFI] get schema values array / object
+
 ## [0.0.55] - 2026-01-13
 
 ### Added
@@ -8,7 +14,7 @@
 
 ### Fixed
 
-- [code] get schema values
+- [core] get schema values
 
 ## [0.0.54] - 2026-01-13
 
