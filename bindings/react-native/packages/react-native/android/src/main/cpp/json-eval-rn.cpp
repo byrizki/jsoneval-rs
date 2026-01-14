@@ -865,22 +865,6 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedSchemaSubformAsync(
 }
 
 JNIEXPORT void JNICALL
-Java_com_jsonevalrs_JsonEvalRsModule_nativeGetSchemaValueSubformAsync(
-    JNIEnv* env,
-    jobject /* this */,
-    jstring handle,
-    jstring subformPath,
-    jobject promise
-) {
-    std::string handleStr = jstringToString(env, handle);
-    std::string subformPathStr = jstringToString(env, subformPath);
-    
-    runAsyncWithPromise(env, promise, "GET_SCHEMA_VALUE_SUBFORM_ERROR", [handleStr, subformPathStr](auto callback) {
-        JsonEvalBridge::getSchemaValueSubformAsync(handleStr, subformPathStr, callback);
-    });
-}
-
-JNIEXPORT void JNICALL
 Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedSchemaWithoutParamsSubformAsync(
     JNIEnv* env,
     jobject /* this */,

@@ -511,6 +511,32 @@ public:
     );
 
     /**
+     * Get all schema values as array of path-value pairs from subform (async)
+     * Returns [{path: "", value: ""}, ...]
+     * @param handleId Instance handle
+     * @param subformPath Path to the subform
+     * @param callback Result callback
+     */
+    static void getSchemaValueArraySubformAsync(
+        const std::string& handleId,
+        const std::string& subformPath,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Get all schema values as object with dotted path keys from subform (async)
+     * Returns {path: value, ...}
+     * @param handleId Instance handle
+     * @param subformPath Path to the subform
+     * @param callback Result callback
+     */
+    static void getSchemaValueObjectSubformAsync(
+        const std::string& handleId,
+        const std::string& subformPath,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
      * Get evaluated schema without $params from subform (async)
      * @param handleId Instance handle
      * @param subformPath Path to the subform

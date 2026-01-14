@@ -948,6 +948,12 @@ RCT_EXPORT_METHOD(setTimezoneOffset:(NSString *)handle
     }
 }
 
+RCT_EXPORT_METHOD(cancel:(NSString *)handle)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    JsonEvalBridge::cancel(handleStr);
+}
+
 RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(dispose:(NSString *)handle)
 {
     std::string handleStr = [self stdStringFromNSString:handle];
