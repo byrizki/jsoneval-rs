@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.57] - 2026-01-14
+
+### Added
+
+- [core] [RN] [WASM] [FFI] Update validate method return result
+
 ## [0.0.56] - 2026-01-13
 
 ### Added
