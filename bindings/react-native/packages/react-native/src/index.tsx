@@ -66,8 +66,8 @@ export interface ValidationError {
 export interface ValidationResult {
   /** Whether any validation errors occurred */
   hasError: boolean;
-  /** Array of validation errors */
-  errors: ValidationError[];
+  /** Map of validation errors keyed by field path */
+  error: Record<string, ValidationError>;
 }
 
 /**

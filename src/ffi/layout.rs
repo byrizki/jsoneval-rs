@@ -59,15 +59,21 @@ pub unsafe extern "C" fn json_eval_validate_paths(
 
     match eval.validate(data_str, context_str, paths_ref, token.as_ref()) {
         Ok(validation_result) => {
+            let mut errors_map = serde_json::Map::new();
+            for (path, err) in &validation_result.errors {
+                errors_map.insert(
+                    path.clone(),
+                    serde_json::json!({
+                    "path": path,
+                    "ruleType": err.rule_type,
+                    "message": err.message
+                    }),
+                );
+            }
+
             let result_json = serde_json::json!({
                 "hasError": validation_result.has_error,
-                "errors": validation_result.errors.iter().map(|(k, v)| {
-                    serde_json::json!({
-                        "path": k,
-                        "ruleType": v.rule_type,
-                        "message": v.message
-                    })
-                }).collect::<Vec<_>>()
+                "error": errors_map
             });
 
             let result_bytes = serde_json::to_vec(&result_json).unwrap_or_default();

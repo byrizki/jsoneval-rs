@@ -47,8 +47,8 @@ namespace JsonEvalRs
         [JsonProperty("hasError")]
         public bool HasError { get; set; }
 
-        [JsonProperty("errors")]
-        public List<ValidationError> Errors { get; set; } = new List<ValidationError>();
+        [JsonProperty("error")]
+        public Dictionary<string, ValidationError> Error { get; set; } = new Dictionary<string, ValidationError>();
     }
 
     /// <summary>

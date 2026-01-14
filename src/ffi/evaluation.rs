@@ -1,7 +1,6 @@
 //! FFI evaluation functions
 
 use super::types::{FFIResult, JSONEvalHandle};
-use serde_json::json;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 
@@ -102,30 +101,25 @@ pub unsafe extern "C" fn json_eval_validate(
 
     match eval.validate(data_str, context_str, None, token.as_ref()) {
         Ok(validation_result) => {
+            let mut errors_map = serde_json::Map::new();
+            for (path, err) in &validation_result.errors {
+                errors_map.insert(
+                    path.clone(),
+                    serde_json::json!({
+                    "path": path,
+                    "rule_type": err.rule_type,
+                    "message": err.message,
+                    "code": err.code,
+                    "pattern": err.pattern,
+                    "fieldValue": err.field_value,
+                    "data": err.data,
+                    }),
+                );
+            }
+
             let result_json = serde_json::json!({
                 "hasError": validation_result.has_error,
-                "errors": validation_result.errors.iter().map(|(k, v)| {
-                    let mut error_obj = serde_json::json!({
-                        "path": k,
-                        "type": v.rule_type,
-                        "message": v.message
-                    });
-
-                    if let Some(code) = &v.code {
-                        error_obj["code"] = json!(code);
-                    }
-                    if let Some(pattern) = &v.pattern {
-                        error_obj["pattern"] = json!(pattern);
-                    }
-                    if let Some(field_value) = &v.field_value {
-                        error_obj["fieldValue"] = json!(field_value);
-                    }
-                    if let Some(data) = &v.data {
-                        error_obj["data"] = data.clone();
-                    }
-
-                    error_obj
-                }).collect::<Vec<_>>()
+                "error": errors_map
             });
 
             let result_bytes = serde_json::to_vec(&result_json).unwrap_or_default();

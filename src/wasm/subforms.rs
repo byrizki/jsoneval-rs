@@ -53,11 +53,15 @@ impl JSONEvalWasm {
 
         match self.inner.validate_subform(subform_path, data, ctx, None, None) {
             Ok(result) => {
-                let errors: Vec<ValidationError> = result
-                    .errors
-                    .iter()
-                    .map(|(path, error)| create_validation_error(path.clone(), error))
-                    .collect();
+                let mut errors: std::collections::HashMap<String, ValidationError> =
+                    std::collections::HashMap::new();
+
+                for (path, error) in result.errors {
+                    errors.insert(
+                        path.clone(),
+                        create_validation_error(path.clone(), &error),
+                    );
+                }
 
                 Ok(create_validation_result(result.has_error, errors))
             }

@@ -68,7 +68,7 @@ impl ValidationError {
 #[derive(Serialize, Deserialize)]
 pub struct ValidationResult {
     has_error: bool,
-    errors: Vec<ValidationError>,
+    error: std::collections::HashMap<String, ValidationError>,
 }
 
 #[wasm_bindgen]
@@ -79,8 +79,8 @@ impl ValidationResult {
     }
 
     #[wasm_bindgen(getter)]
-    pub fn errors(&self) -> Vec<ValidationError> {
-        self.errors.clone()
+    pub fn error(&self) -> JsValue {
+        serde_wasm_bindgen::to_value(&self.error).unwrap_or(JsValue::NULL)
     }
 
     #[wasm_bindgen(js_name = toJSON)]
@@ -126,7 +126,7 @@ pub(super) fn create_validation_error(
 // Helper function to create ValidationResult from internal type
 pub(super) fn create_validation_result(
     has_error: bool,
-    errors: Vec<ValidationError>,
+    error: std::collections::HashMap<String, ValidationError>,
 ) -> ValidationResult {
-    ValidationResult { has_error, errors }
+    ValidationResult { has_error, error }
 }

@@ -25,11 +25,15 @@ impl JSONEvalWasm {
         let token = self.reset_token();
         match self.inner.validate(data, ctx, None, token.as_ref()) {
             Ok(result) => {
-                let errors: Vec<ValidationError> = result
-                    .errors
-                    .iter()
-                    .map(|(path, error)| create_validation_error(path.clone(), error))
-                    .collect();
+                let mut errors: std::collections::HashMap<String, ValidationError> =
+                    std::collections::HashMap::new();
+
+                for (path, error) in result.errors {
+                    errors.insert(
+                        path.clone(),
+                        create_validation_error(path.clone(), &error),
+                    );
+                }
 
                 Ok(create_validation_result(result.has_error, errors))
             }
@@ -53,21 +57,22 @@ impl JSONEvalWasm {
         let token = self.reset_token();
         match self.inner.validate(data, ctx, None, token.as_ref()) {
             Ok(result) => {
-                let errors: Vec<serde_json::Value> = result
-                    .errors
-                    .iter()
-                    .map(|(path, error)| {
+                let mut errors_map = serde_json::Map::new();
+
+                for (path, error) in result.errors {
+                    errors_map.insert(
+                        path.clone(),
                         serde_json::json!({
                             "path": path,
                             "rule_type": error.rule_type,
                             "message": error.message,
-                        })
-                    })
-                    .collect();
+                        }),
+                    );
+                }
 
                 let validation_result = serde_json::json!({
                     "has_error": result.has_error,
-                    "errors": errors,
+                    "error": errors_map,
                 });
 
                 super::to_value(&validation_result).map_err(|e| {
@@ -103,11 +108,15 @@ impl JSONEvalWasm {
         let token = self.reset_token();
         match self.inner.validate(data, ctx, paths_ref, token.as_ref()) {
             Ok(result) => {
-                let errors: Vec<ValidationError> = result
-                    .errors
-                    .iter()
-                    .map(|(path, error)| create_validation_error(path.clone(), error))
-                    .collect();
+                let mut errors: std::collections::HashMap<String, ValidationError> =
+                    std::collections::HashMap::new();
+
+                for (path, error) in result.errors {
+                    errors.insert(
+                        path.clone(),
+                        create_validation_error(path.clone(), &error),
+                    );
+                }
 
                 Ok(create_validation_result(result.has_error, errors))
             }
@@ -138,21 +147,22 @@ impl JSONEvalWasm {
         let token = self.reset_token();
         match self.inner.validate(data, ctx, paths_ref, token.as_ref()) {
             Ok(result) => {
-                let errors: Vec<serde_json::Value> = result
-                    .errors
-                    .iter()
-                    .map(|(path, error)| {
+                let mut errors_map = serde_json::Map::new();
+
+                for (path, error) in result.errors {
+                    errors_map.insert(
+                        path.clone(),
                         serde_json::json!({
                             "path": path,
                             "rule_type": error.rule_type,
                             "message": error.message,
-                        })
-                    })
-                    .collect();
+                        }),
+                    );
+                }
 
                 let validation_result = serde_json::json!({
                     "has_error": result.has_error,
-                    "errors": errors,
+                    "error": errors_map,
                 });
 
                 super::to_value(&validation_result).map_err(|e| {
