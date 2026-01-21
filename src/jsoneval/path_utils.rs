@@ -69,13 +69,14 @@ pub fn dot_notation_to_schema_pointer(path: &str) -> String {
 
     // Build schema path: #/part1/properties/part2/properties/part3
     // First part is root-level field, rest are under /properties/
+    // Don't add /properties/ if path starts with $ (direct JSON pointer)
     let mut result = String::from("#/");
     for (i, part) in parts.iter().enumerate() {
         if part.eq(&"properties") {
             continue;
         }
 
-        if i > 0 {
+        if i > 0 && !path.starts_with('$') {
             result.push_str("/properties/");
         }
         result.push_str(part);
