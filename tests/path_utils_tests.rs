@@ -118,3 +118,27 @@ fn test_pointer_to_dot_notation() {
         ""
     );
 }
+
+#[test]
+fn test_dollar_params_path_conversion() {
+    // Test that paths starting with $ don't get /properties/ inserted
+    assert_eq!(
+        dot_notation_to_schema_pointer("$params.productName"),
+        "#/$params/productName"
+    );
+    
+    assert_eq!(
+        dot_notation_to_schema_pointer("$params.constants.RATE"),
+        "#/$params/constants/RATE"
+    );
+    
+    assert_eq!(
+        dot_notation_to_schema_pointer("$defs.Person.name"),
+        "#/$defs/Person/name"
+    );
+    
+    assert_eq!(
+        dot_notation_to_schema_pointer("$params.config.settings.timeout"),
+        "#/$params/config/settings/timeout"
+    );
+}
