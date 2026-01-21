@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.60] - 2026-01-21
+
+### Fixed
+
+- [core] fix get schema value by path
+
 ## [0.0.59] - 2026-01-21
 
 ### Fixed
