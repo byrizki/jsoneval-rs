@@ -34,7 +34,7 @@ impl JSONEval {
     /// Get specific schema value by path
     pub fn get_schema_value_by_path(&self, path: &str) -> Option<Value> {
         let pointer_path = path_utils::dot_notation_to_schema_pointer(path);
-        self.evaluated_schema.pointer(&pointer_path).cloned()
+        self.evaluated_schema.pointer(&pointer_path.trim_start_matches('#')).cloned()
     }
 
     /// Get all schema values (data view)
@@ -279,7 +279,7 @@ impl JSONEval {
     /// Get original (unevaluated) schema by path
     pub fn get_schema_by_path(&self, path: &str) -> Option<Value> {
         let pointer_path = path_utils::dot_notation_to_schema_pointer(path);
-        self.schema.pointer(&pointer_path).cloned()
+        self.schema.pointer(&pointer_path.trim_start_matches('#')).cloned()
     }
 
     /// Get original schema by multiple paths
