@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.61] - 2026-01-26
+
+### Fixed
+
+- [core] fix remove $context & $params on eval_data
+
 ## [0.0.60] - 2026-01-21
 
 ### Fixed
