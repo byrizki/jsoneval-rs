@@ -49,6 +49,12 @@ impl JSONEval {
             current_data = Value::Object(serde_json::Map::new());
         }
 
+        // Strip $params and $context from data
+        if let Some(obj) = current_data.as_object_mut() {
+            obj.remove("$params");
+            obj.remove("$context");
+        }
+
         // Override data with values from value evaluations
         // We use value_evaluations which stores the paths of fields with .value
         for eval_key in self.value_evaluations.iter() {
