@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.0.62] - 2026-01-26
+
+- [core] fix table evaluation
+
 ## [0.0.61] - 2026-01-26
 
 ### Fixed

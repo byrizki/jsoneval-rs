@@ -7,7 +7,7 @@ fn main() {
     if target_os == "windows" {
         let version = env!("CARGO_PKG_VERSION");
         
-        // Parse version string (e.g., "0.0.61" -> parts [0, 0, 49])
+        // Parse version string (e.g., "0.0.62" -> parts [0, 0, 49])
         let version_parts: Vec<u64> = version
             .split('.')
             .filter_map(|s| s.parse().ok())
