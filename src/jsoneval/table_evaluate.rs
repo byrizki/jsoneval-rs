@@ -410,15 +410,36 @@ pub fn evaluate_table(
                                 if !should_evaluate && !column.has_forward_ref {
                                     // Check intra-row column dependencies
                                     should_evaluate = column.dependencies.iter().any(|dep| {
+                                        if dep == "$iteration" || dep == "$threshold" {
+                                            return false; // Structural vars are constant per row
+                                        }
+                                        
                                         if dep.starts_with('$') {
                                             let dep_name = dep.trim_start_matches('$');
-                                            // Check if dependency is in forward_cols and changed in prev sweep
-                                            forward_cols.iter().enumerate().any(
-                                                |(dep_fwd_idx, &dep_col_idx)| {
-                                                    columns[dep_col_idx].name.as_ref() == dep_name
-                                                        && prev_changed[row_offset][dep_fwd_idx]
-                                                },
-                                            )
+                                            
+                                            // 1. Check if it's a forward column (dynamic)
+                                            let fwd_match = forward_cols.iter().enumerate().find(|(_idx, &c_idx)| {
+                                                columns[c_idx].name.as_ref() == dep_name
+                                            });
+                                            
+                                            if let Some((dep_fwd_idx, _)) = fwd_match {
+                                                // It is a forward column: check if it changed in previous sweep
+                                                return prev_changed[row_offset][dep_fwd_idx];
+                                            }
+                                            
+                                            // 2. Check if it's a normal column (static in Phase 5)
+                                            let is_normal = normal_cols.iter().any(|&c_idx| {
+                                                columns[c_idx].name.as_ref() == dep_name
+                                            });
+                                            
+                                            if is_normal {
+                                                // Normal columns don't change between Phase 5 sweeps
+                                                return false;
+                                            }
+                                            
+                                            // 3. Unknown dependency (global var, table ref, etc.)
+                                            // Assume it's unstable/external -> Force re-eval
+                                            true
                                         } else {
                                             // Non-column dependency, always re-evaluate to be safe
                                             true
@@ -444,9 +465,7 @@ pub fn evaluate_table(
                                     };
 
                                     // Write to sandbox table and update internal context
-                                    if let Some(row_obj) =
-                                        sandbox.get_table_row_mut(&table_pointer_path, target_idx)
-                                    {
+                                    if let Some(row_obj) = sandbox.get_table_row_mut(&table_pointer_path, target_idx) {
                                         if let Some(cell) = row_obj.get_mut(column.name.as_ref()) {
                                             if *cell != value {
                                                 any_changed = true;
@@ -460,6 +479,7 @@ pub fn evaluate_table(
                                                 .insert(col_names[col_idx].clone(), value.clone());
                                         }
                                     }
+
                                     // Update internal context with new value
                                     internal_context
                                         .insert(column.var_path.as_ref().to_string(), value);
