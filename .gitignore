@@ -20,3 +20,5 @@ build
 output/*
 test_zlw_structure.rs
 dist
+
+tests/z*.rs

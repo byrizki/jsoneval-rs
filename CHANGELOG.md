@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.67] - 2026-02-13
+
+### Changed
+
+- [core] optimize evaluation and table loop eval
+- [core] optimize schema parsing
+- [core] optimize large array lookup
+
 ## [0.0.66] - 2026-02-13
 
 ### Fixed
