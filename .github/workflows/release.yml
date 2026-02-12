@@ -1,16 +1,133 @@
-name: Build Bindings
+name: Release and Build
 
 on:
-  release:
-    types: [ created, edited, released ]
-  repository_dispatch:
-    types: [ release-created ]
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - '.github/workflows/pages.yml'
+      - '.github/workflows/publish.yml'
   workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.get_version.outputs.tag }}
+      version: ${{ steps.get_version.outputs.version }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from Cargo.toml
+        id: get_version
+        run: |
+          VERSION=$(grep -m1 '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Extract changelog for current version
+        id: changelog
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          
+          # Extract changelog section for current version
+          if [ -f "CHANGELOG.md" ]; then
+            # Try to find version section in CHANGELOG
+            CHANGELOG_CONTENT=$(awk "/^## \[?$VERSION\]?|^## \[?v?$VERSION\]?/{flag=1; next} /^## /{flag=0} flag" CHANGELOG.md)
+            
+            # If no specific version found, get the latest section
+            if [ -z "$CHANGELOG_CONTENT" ]; then
+              CHANGELOG_CONTENT=$(awk '/^## /{if(++count==1){flag=1; next} else {flag=0}} flag' CHANGELOG.md)
+            fi
+            
+            # If still empty, use a default message
+            if [ -z "$CHANGELOG_CONTENT" ]; then
+              cat > changelog_body.md << EOF
+          ## Changes in v$VERSION
+          
+          Automatic release from main branch.
+          
+          See [CHANGELOG.md](CHANGELOG.md) for full details.
+          EOF
+            else
+              echo "$CHANGELOG_CONTENT" > changelog_body.md
+            fi
+          else
+            cat > changelog_body.md << EOF
+          ## Release v$VERSION
+          
+          Automatic release from main branch.
+          
+          ### Commit
+          - $(git log -1 --pretty=format:'%s')
+          EOF
+          fi
+          
+          echo "Changelog extracted successfully"
+
+      - name: Check if tag exists
+        id: check_tag
+        run: |
+          TAG="${{ steps.get_version.outputs.tag }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Tag $TAG exists, will be replaced"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Tag $TAG does not exist, will be created"
+          fi
+
+      - name: Delete existing tag and release
+        if: steps.check_tag.outputs.exists == 'true'
+        run: |
+          TAG="${{ steps.get_version.outputs.tag }}"
+          
+          # Delete remote tag
+          git push origin :refs/tags/$TAG || true
+          
+          # Delete local tag
+          git tag -d $TAG || true
+          
+          # Delete GitHub release if it exists
+          gh release delete $TAG --yes || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create new tag
+        run: |
+          TAG="${{ steps.get_version.outputs.tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a $TAG -m "Release $TAG"
+          git push origin $TAG
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.tag }}
+          name: ${{ steps.get_version.outputs.tag }}
+          body_path: changelog_body.md
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Wait for release to be created
+        run: sleep 5
+
   check-rn-tests:
     runs-on: ubuntu-latest
     outputs:
@@ -821,28 +938,13 @@ jobs:
   upload-to-release:
     if: |
       always() && 
-      (github.event_name == 'release' || github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch') &&
       !contains(needs.*.result, 'failure') && 
       !contains(needs.*.result, 'cancelled')
-    needs: [build-native, build-android-jni, build-ios-xcframework, build-csharp, build-web, build-react-native, test, test-react-native-android, test-react-native-ios]
+    needs: [create-release, build-native, build-android-jni, build-ios-xcframework, build-csharp, build-web, build-react-native, test, test-react-native-android, test-react-native-ios]
     runs-on: ubuntu-latest
     
     steps:
     - uses: actions/checkout@v4
-    
-    - name: Get release tag
-      id: get_tag
-      run: |
-        if [ "${{ github.event_name }}" = "release" ]; then
-          echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
-        elif [ "${{ github.event_name }}" = "repository_dispatch" ]; then
-          # Get tag from client payload
-          echo "tag=${{ github.event.client_payload.tag }}" >> $GITHUB_OUTPUT
-        else
-          # Get latest tag for workflow_run or workflow_dispatch
-          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-        fi
     
     - name: Download all artifacts
       uses: actions/download-artifact@v4
@@ -900,7 +1002,7 @@ jobs:
     - name: Upload artifacts to release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ steps.get_tag.outputs.tag }}
+        tag_name: ${{ needs.create-release.outputs.tag }}
         files: |
           release-artifacts/*.tar.gz
           release-artifacts/*.tgz
