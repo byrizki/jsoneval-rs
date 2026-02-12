@@ -9,6 +9,120 @@ use crate::time_block;
 
 
 impl JSONEval {
+    /// Check if a field is effectively hidden by checking its condition and all parents
+    /// Also checks for $layout.hideLayout.all on parents
+    fn is_effective_hidden(&self, schema_pointer: &str) -> bool {
+        let mut current_path = schema_pointer.to_string();
+
+        // Loop until broken (when we checked root)
+        loop {
+            // Check if current node exists
+            if let Some(schema_node) = self.evaluated_schema.pointer(&current_path) {
+                if let Value::Object(map) = schema_node {
+                    // 1. Check condition.hidden
+                    if let Some(Value::Object(condition)) = map.get("condition") {
+                        if let Some(Value::Bool(hidden)) = condition.get("hidden") {
+                            if *hidden {
+                                return true;
+                            }
+                        }
+                    }
+
+                    // 2. Check $layout.hideLayout.all (on the object itself, as $layout is sibling to properties)
+                    // Note: This check applies to the container (e.g., "header" object), hiding all its children
+                    // But here we are traversing up. If "header" has hideLayout.all=true, then "header" itself is hidden
+                    // and its children are hidden.
+                    if let Some(Value::Object(layout)) = map.get("$layout") {
+                        if let Some(Value::Object(hide_layout)) = layout.get("hideLayout") {
+                            if let Some(Value::Bool(all)) = hide_layout.get("all") {
+                                if *all {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // If we just checked root, break
+            if current_path.is_empty() {
+                break;
+            }
+
+            // Move to parent
+            // Path format: /properties/foo/properties/bar or /items/0/properties/foo
+            // We want to strip the last key AND the /properties or /items segment
+            
+            // Find last slash
+            if let Some(last_slash_idx) = current_path.rfind('/') {
+                let parent_path_raw = &current_path[..last_slash_idx];
+                
+                // If empty, next path is root
+                if parent_path_raw.is_empty() {
+                    current_path = "".to_string();
+                    continue;
+                }
+                
+                // Check if parent path ends with /properties or /items and strip it
+                if parent_path_raw.ends_with("/properties") {
+                    current_path = parent_path_raw[..parent_path_raw.len() - "/properties".len()].to_string();
+                } else if parent_path_raw.ends_with("/items") { // arrays not fully supported yet in this traversal but good to handle
+                     current_path = parent_path_raw[..parent_path_raw.len() - "/items".len()].to_string();
+                } else {
+                     // Fallback or intermediate path - just go up one level?
+                     // If we have structure like /foo/bar without properties (not standard schema), just strip last segment again?
+                     // BUT wait, parent_path_raw IS the parent path if not ending in special.
+                     current_path = parent_path_raw.to_string();
+                }
+            } else {
+                // No slash found but not empty? Should not happen if normalized.
+                // Assuming root checked above, break.
+                break;
+            }
+        }
+
+        false
+    }
+    
+    /// Prune hidden values from data object recursively
+    fn prune_hidden_values(&self, data: &mut Value, current_path: &str) {
+        if let Value::Object(map) = data {
+            // Collect keys to remove to avoid borrow checker issues
+            let mut keys_to_remove = Vec::new();
+            
+            for (key, value) in map.iter_mut() {
+                // Skip special keys
+                if key == "$params" || key == "$context" {
+                    continue;
+                }
+                
+                // Construct schema path for this key
+                // For root fields: /properties/key
+                // For nested fields: current_path/properties/key
+                let schema_path = if current_path.is_empty() {
+                    format!("/properties/{}", key)
+                } else {
+                    format!("{}/properties/{}", current_path, key)
+                };
+                
+                // Check if hidden
+                if self.is_effective_hidden(&schema_path) {
+                    keys_to_remove.push(key.clone());
+                } else {
+                    // Recurse if object
+                    if value.is_object() {
+                        self.prune_hidden_values(value, &schema_path);
+                    }
+                }
+            }
+            
+            // Remove hidden keys
+            for key in keys_to_remove {
+                map.remove(&key);
+            }
+        }
+    }
+
     /// Get the evaluated schema with optional layout resolution.
     ///
     /// # Arguments
@@ -54,6 +168,9 @@ impl JSONEval {
             obj.remove("$params");
             obj.remove("$context");
         }
+        
+        // Prune hidden values from current_data (to remove user input in hidden fields)
+        self.prune_hidden_values(&mut current_data, "");
 
         // Override data with values from value evaluations
         // We use value_evaluations which stores the paths of fields with .value
@@ -69,6 +186,13 @@ impl JSONEval {
             }
 
             let path = clean_key.replace("/properties", "").replace("/value", "");
+            
+            // Check if field is effectively hidden
+            // Schema path is clean_key without /value
+            let schema_path = clean_key.strip_suffix("/value").unwrap_or(&clean_key);
+            if self.is_effective_hidden(schema_path) {
+                continue;
+            }
 
             // Get the value from evaluated_schema
             let value = match self.evaluated_schema.pointer(&clean_key) {
@@ -139,6 +263,12 @@ impl JSONEval {
             {
                 continue;
             }
+            
+            // Check if field is effectively hidden
+            let schema_path = clean_key.strip_suffix("/value").unwrap_or(&clean_key);
+            if self.is_effective_hidden(schema_path) {
+                continue;
+            }
 
             // Convert JSON pointer to dotted notation
             let dotted_path = clean_key
@@ -184,6 +314,12 @@ impl JSONEval {
                 || (clean_key.ends_with("/value")
                     && (clean_key.contains("/rules/") || clean_key.contains("/options/")))
             {
+                continue;
+            }
+            
+            // Check if field is effectively hidden
+            let schema_path = clean_key.strip_suffix("/value").unwrap_or(&clean_key);
+            if self.is_effective_hidden(schema_path) {
                 continue;
             }
 
