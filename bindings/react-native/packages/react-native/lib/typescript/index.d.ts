@@ -309,7 +309,7 @@ export declare class JSONEval {
     /**
      * Convert value to JSON string
      * Performance note: If you have a pre-serialized JSON string, pass it directly
-     * instead of an object to avoid the JSON.stringify overhead
+     * instead of an object to avoid the JSONStringify overhead
      */
     private toJsonString;
     /**

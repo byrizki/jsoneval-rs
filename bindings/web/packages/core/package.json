@@ -26,5 +26,8 @@
     "url": "https://github.com/byrizki/jsoneval-rs.git",
     "directory": "bindings/web/packages/core"
   },
+  "dependencies": {
+    "json-with-bigint": "^3.5.3"
+  },
   "sideEffects": false
 }

@@ -1,3 +1,5 @@
+import { JSONStringify } from "json-with-bigint";
+
 /**
  * @json-eval-rs/webcore
  * High-level JavaScript API for JSON Eval RS WASM bindings
@@ -436,20 +438,20 @@ export class JSONEvalCore {
       if (this._isFromCache) {
         this._instance = JSONEvalWasm.newFromCache(
           this._schema, // cache key
-          this._context ? JSON.stringify(this._context) : null,
-          this._data ? JSON.stringify(this._data) : null
+          this._context ? typeof this._context === "string" ? this._context : JSONStringify(this._context) : null,
+          this._data ? typeof this._data === "string" ? this._data : JSONStringify(this._data) : null
         );
       } else if (this._isMsgpackSchema) {
         this._instance = JSONEvalWasm.newFromMsgpack(
           this._schema,
-          this._context ? JSON.stringify(this._context) : null,
-          this._data ? JSON.stringify(this._data) : null
+          this._context ? typeof this._context === "string" ? this._context : JSONStringify(this._context) : null,
+          this._data ? typeof this._data === "string" ? this._data : JSONStringify(this._data) : null
         );
       } else {
         this._instance = new JSONEvalWasm(
-          JSON.stringify(this._schema),
-          this._context ? JSON.stringify(this._context) : null,
-          this._data ? JSON.stringify(this._data) : null
+          typeof this._schema === "string" ? this._schema : JSONStringify(this._schema),
+          this._context ? typeof this._context === "string" ? this._context : JSONStringify(this._context) : null,
+          this._data ? typeof this._data === "string" ? this._data : JSONStringify(this._data) : null
         );
       }
       this._ready = true;
@@ -508,16 +510,16 @@ export class JSONEvalCore {
     }
 
     const logic =
-      typeof logicStr === "string" ? logicStr : JSON.stringify(logicStr);
+      typeof logicStr === "string" ? logicStr : JSONStringify(logicStr);
     const dataStr = data
       ? typeof data === "string"
         ? data
-        : JSON.stringify(data)
+        : JSONStringify(data)
       : null;
     const contextStr = context
       ? typeof context === "string"
         ? context
-        : JSON.stringify(context)
+        : JSONStringify(context)
       : null;
 
     return JSONEvalWasm.evaluateLogic(logic, dataStr, contextStr);
@@ -535,8 +537,8 @@ export class JSONEvalCore {
     try {
       // Use validateJS for proper serialization (Worker-safe)
       return this._instance.validateJS(
-        JSON.stringify(data),
-        context ? JSON.stringify(context) : null
+        typeof data === "string" ? data : JSONStringify(data),
+        context ? typeof context === "string" ? context : JSONStringify(context) : null
       );
     } catch (error: any) {
       throw new Error(`Validation failed: ${error.message || error}`);
@@ -550,8 +552,8 @@ export class JSONEvalCore {
     await this.init();
     try {
       return this._instance.evaluateJS(
-        JSON.stringify(data),
-        context ? JSON.stringify(context) : null,
+        typeof data === "string" ? data : JSONStringify(data),
+        context ? typeof context === "string" ? context : JSONStringify(context) : null,
         paths || null
       );
     } catch (error: any) {
@@ -574,9 +576,9 @@ export class JSONEvalCore {
       const paths = Array.isArray(changedPaths) ? changedPaths : [changedPaths];
 
       return this._instance.evaluateDependentsJS(
-        JSON.stringify(paths),
-        data ? JSON.stringify(data) : null,
-        context ? JSON.stringify(context) : null,
+        typeof paths === "string" ? paths : JSONStringify(paths),
+        data ? typeof data === "string" ? data : JSONStringify(data) : null,
+        context ? typeof context === "string" ? context : JSONStringify(context) : null,
         reEvaluate
       );
     } catch (error: any) {
@@ -662,7 +664,7 @@ export class JSONEvalCore {
   }: GetValueByPathsOptions): Promise<any> {
     await this.init();
     return this._instance.getEvaluatedSchemaByPathsJS(
-      JSON.stringify(paths),
+      typeof paths === "string" ? paths : JSONStringify(paths),
       skipLayout,
       format
     );
@@ -685,7 +687,10 @@ export class JSONEvalCore {
     format = 0,
   }: GetSchemaByPathsOptions): Promise<any> {
     await this.init();
-    return this._instance.getSchemaByPathsJS(JSON.stringify(paths), format);
+    return this._instance.getSchemaByPathsJS(
+      typeof paths === "string" ? paths : JSONStringify(paths),
+      format
+    );
   }
 
   /**
@@ -702,9 +707,9 @@ export class JSONEvalCore {
 
     try {
       await this._instance.reloadSchema(
-        JSON.stringify(schema),
-        context ? JSON.stringify(context) : null,
-        data ? JSON.stringify(data) : null
+        typeof schema === "string" ? schema : JSONStringify(schema),
+        context ? typeof context === "string" ? context : JSONStringify(context) : null,
+        data ? typeof data === "string" ? data : JSONStringify(data) : null
       );
 
       // Update internal state
@@ -735,8 +740,8 @@ export class JSONEvalCore {
     try {
       await this._instance.reloadSchemaMsgpack(
         schemaMsgpack,
-        context ? JSON.stringify(context) : null,
-        data ? JSON.stringify(data) : null
+        context ? typeof context === "string" ? context : JSONStringify(context) : null,
+        data ? typeof data === "string" ? data : JSONStringify(data) : null
       );
 
       // Update internal state
@@ -770,8 +775,8 @@ export class JSONEvalCore {
     try {
       await this._instance.reloadSchemaFromCache(
         cacheKey,
-        context ? JSON.stringify(context) : null,
-        data ? JSON.stringify(data) : null
+        context ? typeof context === "string" ? context : JSONStringify(context) : null,
+        data ? typeof data === "string" ? data : JSONStringify(data) : null
       );
 
       // Update internal state
@@ -865,11 +870,11 @@ export class JSONEvalCore {
   }: CompileAndRunLogicOptions): Promise<any> {
     await this.init();
     const logic =
-      typeof logicStr === "string" ? logicStr : JSON.stringify(logicStr);
+      typeof logicStr === "string" ? logicStr : JSONStringify(logicStr);
     const result = await this._instance.compileAndRunLogic(
       logic,
-      data ? JSON.stringify(data) : null,
-      context ? JSON.stringify(context) : null
+      data ? typeof data === "string" ? data : JSONStringify(data) : null,
+      context ? typeof context === "string" ? context : JSONStringify(context) : null
     );
     return result;
   }
@@ -880,7 +885,7 @@ export class JSONEvalCore {
   async compileLogic(logicStr: string | object): Promise<number> {
     await this.init();
     const logic =
-      typeof logicStr === "string" ? logicStr : JSON.stringify(logicStr);
+      typeof logicStr === "string" ? logicStr : JSONStringify(logicStr);
     return this._instance.compileLogic(logic);
   }
 
@@ -891,8 +896,8 @@ export class JSONEvalCore {
     await this.init();
     const result = await this._instance.runLogic(
       logicId,
-      data ? JSON.stringify(data) : null,
-      context ? JSON.stringify(context) : null
+      data ? typeof data === "string" ? data : JSONStringify(data) : null,
+      context ? typeof context === "string" ? context : JSONStringify(context) : null
     );
     return result;
   }
@@ -909,8 +914,8 @@ export class JSONEvalCore {
     try {
       // Use validatePathsJS for proper serialization (Worker-safe)
       return this._instance.validatePathsJS(
-        JSON.stringify(data),
-        context ? JSON.stringify(context) : null,
+        typeof data === "string" ? data : JSONStringify(data),
+        context ? typeof context === "string" ? context : JSONStringify(context) : null,
         paths || null
       );
     } catch (error: any) {
@@ -943,8 +948,8 @@ export class JSONEvalCore {
     await this.init();
     return this._instance.evaluateSubform(
       subformPath,
-      JSON.stringify(data),
-      context ? JSON.stringify(context) : null,
+      typeof data === "string" ? data : JSONStringify(data),
+      context ? typeof context === "string" ? context : JSONStringify(context) : null,
       paths || null
     );
   }
@@ -960,8 +965,8 @@ export class JSONEvalCore {
     await this.init();
     return this._instance.validateSubform(
       subformPath,
-      JSON.stringify(data),
-      context ? JSON.stringify(context) : null
+      typeof data === "string" ? data : JSONStringify(data),
+      context ? typeof context === "string" ? context : JSONStringify(context) : null
     );
   }
 
@@ -982,9 +987,9 @@ export class JSONEvalCore {
 
     return this._instance.evaluateDependentsSubformJS(
       subformPath,
-      JSON.stringify(paths),
-      data ? JSON.stringify(data) : null,
-      context ? JSON.stringify(context) : null,
+      typeof paths === "string" ? paths : JSONStringify(paths),
+      data ? typeof data === "string" ? data : JSONStringify(data) : null,
+      context ? typeof context === "string" ? context : JSONStringify(context) : null,
       reEvaluate
     );
   }
@@ -1090,7 +1095,7 @@ export class JSONEvalCore {
     await this.init();
     return this._instance.getEvaluatedSchemaByPathsSubformJS(
       subformPath,
-      JSON.stringify(schemaPaths),
+      typeof schemaPaths === "string" ? schemaPaths : JSONStringify(schemaPaths),
       skipLayout,
       format
     );
@@ -1127,7 +1132,7 @@ export class JSONEvalCore {
     await this.init();
     return this._instance.getSchemaByPathsSubformJS(
       subformPath,
-      JSON.stringify(schemaPaths),
+      typeof schemaPaths === "string" ? schemaPaths : JSONStringify(schemaPaths),
       format
     );
   }

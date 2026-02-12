@@ -1,6 +1,6 @@
 import React from 'react';
 import { NativeModules, Platform } from 'react-native';
-import { JSONParse } from 'json-with-bigint';
+import { JSONParse, JSONStringify } from 'json-with-bigint';
 const LINKING_ERROR = `The package '@json-eval-rs/react-native' doesn't seem to be linked. Make sure: \n\n` + Platform.select({
   ios: "- You have run 'pod install'\n",
   default: ''
@@ -161,8 +161,8 @@ export class JSONEval {
    * @throws {Error} If schema not found in cache or creation fails
    */
   static fromCache(cacheKey, context, data) {
-    const contextStr = context ? typeof context === 'string' ? context : JSON.stringify(context) : null;
-    const dataStr = data ? typeof data === 'string' ? data : JSON.stringify(data) : null;
+    const contextStr = context ? typeof context === 'string' ? context : JSONStringify(context) : null;
+    const dataStr = data ? typeof data === 'string' ? data : JSONStringify(data) : null;
     const handle = JsonEvalRs.createFromCache(cacheKey, contextStr, dataStr);
     return new JSONEval({
       schema: {},
@@ -178,9 +178,9 @@ export class JSONEval {
    * @returns Promise resolving to evaluation result
    */
   static async evaluateLogic(logicStr, data, context) {
-    const logic = typeof logicStr === 'string' ? logicStr : JSON.stringify(logicStr);
-    const dataStr = data ? typeof data === 'string' ? data : JSON.stringify(data) : null;
-    const contextStr = context ? typeof context === 'string' ? context : JSON.stringify(context) : null;
+    const logic = typeof logicStr === 'string' ? logicStr : JSONStringify(logicStr);
+    const dataStr = data ? typeof data === 'string' ? data : JSONStringify(data) : null;
+    const contextStr = context ? typeof context === 'string' ? context : JSONStringify(context) : null;
     const resultStr = await JsonEvalRs.evaluateLogic(logic, dataStr, contextStr);
     return JSONParse(resultStr);
   }
@@ -202,9 +202,9 @@ export class JSONEval {
       data
     } = options;
     try {
-      const schemaStr = typeof schema === 'string' ? schema : JSON.stringify(schema);
-      const contextStr = context ? typeof context === 'string' ? context : JSON.stringify(context) : null;
-      const dataStr = data ? typeof data === 'string' ? data : JSON.stringify(data) : null;
+      const schemaStr = typeof schema === 'string' ? schema : JSONStringify(schema);
+      const contextStr = context ? typeof context === 'string' ? context : JSONStringify(context) : null;
+      const dataStr = data ? typeof data === 'string' ? data : JSONStringify(data) : null;
       this.handle = JsonEvalRs.create(schemaStr, contextStr, dataStr);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -220,10 +220,10 @@ export class JSONEval {
   /**
    * Convert value to JSON string
    * Performance note: If you have a pre-serialized JSON string, pass it directly
-   * instead of an object to avoid the JSON.stringify overhead
+   * instead of an object to avoid the JSONStringify overhead
    */
   toJsonString(value) {
-    return typeof value === 'string' ? value : JSON.stringify(value);
+    return typeof value === 'string' ? value : JSONStringify(value);
   }
 
   /**
@@ -247,7 +247,7 @@ export class JSONEval {
     try {
       const dataStr = this.toJsonString(options.data);
       const contextStr = options.context ? this.toJsonString(options.context) : null;
-      const pathsJson = options.paths ? JSON.stringify(options.paths) : null;
+      const pathsJson = options.paths ? typeof options.paths === 'string' ? options.paths : JSONStringify(options.paths) : null;
       const resultStr = await JsonEvalRs.evaluate(this.handle, dataStr, contextStr, pathsJson);
       return JSONParse(resultStr);
     } catch (error) {
@@ -290,7 +290,7 @@ export class JSONEval {
         context,
         reEvaluate = true
       } = options;
-      const changedPathsJson = JSON.stringify(changedPaths);
+      const changedPathsJson = typeof changedPaths === 'string' ? changedPaths : JSONStringify(changedPaths);
       const dataStr = data ? this.toJsonString(data) : null;
       const contextStr = context ? this.toJsonString(context) : null;
       const resultStr = await JsonEvalRs.evaluateDependents(this.handle, changedPathsJson, dataStr, contextStr, reEvaluate);
@@ -384,7 +384,7 @@ export class JSONEval {
    */
   async getEvaluatedSchemaByPaths(paths, skipLayout = false, format = ReturnFormat.Nested) {
     this.throwIfDisposed();
-    const pathsJson = JSON.stringify(paths);
+    const pathsJson = typeof paths === 'string' ? paths : JSONStringify(paths);
     const resultStr = await JsonEvalRs.getEvaluatedSchemaByPaths(this.handle, pathsJson, skipLayout, format);
     return JSONParse(resultStr);
   }
@@ -411,7 +411,7 @@ export class JSONEval {
    */
   async getSchemaByPaths(paths, format = ReturnFormat.Nested) {
     this.throwIfDisposed();
-    const pathsJson = JSON.stringify(paths);
+    const pathsJson = typeof paths === 'string' ? paths : JSONStringify(paths);
     const resultStr = await JsonEvalRs.getSchemaByPaths(this.handle, pathsJson, format);
     return JSONParse(resultStr);
   }
@@ -429,9 +429,9 @@ export class JSONEval {
         context,
         data
       } = options;
-      const schemaStr = typeof schema === 'string' ? schema : JSON.stringify(schema);
-      const contextStr = context ? typeof context === 'string' ? context : JSON.stringify(context) : null;
-      const dataStr = data ? typeof data === 'string' ? data : JSON.stringify(data) : null;
+      const schemaStr = typeof schema === 'string' ? schema : JSONStringify(schema);
+      const contextStr = context ? typeof context === 'string' ? context : JSONStringify(context) : null;
+      const dataStr = data ? typeof data === 'string' ? data : JSONStringify(data) : null;
       await JsonEvalRs.reloadSchema(this.handle, schemaStr, contextStr, dataStr);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -451,8 +451,8 @@ export class JSONEval {
     try {
       // Convert Uint8Array to number array if needed
       const msgpackArray = schemaMsgpack instanceof Uint8Array ? Array.from(schemaMsgpack) : schemaMsgpack;
-      const contextStr = context ? typeof context === 'string' ? context : JSON.stringify(context) : null;
-      const dataStr = data ? typeof data === 'string' ? data : JSON.stringify(data) : null;
+      const contextStr = context ? typeof context === 'string' ? context : JSONStringify(context) : null;
+      const dataStr = data ? typeof data === 'string' ? data : JSONStringify(data) : null;
       await JsonEvalRs.reloadSchemaMsgpack(this.handle, msgpackArray, contextStr, dataStr);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -470,8 +470,8 @@ export class JSONEval {
   async reloadSchemaFromCache(cacheKey, context, data) {
     this.throwIfDisposed();
     try {
-      const contextStr = context ? typeof context === 'string' ? context : JSON.stringify(context) : null;
-      const dataStr = data ? typeof data === 'string' ? data : JSON.stringify(data) : null;
+      const contextStr = context ? typeof context === 'string' ? context : JSONStringify(context) : null;
+      const dataStr = data ? typeof data === 'string' ? data : JSONStringify(data) : null;
       await JsonEvalRs.reloadSchemaFromCache(this.handle, cacheKey, contextStr, dataStr);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -780,7 +780,7 @@ export class JSONEval {
    */
   async getEvaluatedSchemaByPathsSubform(options) {
     this.throwIfDisposed();
-    const pathsJson = JSON.stringify(options.schemaPaths);
+    const pathsJson = typeof options.schemaPaths === 'string' ? options.schemaPaths : JSONStringify(options.schemaPaths);
     const resultStr = await JsonEvalRs.getEvaluatedSchemaByPathsSubform(this.handle, options.subformPath, pathsJson, options.skipLayout || false, options.format !== undefined ? options.format : ReturnFormat.Nested);
     return JSONParse(resultStr);
   }
@@ -817,7 +817,7 @@ export class JSONEval {
    */
   async getSchemaByPathsSubform(options) {
     this.throwIfDisposed();
-    const pathsJson = JSON.stringify(options.schemaPaths);
+    const pathsJson = typeof options.schemaPaths === 'string' ? options.schemaPaths : JSONStringify(options.schemaPaths);
     const resultStr = await JsonEvalRs.getSchemaByPathsSubform(this.handle, options.subformPath, pathsJson, options.format !== undefined ? options.format : ReturnFormat.Nested);
     return JSONParse(resultStr);
   }
