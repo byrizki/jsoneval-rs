@@ -113,6 +113,16 @@ impl RLogic {
             .map(|logic| logic.has_forward_reference())
             .unwrap_or(false)
     }
+
+    /// Build and store index for a table
+    pub fn index_table(&self, name: &str, data: &Value) {
+        self.evaluator.index_table(name, data);
+    }
+
+    /// Clear all stored indices
+    pub fn clear_indices(&self) {
+        self.evaluator.clear_indices();
+    }
 }
 
 impl Default for RLogic {

@@ -1,6 +1,9 @@
 use super::compiled::CompiledLogic;
 use super::config::RLogicConfig;
+use index::TableIndex;
 use serde_json::Value;
+use std::collections::HashMap;
+use std::sync::RwLock;
 
 pub mod arithmetic;
 pub mod array_lookup;
@@ -8,6 +11,7 @@ pub mod array_ops;
 pub mod comparison;
 pub mod date_ops;
 pub mod helpers;
+pub mod index;
 pub mod logical;
 pub mod math_ops;
 pub mod optimizations;
@@ -29,18 +33,37 @@ pub use types::*;
 /// - Internal context holds: $iteration, $threshold, $loopIteration, etc.
 pub struct Evaluator {
     config: RLogicConfig,
+    /// Upfront indices for large tables (name -> index)
+    indices: RwLock<HashMap<String, TableIndex>>,
 }
 
 impl Evaluator {
     pub fn new() -> Self {
         Self {
             config: RLogicConfig::default(),
+            indices: RwLock::new(HashMap::new()),
         }
     }
 
     pub fn with_config(mut self, config: RLogicConfig) -> Self {
         self.config = config;
         self
+    }
+
+    /// Build and store index for a table
+    pub fn index_table(&self, name: &str, data: &Value) {
+        if let Some(index) = TableIndex::new(data) {
+            if let Ok(mut indices) = self.indices.write() {
+                indices.insert(name.to_string(), index);
+            }
+        }
+    }
+
+    /// Clear all stored indices
+    pub fn clear_indices(&self) {
+        if let Ok(mut indices) = self.indices.write() {
+            indices.clear();
+        }
     }
 
     /// Public API: Evaluate compiled logic with user data only

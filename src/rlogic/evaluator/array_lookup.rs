@@ -243,6 +243,31 @@ impl Evaluator {
             false
         };
 
+        // OPTIMIZATION: Check for existing index (only for exact matches, not range)
+        if !is_range {
+            let table_name = match table_expr {
+                CompiledLogic::Var(name, _) => Some(name.as_str()),
+                CompiledLogic::Ref(path, _) => Some(path.as_str()),
+                _ => None,
+            };
+
+            if let Some(name) = table_name {
+                if let Ok(indices) = self.indices.read() {
+                    if let Some(index) = indices.get(name) {
+                        if index.has_column(&field_name) {
+                            if let Some(rows) = index.lookup(&field_name, &lookup_val) {
+                                if let Some(min_idx) = rows.iter().min() {
+                                    return Ok(self.f64_to_json(*min_idx as f64));
+                                }
+                            } else {
+                                return Ok(self.f64_to_json(-1.0));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         let table_ref = self.get_table_array(table_expr, user_data, internal_context, depth)?;
         let arr = match table_ref.as_array() {
             Some(arr) if !arr.is_empty() => arr,
@@ -305,8 +330,6 @@ impl Evaluator {
         internal_context: &Value,
         depth: usize,
     ) -> Result<Value, String> {
-        let table_ref = self.get_table_array(table_expr, user_data, internal_context, depth)?;
-
         // Pre-evaluate all condition pairs (value, field) ONCE
         let mut evaluated_conditions = Vec::with_capacity(conditions.len() / 2);
         for chunk in conditions.chunks(2) {
@@ -320,6 +343,74 @@ impl Evaluator {
                 }
             }
         }
+
+        // OPTIMIZATION: Check for existing index
+        let table_name = match table_expr {
+            CompiledLogic::Var(name, _) => Some(name.as_str()),
+            CompiledLogic::Ref(path, _) => Some(path.as_str()),
+            _ => None,
+        };
+
+        if let Some(name) = table_name {
+            if let Ok(indices) = self.indices.read() {
+                if let Some(index) = indices.get(name) {
+                    // We have an index for this table!
+                    
+                    // 1. Check if all columns in conditions are indexed
+                    let all_columns_indexed = evaluated_conditions.iter().all(|(_, field)| index.has_column(field));
+                    
+                    if all_columns_indexed {
+                        // 2. Perform intersection of matching row indices
+                        let mut candidate_rows: Option<std::collections::HashSet<usize>> = None;
+                        
+                        for (val, field) in &evaluated_conditions {
+                            if let Some(rows) = index.lookup(field, val) {
+                                if let Some(candidates) = &mut candidate_rows {
+                                     // Intersect with existing candidates
+                                     candidates.retain(|r| rows.contains(r));
+                                     if candidates.is_empty() {
+                                         return Ok(self.f64_to_json(-1.0));
+                                     }
+                                } else {
+                                    // Initialize candidates
+                                    // We clone here because we need to mutate the set for intersection
+                                    // but AHashSet clone is relatively cheap compared to iteration
+                                    candidate_rows = Some(rows.iter().cloned().collect());
+                                }
+                            } else {
+                                // Value not found in this column -> no match possible
+                                return Ok(self.f64_to_json(-1.0));
+                            }
+                        }
+                        
+                        // 3. Return the first matching row index (min)
+                        if let Some(candidates) = candidate_rows {
+                            if let Some(min_idx) = candidates.iter().min() {
+                                return Ok(self.f64_to_json(*min_idx as f64));
+                            }
+                        } else {
+                            // No conditions provided? Technically logic allows it, but usually conditions exist.
+                            // If no conditions, match returns first row?
+                            // Logic usually implies "match based on conditions".
+                            // If conditions empty, existing logic returns -1 (or loops 0 times).
+                            // Let's stick to existing behavior if processed conditions is empty
+                            if conditions.is_empty() {
+                                 // Fall through to standard logic (which returns -1)
+                            } else if index.len() > 0 {
+                                // If we had conditions but they were all filtered out (e.g. invalid format)
+                                // fall through.
+                                // But here evaluated_conditions is populated.
+                                // If evaluated_conditions is empty but conditions wasn't, it means format error.
+                                // If evaluated_conditions is not empty, candidate_rows would be Some.
+                                // So this block is reached only if evaluated_conditions is empty.
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let table_ref = self.get_table_array(table_expr, user_data, internal_context, depth)?;
 
         if let Some(arr) = table_ref.as_array() {
             #[cfg(feature = "parallel")]

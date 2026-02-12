@@ -802,7 +802,7 @@ impl CompiledLogic {
             }
 
             // Complex table operations
-            "VALUEAT" => {
+            "valueat" | "VALUEAT" => {
                 let arr = args.as_array().ok_or("VALUEAT requires array")?;
                 if arr.len() < 2 {
                     return Err("VALUEAT requires at least 2 arguments".to_string());
@@ -818,8 +818,8 @@ impl CompiledLogic {
                     col_name,
                 ))
             }
-            "MAXAT" => Self::compile_binary(args, |a, b| CompiledLogic::MaxAt(a, b)),
-            "INDEXAT" => {
+            "maxat" | "MAXAT" => Self::compile_binary(args, |a, b| CompiledLogic::MaxAt(a, b)),
+            "indexat" | "INDEXAT" => {
                 let arr = args.as_array().ok_or("INDEXAT requires array")?;
                 if arr.len() < 3 {
                     return Err("INDEXAT requires at least 3 arguments".to_string());
@@ -836,7 +836,7 @@ impl CompiledLogic {
                     range,
                 ))
             }
-            "MATCH" => {
+            "match" | "MATCH" => {
                 let arr = args.as_array().ok_or("MATCH requires array")?;
                 if arr.is_empty() {
                     return Err("MATCH requires at least 1 argument".to_string());
@@ -845,7 +845,7 @@ impl CompiledLogic {
                 let conditions: Result<Vec<_>, _> = arr[1..].iter().map(Self::compile).collect();
                 Ok(CompiledLogic::Match(table, conditions?))
             }
-            "MATCHRANGE" => {
+            "matchrange" | "MATCHRANGE" => {
                 let arr = args.as_array().ok_or("MATCHRANGE requires array")?;
                 if arr.is_empty() {
                     return Err("MATCHRANGE requires at least 1 argument".to_string());
@@ -854,7 +854,7 @@ impl CompiledLogic {
                 let conditions: Result<Vec<_>, _> = arr[1..].iter().map(Self::compile).collect();
                 Ok(CompiledLogic::MatchRange(table, conditions?))
             }
-            "CHOOSE" => {
+            "choose" | "CHOOSE" => {
                 let arr = args.as_array().ok_or("CHOOSE requires array")?;
                 if arr.is_empty() {
                     return Err("CHOOSE requires at least 1 argument".to_string());
@@ -863,7 +863,7 @@ impl CompiledLogic {
                 let conditions: Result<Vec<_>, _> = arr[1..].iter().map(Self::compile).collect();
                 Ok(CompiledLogic::Choose(table, conditions?))
             }
-            "FINDINDEX" => {
+            "findindex" | "FINDINDEX" => {
                 let arr = args.as_array().ok_or("FINDINDEX requires array")?;
                 if arr.len() < 2 {
                     return Err("FINDINDEX requires at least 2 arguments".to_string());
