@@ -1,6 +1,6 @@
 {
   "name": "@json-eval-rs/bundler",
-  "version": "0.0.64",
+  "version": "0.0.65",
   "description": "JSON Eval RS for bundlers (Webpack, Vite, Next.js, etc.) with ergonomic API",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

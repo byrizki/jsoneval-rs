@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.65] - 2026-02-13
+
+### Fixed
+
+- [JS] fix JSON stringify/parse
+
 ## [0.0.64] - 2026-02-12
 
 ### Fixed
