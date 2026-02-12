@@ -52,10 +52,33 @@ impl JSONEvalWasm {
     /// @returns Plain JavaScript object with validation result
     #[wasm_bindgen(js_name = validateJS)]
     pub fn validate_js(&mut self, data: &str, context: Option<String>) -> Result<JsValue, JsValue> {
+        match self.validate_to_value(data, context, None) {
+             Ok(validation_result) => {
+                super::to_value(&validation_result).map_err(|e| {
+                    let error_msg = format!("Failed to serialize validation result: {}", e);
+                    console_log(&format!("[WASM ERROR] {}", error_msg));
+                    JsValue::from_str(&error_msg)
+                })
+             },
+             Err(e) => {
+                let error_msg = format!("Validation failed: {}", e);
+                console_log(&format!("[WASM ERROR] {}", error_msg));
+                Err(JsValue::from_str(&error_msg))
+             }
+        }
+    }
+
+}
+
+impl JSONEvalWasm {
+    /// Internal helper to validate and return serde_json::Value (testable)
+    /// This is not exposed to JS directly, but used by validate_js and tests
+    pub fn validate_to_value(&mut self, data: &str, context: Option<String>, paths: Option<Vec<String>>) -> Result<serde_json::Value, String> {
         let ctx = context.as_deref();
+        let paths_ref = paths.as_ref().map(|v| v.as_slice());
 
         let token = self.reset_token();
-        match self.inner.validate(data, ctx, None, token.as_ref()) {
+        match self.inner.validate(data, ctx, paths_ref, token.as_ref()) {
             Ok(result) => {
                 let mut errors_map = serde_json::Map::new();
 
@@ -64,31 +87,27 @@ impl JSONEvalWasm {
                         path.clone(),
                         serde_json::json!({
                             "path": path,
-                            "rule_type": error.rule_type,
+                            "type": error.rule_type,
                             "message": error.message,
+                            "code": error.code,
+                            "pattern": error.pattern,
+                            "fieldValue": error.field_value,
+                            "data": error.data,
                         }),
                     );
                 }
 
-                let validation_result = serde_json::json!({
+                Ok(serde_json::json!({
                     "has_error": result.has_error,
                     "error": errors_map,
-                });
-
-                super::to_value(&validation_result).map_err(|e| {
-                    let error_msg = format!("Failed to serialize validation result: {}", e);
-                    console_log(&format!("[WASM ERROR] {}", error_msg));
-                    JsValue::from_str(&error_msg)
-                })
+                }))
             }
-            Err(e) => {
-                let error_msg = format!("Validation failed: {}", e);
-                console_log(&format!("[WASM ERROR] {}", error_msg));
-                Err(JsValue::from_str(&error_msg))
-            }
+            Err(e) => Err(e.to_string())
         }
     }
-
+}
+#[wasm_bindgen]
+impl JSONEvalWasm {
     /// Validate data against schema rules with optional path filtering
     ///
     /// @param data - JSON data string
@@ -141,41 +160,19 @@ impl JSONEvalWasm {
         context: Option<String>,
         paths: Option<Vec<String>>,
     ) -> Result<JsValue, JsValue> {
-        let ctx = context.as_deref();
-        let paths_ref = paths.as_ref().map(|v| v.as_slice());
-
-        let token = self.reset_token();
-        match self.inner.validate(data, ctx, paths_ref, token.as_ref()) {
-            Ok(result) => {
-                let mut errors_map = serde_json::Map::new();
-
-                for (path, error) in result.errors {
-                    errors_map.insert(
-                        path.clone(),
-                        serde_json::json!({
-                            "path": path,
-                            "rule_type": error.rule_type,
-                            "message": error.message,
-                        }),
-                    );
-                }
-
-                let validation_result = serde_json::json!({
-                    "has_error": result.has_error,
-                    "error": errors_map,
-                });
-
+        match self.validate_to_value(data, context, paths) {
+             Ok(validation_result) => {
                 super::to_value(&validation_result).map_err(|e| {
                     let error_msg = format!("Failed to serialize validation result: {}", e);
                     console_log(&format!("[WASM ERROR] {}", error_msg));
                     JsValue::from_str(&error_msg)
                 })
-            }
-            Err(e) => {
+             },
+             Err(e) => {
                 let error_msg = format!("Validation failed: {}", e);
                 console_log(&format!("[WASM ERROR] {}", error_msg));
                 Err(JsValue::from_str(&error_msg))
-            }
+             }
         }
     }
 }

@@ -36,6 +36,7 @@ pub struct ValidationError {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pattern: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "fieldValue")]
     pub field_value: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Value>,

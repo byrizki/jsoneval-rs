@@ -65,8 +65,12 @@ pub unsafe extern "C" fn json_eval_validate_paths(
                     path.clone(),
                     serde_json::json!({
                     "path": path,
-                    "ruleType": err.rule_type,
-                    "message": err.message
+                    "type": err.rule_type,
+                    "message": err.message,
+                    "code": err.code,
+                    "pattern": err.pattern,
+                    "fieldValue": err.field_value,
+                    "data": err.data,
                     }),
                 );
             }

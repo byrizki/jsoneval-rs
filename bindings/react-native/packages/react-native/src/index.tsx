@@ -48,7 +48,7 @@ export interface ValidationError {
   /** Field path with the error */
   path: string;
   /** Type of validation rule that failed (e.g., 'required', 'min', 'max', 'pattern') */
-  ruleType: string;
+  type: string;
   /** Error message */
   message: string;
   /** Optional error code */

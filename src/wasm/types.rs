@@ -10,6 +10,7 @@ use wasm_bindgen::prelude::*;
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ValidationError {
     path: String,
+    #[serde(rename = "type")]
     rule_type: String,
     message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -17,6 +18,7 @@ pub struct ValidationError {
     #[serde(skip_serializing_if = "Option::is_none")]
     pattern: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "fieldValue")]
     field_value: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     data: Option<serde_json::Value>,

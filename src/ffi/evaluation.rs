@@ -107,7 +107,7 @@ pub unsafe extern "C" fn json_eval_validate(
                     path.clone(),
                     serde_json::json!({
                     "path": path,
-                    "rule_type": err.rule_type,
+                    "type": err.rule_type,
                     "message": err.message,
                     "code": err.code,
                     "pattern": err.pattern,

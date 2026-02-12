@@ -48,7 +48,7 @@ export interface ValidationError {
   /** Field path with the error */
   path: string;
   /** Type of validation rule that failed (e.g., 'required', 'min', 'max', 'pattern') */
-  rule_type: string;
+  type: string;
   /** Error message */
   message: string;
   /** Optional error code */
@@ -56,7 +56,7 @@ export interface ValidationError {
   /** Optional regex pattern (for pattern validation errors) */
   pattern?: string;
   /** Optional field value that failed validation (as string) */
-  field_value?: string;
+  fieldValue?: string;
   /** Optional additional data context for the error */
   data?: any;
 }

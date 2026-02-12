@@ -144,6 +144,37 @@ fn test_validation_error_serialization() {
     
     // Optional fields should not be present when None
     assert!(!error.as_object().unwrap().contains_key("pattern"));
-    assert!(!error.as_object().unwrap().contains_key("field_value"));
+    assert!(!error.as_object().unwrap().contains_key("fieldValue"));
     assert!(!error.as_object().unwrap().contains_key("data"));
+
+    // Test with fieldValue present
+    let schema_pattern = json!({
+        "type": "object",
+        "properties": {
+            "code": {
+                "type": "string",
+                "rules": {
+                    "pattern": {
+                        "value": "^[0-9]+$",
+                        "message": "Must be digits"
+                    }
+                }
+            }
+        }
+    });
+    
+    let schema_pattern_str = serde_json::to_string(&schema_pattern).unwrap();
+    let mut eval_pattern = JSONEval::new(&schema_pattern_str, None, None).unwrap();
+    let data_pattern = json!({ "code": "abc" });
+    let data_pattern_str = serde_json::to_string(&data_pattern).unwrap();
+    
+    eval_pattern.evaluate(&data_pattern_str, None, None, None).unwrap();
+    let validation_pattern = eval_pattern.validate(&data_pattern_str, None, None, None).unwrap();
+    
+    let json_str_pattern = serde_json::to_string(&validation_pattern).unwrap();
+    let parsed_pattern: serde_json::Value = serde_json::from_str(&json_str_pattern).unwrap();
+    
+    let error_pattern = &parsed_pattern["errors"]["code"];
+    assert_eq!(error_pattern["type"], "pattern");
+    assert_eq!(error_pattern["fieldValue"], "abc");
 }
