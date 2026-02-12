@@ -1,6 +1,14 @@
 # Changelog
 
+## [0.0.63] - 2026-01-27
+
+### Fixed
+
+- [core] fix schema value getter
+
 ## [0.0.62] - 2026-01-26
+
+### Fixed
 
 - [core] fix table evaluation
 
