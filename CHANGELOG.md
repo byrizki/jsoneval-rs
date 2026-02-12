@@ -1,6 +1,13 @@
 # Changelog
 
-## [0.0.63] - 2026-01-27
+## [0.0.64] - 2026-02-12
+
+### Fixed
+
+- [core] fix hidden field schema delegation
+- [core] fix skip validation on hidden field
+
+## [0.0.63] - 2026-02-12
 
 ### Fixed
 
