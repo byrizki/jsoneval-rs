@@ -399,15 +399,13 @@ impl JSONEval {
                                 table_evaluate::evaluate_table(self, eval_key, &eval_data_snapshot, token)
                             {
                                 let value = Value::Array(rows);
-                                // Cache result
                                 self.cache_result(eval_key, Value::Null, &eval_data_snapshot);
 
-                                let cleaned_value = clean_float_noise_scalar(value);
-                                self.eval_data.set(&pointer_path, cleaned_value.clone());
+                                self.eval_data.set(&pointer_path, value.clone());
                                 if let Some(schema_value) =
                                     self.evaluated_schema.pointer_mut(&pointer_path)
                                 {
-                                    *schema_value = cleaned_value;
+                                    *schema_value = value;
                                 }
                             }
                         } else {

@@ -3,7 +3,7 @@ use indexmap::{IndexMap, IndexSet};
 use serde_json::{Map, Value};
 use std::sync::Arc;
 
-use crate::parse_schema::common::compute_column_partitions;
+use crate::parse_schema::common::{compute_column_partitions, has_actionable_keys};
 use crate::jsoneval::table_metadata::{ColumnMetadata, RepeatBoundMetadata, RowMetadata, TableMetadata};
 use crate::ParsedSchema;
 use crate::jsoneval::path_utils;
@@ -270,32 +270,41 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                     )?;
                 })
             }
-            Value::Array(arr) => Ok(for (index, item) in arr.iter().enumerate() {
-                let next_path = if path == "#" {
-                    format!("#/{index}")
-                } else {
-                    format!("{path}/{index}")
-                };
-                walk(
-                    item,
-                    &next_path,
-                    engine,
-                    evaluations,
-                    tables,
-                    deps,
-                    value_fields,
-                    layout_paths,
-                    dependents,
-                    options_templates,
-                    subforms,
-                    fields_with_rules,
-                    conditional_hidden_fields,
-                    conditional_readonly_fields,
-                )?;
-            }),
+            Value::Array(arr) => {
+                // Skip large arrays that contain no actionable schema keys.
+                // This avoids recursively walking pure-data arrays (e.g., table rows in $params).
+                if arr.len() > 10 && !has_actionable_keys(value) {
+                    return Ok(());
+                }
+                Ok(for (index, item) in arr.iter().enumerate() {
+                    let next_path = if path == "#" {
+                        format!("#/{index}")
+                    } else {
+                        format!("{path}/{index}")
+                    };
+                    walk(
+                        item,
+                        &next_path,
+                        engine,
+                        evaluations,
+                        tables,
+                        deps,
+                        value_fields,
+                        layout_paths,
+                        dependents,
+                        options_templates,
+                        subforms,
+                        fields_with_rules,
+                        conditional_hidden_fields,
+                        conditional_readonly_fields,
+                    )?;
+                })
+            }
             _ => Ok(()),
         }
     }
+
+
 
     fn collect_refs(value: &Value, refs: &mut IndexSet<String>) {
         match value {

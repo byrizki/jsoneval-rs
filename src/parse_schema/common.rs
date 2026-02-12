@@ -40,6 +40,53 @@ pub fn collect_refs(value: &Value, refs: &mut IndexSet<String>) {
     }
 }
 
+/// Check if a value contains any actionable schema keys recursively (with depth limit for arrays)
+/// used to skip large pure-data arrays during schema walking
+#[inline]
+pub fn has_actionable_keys(value: &Value) -> bool {
+    match value {
+        Value::Object(map) => {
+            if map.contains_key("$evaluation")
+                || map.contains_key("$table")
+                || map.contains_key("dependents")
+                || map.contains_key("$layout")
+            {
+                return true;
+            }
+
+            // Check for conditional hidden/disabled fields
+            if let Some(Value::Object(condition)) = map.get("condition") {
+                if condition.contains_key("hidden") || condition.contains_key("disabled") {
+                    return true;
+                }
+            }
+
+            // Check for rules object
+            if map.contains_key("rules") {
+                return true;
+            }
+
+            // Check for type="array" with items (subforms)
+            if let Some(Value::String(type_str)) = map.get("type") {
+                if type_str == "array" && map.contains_key("items") {
+                    return true;
+                }
+            }
+
+            // Check for options with URL templates
+            if let Some(Value::String(url)) = map.get("url") {
+                if url.contains('{') && url.contains('}') {
+                    return true;
+                }
+            }
+
+            map.values().any(has_actionable_keys)
+        }
+        Value::Array(arr) => arr.iter().take(5).any(has_actionable_keys),
+        _ => false,
+    }
+}
+
 /// Compute forward/normal column partitions with transitive closure
 ///
 /// This function identifies which columns have forward references (dependencies on later columns)

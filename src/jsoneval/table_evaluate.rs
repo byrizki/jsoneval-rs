@@ -256,10 +256,18 @@ pub fn evaluate_table(
                 }
 
                 // PHASE 4: TOP TO BOTTOM (Forward Pass)
-                // [Opt 1] Build context Value once, mutate in-place per iteration
+                let key_iteration = String::from("$iteration");
+                let key_threshold = String::from("$threshold");
+                let threshold_value = Value::from(end_idx);
+
+                // [D1] Pre-populate context map with all keys to avoid String allocs in loop
                 let mut ctx_value = Value::Object(Map::new());
                 if let Value::Object(ref mut map) = ctx_value {
-                    map.insert("$threshold".to_string(), Value::from(end_idx));
+                    map.insert(key_threshold.clone(), threshold_value.clone());
+                    map.insert(key_iteration.clone(), Value::Null);
+                    for var_path in &var_paths {
+                        map.insert(var_path.clone(), Value::Null);
+                    }
                 }
 
                 for iteration in start_idx..=end_idx {
@@ -271,9 +279,11 @@ pub fn evaluate_table(
                     let row_idx = (iteration - start_idx) as usize;
                     let target_idx = existing_row_count + row_idx;
 
-                    // [Opt 1] Update $iteration in-place
+                    // [D1] Update $iteration in-place via get_mut (no String alloc)
                     if let Value::Object(ref mut map) = ctx_value {
-                        map.insert("$iteration".to_string(), Value::from(iteration));
+                        if let Some(slot) = map.get_mut(&key_iteration) {
+                            *slot = Value::from(iteration);
+                        }
                     }
 
                     for &col_idx in normal_cols.iter() {
@@ -291,7 +301,6 @@ pub fn evaluate_table(
                                 .unwrap_or(Value::Null),
                         };
 
-                        // [Opt 5] Pre-allocated rows guarantee the key exists
                         if let Some(row_obj) =
                             sandbox.get_table_row_mut(&table_pointer_path, target_idx)
                         {
@@ -299,9 +308,11 @@ pub fn evaluate_table(
                                 *cell = value.clone();
                             }
                         }
-                        // [Opt 1+2] Update context in-place with pre-computed var_path
+                        // [D1] Update context value in-place via get_mut (no String alloc)
                         if let Value::Object(ref mut map) = ctx_value {
-                            map.insert(var_paths[col_idx].clone(), value);
+                            if let Some(slot) = map.get_mut(&var_paths[col_idx]) {
+                                *slot = value;
+                            }
                         }
                     }
                 }
@@ -315,10 +326,14 @@ pub fn evaluate_table(
                     let mut scan_from_down = false;
                     let iter_count = (end_idx - start_idx + 1) as usize;
 
-                    // [Opt 1] Reuse a single context Value for backward pass
+                    // [D1] Pre-populate backward pass context with all keys
                     let mut ctx_value = Value::Object(Map::new());
                     if let Value::Object(ref mut map) = ctx_value {
-                        map.insert("$threshold".to_string(), Value::from(end_idx));
+                        map.insert(key_threshold.clone(), threshold_value.clone());
+                        map.insert(key_iteration.clone(), Value::Null);
+                        for var_path in &var_paths {
+                            map.insert(var_path.clone(), Value::Null);
+                        }
                     }
 
                     // [Opt 4] Pre-compute HashMap/HashSet for O(1) dependency lookups
@@ -355,12 +370,13 @@ pub fn evaluate_table(
                             let row_offset = (iteration - start_idx) as usize;
                             let target_idx = existing_row_count + row_offset;
 
-                            // [Opt 1] Update $iteration in-place
+                            // [D1] Update $iteration in-place via get_mut
                             if let Value::Object(ref mut map) = ctx_value {
-                                map.insert("$iteration".to_string(), Value::from(iteration));
+                                if let Some(slot) = map.get_mut(&key_iteration) {
+                                    *slot = Value::from(iteration);
+                                }
                             }
 
-                            // [Opt 3] Restore column values from sandbox row into context
                             if let Some(Value::Array(table_arr)) = sandbox.get(&table_pointer_path)
                             {
                                 if let Some(Value::Object(row_obj)) = table_arr.get(target_idx) {
@@ -371,10 +387,10 @@ pub fn evaluate_table(
                                             if let Some(value) =
                                                 row_obj.get(columns[col_idx].name.as_ref())
                                             {
-                                                ctx_map.insert(
-                                                    var_paths[col_idx].clone(),
-                                                    value.clone(),
-                                                );
+                                                // [D1] Update via get_mut (no String alloc)
+                                                if let Some(slot) = ctx_map.get_mut(&var_paths[col_idx]) {
+                                                    *slot = value.clone();
+                                                }
                                             }
                                         }
                                     }
@@ -446,9 +462,11 @@ pub fn evaluate_table(
                                         }
                                     }
 
-                                    // [Opt 1+2] Update context in-place
+                                    // [D1] Update context in-place via get_mut
                                     if let Value::Object(ref mut map) = ctx_value {
-                                        map.insert(var_paths[col_idx].clone(), value);
+                                        if let Some(slot) = map.get_mut(&var_paths[col_idx]) {
+                                            *slot = value;
+                                        }
                                     }
                                 }
                             }
