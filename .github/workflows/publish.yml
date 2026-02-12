@@ -9,10 +9,10 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Release tag to publish from (e.g., v0.0.65)"
+        description: "Release tag to publish from (e.g., v0.0.66)"
         required: true
         type: string
-        default: v0.0.65
+        default: v0.0.66
       publish_csharp:
         description: "Publish C# NuGet package"
         required: false
@@ -76,7 +76,7 @@ jobs:
               echo "❌ ERROR: No release found in the repository"
               echo ""
               echo "To publish packages, you need to:"
-              echo "1. Create a GitHub Release (e.g., v0.0.65)"
+              echo "1. Create a GitHub Release (e.g., v0.0.66)"
               echo "2. Run the 'Build Bindings' workflow to upload packages to that release"
               echo "3. Then run this publish workflow"
               echo ""
