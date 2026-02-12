@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.66] - 2026-02-13
+
+### Fixed
+
+- [core] fix inconsistency validate method
+
 ## [0.0.65] - 2026-02-13
 
 ### Fixed
