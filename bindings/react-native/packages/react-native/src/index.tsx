@@ -1,5 +1,6 @@
 import React from 'react';
 import { NativeModules, Platform } from 'react-native';
+import { JSONParse } from 'json-with-bigint';
 
 const LINKING_ERROR =
   `The package '@json-eval-rs/react-native' doesn't seem to be linked. Make sure: \n\n` +
@@ -379,7 +380,7 @@ export class JSONEval {
       dataStr,
       contextStr
     );
-    return JSON.parse(resultStr);
+    return JSONParse(resultStr);
   }
 
   /**
@@ -465,7 +466,7 @@ export class JSONEval {
         contextStr,
         pathsJson
       );
-      return JSON.parse(resultStr);
+      return JSONParse(resultStr);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -493,7 +494,7 @@ export class JSONEval {
         dataStr,
         contextStr
       );
-      return JSON.parse(resultStr);
+      return JSONParse(resultStr);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -525,7 +526,7 @@ export class JSONEval {
         contextStr,
         reEvaluate
       );
-      return JSON.parse(resultStr);
+      return JSONParse(resultStr);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -545,7 +546,7 @@ export class JSONEval {
       this.handle,
       skipLayout
     );
-    return JSON.parse(resultStr);
+    return JSONParse(resultStr);
   }
 
   /**
@@ -556,7 +557,7 @@ export class JSONEval {
   async getSchemaValue(): Promise<Record<string, any>> {
     this.throwIfDisposed();
     const resultStr = await JsonEvalRs.getSchemaValue(this.handle);
-    return JSON.parse(resultStr);
+    return JSONParse(resultStr);
   }
 
   /**
@@ -568,7 +569,7 @@ export class JSONEval {
   async getSchemaValueArray(): Promise<SchemaValueItem[]> {
     this.throwIfDisposed();
     const resultStr = await JsonEvalRs.getSchemaValueArray(this.handle);
-    return JSON.parse(resultStr);
+    return JSONParse(resultStr);
   }
 
   /**
@@ -580,7 +581,7 @@ export class JSONEval {
   async getSchemaValueObject(): Promise<Record<string, any>> {
     this.throwIfDisposed();
     const resultStr = await JsonEvalRs.getSchemaValueObject(this.handle);
-    return JSON.parse(resultStr);
+    return JSONParse(resultStr);
   }
 
   /**
@@ -597,7 +598,7 @@ export class JSONEval {
       this.handle,
       skipLayout
     );
-    return JSON.parse(resultStr);
+    return JSONParse(resultStr);
   }
 
   /**
@@ -617,7 +618,7 @@ export class JSONEval {
       path,
       skipLayout
     );
-    return resultStr ? JSON.parse(resultStr) : null;
+    return resultStr ? JSONParse(resultStr) : null;
   }
 
   /**
@@ -642,7 +643,7 @@ export class JSONEval {
       skipLayout,
       format
     );
-    return JSON.parse(resultStr);
+    return JSONParse(resultStr);
   }
 
   /**
@@ -654,7 +655,7 @@ export class JSONEval {
   async getSchemaByPath(path: string): Promise<any | null> {
     this.throwIfDisposed();
     const resultStr = await JsonEvalRs.getSchemaByPath(this.handle, path);
-    return resultStr ? JSON.parse(resultStr) : null;
+    return resultStr ? JSONParse(resultStr) : null;
   }
 
   /**
@@ -676,7 +677,7 @@ export class JSONEval {
       pathsJson,
       format
     );
-    return JSON.parse(resultStr);
+    return JSONParse(resultStr);
   }
 
   /**
@@ -809,7 +810,7 @@ export class JSONEval {
   async cacheStats(): Promise<CacheStats> {
     this.throwIfDisposed();
     const resultStr = await JsonEvalRs.cacheStats(this.handle);
-    return JSON.parse(resultStr);
+    return JSONParse(resultStr);
   }
 
   /**
@@ -925,7 +926,7 @@ export class JSONEval {
       dataStr,
       contextStr
     );
-    return JSON.parse(resultStr);
+    return JSONParse(resultStr);
   }
 
   /**
@@ -965,7 +966,7 @@ export class JSONEval {
       dataStr,
       contextStr
     );
-    return JSON.parse(resultStr);
+    return JSONParse(resultStr);
   }
 
   /**
@@ -991,7 +992,7 @@ export class JSONEval {
       contextStr,
       paths
     );
-    return JSON.parse(resultStr);
+    return JSONParse(resultStr);
   }
 
   // ============================================================================
@@ -1043,7 +1044,7 @@ export class JSONEval {
       dataStr,
       contextStr
     );
-    return JSON.parse(resultStr);
+    return JSONParse(resultStr);
   }
 
   /**
@@ -1073,7 +1074,7 @@ export class JSONEval {
       contextStr,
       options.reEvaluate ?? true
     );
-    return JSON.parse(resultStr);
+    return JSONParse(resultStr);
   }
 
   /**
@@ -1110,7 +1111,7 @@ export class JSONEval {
       options.subformPath,
       options.resolveLayout || false
     );
-    return JSON.parse(resultStr);
+    return JSONParse(resultStr);
   }
 
   /**
@@ -1128,7 +1129,7 @@ export class JSONEval {
       this.handle,
       options.subformPath
     );
-    return JSON.parse(resultStr);
+    return JSONParse(resultStr);
   }
 
   /**
@@ -1147,7 +1148,7 @@ export class JSONEval {
       this.handle,
       options.subformPath
     );
-    return JSON.parse(resultStr);
+    return JSONParse(resultStr);
   }
 
   /**
@@ -1166,7 +1167,7 @@ export class JSONEval {
       this.handle,
       options.subformPath
     );
-    return JSON.parse(resultStr);
+    return JSONParse(resultStr);
   }
 
   /**
@@ -1185,7 +1186,7 @@ export class JSONEval {
       options.subformPath,
       options.resolveLayout || false
     );
-    return JSON.parse(resultStr);
+    return JSONParse(resultStr);
   }
 
   /**
@@ -1205,7 +1206,7 @@ export class JSONEval {
       options.schemaPath,
       options.skipLayout || false
     );
-    return resultStr ? JSON.parse(resultStr) : null;
+    return resultStr ? JSONParse(resultStr) : null;
   }
 
   /**
@@ -1228,7 +1229,7 @@ export class JSONEval {
       options.skipLayout || false,
       options.format !== undefined ? options.format : ReturnFormat.Nested
     );
-    return JSON.parse(resultStr);
+    return JSONParse(resultStr);
   }
 
   /**
@@ -1240,7 +1241,7 @@ export class JSONEval {
     this.throwIfDisposed();
 
     const resultStr = await JsonEvalRs.getSubformPaths(this.handle);
-    return JSON.parse(resultStr);
+    return JSONParse(resultStr);
   }
 
   /**
@@ -1259,7 +1260,7 @@ export class JSONEval {
       options.subformPath,
       options.schemaPath
     );
-    return resultStr ? JSON.parse(resultStr) : null;
+    return resultStr ? JSONParse(resultStr) : null;
   }
 
   /**
@@ -1281,7 +1282,7 @@ export class JSONEval {
       pathsJson,
       options.format !== undefined ? options.format : ReturnFormat.Nested
     );
-    return JSON.parse(resultStr);
+    return JSONParse(resultStr);
   }
 
   /**

@@ -1,4 +1,13 @@
 /**
+ * Item for get schema value array results
+ */
+export interface SchemaValueItem {
+    /** Dotted path (e.g., "field1.field2") */
+    path: string;
+    /** Value at this path */
+    value: any;
+}
+/**
  * Return format for path-based methods
  */
 export declare enum ReturnFormat {
@@ -34,8 +43,8 @@ export interface ValidationError {
 export interface ValidationResult {
     /** Whether any validation errors occurred */
     hasError: boolean;
-    /** Array of validation errors */
-    errors: ValidationError[];
+    /** Map of validation errors keyed by field path */
+    error: Record<string, ValidationError>;
 }
 /**
  * Dependent field change from evaluateDependents
@@ -73,6 +82,8 @@ export interface EvaluateOptions {
     data: string | object;
     /** Optional context data (string or object) */
     context?: string | object;
+    /** Optional array of paths for selective evaluation */
+    paths?: string[];
 }
 /**
  * Options for validation with path filtering
@@ -119,6 +130,8 @@ export interface EvaluateSubformOptions {
     data: string | object;
     /** Optional context data (string or object) */
     context?: string | object;
+    /** Optional array of paths for selective evaluation */
+    paths?: string[];
 }
 /**
  * Options for validating a subform
@@ -277,6 +290,14 @@ export declare class JSONEval {
      */
     static fromCache(cacheKey: string, context?: string | object | null, data?: string | object | null): JSONEval;
     /**
+     * Evaluates logic expression without creating an instance
+     * @param logicStr - JSON Logic expression as string or object
+     * @param data - Optional data as string or object
+     * @param context - Optional context as string or object
+     * @returns Promise resolving to evaluation result
+     */
+    static evaluateLogic(logicStr: string | object, data?: string | object | null, context?: string | object | null): Promise<any>;
+    /**
      * Creates a new JSON evaluator instance
      * @param options - Configuration options with schema, context, and data
      * @throws {Error} If creation fails
@@ -291,6 +312,12 @@ export declare class JSONEval {
      * instead of an object to avoid the JSON.stringify overhead
      */
     private toJsonString;
+    /**
+     * Cancel any running evaluation
+     * The generic auto-cancellation on new evaluation will still work,
+     * but this allows manual cancellation.
+     */
+    cancel(): Promise<void>;
     /**
      * Evaluate schema with provided data
      * @param options - Evaluation options
@@ -325,6 +352,20 @@ export declare class JSONEval {
      * @throws {Error} If operation fails
      */
     getSchemaValue(): Promise<Record<string, any>>;
+    /**
+     * Get all schema values as array of path-value pairs
+     * Returns [{path: "", value: ""}, ...]
+     * @returns Promise resolving to array of SchemaValueItem objects
+     * @throws {Error} If operation fails
+     */
+    getSchemaValueArray(): Promise<SchemaValueItem[]>;
+    /**
+     * Get all schema values as object with dotted path keys
+     * Returns {path: value, ...}
+     * @returns Promise resolving to flat object with dotted paths as keys
+     * @throws {Error} If operation fails
+     */
+    getSchemaValueObject(): Promise<Record<string, any>>;
     /**
      * Get the evaluated schema without $params field
      * @param skipLayout - Whether to skip layout resolution (default: false)
@@ -435,6 +476,26 @@ export declare class JSONEval {
      */
     resolveLayout(evaluate?: boolean): Promise<void>;
     /**
+     * Set timezone offset for datetime operations (TODAY, NOW)
+     * @param offsetMinutes - Timezone offset in minutes from UTC (e.g., 420 for UTC+7, -300 for UTC-5)
+     *                        Pass null to reset to UTC
+     * @returns Promise that resolves when timezone is set
+     * @throws {Error} If operation fails
+     *
+     * @example
+     * ```typescript
+     * // Set to UTC+7 (Jakarta, Bangkok)
+     * await eval.setTimezoneOffset(420);
+     *
+     * // Set to UTC-5 (New York, EST)
+     * await eval.setTimezoneOffset(-300);
+     *
+     * // Reset to UTC
+     * await eval.setTimezoneOffset(null);
+     * ```
+     */
+    setTimezoneOffset(offsetMinutes: number | null): Promise<void>;
+    /**
      * Compile and run JSON logic from a JSON logic string
      * @param logicStr - JSON logic expression as a string or object
      * @param data - Optional JSON data string or object (null to use existing data)
@@ -508,6 +569,22 @@ export declare class JSONEval {
      * @throws {Error} If operation fails
      */
     getSchemaValueSubform(options: GetSchemaValueSubformOptions): Promise<any>;
+    /**
+     * Get schema values from subform as a flat array of path-value pairs.
+     * Returns an array like `[{path: "field.sub", value: 123}, ...]`.
+     * @param options - Options including subform path
+     * @returns Promise resolving to array of SchemaValueItem objects
+     * @throws {Error} If operation fails
+     */
+    getSchemaValueArraySubform(options: GetSchemaValueSubformOptions): Promise<SchemaValueItem[]>;
+    /**
+     * Get schema values from subform as a flat object with dotted path keys.
+     * Returns an object like `{"field.sub": 123, ...}`.
+     * @param options - Options including subform path
+     * @returns Promise resolving to flat object with dotted paths
+     * @throws {Error} If operation fails
+     */
+    getSchemaValueObjectSubform(options: GetSchemaValueSubformOptions): Promise<Record<string, any>>;
     /**
      * Get evaluated schema without $params from subform
      * @param options - Options including subform path and resolveLayout flag

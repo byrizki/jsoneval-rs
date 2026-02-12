@@ -136,5 +136,8 @@
         }
       ]
     ]
+  },
+  "dependencies": {
+    "json-with-bigint": "^3.5.3"
   }
 }
