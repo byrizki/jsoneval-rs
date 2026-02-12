@@ -52,8 +52,7 @@ impl Evaluator {
             CompiledLogic::Null => return Ok(Value::Null),
             CompiledLogic::Bool(b) => return Ok(Value::Bool(*b)),
             CompiledLogic::Number(n) => {
-                let f = n.parse::<f64>().unwrap_or(0.0);
-                return Ok(self.f64_to_json(f));
+                return Ok(self.f64_to_json(*n));
             }
             CompiledLogic::String(s) => return Ok(Value::String(s.clone())),
             CompiledLogic::Var(name, None) if !name.is_empty() => {
@@ -144,8 +143,7 @@ impl Evaluator {
             CompiledLogic::Null => Ok(Value::Null),
             CompiledLogic::Bool(b) => Ok(Value::Bool(*b)),
             CompiledLogic::Number(n) => {
-                let f = n.parse::<f64>().unwrap_or(0.0);
-                Ok(self.f64_to_json(f))
+                Ok(self.f64_to_json(*n))
             }
             CompiledLogic::String(s) => Ok(Value::String(s.clone())),
             CompiledLogic::Array(arr) => {

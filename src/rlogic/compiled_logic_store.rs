@@ -35,6 +35,42 @@ static COMPILED_LOGIC_STORE: Lazy<CompiledLogicStore> = Lazy::new(|| {
     }
 });
 
+/// Recursively hash a serde_json::Value without serializing to string.
+/// Uses type discriminants to avoid hash collisions between different JSON types.
+#[inline]
+fn hash_value(value: &serde_json::Value, hasher: &mut AHasher) {
+    match value {
+        serde_json::Value::Null => 0u8.hash(hasher),
+        serde_json::Value::Bool(b) => {
+            1u8.hash(hasher);
+            b.hash(hasher);
+        }
+        serde_json::Value::Number(n) => {
+            2u8.hash(hasher);
+            n.as_f64().unwrap_or(0.0).to_bits().hash(hasher);
+        }
+        serde_json::Value::String(s) => {
+            3u8.hash(hasher);
+            s.hash(hasher);
+        }
+        serde_json::Value::Array(arr) => {
+            4u8.hash(hasher);
+            arr.len().hash(hasher);
+            for item in arr {
+                hash_value(item, hasher);
+            }
+        }
+        serde_json::Value::Object(obj) => {
+            5u8.hash(hasher);
+            obj.len().hash(hasher);
+            for (k, v) in obj {
+                k.hash(hasher);
+                hash_value(v, hasher);
+            }
+        }
+    }
+}
+
 /// Thread-safe global store for compiled logic
 struct CompiledLogicStore {
     /// Map from hash to (ID, CompiledLogic)
@@ -49,11 +85,8 @@ impl CompiledLogicStore {
     /// Compile logic from a Value and return an ID
     /// If the same logic was compiled before, returns the existing ID
     fn compile_value(&self, logic: &serde_json::Value) -> Result<CompiledLogicId, String> {
-        // Hash the logic value for deduplication
-        let logic_str = serde_json::to_string(logic)
-            .map_err(|e| format!("Failed to serialize logic: {}", e))?;
         let mut hasher = AHasher::default();
-        logic_str.hash(&mut hasher);
+        hash_value(logic, &mut hasher);
         let hash = hasher.finish();
 
         // Optimistic check (read lock)

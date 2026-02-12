@@ -118,11 +118,8 @@ impl Evaluator {
         // OPTIMIZATION 2: Fast path for literal row indices (avoid evaluation overhead)
         let row_idx = match row_idx_expr {
             CompiledLogic::Number(n) => {
-                // Direct parse for literal numbers
-                match n.parse::<i64>() {
-                    Ok(idx) if idx >= 0 => Some(idx as usize),
-                    _ => None,
-                }
+                let idx = *n as i64;
+                if idx >= 0 { Some(idx as usize) } else { None }
             }
             _ => {
                 // Evaluate row index expression

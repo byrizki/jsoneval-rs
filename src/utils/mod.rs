@@ -98,10 +98,8 @@ pub fn clean_float_noise(value: Value) -> Value {
         Value::Number(n) => {
             if let Some(f) = n.as_f64() {
                 if f.abs() < EPSILON {
-                    // Clean near-zero values to exactly 0
                     Value::Number(serde_json::Number::from(0))
                 } else if f.fract().abs() < EPSILON {
-                    // Clean whole numbers: 33.0 → 33
                     Value::Number(serde_json::Number::from(f.round() as i64))
                 } else {
                     Value::Number(n)
@@ -119,3 +117,27 @@ pub fn clean_float_noise(value: Value) -> Value {
         _ => value,
     }
 }
+
+#[inline(always)]
+pub fn clean_float_noise_scalar(value: Value) -> Value {
+    const EPSILON: f64 = 1e-10;
+
+    match value {
+        Value::Number(ref n) => {
+            if let Some(f) = n.as_f64() {
+                if f.abs() < EPSILON {
+                    Value::Number(serde_json::Number::from(0))
+                } else if f.fract().abs() < EPSILON {
+                    Value::Number(serde_json::Number::from(f.round() as i64))
+                } else {
+                    value
+                }
+            } else {
+                value
+            }
+        }
+        Value::Array(_) | Value::Object(_) => clean_float_noise(value),
+        _ => value,
+    }
+}
+

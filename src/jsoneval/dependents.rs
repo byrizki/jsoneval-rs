@@ -4,7 +4,7 @@ use crate::jsoneval::path_utils;
 use crate::rlogic::{LogicId, RLogic};
 use crate::jsoneval::types::DependentItem;
 use crate::jsoneval::cancellation::CancellationToken;
-use crate::utils::clean_float_noise;
+use crate::utils::clean_float_noise_scalar;
 use crate::EvalData;
 
 use indexmap::{IndexMap, IndexSet};
@@ -101,6 +101,14 @@ impl JSONEval {
         if re_evaluate {
             // Drop lock for evaluate_internal
             drop(_lock); 
+
+            // Clear the entire eval cache before re-evaluation.
+            // The dependents graph processing above may have modified eval_data for
+            // many fields beyond the user's changed_paths, but those changes were not
+            // tracked for cache purging. Clearing ensures evaluate_internal doesn't
+            // return stale cached results for fields whose dependencies were updated.
+            self.eval_cache.clear();
+
             self.evaluate_internal(None, token)?;
             
             // Re-acquire lock for ReadOnly/Hidden processing
@@ -700,7 +708,7 @@ impl JSONEval {
                             &current_value,
                             &current_ref_value,
                         )?;
-                        let cleaned_val = clean_float_noise(computed_value.clone());
+                        let cleaned_val = clean_float_noise_scalar(computed_value.clone());
 
                         if cleaned_val != current_ref_value && cleaned_val != Value::Null {
                             // Set the value

@@ -3,7 +3,7 @@ use crate::jsoneval::json_parser;
 use crate::jsoneval::path_utils;
 use crate::jsoneval::table_evaluate;
 use crate::jsoneval::cancellation::CancellationToken;
-use crate::utils::clean_float_noise;
+use crate::utils::clean_float_noise_scalar;
 use crate::time_block;
 
 use serde_json::Value;
@@ -46,16 +46,15 @@ impl JSONEval {
                 json_parser::parse_json_str(context.unwrap_or("{}"))?
             });
 
-            self.data = data.clone();
-
-            // Collect top-level data keys to selectively purge cache
+            // Collect top-level data keys to selectively purge cache (before move)
             let changed_data_paths: Vec<String> = if let Some(obj) = data.as_object() {
                 obj.keys().map(|k| format!("/{}", k)).collect()
             } else {
                 Vec::new()
             };
 
-            // Replace data and context in existing eval_data
+            // Store data and replace in eval_data (clone once instead of twice)
+            self.data = data.clone();
             time_block!("  replace_data_and_context", {
                 self.eval_data.replace_data_and_context(data, context);
             });
@@ -113,8 +112,8 @@ impl JSONEval {
                 None
             };
 
-            // Clone sorted_evaluations (Arc clone is cheap, then clone inner Vec)
-            let eval_batches: Vec<Vec<String>> = (*self.sorted_evaluations).clone();
+            // Borrow sorted_evaluations via Arc (avoid deep-cloning Vec<Vec<String>>)
+            let eval_batches = self.sorted_evaluations.clone();
 
             // Process each batch - parallelize evaluations within each batch
             // Batches are processed sequentially to maintain dependency order
@@ -159,7 +158,7 @@ impl JSONEval {
                         // Cache miss - evaluate
                         if let Some(logic_id) = self.evaluations.get(eval_key) {
                             if let Ok(val) = self.engine.run(logic_id, eval_data_values.data()) {
-                                let cleaned_val = clean_float_noise(val);
+                                let cleaned_val = clean_float_noise_scalar(val);
                                 // Cache result (thread-safe)
                                 self.cache_result(eval_key, Value::Null, &eval_data_values);
                                 value_results
@@ -224,7 +223,7 @@ impl JSONEval {
                     // Cache miss - evaluate
                     if let Some(logic_id) = self.evaluations.get(eval_key) {
                         if let Ok(val) = self.engine.run(logic_id, eval_data_values.data()) {
-                            let cleaned_val = clean_float_noise(val);
+                            let cleaned_val = clean_float_noise_scalar(val);
                             // Cache result
                             self.cache_result(eval_key, Value::Null, &eval_data_values);
 
@@ -239,7 +238,7 @@ impl JSONEval {
             });
 
             time_block!("    process batches", {
-                for batch in eval_batches {
+                for batch in eval_batches.iter() {
                     if let Some(t) = token {
                         if t.is_cancelled() {
                             return Err("Cancelled".to_string());
@@ -326,7 +325,7 @@ impl JSONEval {
                                     if let Ok(val) =
                                         self.engine.run(logic_id, eval_data_snapshot.data())
                                     {
-                                        let cleaned_val = clean_float_noise(val);
+                                        let cleaned_val = clean_float_noise_scalar(val);
                                         // Cache result (thread-safe)
                                         self.cache_result(
                                             eval_key,
@@ -343,9 +342,9 @@ impl JSONEval {
                             }
                         });
 
-                        // Write all results back sequentially (already cached in parallel execution)
+                        // Write all results back sequentially (already cleaned in parallel execution)
                         for (_eval_key, path, value) in results.into_inner().unwrap() {
-                            let cleaned_value = clean_float_noise(value);
+                            let cleaned_value = value;
 
                             self.eval_data.set(&path, cleaned_value.clone());
                             // Also write to evaluated_schema
@@ -358,13 +357,13 @@ impl JSONEval {
 
                     // Sequential execution (single item or parallel feature disabled)
                     #[cfg(not(feature = "parallel"))]
-                    let batch_items = &batch;
+                    let batch_items: &[String] = batch;
 
                     #[cfg(feature = "parallel")]
-                    let batch_items = if batch.len() > 1000 {
+                    let batch_items: &[String] = if batch.len() > 1000 {
                         &batch[0..0]
                     } else {
-                        &batch
+                        batch
                     }; // Empty slice if already processed in parallel
 
                     for eval_key in batch_items {
@@ -403,7 +402,7 @@ impl JSONEval {
                                 // Cache result
                                 self.cache_result(eval_key, Value::Null, &eval_data_snapshot);
 
-                                let cleaned_value = clean_float_noise(value);
+                                let cleaned_value = clean_float_noise_scalar(value);
                                 self.eval_data.set(&pointer_path, cleaned_value.clone());
                                 if let Some(schema_value) =
                                     self.evaluated_schema.pointer_mut(&pointer_path)
@@ -416,7 +415,7 @@ impl JSONEval {
                                 if let Ok(val) =
                                     self.engine.run(logic_id, eval_data_snapshot.data())
                                 {
-                                    let cleaned_val = clean_float_noise(val);
+                                    let cleaned_val = clean_float_noise_scalar(val);
                                     // Cache result
                                     self.cache_result(eval_key, Value::Null, &eval_data_snapshot);
 
@@ -506,7 +505,7 @@ impl JSONEval {
                                     if let Ok(val) =
                                         self.engine.run(logic_id, eval_data_snapshot.data())
                                     {
-                                        let cleaned_val = clean_float_noise(val);
+                                        let cleaned_val = clean_float_noise_scalar(val);
                                         // Cache result (thread-safe)
                                         self.cache_result(
                                             eval_key,
@@ -585,7 +584,7 @@ impl JSONEval {
                                 if let Ok(val) =
                                     self.engine.run(logic_id, eval_data_snapshot.data())
                                 {
-                                    let cleaned_val = clean_float_noise(val);
+                                    let cleaned_val = clean_float_noise_scalar(val);
                                     // Cache result
                                     self.cache_result(eval_key, Value::Null, &eval_data_snapshot);
 

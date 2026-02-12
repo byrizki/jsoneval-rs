@@ -25,7 +25,7 @@ impl Evaluator {
         let mut result = 0.0_f64;
         for (idx, item) in items.iter().enumerate() {
             let val = match item {
-                CompiledLogic::Number(n) => n.parse::<f64>().unwrap_or(0.0),
+                CompiledLogic::Number(n) => *n,
                 CompiledLogic::Var(name, _) => {
                     // Try internal context first, then user data
                     let v = helpers::get_var(internal_context, name)

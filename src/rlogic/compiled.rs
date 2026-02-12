@@ -13,7 +13,7 @@ pub enum CompiledLogic {
     // Literal values
     Null,
     Bool(bool),
-    Number(String), // Store as string to preserve precision with arbitrary_precision
+    Number(f64),
     String(String),
     Array(Vec<CompiledLogic>),
 
@@ -179,8 +179,7 @@ impl CompiledLogic {
             Value::Null => Ok(CompiledLogic::Null),
             Value::Bool(b) => Ok(CompiledLogic::Bool(*b)),
             Value::Number(n) => {
-                // With arbitrary_precision, store as string to preserve precision
-                Ok(CompiledLogic::Number(n.to_string()))
+                Ok(CompiledLogic::Number(n.as_f64().unwrap_or(0.0)))
             }
             Value::String(s) => Ok(CompiledLogic::String(s.clone())),
             Value::Array(arr) => {
@@ -1366,7 +1365,7 @@ impl CompiledLogic {
                     .any(|item| item.referenced_vars().iter().any(|v| v == "$iteration"));
 
                 let has_positive = items.iter().any(|item| match item {
-                    CompiledLogic::Number(n) => n.parse::<f64>().unwrap_or(0.0) > 0.0,
+                    CompiledLogic::Number(f) => *f > 0.0,
                     _ => false,
                 });
 

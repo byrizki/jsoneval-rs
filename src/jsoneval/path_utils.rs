@@ -15,32 +15,46 @@ use serde_json::Value;
 #[inline]
 pub fn normalize_to_json_pointer(path: &str) -> String {
     if path.is_empty() {
-        return "".to_string();
+        return String::new();
     }
 
-    let mut normalized = path.to_string();
-
-    // Handle JSON Schema reference format
-    if normalized.starts_with("#/") {
-        normalized = normalized[1..].to_string(); // Keep leading /
-    } else if !normalized.starts_with('/') {
-        // Handle dotted notation: user.name -> /user/name
-        if normalized.contains('.') {
-            normalized = format!("/{}", normalized.replace('.', "/"));
-        } else {
-            // Simple field name: field -> /field
-            normalized = format!("/{}", normalized);
+    // Fast path: JSON Schema reference format (#/...) — most common case
+    if path.starts_with("#/") {
+        let stripped = &path[1..];
+        if !stripped.contains("//") {
+            return stripped.to_string();
         }
     }
+
+    // Fast path: already a valid JSON pointer
+    if path.starts_with('/') && !path.contains("//") {
+        return if path == "/" {
+            String::new()
+        } else {
+            path.to_string()
+        };
+    }
+
+    // Slow path: needs full normalization
+    let mut normalized = if path.starts_with("#/") {
+        path[1..].to_string()
+    } else if !path.starts_with('/') {
+        if path.contains('.') {
+            format!("/{}", path.replace('.', "/"))
+        } else {
+            format!("/{}", path)
+        }
+    } else {
+        path.to_string()
+    };
 
     // Clean up double slashes
     while normalized.contains("//") {
         normalized = normalized.replace("//", "/");
     }
 
-    // Return valid JSON pointer
     if normalized == "/" {
-        "".to_string() // Root reference
+        String::new()
     } else {
         normalized
     }
