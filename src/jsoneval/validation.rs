@@ -107,32 +107,28 @@ impl JSONEval {
             return;
         }
 
-        // Get schema for this field
+        // Resolve schema for this field
         let schema_path = path_utils::dot_notation_to_schema_pointer(field_path);
-
-        // Remove leading "#" from path for pointer lookup
         let pointer_path = schema_path.trim_start_matches('#');
 
         // Try to get schema, if not found, try with /properties/ prefix for standard JSON Schema
-        let field_schema = match self.evaluated_schema.pointer(pointer_path) {
-            Some(s) => s,
+        let (field_schema, resolved_path) = match self.evaluated_schema.pointer(pointer_path) {
+            Some(s) => (s, pointer_path.to_string()),
             None => {
-                // Try with /properties/ prefix (for standard JSON Schema format)
                 let alt_path = format!("/properties{}", pointer_path);
                 match self.evaluated_schema.pointer(&alt_path) {
-                    Some(s) => s,
+                    Some(s) => (s, alt_path),
                     None => return,
                 }
             }
         };
 
-        // Check if field is hidden (skip validation)
+        // Skip hidden fields
+        if self.is_effective_hidden(&resolved_path) {
+            return;
+        }
+
         if let Value::Object(schema_map) = field_schema {
-            if let Some(Value::Object(condition)) = schema_map.get("condition") {
-                if let Some(Value::Bool(true)) = condition.get("hidden") {
-                    return;
-                }
-            }
 
             // Get rules object
             let rules = match schema_map.get("rules") {

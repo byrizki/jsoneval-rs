@@ -44,6 +44,12 @@ impl JSONEval {
                     self.propagate_parent_conditions(layout_path);
                 }
             });
+
+            // Sync layout hidden state to schema definitions
+            // This ensures validation (which checks schema) respects layout hiding
+            time_block!("    sync_layout_hidden_to_schema", {
+                 self.sync_layout_hidden_to_schema(&layout_paths);
+            });
         });
     }
 
@@ -309,5 +315,82 @@ impl JSONEval {
         }
 
         element
+    }
+
+    /// Sync hidden state from layout elements to their schema definitions
+    fn sync_layout_hidden_to_schema(&mut self, layout_paths: &[String]) {
+        let mut hidden_paths = Vec::new();
+
+        // Collect all schema paths that are effectively hidden in the layout
+        for layout_path in layout_paths {
+             let normalized_path = path_utils::normalize_to_json_pointer(layout_path);
+             if let Some(Value::Array(elements)) = self.evaluated_schema.pointer(&normalized_path) {
+                 for element in elements {
+                     self.collect_hidden_paths_recursive(element, &mut hidden_paths);
+                 }
+             }
+        }
+
+        // Apply hidden state to schema definitions
+        for schema_path_dot in hidden_paths {
+            let schema_pointer = path_utils::dot_notation_to_schema_pointer(&schema_path_dot);
+            let normalized_pointer = path_utils::normalize_to_json_pointer(&schema_pointer);
+            
+            if let Some(schema_node) = self.evaluated_schema.pointer_mut(&normalized_pointer) {
+                if let Value::Object(map) = schema_node {
+                    // Update condition.hidden = true
+                     let mut condition = if let Some(Value::Object(c)) = map.get("condition") {
+                        c.clone()
+                    } else {
+                        serde_json::Map::new()
+                    };
+                    
+                    condition.insert("hidden".to_string(), Value::Bool(true));
+                    map.insert("condition".to_string(), Value::Object(condition));
+                }
+            } else {
+                // Try with /properties prefix if direct lookup fails
+                let alt_pointer = format!("/properties{}", normalized_pointer);
+                if let Some(schema_node) = self.evaluated_schema.pointer_mut(&alt_pointer) {
+                    if let Value::Object(map) = schema_node {
+                        let mut condition = if let Some(Value::Object(c)) = map.get("condition") {
+                            c.clone()
+                        } else {
+                            serde_json::Map::new()
+                        };
+                        
+                        condition.insert("hidden".to_string(), Value::Bool(true));
+                        map.insert("condition".to_string(), Value::Object(condition));
+                    }
+                }
+            }
+        }
+    }
+
+    fn collect_hidden_paths_recursive(&self, element: &Value, hidden_paths: &mut Vec<String>) {
+        if let Value::Object(map) = element {
+            // Check if this element is effectively hidden
+            let is_hidden = if let Some(Value::Object(condition)) = map.get("condition") {
+                condition.get("hidden").and_then(|v| v.as_bool()).unwrap_or(false)
+            } else {
+                false
+            };
+
+            if is_hidden {
+                // If hidden and has $fullpath, verify it points to a schema definition
+                if let Some(Value::String(fullpath)) = map.get("fullpath") {
+                     hidden_paths.push(fullpath.clone());
+                } else if let Some(Value::String(fullpath)) = map.get("$fullpath") {
+                     hidden_paths.push(fullpath.clone());
+                }
+            }
+
+            // Recurse children
+            if let Some(Value::Array(elements)) = map.get("elements") {
+                for child in elements {
+                    self.collect_hidden_paths_recursive(child, hidden_paths);
+                }
+            }
+        }
     }
 }

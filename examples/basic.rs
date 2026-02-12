@@ -138,6 +138,13 @@ fn main() {
         
         eval.evaluate(&data_str, Some("{}"), None, None)
             .unwrap_or_else(|e| panic!("evaluation failed: {}", e));
+
+        // Step 3: Validate
+        let validation_start = Instant::now();
+        let validation_result = eval.validate(&data_str, None, None, None)
+            .unwrap_or_else(|e| panic!("validation failed: {}", e));
+        let validation_time = validation_start.elapsed();
+        println!("  🛡️ Validate: {:?}", validation_time);
         
         // Legacy behavior: get_evaluated_schema takes skip_layout: bool
         // We pass false to ensure layout IS resolved
@@ -161,6 +168,7 @@ fn main() {
         let evaluated_path = samples_dir.join(format!("{}-evaluated-schema.json", scenario.name));
         let parsed_path = samples_dir.join(format!("{}-parsed-schema.json", scenario.name));
         let value_path = samples_dir.join(format!("{}-schema-value.json", scenario.name));
+        let validation_path = samples_dir.join(format!("{}-validation.json", scenario.name));
 
         fs::write(&evaluated_path, common::pretty_json(&evaluated_schema))
             .unwrap_or_else(|e| panic!("failed to write {}: {}", evaluated_path.display(), e));
@@ -176,10 +184,16 @@ fn main() {
         fs::write(&value_path, common::pretty_json(&schema_value))
             .unwrap_or_else(|e| panic!("failed to write {}: {}", value_path.display(), e));
 
+        let validation_value = serde_json::to_value(&validation_result)
+            .unwrap_or_else(|e| panic!("failed to serialize validation result: {}", e));
+        fs::write(&validation_path, common::pretty_json(&validation_value))
+            .unwrap_or_else(|e| panic!("failed to write {}: {}", validation_path.display(), e));
+
         println!("✅ Results saved:");
         println!("  - {}", evaluated_path.display());
         println!("  - {}", parsed_path.display());
-        println!("  - {}\n", value_path.display());
+        println!("  - {}", value_path.display());
+        println!("  - {}\n", validation_path.display());
 
         // Optional comparison
         if enable_comparison {

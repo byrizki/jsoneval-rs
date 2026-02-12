@@ -11,7 +11,7 @@ use crate::time_block;
 impl JSONEval {
     /// Check if a field is effectively hidden by checking its condition and all parents
     /// Also checks for $layout.hideLayout.all on parents
-    fn is_effective_hidden(&self, schema_pointer: &str) -> bool {
+    pub(crate) fn is_effective_hidden(&self, schema_pointer: &str) -> bool {
         let mut current_path = schema_pointer.to_string();
 
         // Loop until broken (when we checked root)
@@ -28,10 +28,7 @@ impl JSONEval {
                         }
                     }
 
-                    // 2. Check $layout.hideLayout.all (on the object itself, as $layout is sibling to properties)
-                    // Note: This check applies to the container (e.g., "header" object), hiding all its children
-                    // But here we are traversing up. If "header" has hideLayout.all=true, then "header" itself is hidden
-                    // and its children are hidden.
+                    // 2. Check layout hidden state ($layout.hideLayout.all)
                     if let Some(Value::Object(layout)) = map.get("$layout") {
                         if let Some(Value::Object(hide_layout)) = layout.get("hideLayout") {
                             if let Some(Value::Bool(all)) = hide_layout.get("all") {
@@ -50,33 +47,23 @@ impl JSONEval {
             }
 
             // Move to parent
-            // Path format: /properties/foo/properties/bar or /items/0/properties/foo
-            // We want to strip the last key AND the /properties or /items segment
-            
-            // Find last slash
             if let Some(last_slash_idx) = current_path.rfind('/') {
                 let parent_path_raw = &current_path[..last_slash_idx];
                 
-                // If empty, next path is root
                 if parent_path_raw.is_empty() {
                     current_path = "".to_string();
                     continue;
                 }
                 
-                // Check if parent path ends with /properties or /items and strip it
+                // Handle path segments (strip /properties or /items)
                 if parent_path_raw.ends_with("/properties") {
                     current_path = parent_path_raw[..parent_path_raw.len() - "/properties".len()].to_string();
-                } else if parent_path_raw.ends_with("/items") { // arrays not fully supported yet in this traversal but good to handle
+                } else if parent_path_raw.ends_with("/items") {
                      current_path = parent_path_raw[..parent_path_raw.len() - "/items".len()].to_string();
                 } else {
-                     // Fallback or intermediate path - just go up one level?
-                     // If we have structure like /foo/bar without properties (not standard schema), just strip last segment again?
-                     // BUT wait, parent_path_raw IS the parent path if not ending in special.
                      current_path = parent_path_raw.to_string();
                 }
             } else {
-                // No slash found but not empty? Should not happen if normalized.
-                // Assuming root checked above, break.
                 break;
             }
         }
