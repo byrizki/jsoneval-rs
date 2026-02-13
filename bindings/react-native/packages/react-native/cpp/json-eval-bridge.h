@@ -60,7 +60,20 @@ public:
      * @param pathsJson Optional JSON array of paths for selective evaluation
      * @param callback Result callback
      */
-    static void evaluateAsync(
+        const std::string& pathsJson,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Evaluate schema with data (async) - No return value (void)
+     * Optimized to avoid schema serialization overhead
+     * @param handle Instance handle
+     * @param data JSON data string
+     * @param context Optional context data
+     * @param pathsJson Optional JSON array of paths for selective evaluation
+     * @param callback Result callback (empty string on success)
+     */
+    static void evaluateNoReturnAsync(
         const std::string& handle,
         const std::string& data,
         const std::string& context,

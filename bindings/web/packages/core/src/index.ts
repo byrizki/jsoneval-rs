@@ -562,6 +562,23 @@ export class JSONEvalCore {
   }
 
   /**
+   * Evaluate schema with data (only updates internal state, returns void)
+   * Maps to WASM evaluate()
+   */
+  async evaluateOnly({ data, context, paths }: EvaluateOptions): Promise<void> {
+    await this.init();
+    try {
+      this._instance.evaluate(
+        typeof data === "string" ? data : JSONStringify(data),
+        context ? typeof context === "string" ? context : JSONStringify(context) : null,
+        paths || null
+      );
+    } catch (error: any) {
+      throw new Error(`Evaluation failed: ${error.message || error}`);
+    }
+  }
+
+  /**
    * Evaluate dependent fields (returns parsed JavaScript object, processes transitively)
    */
   async evaluateDependents({
@@ -577,6 +594,29 @@ export class JSONEvalCore {
 
       return this._instance.evaluateDependentsJS(
         typeof paths === "string" ? paths : JSONStringify(paths),
+        data ? typeof data === "string" ? data : JSONStringify(data) : null,
+        context ? typeof context === "string" ? context : JSONStringify(context) : null,
+        reEvaluate
+      );
+    } catch (error: any) {
+      throw new Error(`Dependent evaluation failed: ${error.message || error}`);
+    }
+  }
+
+  /**
+   * Evaluate dependents (returns JSON string)
+   * Maps to WASM evaluateDependents()
+   */
+  async evaluateDependentsString({
+    changedPath,
+    data,
+    context,
+    reEvaluate = true,
+  }: { changedPath: string, data?: any, context?: any, reEvaluate?: boolean }): Promise<string> {
+    await this.init();
+    try {
+      return this._instance.evaluateDependents(
+        changedPath,
         data ? typeof data === "string" ? data : JSONStringify(data) : null,
         context ? typeof context === "string" ? context : JSONStringify(context) : null,
         reEvaluate
@@ -924,6 +964,27 @@ export class JSONEvalCore {
   }
 
   /**
+   * Validate data with path filtering (returns WASM ValidationResult object)
+   * Note: You must call .free() on the returned object when done.
+   */
+  async validatePathsOnly({
+    data,
+    context,
+    paths,
+  }: EvaluateOptions): Promise<any> {
+    await this.init();
+    try {
+      return this._instance.validatePaths(
+        typeof data === "string" ? data : JSONStringify(data),
+        context ? typeof context === "string" ? context : JSONStringify(context) : null,
+        paths || null
+      );
+    } catch (error: any) {
+      throw new Error(`Validation failed: ${error.message || error}`);
+    }
+  }
+
+  /**
    * Cancel any running evaluation
    */
   async cancel(): Promise<void> {
@@ -991,6 +1052,26 @@ export class JSONEvalCore {
       data ? typeof data === "string" ? data : JSONStringify(data) : null,
       context ? typeof context === "string" ? context : JSONStringify(context) : null,
       reEvaluate
+    );
+  }
+
+  /**
+   * Evaluate dependent fields in subform (returns JSON string)
+   * Maps to WASM evaluateDependentsSubform()
+   */
+  async evaluateDependentsSubformString({
+    subformPath,
+    changedPaths,
+    data,
+    context,
+  }: EvaluateDependentsSubformOptions): Promise<string> {
+    await this.init();
+    const paths = Array.isArray(changedPaths) ? changedPaths : [changedPaths];
+    return this._instance.evaluateDependentsSubform(
+      subformPath,
+      typeof paths === "string" ? paths : JSONStringify(paths),
+      data ? typeof data === "string" ? data : JSONStringify(data) : null,
+      context ? typeof context === "string" ? context : JSONStringify(context) : null
     );
   }
 

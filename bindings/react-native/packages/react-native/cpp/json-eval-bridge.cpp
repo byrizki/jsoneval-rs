@@ -214,6 +214,37 @@ void JsonEvalBridge::evaluateAsync(
     }, callback);
 }
 
+void JsonEvalBridge::evaluateNoReturnAsync(
+    const std::string& handleId,
+    const std::string& data,
+    const std::string& context,
+    const std::string& pathsJson,
+    std::function<void(const std::string&, const std::string&)> callback
+) {
+    runAsync([handleId, data, context, pathsJson]() -> std::string {
+        std::lock_guard<std::mutex> lock(handlesMutex);
+        auto it = handles.find(handleId);
+        if (it == handles.end()) {
+            throw std::runtime_error("Invalid handle");
+        }
+        
+        // Evaluate with pathsJson parameter
+        const char* ctx = context.empty() ? nullptr : context.c_str();
+        const char* pathsPtr = pathsJson.empty() ? nullptr : pathsJson.c_str();
+        FFIResult evalResult = json_eval_evaluate(it->second, data.c_str(), ctx, pathsPtr);
+        
+        if (!evalResult.success) {
+            std::string error = evalResult.error ? evalResult.error : "Unknown error";
+            json_eval_free_result(evalResult);
+            throw std::runtime_error(error);
+        }
+        json_eval_free_result(evalResult);
+        
+        // Return empty string to indicate success (void return)
+        return "";
+    }, callback);
+}
+
 uint64_t JsonEvalBridge::compileLogic(
     const std::string& handleId,
     const std::string& logicStr

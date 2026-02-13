@@ -475,6 +475,36 @@ export class JSONEval {
   }
 
   /**
+   * Evaluate schema with provided data (only updates internal state)
+   * @param options - Evaluation options
+   * @returns Promise that resolves when evaluation is complete
+   * @throws {Error} If evaluation fails
+   */
+  async evaluateOnly(options: EvaluateOptions): Promise<void> {
+    this.throwIfDisposed();
+
+    try {
+      const dataStr = this.toJsonString(options.data);
+      const contextStr = options.context
+        ? this.toJsonString(options.context)
+        : null;
+      const pathsJson = options.paths ? typeof options.paths === 'string' ? options.paths : JSONStringify(options.paths) : null;
+
+      // Call optimized native method that returns void/empty string
+      await JsonEvalRs.evaluateNoReturn(
+        this.handle,
+        dataStr,
+        contextStr,
+        pathsJson
+      );
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      throw new Error(`Evaluation failed: ${errorMessage}`);
+    }
+  }
+
+  /**
    * Validate data against schema rules
    * @param options - Validation options
    * @returns Promise resolving to ValidationResult
@@ -502,6 +532,8 @@ export class JSONEval {
     }
   }
 
+
+
   /**
    * Re-evaluate fields that depend on a changed path
    * @param options - Dependent evaluation options
@@ -527,6 +559,37 @@ export class JSONEval {
         reEvaluate
       );
       return JSONParse(resultStr);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      throw new Error(`Dependent evaluation failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Re-evaluate fields that depend on a changed path (returns JSON string)
+   * @param options - Dependent evaluation options
+   * @returns Promise resolving to JSON string of dependent field changes
+   * @throws {Error} If evaluation fails
+   */
+  async evaluateDependentsString(
+    options: EvaluateDependentsOptions
+  ): Promise<string> {
+    this.throwIfDisposed();
+
+    try {
+      const { changedPaths, data, context, reEvaluate = true } = options;
+      const changedPathsJson = typeof changedPaths === 'string' ? changedPaths : JSONStringify(changedPaths);
+      const dataStr = data ? this.toJsonString(data) : null;
+      const contextStr = context ? this.toJsonString(context) : null;
+
+      return await JsonEvalRs.evaluateDependents(
+        this.handle,
+        changedPathsJson,
+        dataStr,
+        contextStr,
+        reEvaluate
+      );
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -995,6 +1058,18 @@ export class JSONEval {
     return JSONParse(resultStr);
   }
 
+  /**
+   * Validate data against schema rules with optional path filtering (alias for validatePaths in RN)
+   * @param options - Validation options with optional path filtering
+   * @returns Promise resolving to ValidationResult (same as validatePaths for RN)
+   * @throws {Error} If validation operation fails
+   */
+  async validatePathsOnly(
+    options: ValidatePathsOptions
+  ): Promise<any> {
+    return this.validatePaths(options);
+  }
+
   // ============================================================================
   // Subform Methods
   // ============================================================================
@@ -1075,6 +1150,34 @@ export class JSONEval {
       options.reEvaluate ?? true
     );
     return JSONParse(resultStr);
+  }
+
+  /**
+   * Evaluate dependents in a subform when fields change (returns JSON string)
+   * @param options - Options including subform path, changed paths array, and optional data
+   * @returns Promise resolving to JSON string of dependent evaluation results
+   * @throws {Error} If evaluation fails
+   */
+  async evaluateDependentsSubformString(
+    options: EvaluateDependentsSubformOptions
+  ): Promise<string> {
+    this.throwIfDisposed();
+
+    const dataStr = options.data ? this.toJsonString(options.data) : null;
+    const contextStr = options.context
+      ? this.toJsonString(options.context)
+      : null;
+
+    const changedPath = options.changedPaths[0] || '';
+
+    return await JsonEvalRs.evaluateDependentsSubform(
+      this.handle,
+      options.subformPath,
+      changedPath,
+      dataStr,
+      contextStr,
+      options.reEvaluate ?? true
+    );
   }
 
   /**

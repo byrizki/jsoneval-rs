@@ -96,6 +96,30 @@ RCT_EXPORT_METHOD(evaluate:(NSString *)handle
                 reject(@"EVALUATE_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
             }
         }
+}
+
+RCT_EXPORT_METHOD(evaluateNoReturn:(NSString *)handle
+                  data:(NSString *)data
+                  context:(NSString *)context
+                  pathsJson:(NSString *)pathsJson
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    // Convert Objective-C strings to C++ (required by bridge architecture)
+    std::string handleStr = [self stdStringFromNSString:handle];
+    std::string dataStr = [self stdStringFromNSString:data];
+    std::string contextStr = [self stdStringFromNSString:context];
+    std::string pathsJsonStr = [self stdStringFromNSString:pathsJson];
+    
+    JsonEvalBridge::evaluateNoReturnAsync(handleStr, dataStr, contextStr, pathsJsonStr,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                // Return null/void to JS - no schema serialization needed!
+                resolve(nil);
+            } else {
+                reject(@"EVALUATE_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
     );
 }
 
