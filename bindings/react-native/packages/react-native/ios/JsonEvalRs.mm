@@ -96,6 +96,7 @@ RCT_EXPORT_METHOD(evaluate:(NSString *)handle
                 reject(@"EVALUATE_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
             }
         }
+    );
 }
 
 RCT_EXPORT_METHOD(evaluateNoReturn:(NSString *)handle
