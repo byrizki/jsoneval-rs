@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.68] - 2026-02-13
+
+### Fixed
+
+- [web] fix evaluate method
+- [RN] fix evaluate method
+
 ## [0.0.67] - 2026-02-13
 
 ### Changed
