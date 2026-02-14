@@ -202,7 +202,14 @@ impl JSONEval {
                 if is_last {
                     // Set the value at the final key
                     if let Some(obj) = current.as_object_mut() {
-                        obj.insert(part.to_string(), crate::utils::clean_float_noise(value.clone()));
+                        let should_update = match obj.get(*part) {
+                            Some(v) => v.is_null(),
+                            None => true,
+                        };
+                        
+                        if should_update {
+                            obj.insert((*part).to_string(), crate::utils::clean_float_noise(value.clone()));
+                        }
                     }
                 } else {
                     // Ensure current is an object, then navigate/create intermediate objects
