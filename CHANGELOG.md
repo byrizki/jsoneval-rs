@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.69] - 2026-02-14
+
+### Fixed
+
+- [core] fix schema value getter
+- [core] finetune inefficient code
+
 ## [0.0.68] - 2026-02-13
 
 ### Fixed

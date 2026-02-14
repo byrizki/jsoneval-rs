@@ -1,6 +1,6 @@
 {
   "name": "@json-eval-rs/vanilla",
-  "version": "0.0.68",
+  "version": "0.0.69",
   "description": "JSON Eval RS for direct browser usage (vanilla JS) or manual WASM loading (Next.js Turbopack compat)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

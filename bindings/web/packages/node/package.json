@@ -1,6 +1,6 @@
 {
   "name": "@json-eval-rs/node",
-  "version": "0.0.68",
+  "version": "0.0.69",
   "description": "JSON Eval RS for Node.js and Server-Side Rendering with ergonomic API",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
