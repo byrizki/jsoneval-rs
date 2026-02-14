@@ -35,7 +35,7 @@ impl JSONEval {
         // Update data if provided
         if let Some(data_str) = data {
             // Save old data for comparison
-            let old_data = self.eval_data.clone_data_without(&["$params"]);
+            let old_data = self.eval_data.snapshot_data();
 
             let data_value = json_parser::parse_json_str(data_str)?;
             let context_value = if let Some(ctx) = context {
@@ -671,12 +671,11 @@ impl JSONEval {
                     let mut add_deps = false;
                     // Process clear
                     if let Some(clear_val) = &dep_item.clear {
-                        let clear_val_clone = clear_val.clone();
                         let should_clear = Self::evaluate_dependent_value_static(
                             engine,
                             evaluations,
                             eval_data,
-                            &clear_val_clone,
+                            clear_val,
                             &current_value,
                             &current_ref_value,
                         )?;
@@ -699,16 +698,15 @@ impl JSONEval {
 
                     // Process value
                     if let Some(value_val) = &dep_item.value {
-                        let value_val_clone = value_val.clone();
                         let computed_value = Self::evaluate_dependent_value_static(
                             engine,
                             evaluations,
                             eval_data,
-                            &value_val_clone,
+                            value_val,
                             &current_value,
                             &current_ref_value,
                         )?;
-                        let cleaned_val = clean_float_noise_scalar(computed_value.clone());
+                        let cleaned_val = clean_float_noise_scalar(computed_value);
 
                         if cleaned_val != current_ref_value && cleaned_val != Value::Null {
                             // Set the value

@@ -29,7 +29,7 @@ impl JSONEval {
             let _lock = self.eval_lock.lock().unwrap();
 
             // Save old data for comparison
-            let old_data = self.eval_data.clone_data_without(&["$params"]);
+            let old_data = self.eval_data.snapshot_data();
 
              // Parse and update data
             let data_value = json_parser::parse_json_str(data)?;

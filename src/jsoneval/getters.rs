@@ -12,59 +12,47 @@ impl JSONEval {
     /// Check if a field is effectively hidden by checking its condition and all parents
     /// Also checks for $layout.hideLayout.all on parents
     pub(crate) fn is_effective_hidden(&self, schema_pointer: &str) -> bool {
-        let mut current_path = schema_pointer.to_string();
+        let mut end = schema_pointer.len();
 
-        // Loop until broken (when we checked root)
         loop {
-            // Check if current node exists
-            if let Some(schema_node) = self.evaluated_schema.pointer(&current_path) {
+            let current_path = &schema_pointer[..end];
+
+            if let Some(schema_node) = self.evaluated_schema.pointer(current_path) {
                 if let Value::Object(map) = schema_node {
-                    // 1. Check condition.hidden
                     if let Some(Value::Object(condition)) = map.get("condition") {
-                        if let Some(Value::Bool(hidden)) = condition.get("hidden") {
-                            if *hidden {
+                        if let Some(Value::Bool(true)) = condition.get("hidden") {
+                            return true;
+                        }
+                    }
+
+                    if let Some(Value::Object(layout)) = map.get("$layout") {
+                        if let Some(Value::Object(hide_layout)) = layout.get("hideLayout") {
+                            if let Some(Value::Bool(true)) = hide_layout.get("all") {
                                 return true;
                             }
                         }
                     }
+                }
+            }
 
-                    // 2. Check layout hidden state ($layout.hideLayout.all)
-                    if let Some(Value::Object(layout)) = map.get("$layout") {
-                        if let Some(Value::Object(hide_layout)) = layout.get("hideLayout") {
-                            if let Some(Value::Bool(all)) = hide_layout.get("all") {
-                                if *all {
-                                    return true;
-                                }
-                            }
-                        }
+            if end == 0 {
+                break;
+            }
+
+            // Move to parent: find last '/' and strip /properties or /items suffixes
+            match schema_pointer[..end].rfind('/') {
+                Some(0) | None => {
+                    end = 0;
+                }
+                Some(last_slash) => {
+                    end = last_slash;
+                    let parent = &schema_pointer[..end];
+                    if parent.ends_with("/properties") {
+                        end -= "/properties".len();
+                    } else if parent.ends_with("/items") {
+                        end -= "/items".len();
                     }
                 }
-            }
-            
-            // If we just checked root, break
-            if current_path.is_empty() {
-                break;
-            }
-
-            // Move to parent
-            if let Some(last_slash_idx) = current_path.rfind('/') {
-                let parent_path_raw = &current_path[..last_slash_idx];
-                
-                if parent_path_raw.is_empty() {
-                    current_path = "".to_string();
-                    continue;
-                }
-                
-                // Handle path segments (strip /properties or /items)
-                if parent_path_raw.ends_with("/properties") {
-                    current_path = parent_path_raw[..parent_path_raw.len() - "/properties".len()].to_string();
-                } else if parent_path_raw.ends_with("/items") {
-                     current_path = parent_path_raw[..parent_path_raw.len() - "/items".len()].to_string();
-                } else {
-                     current_path = parent_path_raw.to_string();
-                }
-            } else {
-                break;
             }
         }
 
