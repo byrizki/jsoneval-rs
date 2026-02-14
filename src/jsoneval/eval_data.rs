@@ -209,7 +209,7 @@ impl EvalData {
         // Convert all paths to JSON pointers for batch processing
         let pointers: Vec<String> = paths
             .iter()
-            .map(|path| path_utils::normalize_to_json_pointer(path))
+            .map(|path| path_utils::normalize_to_json_pointer(path).into_owned())
             .collect();
 
         // Batch pointer resolution

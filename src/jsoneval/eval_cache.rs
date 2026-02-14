@@ -12,14 +12,43 @@ use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-/// Fast hash computation for cache keys
-/// Uses AHash for performance and FxHash-like quality
+
+
+/// Hash a serde_json::Value directly without intermediate string allocation
 #[inline]
-fn compute_hash<T: Hash>(value: &T) -> u64 {
-    let mut hasher = AHasher::default();
-    value.hash(&mut hasher);
-    hasher.finish()
+fn hash_value(value: &Value, hasher: &mut AHasher) {
+    match value {
+        Value::Null => 0u8.hash(hasher),
+        Value::Bool(b) => {
+            1u8.hash(hasher);
+            b.hash(hasher);
+        }
+        Value::Number(n) => {
+            2u8.hash(hasher);
+            n.as_f64().unwrap_or(0.0).to_bits().hash(hasher);
+        }
+        Value::String(s) => {
+            3u8.hash(hasher);
+            s.hash(hasher);
+        }
+        Value::Array(arr) => {
+            4u8.hash(hasher);
+            arr.len().hash(hasher);
+            for v in arr {
+                hash_value(v, hasher);
+            }
+        }
+        Value::Object(map) => {
+            5u8.hash(hasher);
+            map.len().hash(hasher);
+            for (k, v) in map {
+                k.hash(hasher);
+                hash_value(v, hasher);
+            }
+        }
+    }
 }
+
 
 /// Cache key: combines evaluation logic ID with hash of all dependent values
 /// Zero-copy design: stores references to logic and dependency paths
@@ -40,32 +69,27 @@ impl CacheKey {
         dependencies: &IndexSet<String>,
         values: &[(String, &Value)],
     ) -> Self {
-        // Build hash map for fast lookup
         let value_map: std::collections::HashMap<&str, &Value> =
             values.iter().map(|(k, v)| (k.as_str(), *v)).collect();
 
-        // Combine all dependency values into a single string for hashing
-        // This is more efficient than hashing each value separately
-        let mut combined = String::new();
+        let mut hasher = AHasher::default();
         for dep_key in dependencies.iter() {
-            combined.push_str(dep_key);
-            combined.push(':');
+            dep_key.hash(&mut hasher);
             if let Some(value) = value_map.get(dep_key.as_str()) {
-                combined.push_str(&value.to_string());
+                hash_value(value, &mut hasher);
             } else {
-                combined.push_str("null");
+                0u8.hash(&mut hasher);
             }
-            combined.push(';');
         }
 
-        // Compute single hash for all dependencies
-        let deps_hash = compute_hash(&combined);
+        let deps_hash = hasher.finish();
 
         Self {
             eval_key,
             deps_hash,
         }
     }
+
 
     /// Create a simple cache key without dependencies (for evaluations with no deps)
     pub fn simple(eval_key: String) -> Self {

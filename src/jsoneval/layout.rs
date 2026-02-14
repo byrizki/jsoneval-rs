@@ -148,17 +148,14 @@ impl JSONEval {
 
                     // Normalize to JSON pointer for actual lookup
                     let normalized_path = if ref_path.starts_with('#') || ref_path.starts_with('/') {
-                        path_utils::normalize_to_json_pointer(&ref_path)
+                        path_utils::normalize_to_json_pointer(&ref_path).into_owned()
                     } else {
-                        // Try as schema path first
                         let schema_pointer = path_utils::dot_notation_to_schema_pointer(&ref_path);
-                        let schema_path = path_utils::normalize_to_json_pointer(&schema_pointer);
+                        let schema_path = path_utils::normalize_to_json_pointer(&schema_pointer).into_owned();
 
-                        // Check if it exists
                         if self.evaluated_schema.pointer(&schema_path).is_some() {
                             schema_path
                         } else {
-                            // Try with /properties/ prefix
                             format!("/properties/{}", ref_path.replace('.', "/properties/"))
                         }
                     };

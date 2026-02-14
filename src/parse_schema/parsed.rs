@@ -43,7 +43,7 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                         .get_referenced_vars(&logic_id)
                         .unwrap_or_default()
                         .into_iter()
-                        .map(|dep| path_utils::normalize_to_json_pointer(&dep))
+                        .map(|dep| path_utils::normalize_to_json_pointer(&dep).into_owned())
                         .filter(|dep| {
                             // Filter out simple column references (e.g., "/INSAGE_YEAR", "/PREM_PP")
                             // These are FINDINDEX/MATCH column names, not actual data dependencies
@@ -128,9 +128,9 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                     if url.contains('{') && url.contains('}') {
                         // Convert to JSON pointer format for evaluated_schema access
                         let url_path =
-                            path_utils::normalize_to_json_pointer(&format!("{}/url", path));
+                            path_utils::normalize_to_json_pointer(&format!("{}/url", path)).into_owned();
                         let params_path =
-                            path_utils::normalize_to_json_pointer(&format!("{}/params", path));
+                            path_utils::normalize_to_json_pointer(&format!("{}/params", path)).into_owned();
                         options_templates.push((url_path, url.clone(), params_path));
                     }
                 }
@@ -310,10 +310,10 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
         match value {
             Value::Object(map) => {
                 if let Some(path) = map.get("$ref").and_then(Value::as_str) {
-                    refs.insert(path_utils::normalize_to_json_pointer(path));
+                    refs.insert(path_utils::normalize_to_json_pointer(path).into_owned());
                 }
                 if let Some(path) = map.get("ref").and_then(Value::as_str) {
-                    refs.insert(path_utils::normalize_to_json_pointer(path));
+                    refs.insert(path_utils::normalize_to_json_pointer(path).into_owned());
                 }
                 if let Some(var_val) = map.get("var") {
                     match var_val {

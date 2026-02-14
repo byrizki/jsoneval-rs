@@ -1,8 +1,4 @@
-//! Path utilities for JSON pointer operations
-//!
-//! This module provides JSON pointer normalization and access functions
-//! for efficient native serde_json operations.
-
+use std::borrow::Cow;
 use serde_json::Value;
 
 /// Normalize path to JSON pointer format for efficient native access
@@ -12,30 +8,29 @@ use serde_json::Value;
 /// - Dotted paths: user.name -> /user/name
 /// - Already normalized paths (no-op)
 /// - Simple field names: field -> /field
+///
+/// Returns `Cow::Borrowed` for already-normalized paths to avoid heap allocation.
 #[inline]
-pub fn normalize_to_json_pointer(path: &str) -> String {
+pub fn normalize_to_json_pointer(path: &str) -> Cow<'_, str> {
     if path.is_empty() {
-        return String::new();
+        return Cow::Borrowed("");
     }
 
-    // Fast path: JSON Schema reference format (#/...) — most common case
     if path.starts_with("#/") {
         let stripped = &path[1..];
         if !stripped.contains("//") {
-            return stripped.to_string();
+            return Cow::Borrowed(stripped);
         }
     }
 
-    // Fast path: already a valid JSON pointer
     if path.starts_with('/') && !path.contains("//") {
         return if path == "/" {
-            String::new()
+            Cow::Borrowed("")
         } else {
-            path.to_string()
+            Cow::Borrowed(path)
         };
     }
 
-    // Slow path: needs full normalization
     let mut normalized = if path.starts_with("#/") {
         path[1..].to_string()
     } else if !path.starts_with('/') {
@@ -48,17 +43,17 @@ pub fn normalize_to_json_pointer(path: &str) -> String {
         path.to_string()
     };
 
-    // Clean up double slashes
     while normalized.contains("//") {
         normalized = normalized.replace("//", "/");
     }
 
     if normalized == "/" {
-        String::new()
+        Cow::Borrowed("")
     } else {
-        normalized
+        Cow::Owned(normalized)
     }
 }
+
 
 /// Convert dotted path to JSON Schema pointer format
 ///

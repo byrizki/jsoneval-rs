@@ -9,10 +9,10 @@ pub fn collect_refs(value: &Value, refs: &mut IndexSet<String>) {
     match value {
         Value::Object(map) => {
             if let Some(path) = map.get("$ref").and_then(Value::as_str) {
-                refs.insert(path_utils::normalize_to_json_pointer(path));
+                refs.insert(path_utils::normalize_to_json_pointer(path).into_owned());
             }
             if let Some(path) = map.get("ref").and_then(Value::as_str) {
-                refs.insert(path_utils::normalize_to_json_pointer(path));
+                refs.insert(path_utils::normalize_to_json_pointer(path).into_owned());
             }
             if let Some(var_val) = map.get("var") {
                 match var_val {

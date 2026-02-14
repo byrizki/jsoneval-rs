@@ -148,7 +148,7 @@ impl JSONEval {
 
                         // For value evaluations (e.g. /properties/foo/value), we want the value at that path
                         // The path in eval_key is like "#/properties/foo/value"
-                        let pointer_path = path_utils::normalize_to_json_pointer(eval_key);
+                        let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
 
                         // Try cache first (thread-safe)
                         if let Some(_) = self.try_get_cached(eval_key, &eval_data_values) {
@@ -213,7 +213,7 @@ impl JSONEval {
                         }
                     }
 
-                    let pointer_path = path_utils::normalize_to_json_pointer(eval_key);
+                    let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
 
                     // Try cache first
                     if let Some(_) = self.try_get_cached(eval_key, &eval_data_values) {
@@ -292,7 +292,7 @@ impl JSONEval {
                                 }
                             }
 
-                            let pointer_path = path_utils::normalize_to_json_pointer(eval_key);
+                            let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
 
                             // Try cache first (thread-safe)
                             if let Some(_) = self.try_get_cached(eval_key, &eval_data_snapshot) {
@@ -384,7 +384,7 @@ impl JSONEval {
                             }
                         }
 
-                        let pointer_path = path_utils::normalize_to_json_pointer(eval_key);
+                        let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
 
                         // Try cache first
                         if let Some(_) = self.try_get_cached(eval_key, &eval_data_snapshot) {
@@ -490,7 +490,7 @@ impl JSONEval {
                                     }
                                 }
 
-                                let pointer_path = path_utils::normalize_to_json_pointer(eval_key);
+                                let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
 
                                 // Try cache first (thread-safe)
                                 if let Some(_) = self.try_get_cached(eval_key, &eval_data_snapshot)
@@ -570,7 +570,7 @@ impl JSONEval {
                                 }
                             }
 
-                            let pointer_path = path_utils::normalize_to_json_pointer(eval_key);
+                            let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
 
                             // Try cache first
                             if let Some(_) = self.try_get_cached(eval_key, &eval_data_snapshot) {

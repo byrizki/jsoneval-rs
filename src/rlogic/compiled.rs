@@ -205,7 +205,7 @@ impl CompiledLogic {
             "var" => {
                 if let Value::String(name) = args {
                     // OPTIMIZED: Pre-normalize path during compilation
-                    let normalized = path_utils::normalize_to_json_pointer(name);
+                    let normalized = path_utils::normalize_to_json_pointer(name).into_owned();
                     Ok(CompiledLogic::Var(normalized, None))
                 } else if let Value::Array(arr) = args {
                     if arr.is_empty() {
@@ -213,7 +213,7 @@ impl CompiledLogic {
                     }
                     let name = arr[0].as_str().ok_or("var name must be a string")?;
                     // OPTIMIZED: Pre-normalize path during compilation
-                    let normalized = path_utils::normalize_to_json_pointer(name);
+                    let normalized = path_utils::normalize_to_json_pointer(name).into_owned();
                     let default = if arr.len() > 1 {
                         Some(Box::new(Self::compile(&arr[1])?))
                     } else {
@@ -227,7 +227,7 @@ impl CompiledLogic {
             "$ref" | "ref" => {
                 if let Value::String(path) = args {
                     // OPTIMIZED: Pre-normalize path during compilation
-                    let normalized = path_utils::normalize_to_json_pointer(path);
+                    let normalized = path_utils::normalize_to_json_pointer(path).into_owned();
                     Ok(CompiledLogic::Ref(normalized, None))
                 } else if let Value::Array(arr) = args {
                     if arr.is_empty() {
@@ -235,7 +235,7 @@ impl CompiledLogic {
                     }
                     let path = arr[0].as_str().ok_or("$ref path must be a string")?;
                     // OPTIMIZED: Pre-normalize path during compilation
-                    let normalized = path_utils::normalize_to_json_pointer(path);
+                    let normalized = path_utils::normalize_to_json_pointer(path).into_owned();
                     let default = if arr.len() > 1 {
                         Some(Box::new(Self::compile(&arr[1])?))
                     } else {

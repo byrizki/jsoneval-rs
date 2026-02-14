@@ -56,13 +56,13 @@ pub fn topological_sort(lib: &JSONEval) -> Result<Vec<Vec<String>>, String> {
     let mut pointer_to_eval: IndexMap<String, String> = IndexMap::new();
     for eval_key in filtered_evaluations.keys() {
         // Convert evaluation keys to JSON pointers
-        let pointer = path_utils::normalize_to_json_pointer(eval_key);
+        let pointer = path_utils::normalize_to_json_pointer(eval_key).into_owned();
         pointer_to_eval.insert(pointer, eval_key.clone());
     }
 
     // Also add table paths to pointer_to_eval for dependency resolution
     for table_path in &table_paths {
-        let pointer = path_utils::normalize_to_json_pointer(table_path);
+        let pointer = path_utils::normalize_to_json_pointer(table_path).into_owned();
         pointer_to_eval.insert(pointer, table_path.clone());
     }
 

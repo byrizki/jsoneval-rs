@@ -12,7 +12,8 @@ use crate::time_block;
 use indexmap::IndexMap;
 use serde::de::Error as _;
 use serde_json::Value;
-use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, RwLock};
 
 
 impl Clone for JSONEval {
@@ -44,6 +45,7 @@ impl Clone for JSONEval {
             cached_msgpack_schema: self.cached_msgpack_schema.clone(),
             conditional_hidden_fields: self.conditional_hidden_fields.clone(),
             conditional_readonly_fields: self.conditional_readonly_fields.clone(),
+            regex_cache: RwLock::new(HashMap::new()),
         }
     }
 }
@@ -99,9 +101,10 @@ impl JSONEval {
                     eval_cache: EvalCache::new(),
                     cache_enabled: true, // Caching enabled by default
                     eval_lock: Mutex::new(()),
-                    cached_msgpack_schema: None, // JSON initialization, no MessagePack cache
+                    cached_msgpack_schema: None,
                     conditional_hidden_fields: Arc::new(Vec::new()),
                     conditional_readonly_fields: Arc::new(Vec::new()),
+                    regex_cache: RwLock::new(HashMap::new()),
                 }
             });
             time_block!("  parse_schema", {
@@ -166,9 +169,10 @@ impl JSONEval {
             eval_cache: EvalCache::new(),
             cache_enabled: true, // Caching enabled by default
             eval_lock: Mutex::new(()),
-            cached_msgpack_schema: Some(cached_msgpack), // Store for zero-copy retrieval
+            cached_msgpack_schema: Some(cached_msgpack),
             conditional_hidden_fields: Arc::new(Vec::new()),
             conditional_readonly_fields: Arc::new(Vec::new()),
+            regex_cache: RwLock::new(HashMap::new()),
         };
         parse_schema::legacy::parse_schema(&mut instance)?;
         Ok(instance)
@@ -252,9 +256,10 @@ impl JSONEval {
             eval_cache: EvalCache::new(),
             cache_enabled: true, // Caching enabled by default
             eval_lock: Mutex::new(()),
-            cached_msgpack_schema: None, // No MessagePack cache for parsed schema
+            cached_msgpack_schema: None,
             conditional_hidden_fields: Arc::clone(&parsed.conditional_hidden_fields),
             conditional_readonly_fields: Arc::clone(&parsed.conditional_readonly_fields),
+            regex_cache: RwLock::new(HashMap::new()),
         };
 
         Ok(instance)

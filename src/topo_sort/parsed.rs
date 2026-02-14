@@ -53,12 +53,12 @@ pub fn topological_sort_parsed(parsed: &ParsedSchema) -> Result<Vec<Vec<String>>
     // Create a mapping from JSON pointer paths to evaluation keys
     let mut pointer_to_eval: IndexMap<String, String> = IndexMap::new();
     for eval_key in filtered_evaluations.keys() {
-        let pointer = path_utils::normalize_to_json_pointer(eval_key);
+        let pointer = path_utils::normalize_to_json_pointer(eval_key).into_owned();
         pointer_to_eval.insert(pointer, eval_key.clone());
     }
 
     for table_path in &table_paths {
-        let pointer = path_utils::normalize_to_json_pointer(table_path);
+        let pointer = path_utils::normalize_to_json_pointer(table_path).into_owned();
         pointer_to_eval.insert(pointer, table_path.clone());
     }
 

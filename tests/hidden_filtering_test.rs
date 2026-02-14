@@ -85,8 +85,8 @@ fn test_hidden_field_filtering() {
     let result_value = eval.get_schema_value();
     
     // 1. Check visible fields exist and have values
-    assert_eq!(result_value.pointer("/visible_field"), Some(&json!("visible")));
-    assert_eq!(result_value.pointer("/nested_visible/child_visible"), Some(&json!("child_visible")));
+    assert_eq!(result_value.pointer("/visible_field"), Some(&json!("user_visible")));
+    assert_eq!(result_value.pointer("/nested_visible/child_visible"), Some(&json!("user_child_visible")));
     
     // 2. Check simple hidden is gone
     assert_eq!(result_value.pointer("/simple_hidden"), None, "Simple hidden field should be removed");

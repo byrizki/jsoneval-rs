@@ -83,7 +83,7 @@ pub fn to_string(value: &Value) -> String {
 /// Use centralized path normalization for consistent $ref/var handling
 #[inline]
 pub fn normalize_ref_path(path: &str) -> String {
-    path_utils::normalize_to_json_pointer(path)
+    path_utils::normalize_to_json_pointer(path).into_owned()
 }
 
 /// OPTIMIZED: Fast variable access - paths are pre-normalized during compilation

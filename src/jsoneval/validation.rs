@@ -387,20 +387,22 @@ impl JSONEval {
                 if !is_empty {
                     if let Some(pattern) = rule_active.as_str() {
                         if let Some(text) = field_data.as_str() {
-                            if let Ok(regex) = regex::Regex::new(pattern) {
-                                if !regex.is_match(text) {
-                                    errors.insert(
-                                        field_path.to_string(),
-                                        ValidationError {
-                                            rule_type: "pattern".to_string(),
-                                            message: rule_message,
-                                            code: error_code.clone(),
-                                            pattern: Some(pattern.to_string()),
-                                            field_value: Some(text.to_string()),
-                                            data: None,
-                                        },
-                                    );
-                                }
+                            let mut cache = self.regex_cache.write().unwrap();
+                            let regex = cache.entry(pattern.to_string()).or_insert_with(|| {
+                                regex::Regex::new(pattern).unwrap_or_else(|_| regex::Regex::new("(?:)").unwrap())
+                            });
+                            if !regex.is_match(text) {
+                                errors.insert(
+                                    field_path.to_string(),
+                                    ValidationError {
+                                        rule_type: "pattern".to_string(),
+                                        message: rule_message,
+                                        code: error_code.clone(),
+                                        pattern: Some(pattern.to_string()),
+                                        field_value: Some(text.to_string()),
+                                        data: None,
+                                    },
+                                );
                             }
                         }
                     }
