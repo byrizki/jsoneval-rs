@@ -31,20 +31,32 @@ pub fn normalize_to_json_pointer(path: &str) -> Cow<'_, str> {
         };
     }
 
-    let mut normalized = if path.starts_with("#/") {
-        path[1..].to_string()
+    let mut normalized = String::with_capacity(path.len() + 1);
+    let source = if path.starts_with("#/") {
+        &path[1..]
     } else if !path.starts_with('/') {
-        if path.contains('.') {
-            format!("/{}", path.replace('.', "/"))
-        } else {
-            format!("/{}", path)
-        }
+        normalized.push('/');
+        path
     } else {
-        path.to_string()
+        path
     };
 
-    while normalized.contains("//") {
-        normalized = normalized.replace("//", "/");
+    let mut prev_slash = normalized.ends_with('/');
+    for ch in source.chars() {
+        let c = if ch == '.' && !path.starts_with('/') && !path.starts_with('#') {
+            '/'
+        } else {
+            ch
+        };
+        if c == '/' {
+            if !prev_slash {
+                normalized.push('/');
+            }
+            prev_slash = true;
+        } else {
+            normalized.push(c);
+            prev_slash = false;
+        }
     }
 
     if normalized == "/" {

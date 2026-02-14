@@ -150,7 +150,7 @@ impl JSONEval {
         // Override data with values from value evaluations
         // We use value_evaluations which stores the paths of fields with .value
         for eval_key in self.value_evaluations.iter() {
-            let clean_key = eval_key.replace('#', "");
+            let clean_key = eval_key.strip_prefix('#').unwrap_or(eval_key);
 
             // Exclude rules.*.value, options.*.value, and $params
             if clean_key.starts_with("/$params")
@@ -236,7 +236,7 @@ impl JSONEval {
         let mut result = Vec::new();
         
         for eval_key in self.value_evaluations.iter() {
-            let clean_key = eval_key.replace('#', "");
+            let clean_key = eval_key.strip_prefix('#').unwrap_or(eval_key);
 
             // Exclude rules.*.value, options.*.value, and $params
             if clean_key.starts_with("/$params")
@@ -289,7 +289,7 @@ impl JSONEval {
         let mut result = serde_json::Map::new();
         
         for eval_key in self.value_evaluations.iter() {
-            let clean_key = eval_key.replace('#', "");
+            let clean_key = eval_key.strip_prefix('#').unwrap_or(eval_key);
 
             // Exclude rules.*.value, options.*.value, and $params
             if clean_key.starts_with("/$params")
