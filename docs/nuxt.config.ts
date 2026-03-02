@@ -14,6 +14,10 @@ export default defineNuxtConfig({
         code: "en",
         name: "English",
       },
+      {
+        code: "id",
+        name: "Indonesia",
+      },
     ],
   },
   content: {
