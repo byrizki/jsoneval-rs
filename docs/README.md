@@ -1,190 +1,123 @@
----
-layout: default
-title: Home
----
+# Docus i18n Starter
 
-# JSONEval-Rs Operator Documentation
+> A beautiful, internationalized starter for creating multi-language documentation with Docus
 
-Comprehensive documentation for all operators available in JSONEval-Rs.
+This is the i18n Docus starter template that provides everything you need to build beautiful, multi-language documentation sites with Markdown and Vue components.
 
-## 📚 Documentation Structure
+## ✨ Features
 
-This documentation is organized by operator category for easy navigation:
-
-### Core Operators
-- **[Core Operators](operators-core.md)** - Variables, references, and literal values
-  - `var`, `$ref`, literals (null, bool, number, string, array)
-
-### Logical & Control Flow
-- **[Logical Operators](operators-logical.md)** - Boolean logic and conditional execution
-  - `and`, `or`, `not`, `if`, `xor`, `ifnull`, `isempty`, `empty`
-
-### Comparison Operators
-- **[Comparison Operators](operators-comparison.md)** - Value comparisons
-  - `==`, `===`, `!=`, `!==`, `<`, `<=`, `>`, `>=`
-
-### Arithmetic Operators
-- **[Arithmetic Operators](operators-arithmetic.md)** - Mathematical operations
-  - `+`, `-`, `*`, `/`, `%`, `^`, `pow`
-
-### String Operators
-- **[String Operators](operators-string.md)** - Text manipulation
-  - `cat`, `concat`, `substr`, `search`, `left`, `right`, `mid`, `len`, `length`
-  - `splittext`, `splitvalue`, `stringformat`
-
-### Math Functions
-- **[Math Functions](operators-math.md)** - Advanced mathematical operations
-  - `abs`, `max`, `min`, `pow`, `round`, `roundup`, `rounddown`
-  - `ceiling`, `floor`, `trunc`, `mround`
-
-### Date Functions
-- **[Date Functions](operators-date.md)** - Date and time operations
-  - `today`, `now`, `year`, `month`, `day`, `date`, `dateformat`
-  - `days`, `yearfrac`, `datedif`
-
-### Array Operators
-- **[Array Operators](operators-array.md)** - Array transformations and operations
-  - `map`, `filter`, `reduce`, `all`, `some`, `none`
-  - `merge`, `in`, `sum`, `for`, `multiplies`, `divides`
-
-### Table Operators
-- **[Table/Lookup Operators](operators-table.md)** - Data table operations
-  - `VALUEAT`, `MAXAT`, `INDEXAT`, `MATCH`, `MATCHRANGE`
-  - `CHOOSE`, `FINDINDEX`
-
-### Utility Operators
-- **[Utility Operators](operators-utility.md)** - Helper functions and UI operations
-  - `missing`, `missing_some`, `return`
-  - `RANGEOPTIONS`, `MAPOPTIONS`, `MAPOPTIONSIF`
-
-## 🎯 Quick Reference Guides
-
-- **[Operators Summary](OPERATORS_SUMMARY.md)** - Complete alphabetical reference of all 80+ operators
-- **[Operator Cross-Reference](OPERATOR_CROSS_REFERENCE.md)** - Find operators by task ("I want to...")
-- **[Common Mistakes](COMMON_MISTAKES.md)** - Pitfalls to avoid and how to fix them
-
-## 🔬 Advanced Features
-
-- **[Subform Evaluation](SUBFORM_FEATURE.md)** - Selective evaluation and performance optimization
-  - Evaluate specific paths only
-  - Multi-platform support (Rust, C#, Web, React Native)
-  - Performance benchmarks and best practices
+- 🌍 **Internationalization** - Native i18n support for multi-language docs
+- 🎨 **Beautiful Design** - Clean, modern documentation theme
+- 📱 **Responsive** - Mobile-first responsive design  
+- 🌙 **Dark Mode** - Built-in dark/light mode support
+- 🔍 **Search** - Full-text search functionality per language
+- 📝 **Markdown Enhanced** - Extended markdown with custom components
+- 🎨 **Customizable** - Easy theming and brand customization
+- ⚡ **Fast** - Optimized for performance with Nuxt 4
+- 🔧 **TypeScript** - Full TypeScript support
 
 ## 🚀 Quick Start
 
-### Basic Variable Access
-```json
-{"var": "user.name"}
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
 ```
 
-### Conditional Logic
-```json
-{"if": [
-  {">": [{"var": "age"}, 18]},
-  "Adult",
-  "Minor"
-]}
+Your multilingual documentation site will be running at `http://localhost:3000`
+
+## 🌍 Languages
+
+This starter comes pre-configured with:
+- 🇺🇸 **English** (`en`) - Default language
+- 🇫🇷 **Français** (`fr`) - French translation
+
+## 📁 Project Structure
+
+```
+my-docs/
+├── content/              # Your markdown content
+│   ├── en/              # English content
+│   │   ├── index.md     # English homepage
+│   │   └── docs/        # English documentation
+│   └── fr/              # French content
+│       ├── index.md     # French homepage
+│       └── docs/        # French documentation
+├── public/              # Static assets
+├── nuxt.config.ts       # Nuxt configuration with i18n setup
+└── package.json         # Dependencies and scripts
 ```
 
-### Array Transformation
-```json
-{"map": [
-  {"var": "numbers"},
-  {"*": [{"var": ""}, 2]}
-]}
+### Content Structure
+
+The content is organized by language, making it easy to manage translations:
+
+```
+content/
+├── en/                   # English content
+│   ├── index.md
+│   ├── 1.getting-started/
+│   │   ├── installation.md
+│   │   └── configuration.md
+│   └── 2.essentials/
+│       ├── markdown.md
+│       └── components.md
+└── fr/                   # French content
+    ├── index.md
+    ├── 1.getting-started/
+    │   ├── installation.md
+    │   └── configuration.md
+    └── 2.essentials/
+        ├── markdown.md
+        └── components.md
 ```
 
-### Date Operations
-```json
-{"days": [{"today": null}, {"var": "birthdate"}]}
+## 🔗 URL Structure
+
+The i18n starter generates URLs with language prefixes:
+
+- English: `/en/getting-started/installation`
+- French: `/fr/getting-started/installation`
+- Default locale fallback: `/getting-started/installation` (redirects to English)
+
+## ⚡ Built with
+
+This starter comes pre-configured with:
+
+- [Nuxt 4](https://nuxt.com) - The web framework
+- [Nuxt Content](https://content.nuxt.com/) - File-based CMS
+- [Nuxt i18n](https://i18n.nuxt.com/) - Internationalization
+- [Nuxt UI](https://ui.nuxt.com) - UI components
+- [Nuxt Image](https://image.nuxt.com/) - Optimized images
+- [Tailwind CSS 4](https://tailwindcss.com/) - Utility-first CSS
+- [Docus Layer](https://www.npmjs.com/package/docus) - Documentation theme
+
+## 📖 Documentation
+
+For detailed documentation on customizing your Docus project, visit the [Docus Documentation](https://docus.dev)
+
+### 🤖 AI Assistant Skill
+
+Get started quickly with Docus by adding specialized knowledge to your AI assistant (Cursor, Claude, etc.):
+
+```bash
+npx skills add nuxt-content/docus
 ```
 
-## 📖 How to Use This Documentation
+This skill helps you create documentation faster by providing your AI assistant with best practices, MDC component usage, ready-to-use templates, writing guidelines, and configuration tips for Docus. Perfect for quickly scaffolding new documentation projects.
 
-Each operator documentation page includes:
+## 🚀 Deployment
 
-- **Syntax** - How to write the operator
-- **Parameters** - What arguments it accepts
-- **Return Type** - What value it returns
-- **Examples** - Practical usage examples
-- **Edge Cases** - Special behaviors and gotchas
-- **Related Operators** - Similar or complementary operators
+Build for production:
 
-## 💡 Key Concepts
+```bash
+npm run build
+```
 
-### Path Notation
-JSONEval-Rs supports multiple path notations:
-- **Dot notation**: `"user.profile.name"`
-- **JSON Pointer**: `"/user/profile/name"`
-- **Array indices**: `"items.0"` or `"items[0]"`
+The built files will be in the `.output` directory, ready for deployment to any hosting provider that supports Node.js.
 
-### Context Variables
-Special variables available in certain contexts:
-- **`$iteration`** - Current iteration index in FOR loops
-- **`$loopIteration`** - Loop counter
-- **`current`** - Current element in array operations
-- **`accumulator`** - Accumulated value in reduce operations
-- **Empty string `""`** - Refers to current context in map/filter
+## 📄 License
 
-### Type Coercion
-JSONEval-Rs follows JavaScript-like type coercion rules:
-- Numbers: `"123"` → `123`
-- Booleans: `0`, `null`, `""` → `false`; others → `true`
-- Strings: All values can be converted to strings
-
-### Operator Aliases
-Many operators have multiple names for compatibility:
-- Excel-style (uppercase): `ROUND`, `SUM`, `CONCAT`
-- JavaScript-style (lowercase): `round`, `sum`, `concat`
-
-## 🔧 Configuration
-
-Some operators respect configuration options:
-- **`safe_nan_handling`** - Converts NaN/Infinity to 0 or null
-- **`recursion_limit`** - Maximum nesting depth (default: 100)
-
-## 📝 Conventions Used
-
-Throughout this documentation:
-- `{...}` - Object/operator notation
-- `[...]` - Array notation
-- `{"var": "..."}` - Variable access
-- `// comment` - Explanatory comments (not valid in JSON)
-
-## 🎯 Finding Operators
-
-**By Use Case:**
-- **Data validation**: `missing`, `missing_some`, `isempty`
-- **Calculations**: Arithmetic and Math operators
-- **Text processing**: String operators
-- **Date calculations**: Date operators
-- **Array filtering**: `filter`, `all`, `some`, `none`
-- **Table lookups**: Table operators
-
-**By Name:**
-Navigate to the appropriate category page or use your browser's search function.
-
-## 🌟 Best Practices
-
-1. **Use compiled logic** - Compile once, run many times for better performance
-2. **Normalize paths** - Paths are automatically normalized during compilation
-3. **Handle missing data** - Use defaults with `var` or `ifnull` operators
-4. **Leverage array operations** - Use `map`, `filter`, `reduce` instead of loops
-5. **Cache table lookups** - Reuse VALUEAT/INDEXAT results when possible
-
-## 📚 Additional Resources
-
-### Documentation Guides
-- **[Operators Summary](OPERATORS_SUMMARY.md)** - Quick reference for all operators
-- **[Operator Cross-Reference](OPERATOR_CROSS_REFERENCE.md)** - Find operators by what you want to do
-- **[Common Mistakes](COMMON_MISTAKES.md)** - Avoid common pitfalls
-- **[Subform Evaluation](SUBFORM_FEATURE.md)** - Advanced selective evaluation
-
-### Project Resources
-- **[Main README](../README.md)** - Project overview and installation
-- **[Examples](../examples/)** - Practical code examples
-- **[Tests](../tests/)** - Comprehensive test suite showing all features
-
----
-
-**Note**: This implementation extends standard JSON Logic with custom operators for Excel-like functions, table operations, and advanced date/string manipulation.
+[MIT License](https://opensource.org/licenses/MIT) 

@@ -1,0 +1,16 @@
+{
+  "name": "documentation",
+  "scripts": {
+    "dev": "nuxt dev --extends docus",
+    "build": "nuxt build --extends docus --preset github_pages"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.6.2",
+    "docus": "latest",
+    "nuxt": "^4.3.1"
+  },
+  "resolutions": {
+    "unimport": "5.6.0"
+  },
+  "packageManager": "yarn@4.12.0"
+}

@@ -1,7 +1,5 @@
 # json-eval-rs
 
-[![CI](https://github.com/byrizki/jsoneval-rs/actions/workflows/publish.yml/badge.svg)](https://github.com/byrizki/jsoneval-rs/actions/workflows/publish.yml)
-[![Build Bindings](https://github.com/byrizki/jsoneval-rs/actions/workflows/build-bindings.yml/badge.svg)](https://github.com/byrizki/jsoneval-rs/actions/workflows/build-bindings.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/byrizki/jsoneval-rs?display_name=release&logo=github)](https://github.com/byrizki/jsoneval-rs/releases/latest)
 
 <!-- Registry Versions -->
@@ -11,6 +9,7 @@
 [![RN](https://img.shields.io/npm/v/@json-eval-rs/react-native?label=@json-eval-rs/react-native&logo=npm)](https://www.npmjs.com/package/@json-eval-rs/react-native)
 [![Web Core](https://img.shields.io/npm/v/@json-eval-rs/webcore?label=@json-eval-rs/webcore&logo=npm)](https://www.npmjs.com/package/@json-eval-rs/webcore)
 [![Bundler](https://img.shields.io/npm/v/@json-eval-rs/bundler?label=@json-eval-rs/bundler&logo=npm)](https://www.npmjs.com/package/@json-eval-rs/bundler)
+[![Vanilla Web](https://img.shields.io/npm/v/@json-eval-rs/vanilla?label=@json-eval-rs/vanilla&logo=npm)](https://www.npmjs.com/package/@json-eval-rs/vanilla)
 [![Node](https://img.shields.io/npm/v/@json-eval-rs/node?label=@json-eval-rs/node&logo=npm)](https://www.npmjs.com/package/@json-eval-rs/node)
 
 **High-performance JSON Logic evaluation library with schema validation and multi-platform bindings**
@@ -43,17 +42,17 @@
 
 **[📚 Comprehensive Operator Documentation](docs/README.md)** - Complete guide to all 80+ available operators:
 
-- **[Quick Reference](docs/OPERATORS_SUMMARY.md)** - Alphabetical operator list
-- **[Core Operators](docs/operators-core.md)** - Variables and literals
-- **[Logical Operators](docs/operators-logical.md)** - Boolean logic (`and`, `or`, `if`, etc.)
-- **[Comparison Operators](docs/operators-comparison.md)** - Value comparisons (`==`, `<`, `>`, etc.)
-- **[Arithmetic Operators](docs/operators-arithmetic.md)** - Math operations (`+`, `-`, `*`, `/`, etc.)
-- **[String Operators](docs/operators-string.md)** - Text manipulation (`cat`, `substr`, `search`, etc.)
-- **[Math Functions](docs/operators-math.md)** - Advanced math (`round`, `abs`, `max`, etc.)
-- **[Date Functions](docs/operators-date.md)** - Date/time operations (`today`, `dateformat`, etc.)
-- **[Array Operators](docs/operators-array.md)** - Array transformations (`map`, `filter`, `reduce`, etc.)
-- **[Table Operators](docs/operators-table.md)** - Data lookups (`VALUEAT`, `INDEXAT`, etc.)
-- **[Utility Operators](docs/operators-utility.md)** - Helper functions (`missing`, `RANGEOPTIONS`, etc.)
+- **[Quick Reference](docs/reference/summary.md)** - Alphabetical operator list
+- **[Core Operators](docs/reference/core.md)** - Variables and literals
+- **[Logical Operators](docs/reference/logical.md)** - Boolean logic (`and`, `or`, `if`, etc.)
+- **[Comparison Operators](docs/reference/comparison.md)** - Value comparisons (`==`, `<`, `>`, etc.)
+- **[Arithmetic Operators](docs/reference/arithmetic.md)** - Math operations (`+`, `-`, `*`, `/`, etc.)
+- **[String Operators](docs/reference/string.md)** - Text manipulation (`cat`, `substr`, `search`, etc.)
+- **[Math Functions](docs/reference/math.md)** - Advanced math (`round`, `abs`, `max`, etc.)
+- **[Date Functions](docs/reference/date.md)** - Date/time operations (`today`, `dateformat`, etc.)
+- **[Array Operators](docs/reference/array.md)** - Array transformations (`map`, `filter`, `reduce`, etc.)
+- **[Table Operators](docs/reference/table.md)** - Data lookups (`VALUEAT`, `INDEXAT`, etc.)
+- **[Utility Operators](docs/reference/utility.md)** - Helper functions (`missing`, `RANGEOPTIONS`, etc.)
 
 ## 📦 Installation
 
@@ -73,7 +72,11 @@ dotnet add package JsonEvalRs
 ### Web / JavaScript / TypeScript
 
 ```bash
-yarn install @json-eval-rs/web
+yarn add @json-eval-rs/webcore
+# Then add either specific backend:
+yarn add @json-eval-rs/bundler # (For Vite/Webpack)
+# OR
+yarn add @json-eval-rs/vanilla # (For Vanilla JS)
 ```
 
 ### React Native
