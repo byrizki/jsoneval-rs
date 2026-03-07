@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.70] - 2026-03-07
+
+### Changed
+
+- [core] [RN] [WASM] [FFI] fix exported method parity across binding language
+
 ## [0.0.69] - 2026-02-14
 
 ### Fixed
