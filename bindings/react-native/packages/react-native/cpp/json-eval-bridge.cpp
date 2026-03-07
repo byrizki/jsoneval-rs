@@ -214,7 +214,7 @@ void JsonEvalBridge::evaluateAsync(
     }, callback);
 }
 
-void JsonEvalBridge::evaluateNoReturnAsync(
+void JsonEvalBridge::evaluateOnlyAsync(
     const std::string& handleId,
     const std::string& data,
     const std::string& context,

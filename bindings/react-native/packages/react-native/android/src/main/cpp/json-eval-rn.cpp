@@ -237,7 +237,7 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeEvaluateOnlyAsync(
     std::string pathsJsonStr = jstringToString(env, pathsJson);
     
     runAsyncWithPromise(env, promise, "EVALUATE_NO_RETURN_ERROR", [handleStr, dataStr, contextStr, pathsJsonStr](auto callback) {
-        JsonEvalBridge::evaluateNoReturnAsync(handleStr, dataStr, contextStr, pathsJsonStr, callback);
+        JsonEvalBridge::evaluateOnlyAsync(handleStr, dataStr, contextStr, pathsJsonStr, callback);
     });
 }
 
