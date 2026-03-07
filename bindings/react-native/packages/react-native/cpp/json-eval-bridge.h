@@ -77,7 +77,7 @@ public:
      * @param pathsJson Optional JSON array of paths for selective evaluation
      * @param callback Result callback (empty string on success)
      */
-    static void evaluateNoReturnAsync(
+    static void evaluateOnlyAsync(
         const std::string& handle,
         const std::string& data,
         const std::string& context,

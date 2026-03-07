@@ -487,6 +487,39 @@ export class JSONEvalCore {
   }
 
   /**
+   * Create a new JSONEval instance from a MessagePack schema
+   * Static factory method for convenience
+   *
+   * @param wasmModule - WASM module
+   * @param schemaMsgpack - MessagePack schema (Uint8Array)
+   * @param context - Optional context data
+   * @param data - Optional initial data
+   * @returns New instance
+   */
+  static fromMsgpack(
+    wasmModule: any,
+    schemaMsgpack: Uint8Array,
+    context?: any,
+    data?: any
+  ): JSONEvalCore {
+    return new JSONEvalCore(wasmModule, {
+      schema: schemaMsgpack,
+      context,
+      data,
+    });
+  }
+
+  /**
+   * Get the WASM library version
+   *
+   * @param wasmModule - WASM module
+   * @returns Version string
+   */
+  static version(wasmModule: any): string {
+    return getVersion(wasmModule);
+  }
+
+  /**
    * Evaluate logic expression without creating an instance
    *
    * @param wasmModule - WASM module
@@ -716,6 +749,14 @@ export class JSONEvalCore {
   async getSchemaByPath({ path }: GetSchemaByPathOptions): Promise<any | null> {
     await this.init();
     return this._instance.getSchemaByPathJS(path);
+  }
+
+  /**
+   * Get a value from the schema using dotted path notation
+   * Alias for getSchemaByPath to match React Native API
+   */
+  async get(path: string): Promise<any | null> {
+    return this.getSchemaByPath({ path });
   }
 
   /**
@@ -1235,6 +1276,13 @@ export class JSONEvalCore {
       this._instance = null;
       this._ready = false;
     }
+  }
+
+  /**
+   * Alias for free() to match React Native API
+   */
+  dispose(): void {
+    this.free();
   }
 }
 

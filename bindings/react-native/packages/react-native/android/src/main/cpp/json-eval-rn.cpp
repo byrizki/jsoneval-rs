@@ -221,6 +221,26 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeEvaluateAsync(
     });
 }
 
+JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeEvaluateOnlyAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jstring data,
+    jstring context,
+    jstring pathsJson,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    std::string dataStr = jstringToString(env, data);
+    std::string contextStr = jstringToString(env, context);
+    std::string pathsJsonStr = jstringToString(env, pathsJson);
+    
+    runAsyncWithPromise(env, promise, "EVALUATE_NO_RETURN_ERROR", [handleStr, dataStr, contextStr, pathsJsonStr](auto callback) {
+        JsonEvalBridge::evaluateNoReturnAsync(handleStr, dataStr, contextStr, pathsJsonStr, callback);
+    });
+}
+
 JNIEXPORT jdouble JNICALL
 Java_com_jsonevalrs_JsonEvalRsModule_nativeCompileLogic(
     JNIEnv* env,

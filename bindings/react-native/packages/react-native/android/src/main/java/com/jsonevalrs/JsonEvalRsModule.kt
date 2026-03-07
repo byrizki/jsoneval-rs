@@ -45,14 +45,14 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
-    fun evaluateNoReturn(
+    fun evaluateOnly(
         handle: String,
         data: String,
         context: String?,
         pathsJson: String?,
         promise: Promise
     ) {
-        nativeEvaluateNoReturnAsync(handle, data, context ?: "", pathsJson ?: "", promise)
+        nativeEvaluateOnlyAsync(handle, data, context ?: "", pathsJson ?: "", promise)
     }
 
     @ReactMethod
@@ -568,7 +568,7 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     private external fun nativeCreateFromMsgpack(schemaMsgpack: ByteArray, context: String, data: String): String
     private external fun nativeCreateFromCache(cacheKey: String, context: String, data: String): String
     private external fun nativeEvaluateAsync(handle: String, data: String, context: String, pathsJson: String, promise: Promise)
-    private external fun nativeEvaluateNoReturnAsync(handle: String, data: String, context: String, pathsJson: String, promise: Promise)
+    private external fun nativeEvaluateOnlyAsync(handle: String, data: String, context: String, pathsJson: String, promise: Promise)
     private external fun nativeValidateAsync(handle: String, data: String, context: String, promise: Promise)
     private external fun nativeEvaluateDependentsAsync(
         handle: String,

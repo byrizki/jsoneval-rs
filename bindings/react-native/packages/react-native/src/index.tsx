@@ -351,6 +351,46 @@ export class JSONEval {
   }
 
   /**
+   * Creates a new JSON evaluator instance from a MessagePack-encoded schema
+   * @param schemaMsgpack - MessagePack-encoded schema bytes (Uint8Array or number array)
+   * @param context - Optional context data
+   * @param data - Optional initial data
+   * @returns New JSONEval instance
+   * @throws {Error} If creation fails
+   */
+  static fromMsgpack(
+    schemaMsgpack: Uint8Array | number[],
+    context?: string | object | null,
+    data?: string | object | null
+  ): JSONEval {
+    const contextStr = context
+      ? typeof context === 'string'
+        ? context
+        : JSONStringify(context)
+      : null;
+    const dataStr = data
+      ? typeof data === 'string'
+        ? data
+        : JSONStringify(data)
+      : null;
+
+    try {
+      // Convert Uint8Array to number array if needed
+      const msgpackArray =
+        schemaMsgpack instanceof Uint8Array
+          ? Array.from(schemaMsgpack)
+          : schemaMsgpack;
+          
+      const handle = JsonEvalRs.createFromMsgpack(msgpackArray, contextStr, dataStr);
+      return new JSONEval({ schema: {}, _handle: handle });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to create JSONEval instance from MessagePack: ${errorMessage}`);
+    }
+  }
+
+  /**
    * Evaluates logic expression without creating an instance
    * @param logicStr - JSON Logic expression as string or object
    * @param data - Optional data as string or object
@@ -491,7 +531,7 @@ export class JSONEval {
       const pathsJson = options.paths ? typeof options.paths === 'string' ? options.paths : JSONStringify(options.paths) : null;
 
       // Call optimized native method that returns void/empty string
-      await JsonEvalRs.evaluateNoReturn(
+      await JsonEvalRs.evaluateOnly(
         this.handle,
         dataStr,
         contextStr,

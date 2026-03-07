@@ -162,6 +162,18 @@ namespace JsonEvalRs
         }
 
         /// <summary>
+        /// Creates a new JSONEval instance from a MessagePack schema.
+        /// Static factory method for convenience and parity with other bindings.
+        /// </summary>
+        /// <param name="schemaMsgpack">MessagePack binary schema</param>
+        /// <param name="context">Optional context data</param>
+        /// <param name="data">Optional initial data</param>
+        public static JSONEval FromMsgpack(byte[] schemaMsgpack, string? context = null, string? data = null)
+        {
+            return new JSONEval(schemaMsgpack, context, data);
+        }
+
+        /// <summary>
         /// Creates a new JSON evaluator instance
         /// </summary>
         /// <param name="schema">JSON schema string</param>
@@ -298,12 +310,13 @@ namespace JsonEvalRs
         }
 
         /// <summary>
-        /// Evaluates the schema with provided data
+        /// Evaluates the schema with provided data (only updates internal state)
+        /// Maps to WASM evaluate() / TS evaluateOnly()
         /// </summary>
         /// <param name="data">JSON data string</param>
         /// <param name="context">Optional context data</param>
         /// <param name="paths">Optional array of paths for selective evaluation</param>
-        public void Evaluate(string data, string? context = null, string[]? paths = null)
+        public void EvaluateOnly(string data, string? context = null, string[]? paths = null)
         {
             ThrowIfDisposed();
 
@@ -334,6 +347,14 @@ namespace JsonEvalRs
                 throw new JsonEvalException(error);
             }
             Native.json_eval_free_result(result);
+        }
+
+        /// <summary>
+        /// Alias for EvaluateOnly
+        /// </summary>
+        public void Evaluate(string data, string? context = null, string[]? paths = null)
+        {
+            EvaluateOnly(data, context, paths);
         }
 
         /// <summary>
@@ -381,6 +402,32 @@ namespace JsonEvalRs
             var result = Native.json_eval_evaluate_dependents(_handle, Native.ToUTF8Bytes(changedPathsJson)!, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), reEvaluate ? 1 : 0);
 #endif
             return ProcessResultAsArray(result);
+        }
+
+        /// <summary>
+        /// Re-evaluates fields that depend on the changed paths (processes transitively)
+        /// </summary>
+        /// <param name="changedPaths">Array of field paths that changed (e.g., ["#/properties/field1", "field2"])</param>
+        /// <param name="data">Optional updated JSON data string (null to use existing data)</param>
+        /// <param name="context">Optional context data</param>
+        /// <param name="reEvaluate">If true, performs full evaluation after processing dependents</param>
+        /// <returns>JSON string containing array of dependent change objects</returns>
+        public string EvaluateDependentsString(string[] changedPaths, string? data = null, 
+            string? context = null, bool reEvaluate = true)
+        {
+            ThrowIfDisposed();
+
+            if (changedPaths == null || changedPaths.Length == 0)
+                throw new ArgumentNullException(nameof(changedPaths));
+
+            var changedPathsJson = JsonConvert.SerializeObject(changedPaths);
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+            var result = Native.json_eval_evaluate_dependents(_handle, changedPathsJson, data, context, reEvaluate ? 1 : 0);
+#else
+            var result = Native.json_eval_evaluate_dependents(_handle, Native.ToUTF8Bytes(changedPathsJson)!, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), reEvaluate ? 1 : 0);
+#endif
+            return ProcessResultAsString(result);
         }
 
         /// <summary>
@@ -608,6 +655,14 @@ namespace JsonEvalRs
         }
 
         /// <summary>
+        /// Alias for GetSchemaByPath
+        /// </summary>
+        public JToken? Get(string path)
+        {
+            return GetSchemaByPath(path);
+        }
+
+        /// <summary>
         /// Gets values from the schema using multiple dotted path notations.
         /// Returns data in the specified format. Skips paths that are not found.
         /// </summary>
@@ -795,6 +850,15 @@ namespace JsonEvalRs
         }
 
         /// <summary>
+        /// Alias for GetCacheStats to maintain API parity with TS
+        /// </summary>
+        /// <returns>Cache statistics</returns>
+        public CacheStats CacheStats()
+        {
+            return GetCacheStats();
+        }
+
+        /// <summary>
         /// Clears the evaluation cache
         /// </summary>
         public void ClearCache()
@@ -822,7 +886,7 @@ namespace JsonEvalRs
         /// Gets the number of cached entries
         /// </summary>
         /// <returns>Number of cached entries</returns>
-        public int GetCacheLength()
+        public int CacheLen()
         {
             ThrowIfDisposed();
             var result = Native.json_eval_cache_len(_handle);
@@ -1141,6 +1205,14 @@ namespace JsonEvalRs
             return ProcessResult<ValidationResult>(result);
         }
 
+        /// <summary>
+        /// Alias for ValidatePaths to maintain API parity with TS
+        /// </summary>
+        public ValidationResult ValidatePathsOnly(string data, string? context = null, System.Collections.Generic.List<string>? paths = null)
+        {
+            return ValidatePaths(data, context, paths);
+        }
+
         // Helper methods for processing results
         private JObject ProcessResult(Native.FFIResult result)
         {
@@ -1211,6 +1283,41 @@ namespace JsonEvalRs
                 
                 string json = Encoding.UTF8.GetString(buffer);
                 return JArray.Parse(json);
+            }
+            finally
+            {
+                Native.json_eval_free_result(result);
+            }
+        }
+
+        private string ProcessResultAsString(Native.FFIResult result)
+        {
+            try
+            {
+                if (!result.Success)
+                {
+#if NETCOREAPP || NET5_0_OR_GREATER
+                    string error = result.Error != IntPtr.Zero
+                        ? Marshal.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                        : "Unknown error";
+#else
+                    string error = result.Error != IntPtr.Zero
+                        ? Native.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                        : "Unknown error";
+#endif
+                    throw new JsonEvalException(error);
+                }
+
+                if (result.DataPtr == IntPtr.Zero)
+                    return string.Empty;
+
+                int dataLen = (int)result.DataLen.ToUInt32();
+                if (dataLen == 0)
+                    return string.Empty;
+
+                byte[] buffer = new byte[dataLen];
+                Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
+                return Encoding.UTF8.GetString(buffer);
             }
             finally
             {

@@ -99,7 +99,7 @@ RCT_EXPORT_METHOD(evaluate:(NSString *)handle
     );
 }
 
-RCT_EXPORT_METHOD(evaluateNoReturn:(NSString *)handle
+RCT_EXPORT_METHOD(evaluateOnly:(NSString *)handle
                   data:(NSString *)data
                   context:(NSString *)context
                   pathsJson:(NSString *)pathsJson
@@ -112,7 +112,7 @@ RCT_EXPORT_METHOD(evaluateNoReturn:(NSString *)handle
     std::string contextStr = [self stdStringFromNSString:context];
     std::string pathsJsonStr = [self stdStringFromNSString:pathsJson];
     
-    JsonEvalBridge::evaluateNoReturnAsync(handleStr, dataStr, contextStr, pathsJsonStr,
+    JsonEvalBridge::evaluateOnlyAsync(handleStr, dataStr, contextStr, pathsJsonStr,
         [resolve, reject](const std::string& result, const std::string& error) {
             if (error.empty()) {
                 // Return null/void to JS - no schema serialization needed!

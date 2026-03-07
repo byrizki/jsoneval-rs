@@ -107,6 +107,31 @@ namespace JsonEvalRs
         }
 
         /// <summary>
+        /// Evaluate dependents in subform when a field changes
+        /// </summary>
+        /// <param name="subformPath">Path to the subform</param>
+        /// <param name="changedPath">Path of the field that changed</param>
+        /// <param name="data">Optional updated JSON data string</param>
+        /// <param name="context">Optional context data JSON string</param>
+        /// <returns>JSON string containing array of dependent change objects</returns>
+        public string EvaluateDependentsSubformString(string subformPath, string changedPath, string? data = null, string? context = null, bool reEvaluate = true)
+        {
+            ThrowIfDisposed();
+            if (string.IsNullOrEmpty(subformPath))
+                throw new ArgumentNullException(nameof(subformPath));
+            if (string.IsNullOrEmpty(changedPath))
+                throw new ArgumentNullException(nameof(changedPath));
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+            var result = Native.json_eval_evaluate_dependents_subform(_handle, subformPath, changedPath, data, context, reEvaluate ? 1 : 0);
+#else
+            var result = Native.json_eval_evaluate_dependents_subform(_handle, Native.ToUTF8Bytes(subformPath)!, Native.ToUTF8Bytes(changedPath)!, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), reEvaluate ? 1 : 0);
+#endif
+            
+            return ProcessResultAsString(result);
+        }
+
+        /// <summary>
         /// Resolve layout for subform
         /// </summary>
         /// <param name="subformPath">Path to the subform</param>
