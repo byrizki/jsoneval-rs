@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.71] - 2026-03-18
+
+### Fixed
+
+- [core] fix findindex sub logic
+
 ## [0.0.70] - 2026-03-07
 
 ### Changed
