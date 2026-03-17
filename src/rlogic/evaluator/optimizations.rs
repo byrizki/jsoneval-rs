@@ -268,7 +268,10 @@ impl Evaluator {
         Ok(Value::Null)
     }
 
-    /// Combined VALUEAT + FINDINDEX (single loop)
+    /// Combined VALUEAT + FINDINDEX (single loop, zero-alloc)
+    ///
+    /// Conditions use the same three-layer resolution as `eval_findindex`:
+    /// `internal_context` → `row` → `user_data`
     pub(super) fn eval_valueat_findindex_combined(
         &self,
         table_expr: &CompiledLogic,
@@ -291,9 +294,13 @@ impl Evaluator {
                 let mut all_match = true;
 
                 for condition in conditions {
-                    // Evaluate condition with row as internal context (layered lookup)
-                    let result =
-                        self.evaluate_with_context(condition, user_data, row, depth + 1)?;
+                    let result = self.eval_condition_with_row(
+                        condition,
+                        user_data,
+                        internal_context,
+                        row,
+                        depth + 1,
+                    )?;
                     if !is_truthy(&result) {
                         all_match = false;
                         break;
@@ -301,7 +308,6 @@ impl Evaluator {
                 }
 
                 if all_match {
-                    // Found the row, extract value
                     if let Some(Value::String(col_name)) = &col_val {
                         if let Value::Object(obj) = row {
                             return Ok(obj.get(col_name).cloned().unwrap_or(Value::Null));

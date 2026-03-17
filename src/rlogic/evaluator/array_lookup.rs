@@ -604,7 +604,15 @@ impl Evaluator {
         }
     }
 
-    /// Evaluate FindIndex operation - ZERO-COPY
+    /// Evaluate FindIndex operation (zero-alloc hot path)
+    ///
+    /// Conditions are evaluated with a three-layer variable resolution:
+    ///   `internal_context` → `row` → `user_data`
+    ///
+    /// This lets conditions reference both:
+    /// - Table column names via `Var` (e.g. `"PAYOR_AGE"` from the current row)
+    /// - Outer context variables via `$ref` (e.g. `$PAYORAGE_YEAR` from the parent iteration)
+    /// without any heap allocation or map cloning per row.
     pub(super) fn eval_findindex(
         &self,
         table_expr: &CompiledLogic,
@@ -627,8 +635,13 @@ impl Evaluator {
         if arr.len() >= PARALLEL_THRESHOLD {
             let result = arr.par_iter().enumerate().find_map_first(|(idx, row)| {
                 for condition in conditions {
-                    // Use row as primary context, user_data as fallback
-                    match self.evaluate_with_context(condition, row, user_data, depth + 1) {
+                    match self.eval_condition_with_row(
+                        condition,
+                        user_data,
+                        internal_context,
+                        row,
+                        depth + 1,
+                    ) {
                         Ok(result) if helpers::is_truthy(&result) => continue,
                         _ => return None,
                     }
@@ -641,8 +654,13 @@ impl Evaluator {
         for (idx, row) in arr.iter().enumerate() {
             let mut all_match = true;
             for condition in conditions {
-                // Use row as primary context, user_data as fallback
-                match self.evaluate_with_context(condition, row, user_data, depth + 1) {
+                match self.eval_condition_with_row(
+                    condition,
+                    user_data,
+                    internal_context,
+                    row,
+                    depth + 1,
+                ) {
                     Ok(result) if helpers::is_truthy(&result) => continue,
                     _ => {
                         all_match = false;
@@ -655,5 +673,132 @@ impl Evaluator {
             }
         }
         Ok(self.f64_to_json(-1.0))
+    }
+
+    /// Evaluate a condition with a three-layer variable resolution (zero-alloc).
+    ///
+    /// Lookup order for `Var`: `internal_context` → `row` → `user_data`
+    /// Lookup order for `Ref`: `internal_context` → `user_data`
+    ///
+    /// After `preprocess_table_condition`, bare column name strings become `Var` nodes
+    /// so they resolve from the current `row`. `$ref` nodes that point to outer context
+    /// variables (e.g. `$PAYORAGE_YEAR`) resolve from `internal_context` first.
+    #[inline]
+    pub(super) fn eval_condition_with_row(
+        &self,
+        condition: &CompiledLogic,
+        user_data: &Value,
+        internal_context: &Value,
+        row: &Value,
+        depth: usize,
+    ) -> Result<Value, String> {
+        macro_rules! recurse {
+            ($expr:expr) => {
+                self.eval_condition_with_row($expr, user_data, internal_context, row, depth + 1)
+            };
+        }
+
+        match condition {
+            // Literals (no context needed)
+            CompiledLogic::Null => Ok(Value::Null),
+            CompiledLogic::Bool(b) => Ok(Value::Bool(*b)),
+            CompiledLogic::Number(n) => Ok(self.f64_to_json(*n)),
+            CompiledLogic::String(s) => Ok(Value::String(s.clone())),
+
+            // Var: check internal_context → row → user_data
+            CompiledLogic::Var(name, default) => {
+                let value = if name.is_empty() {
+                    helpers::get_var(user_data, name)
+                } else {
+                    helpers::get_var(internal_context, name)
+                        .or_else(|| helpers::get_var(row, name))
+                        .or_else(|| helpers::get_var(user_data, name))
+                };
+                match value {
+                    Some(v) if !v.is_null() => Ok(v.clone()),
+                    _ => match default {
+                        Some(def) => recurse!(def),
+                        None => Ok(Value::Null),
+                    },
+                }
+            }
+
+            // Ref ($ref): check internal_context → user_data (NOT row, $ref is outer-scope)
+            CompiledLogic::Ref(path, default) => {
+                let value = helpers::get_var(internal_context, path)
+                    .or_else(|| helpers::get_var(user_data, path));
+                match value {
+                    Some(v) if !v.is_null() => Ok(v.clone()),
+                    _ => match default {
+                        Some(def) => recurse!(def),
+                        None => Ok(Value::Null),
+                    },
+                }
+            }
+
+            // Comparisons
+            CompiledLogic::Equal(a, b) => {
+                Ok(Value::Bool(helpers::loose_equal(&recurse!(a)?, &recurse!(b)?)))
+            }
+            CompiledLogic::NotEqual(a, b) => {
+                Ok(Value::Bool(!helpers::loose_equal(&recurse!(a)?, &recurse!(b)?)))
+            }
+            CompiledLogic::StrictEqual(a, b) => Ok(Value::Bool(recurse!(a)? == recurse!(b)?)),
+            CompiledLogic::StrictNotEqual(a, b) => Ok(Value::Bool(recurse!(a)? != recurse!(b)?)),
+            CompiledLogic::LessThan(a, b) => Ok(Value::Bool(
+                helpers::to_f64(&recurse!(a)?) < helpers::to_f64(&recurse!(b)?),
+            )),
+            CompiledLogic::LessThanOrEqual(a, b) => Ok(Value::Bool(
+                helpers::to_f64(&recurse!(a)?) <= helpers::to_f64(&recurse!(b)?),
+            )),
+            CompiledLogic::GreaterThan(a, b) => Ok(Value::Bool(
+                helpers::to_f64(&recurse!(a)?) > helpers::to_f64(&recurse!(b)?),
+            )),
+            CompiledLogic::GreaterThanOrEqual(a, b) => Ok(Value::Bool(
+                helpers::to_f64(&recurse!(a)?) >= helpers::to_f64(&recurse!(b)?),
+            )),
+
+            // Logical
+            CompiledLogic::And(items) => {
+                for item in items {
+                    if !helpers::is_truthy(&recurse!(item)?) {
+                        return Ok(Value::Bool(false));
+                    }
+                }
+                Ok(Value::Bool(true))
+            }
+            CompiledLogic::Or(items) => {
+                for item in items {
+                    if helpers::is_truthy(&recurse!(item)?) {
+                        return Ok(Value::Bool(true));
+                    }
+                }
+                Ok(Value::Bool(false))
+            }
+            CompiledLogic::Not(expr) => Ok(Value::Bool(!helpers::is_truthy(&recurse!(expr)?))),
+            CompiledLogic::If(cond, then_expr, else_expr) => {
+                if helpers::is_truthy(&recurse!(cond)?) {
+                    recurse!(then_expr)
+                } else {
+                    recurse!(else_expr)
+                }
+            }
+
+            // Fallback: for any other operator (arithmetic, string ops, nested table ops…),
+            // fall back to the merge-context approach. These are uncommon in FINDINDEX conditions.
+            _ => {
+                let mut merged = match internal_context {
+                    Value::Object(ctx_map) => ctx_map.clone(),
+                    _ => serde_json::Map::new(),
+                };
+                if let Value::Object(row_map) = row {
+                    for (k, v) in row_map {
+                        merged.entry(k.clone()).or_insert_with(|| v.clone());
+                    }
+                }
+                let row_ctx = Value::Object(merged);
+                self.evaluate_with_context(condition, user_data, &row_ctx, depth)
+            }
+        }
     }
 }
