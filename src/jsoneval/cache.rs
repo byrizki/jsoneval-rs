@@ -1,6 +1,7 @@
 use super::JSONEval;
 use crate::jsoneval::eval_cache::{CacheKey, CacheStats};
 use crate::jsoneval::eval_data::EvalData;
+use crate::jsoneval::path_utils;
 
 
 use indexmap::IndexSet;
@@ -15,7 +16,8 @@ impl JSONEval {
     pub fn should_cache_dependency(&self, key: &str) -> bool {
         if key.starts_with("/$") || key.starts_with('$') {
             // Only cache $context, exclude other $ keys like $params
-            key == "$context" || key.starts_with("$context.") || key.starts_with("/$context")
+            key.starts_with("$context.") || key.starts_with("/$context") || key.starts_with("$context/")
+                || key.starts_with("$params.") || key.starts_with("/$params") || key.starts_with("$params/")
         } else {
             true
         }
@@ -23,11 +25,12 @@ impl JSONEval {
 
     /// Try to get a result from cache
     /// Helper: Try to get cached result for an evaluation (thread-safe)
-    /// Helper: Try to get cached result (zero-copy via Arc)
+    /// Try to get a value from cache if it exists and dependencies match
     pub(crate) fn try_get_cached(
         &self,
         eval_key: &str,
         eval_data_snapshot: &EvalData,
+        missed_keys: &dashmap::DashSet<String>,
     ) -> Option<Value> {
         // Skip cache lookup if caching is disabled
         if !self.cache_enabled {
@@ -41,20 +44,37 @@ impl JSONEval {
         let cache_key = if deps.is_empty() {
             CacheKey::simple(eval_key.to_string())
         } else {
+            // If any dependency missed the cache in this batch, force a cache miss
+            // This prevents false cache hits when large data arrays are intentionally skipped in hashes
+            if deps.iter().any(|dep| missed_keys.contains(dep)) {
+                return None;
+            }
+
             // Filter dependencies (exclude $ keys except $context)
             let filtered_deps: IndexSet<String> = deps
                 .iter()
-                .filter(|dep_key| self.should_cache_dependency(dep_key))
+                .filter(|dep_key| self.should_cache_dependency(dep_key) && dep_key.as_str() != path_utils::normalize_to_json_pointer(eval_key))
                 .cloned()
                 .collect();
 
             // Collect dependency values
             let dep_values: Vec<(String, &Value)> = filtered_deps
                 .iter()
-                .filter_map(|dep_key| eval_data_snapshot.get(dep_key).map(|v| (dep_key.clone(), v)))
+                .filter_map(|dep_key| {
+                    eval_data_snapshot.get(dep_key).and_then(|v| {
+                        // Skip large arrays that contain no actionable schema keys
+                        // to avoid hashing large amounts of pure data
+                        if let Value::Array(arr) = v {
+                            if arr.len() > 10 && !crate::parse_schema::common::has_actionable_keys(v) {
+                                return None;
+                            }
+                        }
+                        Some((dep_key.clone(), v))
+                    })
+                })
                 .collect();
 
-            CacheKey::new(eval_key.to_string(), &filtered_deps, &dep_values)
+            CacheKey::new(eval_key.to_string(), &filtered_deps, &dep_values)            
         };
 
         // Try cache lookup (zero-copy via Arc, thread-safe)
@@ -90,17 +110,28 @@ impl JSONEval {
         // Filter and collect dependency values (exclude $ keys except $context)
         let filtered_deps: IndexSet<String> = deps
             .iter()
-            .filter(|dep_key| self.should_cache_dependency(dep_key))
+            .filter(|dep_key| self.should_cache_dependency(dep_key) && dep_key.as_str() != path_utils::normalize_to_json_pointer(eval_key))
             .cloned()
             .collect();
 
         let dep_values: Vec<(String, &Value)> = filtered_deps
             .iter()
-            .filter_map(|dep_key| eval_data_snapshot.get(dep_key).map(|v| (dep_key.clone(), v)))
+            .filter_map(|dep_key| {
+                eval_data_snapshot.get(dep_key).and_then(|v| {
+                    if let Value::Array(arr) = v {
+                        if arr.len() > 10 && !crate::parse_schema::common::has_actionable_keys(v) {
+                            return None;
+                        }
+                    }
+                    Some((dep_key.clone(), v))
+                })
+            })
             .collect();
 
         let cache_key = CacheKey::new(eval_key.to_string(), &filtered_deps, &dep_values);
+        
         self.eval_cache.insert(cache_key, value);
+
     }
 
     /// Purge cache entries affected by changed data paths, comparing old and new values

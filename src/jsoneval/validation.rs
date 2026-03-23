@@ -59,7 +59,8 @@ impl JSONEval {
 
             // Re-evaluate rule evaluations to ensure fresh values
             // This ensures all rule.$evaluation expressions are re-computed
-            self.evaluate_others(paths, token);
+            let missed_keys = dashmap::DashSet::new();
+            self.evaluate_others(paths, token, &missed_keys);
 
             // Update evaluated_schema with fresh evaluations
             self.evaluated_schema = self.get_evaluated_schema(false);

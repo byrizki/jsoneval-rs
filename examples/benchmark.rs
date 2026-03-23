@@ -15,6 +15,7 @@ fn print_help(program_name: &str) {
     println!("    -h, --help                   Show this help message");
     println!("    -i, --iterations <COUNT>     Number of evaluation iterations (default: 1)");
     println!("    --parsed                     Use ParsedSchema for caching (parse once, reuse)");
+    println!("    --cache                      Reuse JSONEval instance across iterations");
     println!("    --concurrent <COUNT>         Test concurrent evaluations with N threads");
     println!("    --compare                    Enable comparison with expected results");
     println!("    --timing                     Show detailed internal timing breakdown");
@@ -36,6 +37,7 @@ fn main() {
     let mut scenario_filter: Option<String> = None;
     let mut show_cpu_info = false;
     let mut use_parsed_schema = false;
+    let mut use_cache = false;
     let mut concurrent_count: Option<usize> = None;
     let mut enable_comparison = false;
     let mut show_timing = false;
@@ -52,6 +54,8 @@ fn main() {
             show_cpu_info = true;
         } else if arg == "--parsed" {
             use_parsed_schema = true;
+        } else if arg == "--cache" {
+            use_cache = true;
         } else if arg == "--compare" {
             enable_comparison = true;
         } else if arg == "--timing" {
@@ -104,6 +108,10 @@ fn main() {
     
     if use_parsed_schema {
         println!("📦 Mode: ParsedSchema (parse once, reuse for all iterations)\n");
+    }
+    
+    if use_cache {
+        println!("♻️  Mode: Cache (reuse JSONEval instance across iterations)\n");
     }
     
     if let Some(count) = concurrent_count {
@@ -205,18 +213,28 @@ fn main() {
                     let parsed_clone = parsed_schema.clone();
                     let data_str_clone = data_str.clone();
                     let iter_count = iterations;
+                    let thread_use_cache = use_cache;
                     
                     let handle = thread::spawn(move || {
                         let mut thread_times = Vec::with_capacity(iter_count);
                         let mut last_schema = Value::Null;
                         
-                        for _ in 0..iter_count {
+                        let mut eval_instance = JSONEval::with_parsed_schema(
+                            parsed_clone.clone(),
+                            Some("{}"),
+                            Some(&data_str_clone)
+                        ).unwrap();
+                        
+                        for iter in 0..iter_count {
                             let iter_start = Instant::now();
-                            let mut eval_instance = JSONEval::with_parsed_schema(
-                                parsed_clone.clone(),
-                                Some("{}"),
-                                Some(&data_str_clone)
-                            ).unwrap();
+                            
+                            if !thread_use_cache && iter > 0 {
+                                eval_instance = JSONEval::with_parsed_schema(
+                                    parsed_clone.clone(),
+                                    Some("{}"),
+                                    Some(&data_str_clone)
+                                ).unwrap();
+                            }
                             
                             eval_instance.evaluate(&data_str_clone, Some("{}"), None, None).unwrap();
                             last_schema = eval_instance.get_evaluated_schema(false);
@@ -261,6 +279,15 @@ fn main() {
                 
                 for iter in 0..iterations {
                     let iter_start = Instant::now();
+                    
+                    if !use_cache && iter > 0 {
+                        eval_instance = JSONEval::with_parsed_schema(
+                            parsed_schema.clone(),
+                            Some("{}"),
+                            Some(&data_str)
+                        ).unwrap();
+                    }
+                    
                     eval_instance.evaluate(&data_str, Some("{}"), None, None)
                         .unwrap_or_else(|e| panic!("evaluation failed: {}", e));
                     evaluated_schema = eval_instance.get_evaluated_schema(false);
@@ -283,17 +310,28 @@ fn main() {
             }
         } else {
             // Traditional mode: parse and create JSONEval each time
+            let schema_msgpack = if scenario.is_msgpack {
+                let bytes = fs::read(&scenario.schema_path)
+                    .unwrap_or_else(|e| panic!("failed to read {}: {}", scenario.schema_path.display(), e));
+                println!("  📦 MessagePack schema size: {} bytes", bytes.len());
+                Some(bytes)
+            } else {
+                None
+            };
+            
+            let schema_str = if !scenario.is_msgpack {
+                Some(fs::read_to_string(&scenario.schema_path)
+                    .unwrap_or_else(|e| panic!("failed to read {}: {}", scenario.schema_path.display(), e)))
+            } else {
+                None
+            };
+
             let start_time = Instant::now();
             let mut eval = if scenario.is_msgpack {
-                let schema_msgpack = fs::read(&scenario.schema_path)
-                    .unwrap_or_else(|e| panic!("failed to read {}: {}", scenario.schema_path.display(), e));
-                println!("  📦 MessagePack schema size: {} bytes", schema_msgpack.len());
-                JSONEval::new_from_msgpack(&schema_msgpack, None, Some(&data_str))
+                JSONEval::new_from_msgpack(schema_msgpack.as_ref().unwrap(), None, Some(&data_str))
                     .unwrap_or_else(|e| panic!("failed to create JSONEval from MessagePack: {}", e))
             } else {
-                let schema_str = fs::read_to_string(&scenario.schema_path)
-                    .unwrap_or_else(|e| panic!("failed to read {}: {}", scenario.schema_path.display(), e));
-                JSONEval::new(&schema_str, None, Some(&data_str))
+                JSONEval::new(schema_str.as_ref().unwrap(), None, Some(&data_str))
                     .unwrap_or_else(|e| panic!("failed to create JSONEval: {}", e))
             };
             let parse_time = start_time.elapsed();
@@ -305,6 +343,17 @@ fn main() {
             
             for iter in 0..iterations {
                 let iter_start = Instant::now();
+                
+                if !use_cache && iter > 0 {
+                    eval = if scenario.is_msgpack {
+                        JSONEval::new_from_msgpack(schema_msgpack.as_ref().unwrap(), None, Some(&data_str))
+                            .unwrap_or_else(|e| panic!("failed to create JSONEval from MessagePack: {}", e))
+                    } else {
+                        JSONEval::new(schema_str.as_ref().unwrap(), None, Some(&data_str))
+                            .unwrap_or_else(|e| panic!("failed to create JSONEval: {}", e))
+                    };
+                }
+                
                 eval.evaluate(&data_str, Some("{}"), None, None)
                     .unwrap_or_else(|e| panic!("evaluation failed: {}", e));
                 evaluated_schema = eval.get_evaluated_schema(false);

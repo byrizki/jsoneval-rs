@@ -53,6 +53,9 @@ impl JSONEval {
                 Vec::new()
             };
 
+            // Capture old data before overwriting, to allow precise value-based cache invalidation
+            let old_data = self.data.clone();
+            
             // Store data and replace in eval_data (clone once instead of twice)
             self.data = data.clone();
             time_block!("  replace_data_and_context", {
@@ -62,7 +65,7 @@ impl JSONEval {
             // Selectively purge cache entries that depend on changed top-level data keys
             // This is more efficient than clearing entire cache
             time_block!("  purge_cache", {
-                self.purge_cache_for_changed_data(&changed_data_paths);
+                self.purge_cache_for_changed_data_with_comparison(&changed_data_paths, &old_data, &self.data);
 
                 // Also purge context-dependent cache if context was provided
                 if context_provided {
@@ -114,6 +117,9 @@ impl JSONEval {
 
             // Borrow sorted_evaluations via Arc (avoid deep-cloning Vec<Vec<String>>)
             let eval_batches = self.sorted_evaluations.clone();
+            
+            // Track cache misses across batches to prevent false hits from large skipped arrays
+            let missed_keys = dashmap::DashSet::new();
 
             // Process each batch - parallelize evaluations within each batch
             // Batches are processed sequentially to maintain dependency order
@@ -151,7 +157,7 @@ impl JSONEval {
                         let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
 
                         // Try cache first (thread-safe)
-                        if let Some(_) = self.try_get_cached(eval_key, &eval_data_values) {
+                        if let Some(_) = self.try_get_cached(eval_key, &eval_data_values, &missed_keys) {
                             return;
                         }
 
@@ -216,7 +222,7 @@ impl JSONEval {
                     let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
 
                     // Try cache first
-                    if let Some(_) = self.try_get_cached(eval_key, &eval_data_values) {
+                    if let Some(_) = self.try_get_cached(eval_key, &eval_data_values, &missed_keys) {
                         continue;
                     }
 
@@ -295,7 +301,7 @@ impl JSONEval {
                             let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
 
                             // Try cache first (thread-safe)
-                            if let Some(_) = self.try_get_cached(eval_key, &eval_data_snapshot) {
+                            if let Some(_) = self.try_get_cached(eval_key, &eval_data_snapshot, &missed_keys) {
                                 return;
                             }
 
@@ -303,6 +309,7 @@ impl JSONEval {
                             let is_table = self.table_metadata.contains_key(eval_key);
 
                             if is_table {
+                                missed_keys.insert(pointer_path.clone());
                                 // Evaluate table using sandboxed metadata (parallel-safe, immutable parent scope)
                                 if let Ok(rows) = table_evaluate::evaluate_table(
                                     self,
@@ -387,7 +394,7 @@ impl JSONEval {
                         let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
 
                         // Try cache first
-                        if let Some(_) = self.try_get_cached(eval_key, &eval_data_snapshot) {
+                        if let Some(_) = self.try_get_cached(eval_key, &eval_data_snapshot, &missed_keys) {
                             continue;
                         }
 
@@ -395,6 +402,7 @@ impl JSONEval {
                         let is_table = self.table_metadata.contains_key(eval_key);
 
                         if is_table {
+                            missed_keys.insert(pointer_path.clone());
                             if let Ok(rows) =
                                 table_evaluate::evaluate_table(self, eval_key, &eval_data_snapshot, token)
                             {
@@ -433,13 +441,13 @@ impl JSONEval {
             // Drop lock before calling evaluate_others
             drop(_lock);
 
-            self.evaluate_others(paths, token);
+            self.evaluate_others(paths, token, &missed_keys);
 
             Ok(())
         })
     }
 
-    pub(crate) fn evaluate_others(&mut self, paths: Option<&[String]>, token: Option<&CancellationToken>) {
+    pub(crate) fn evaluate_others(&mut self, paths: Option<&[String]>, token: Option<&CancellationToken>, missed_keys: &dashmap::DashSet<String>) {
         if let Some(t) = token {
             if t.is_cancelled() {
                 return;
@@ -493,7 +501,7 @@ impl JSONEval {
                                 let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
 
                                 // Try cache first (thread-safe)
-                                if let Some(_) = self.try_get_cached(eval_key, &eval_data_snapshot)
+                                if let Some(_) = self.try_get_cached(eval_key, &eval_data_snapshot, missed_keys)
                                 {
                                     return;
                                 }
@@ -573,7 +581,7 @@ impl JSONEval {
                             let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
 
                             // Try cache first
-                            if let Some(_) = self.try_get_cached(eval_key, &eval_data_snapshot) {
+                            if let Some(_) = self.try_get_cached(eval_key, &eval_data_snapshot, missed_keys) {
                                 continue;
                             }
 
