@@ -631,6 +631,136 @@ impl Evaluator {
             return Ok(self.f64_to_json(0.0));
         }
 
+        // Fast-path optimization: check if we can use the `MATCH` pattern
+        let mut can_use_index = true;
+        // Flatten any top-level `And` conditions directly into our evaluation check
+        let mut actual_conditions = Vec::with_capacity(conditions.len());
+        for cond in conditions {
+            if let CompiledLogic::And(items) = cond {
+                actual_conditions.extend(items.iter());
+            } else {
+                actual_conditions.push(cond);
+            }
+        }
+
+        let mut evaluated_match_conditions = Vec::with_capacity(actual_conditions.len());
+
+        let is_provably_row_independent = |expr: &CompiledLogic| -> bool {
+            match expr {
+                CompiledLogic::Null | CompiledLogic::Bool(_) | CompiledLogic::Number(_) | CompiledLogic::String(_) | CompiledLogic::Ref(..) => true,
+                _ => expr.referenced_vars().is_empty()
+            }
+        };
+
+        for cond in actual_conditions {
+            match cond {
+                CompiledLogic::Equal(a, b) | CompiledLogic::StrictEqual(a, b) => {
+                    let (var_name, val_expr) = if let CompiledLogic::Var(f, _) = &**a {
+                        (f.clone(), &**b)
+                    } else if let CompiledLogic::Var(f, _) = &**b {
+                        (f.clone(), &**a)
+                    } else {
+                        can_use_index = false;
+                        break;
+                    };
+
+                    if !is_provably_row_independent(val_expr) {
+                        can_use_index = false;
+                        break;
+                    }
+
+                    // Pre-evaluate the val_expr ONCE outside the row loop
+                    let evaluated_val = self.evaluate_with_context(val_expr, user_data, internal_context, depth + 1)?;
+                    
+                    // Var names are normalized to JSON Pointers (e.g. "/col"). Strip the leading '/' 
+                    // to match the behavior of MATCH which uses bare strings ("col") for index caching and obj.get()
+                    let bare_field = var_name.strip_prefix('/').unwrap_or(&var_name).to_string();
+                    
+                    evaluated_match_conditions.push((evaluated_val, bare_field));
+                }
+                _ => {
+                    can_use_index = false;
+                    break;
+                }
+            }
+        }
+
+        if can_use_index && !evaluated_match_conditions.is_empty() {
+            // 1. Check if index cache is accessible
+            let table_name = match table_expr {
+                CompiledLogic::Var(name, _) => Some(name.as_str()),
+                CompiledLogic::Ref(path, _) => Some(path.as_str()),
+                _ => None,
+            };
+
+            if let Some(name) = table_name {
+                if let Ok(indices) = self.indices.read() {
+                    if let Some(index) = indices.get(name) {
+                        let all_columns_indexed = evaluated_match_conditions.iter().all(|(_, field)| index.has_column(field));
+                        if all_columns_indexed {
+                            let mut candidate_rows: Option<std::collections::HashSet<usize>> = None;
+                            for (val, field) in &evaluated_match_conditions {
+                                if let Some(rows) = index.lookup(field, val) {
+                                    if let Some(candidates) = &mut candidate_rows {
+                                        candidates.retain(|r| rows.contains(r));
+                                        if candidates.is_empty() {
+                                            return Ok(self.f64_to_json(-1.0));
+                                        }
+                                    } else {
+                                        candidate_rows = Some(rows.iter().cloned().collect());
+                                    }
+                                } else {
+                                    return Ok(self.f64_to_json(-1.0));
+                                }
+                            }
+                            if let Some(candidates) = candidate_rows {
+                                if let Some(min_idx) = candidates.iter().min() {
+                                    return Ok(self.f64_to_json(*min_idx as f64));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. Fallback to `O(N)` loop using direct column GET instead of eval_condition_with_row
+            #[cfg(feature = "parallel")]
+            if arr.len() >= PARALLEL_THRESHOLD {
+                let result = arr.par_iter().enumerate().find_map_first(|(idx, row)| {
+                    if let Value::Object(obj) = row {
+                        let all_match = evaluated_match_conditions.iter().all(|(value_val, field)| {
+                            obj.get(field)
+                                .map(|cell_val| helpers::loose_equal(value_val, cell_val))
+                                .unwrap_or(false)
+                        });
+                        if all_match {
+                            Some(idx as f64)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                });
+                return Ok(self.f64_to_json(result.unwrap_or(-1.0)));
+            }
+
+            for (idx, row) in arr.iter().enumerate() {
+                if let Value::Object(obj) = row {
+                    let all_match = evaluated_match_conditions.iter().all(|(value_val, field)| {
+                        obj.get(field)
+                            .map(|cell_val| helpers::loose_equal(value_val, cell_val))
+                            .unwrap_or(false)
+                    });
+                    if all_match {
+                        return Ok(self.f64_to_json(idx as f64));
+                    }
+                }
+            }
+            return Ok(self.f64_to_json(-1.0));
+        }
+
+        // SLOW PATH: Dynamic fallback for complex or row-dependent conditions
         #[cfg(feature = "parallel")]
         if arr.len() >= PARALLEL_THRESHOLD {
             let result = arr.par_iter().enumerate().find_map_first(|(idx, row)| {
