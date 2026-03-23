@@ -10,7 +10,6 @@
   "scripts": {
     "nextjs": "yarn workspace nextjs dev",
     "compile": "yarn workspaces run build",
-    "build": "../../build-bindings.sh web",
     "clean": "rm -rf packages/*/json_eval_rs* packages/*/*.wasm"
   },
   "repository": {

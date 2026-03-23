@@ -1,0 +1,8 @@
+{
+  "name": "web-benchmark",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "npx serve@latest ../../../web -l 3000"
+  }
+}

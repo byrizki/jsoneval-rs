@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>JSON Eval RS — WASM Benchmark</title>
+    <style>
+      :root {
+        --bg: #0f1117;
+        --surface: #1a1d27;
+        --surface2: #22263a;
+        --border: #2e3250;
+        --text: #e2e8f0;
+        --muted: #7c84a3;
+        --accent: #6366f1;
+        --accent-dim: #312e81;
+        --green: #22c55e;
+        --yellow: #eab308;
+        --red: #ef4444;
+        --cyan: #22d3ee;
+        --mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Inter", system-ui, sans-serif;
+        min-height: 100vh;
+        padding: 2rem 1rem;
+      }
+
+      header {
+        text-align: center;
+        margin-bottom: 2.5rem;
+      }
+
+      header h1 {
+        font-size: 1.875rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #6366f1, #22d3ee);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 0.4rem;
+      }
+
+      header p { color: var(--muted); font-size: 0.9rem; }
+
+      .badges {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: center;
+        margin-top: 0.6rem;
+        flex-wrap: wrap;
+      }
+
+      .badge {
+        display: inline-block;
+        border-radius: 9999px;
+        padding: 0.15rem 0.65rem;
+        font-size: 0.72rem;
+        font-weight: 600;
+        font-family: var(--mono);
+        border: 1px solid;
+      }
+
+      .badge-accent { background: var(--accent-dim); color: #a5b4fc; border-color: var(--accent); }
+      .badge-green  { background: #14532d;           color: #86efac;  border-color: #16a34a; }
+
+      .container { max-width: 900px; margin: 0 auto; }
+
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        margin-bottom: 1.25rem;
+      }
+
+      .card-title {
+        font-size: 0.78rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-bottom: 1rem;
+      }
+
+      .controls { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+      .controls label { font-size: 0.875rem; color: var(--muted); white-space: nowrap; }
+
+      input[type="text"], input[type="file"] {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+        font-family: var(--mono);
+        outline: none;
+        transition: border-color 0.15s;
+      }
+
+      input[type="text"]:focus { border-color: var(--accent); }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.5rem 1.25rem;
+        border-radius: 0.5rem;
+        border: none;
+        font-size: 0.875rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: opacity 0.15s, transform 0.1s;
+      }
+
+      .btn:hover:not(:disabled) { opacity: 0.85; transform: translateY(-1px); }
+      .btn:active:not(:disabled) { transform: translateY(0); }
+      .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+      .btn-primary   { background: var(--accent); color: #fff; }
+      .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+
+      .spinner {
+        display: none;
+        width: 1rem;
+        height: 1rem;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+      }
+
+      .spinner.visible { display: block; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 0.75rem;
+      }
+
+      .metric {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 0.75rem;
+        padding: 1rem;
+        text-align: center;
+      }
+
+      .metric-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.3rem; }
+      .metric-value { font-size: 1.35rem; font-weight: 700; font-family: var(--mono); color: var(--cyan); }
+      .metric-unit  { font-size: 0.72rem; color: var(--muted); margin-top: 0.15rem; }
+      .metric.ok   .metric-value { color: var(--green); }
+      .metric.warn .metric-value { color: var(--yellow); }
+
+      .log-box {
+        background: #090b12;
+        border: 1px solid var(--border);
+        border-radius: 0.75rem;
+        padding: 1rem 1.25rem;
+        font-family: var(--mono);
+        font-size: 0.8rem;
+        line-height: 1.7;
+        height: 320px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .log-box:empty::before { content: "Benchmark output will appear here…"; color: var(--muted); }
+      .log-info   { color: var(--text); }
+      .log-ok     { color: var(--green); }
+      .log-warn   { color: var(--yellow); }
+      .log-err    { color: var(--red); }
+      .log-accent { color: var(--cyan); }
+
+      .diff-list    { max-height: 200px; overflow-y: auto; margin-top: 0.5rem; }
+      .diff-item {
+        background: var(--surface2);
+        border-left: 3px solid var(--yellow);
+        border-radius: 0 0.35rem 0.35rem 0;
+        padding: 0.3rem 0.75rem;
+        font-size: 0.75rem;
+        font-family: var(--mono);
+        color: var(--text);
+        margin-bottom: 0.3rem;
+        word-break: break-all;
+      }
+
+      .status-bar {
+        font-size: 0.8rem;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+      }
+
+      .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+      .dot.green  { background: var(--green); }
+      .dot.yellow { background: var(--yellow); animation: pulse 1.2s ease-in-out infinite; }
+      .dot.red    { background: var(--red); }
+
+      @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+      .section-sep { border: none; border-top: 1px solid var(--border); margin: 1.25rem 0; }
+      .hidden { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>🚀 JSON Eval RS</h1>
+        <p>WASM Benchmark — Static Web Edition</p>
+        <div class="badges">
+          <span class="badge badge-accent" id="version-badge">loading…</span>
+          <span class="badge badge-green">⚙️ Web Worker</span>
+        </div>
+      </header>
+
+      <!-- Controls -->
+      <div class="card">
+        <div class="card-title">Configuration</div>
+        <div class="controls">
+          <label for="scenario-input">Scenario</label>
+          <input id="scenario-input" type="text" value="zcc" placeholder="e.g. zcc, zpp, zip" style="width: 140px" />
+
+          <label for="schema-file">Schema JSON</label>
+          <input id="schema-file" type="file" accept=".json" />
+
+          <label for="data-file">Data JSON</label>
+          <input id="data-file" type="file" accept=".json" />
+
+          <label for="compare-file">Compare JSON <span style="opacity:.5">(optional)</span></label>
+          <input id="compare-file" type="file" accept=".json" />
+
+          <button class="btn btn-primary" id="run-btn">
+            <div class="spinner" id="spinner"></div>
+            ▶ Run
+          </button>
+          <button class="btn btn-secondary" id="clear-btn">Clear</button>
+        </div>
+        <div class="status-bar">
+          <div class="dot" id="status-dot"></div>
+          <span id="status-text">Ready — load schema and data files above, then click Run.</span>
+        </div>
+      </div>
+
+      <!-- Metrics -->
+      <div class="card hidden" id="metrics-card">
+        <div class="card-title">📊 Results — <span id="result-scenario"></span></div>
+        <div class="metrics-grid">
+          <div class="metric" id="m-total">
+            <div class="metric-label">Total</div>
+            <div class="metric-value" id="mv-total">—</div>
+            <div class="metric-unit">ms</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Parse (new)</div>
+            <div class="metric-value" id="mv-parse">—</div>
+            <div class="metric-unit">ms</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Evaluate</div>
+            <div class="metric-value" id="mv-eval">—</div>
+            <div class="metric-unit">ms</div>
+          </div>
+          <div class="metric" id="m-cache">
+            <div class="metric-label">Cache (H/M)</div>
+            <div class="metric-value" id="mv-cache">—</div>
+            <div class="metric-unit">hits / misses</div>
+          </div>
+          <div class="metric" id="m-diffs">
+            <div class="metric-label">Differences</div>
+            <div class="metric-value" id="mv-diffs">—</div>
+            <div class="metric-unit">vs baseline</div>
+          </div>
+        </div>
+        <div id="diff-section" class="hidden">
+          <hr class="section-sep" />
+          <div class="card-title">⚠️ Differences from baseline</div>
+          <div class="diff-list" id="diff-list"></div>
+        </div>
+      </div>
+
+      <!-- Log -->
+      <div class="card">
+        <div class="card-title">Output Log <span style="color:var(--muted);font-weight:400">(from Web Worker)</span></div>
+        <div class="log-box" id="log-box"></div>
+      </div>
+    </div>
+
+    <script type="module">
+      // ─────────────────────────────────────────────────────
+      // Worker — one persistent instance per page load
+      // ─────────────────────────────────────────────────────
+      const workerUrl = new URL("./worker.js", import.meta.url).href;
+      const worker = new Worker(workerUrl, { type: "module" });
+
+      const logBox    = document.getElementById("log-box");
+      const runBtn    = document.getElementById("run-btn");
+      const spinner   = document.getElementById("spinner");
+      const statusDot = document.getElementById("status-dot");
+      const statusTxt = document.getElementById("status-text");
+
+      // ─────────────────────────────────────────────────────
+      // Logging
+      // ─────────────────────────────────────────────────────
+      function appendLog(text, cls = "log-info") {
+        const span = document.createElement("span");
+        span.className = cls;
+        span.textContent = text + "\n";
+        logBox.appendChild(span);
+        logBox.scrollTop = logBox.scrollHeight;
+      }
+
+      function setStatus(text, color = "") {
+        statusTxt.textContent = text;
+        statusDot.className = "dot" + (color ? ` ${color}` : "");
+      }
+
+      function setRunning(running) {
+        runBtn.disabled = running;
+        spinner.classList.toggle("visible", running);
+      }
+
+      // ─────────────────────────────────────────────────────
+      // Worker message handler
+      // ─────────────────────────────────────────────────────
+      worker.addEventListener("message", ({ data }) => {
+        if (data.type === "log") {
+          appendLog(data.text, data.cls);
+
+          // Reflect version badge from first successful WASM load
+          if (data.wasmVersion) {
+            document.getElementById("version-badge").textContent = `v${data.wasmVersion}`;
+          }
+        }
+
+        if (data.type === "result") {
+          const { scenario, totalMs, parsingMs, evaluationMs, diffs, wasmVersion, cacheStats } = data;
+
+          if (wasmVersion) {
+            document.getElementById("version-badge").textContent = `v${wasmVersion}`;
+          }
+
+          renderMetrics({ scenario, totalMs, parsingMs, evaluationMs, diffs, cacheStats });
+          setStatus("Benchmark finished.", "green");
+          setRunning(false);
+        }
+
+        if (data.type === "error") {
+          appendLog(`❌ Worker error: ${data.message}`, "log-err");
+          setStatus("Error: " + data.message, "red");
+          setRunning(false);
+        }
+      });
+
+      worker.addEventListener("error", (e) => {
+        appendLog(`❌ Worker fatal error: ${e.message}`, "log-err");
+        setStatus("Worker error.", "red");
+        setRunning(false);
+      });
+
+      // ─────────────────────────────────────────────────────
+      // File reader helper
+      // ─────────────────────────────────────────────────────
+      function readFile(input) {
+        return new Promise((resolve, reject) => {
+          if (!input.files || !input.files[0]) return resolve(null);
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result);
+          reader.onerror = () => reject(new Error("Failed to read file"));
+          reader.readAsText(input.files[0]);
+        });
+      }
+
+      // ─────────────────────────────────────────────────────
+      // Run handler
+      // ─────────────────────────────────────────────────────
+      runBtn.addEventListener("click", async () => {
+        logBox.innerHTML = "";
+        document.getElementById("metrics-card").classList.add("hidden");
+
+        const scenario    = document.getElementById("scenario-input").value.trim() || "zcc";
+        const schemaText  = await readFile(document.getElementById("schema-file"));
+        const dataText    = await readFile(document.getElementById("data-file"));
+        const compareText = await readFile(document.getElementById("compare-file"));
+
+        if (!schemaText) { appendLog("❌ Schema file is required.", "log-err"); setStatus("Schema file missing.", "red"); return; }
+        if (!dataText)   { appendLog("❌ Data file is required.", "log-err");   setStatus("Data file missing.", "red"); return; }
+
+        appendLog("🚀 JSON Eval RS — WASM Benchmark (Web Worker)", "log-accent");
+        appendLog(`📋 Scenario: '${scenario}'`);
+        appendLog("");
+
+        setRunning(true);
+        setStatus("Running in Web Worker…", "yellow");
+
+        // Send work to the worker — main thread stays unblocked
+        worker.postMessage({ type: "run", scenario, schemaText, dataText, compareText });
+      });
+
+      document.getElementById("clear-btn").addEventListener("click", () => {
+        logBox.innerHTML = "";
+        document.getElementById("metrics-card").classList.add("hidden");
+        setStatus("Ready.");
+        statusDot.className = "dot";
+      });
+
+      // ─────────────────────────────────────────────────────
+      // Metrics renderer
+      // ─────────────────────────────────────────────────────
+      function renderMetrics({ scenario, totalMs, parsingMs, evaluationMs, diffs, cacheStats }) {
+        document.getElementById("result-scenario").textContent = scenario;
+        document.getElementById("mv-total").textContent = totalMs.toFixed(1);
+        document.getElementById("mv-parse").textContent = parsingMs.toFixed(1);
+        document.getElementById("mv-eval").textContent  = evaluationMs.toFixed(1);
+        
+        if (cacheStats) {
+          document.getElementById("mv-cache").textContent = `${cacheStats.hits} / ${cacheStats.misses}`;
+          document.getElementById("m-cache").classList.remove("hidden");
+        } else {
+          document.getElementById("mv-cache").textContent = "—";
+          document.getElementById("m-cache").classList.add("hidden");
+        }
+
+        document.getElementById("mv-diffs").textContent = diffs.length > 0 ? diffs.length : "None";
+
+        document.getElementById("m-diffs").className = "metric " + (diffs.length > 0 ? "warn" : "ok");
+
+        const diffSection = document.getElementById("diff-section");
+        const diffList    = document.getElementById("diff-list");
+        diffList.innerHTML = "";
+
+        if (diffs.length > 0) {
+          diffSection.classList.remove("hidden");
+          for (const d of diffs) {
+            const el = document.createElement("div");
+            el.className = "diff-item";
+            el.textContent = d;
+            diffList.appendChild(el);
+          }
+        } else {
+          diffSection.classList.add("hidden");
+        }
+
+        document.getElementById("metrics-card").classList.remove("hidden");
+      }
+    </script>
+  </body>
+</html>

@@ -1,14 +1,16 @@
 {
-  "name": "node-repro",
+  "name": "nodejs-benchmark",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "tsx index.ts"
+    "start": "tsx index.ts",
+    "benchmark": "tsx index.ts"
   },
   "dependencies": {
     "@json-eval-rs/node": "*",
     "@types/node": "^20.0.0",
+    "json-with-bigint": "^3.5.8",
     "tsx": "^4.7.0",
     "typescript": "^5.0.0"
   }

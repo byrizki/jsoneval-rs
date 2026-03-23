@@ -211,14 +211,15 @@ namespace JsonEvalBenchmark
             Console.ResetColor();
             Console.WriteLine("==================================================");
             Console.WriteLine($"Scenario: {scenario}");
-            Console.WriteLine($"Schema: samples/{scenario}.json");
-            Console.WriteLine($"Data: samples/{scenario}-data.json");
+            Console.WriteLine($"Schema: {Path.Combine(_projectRoot!, "samples", $"{scenario}.json")}");
+            Console.WriteLine($"Data: {Path.Combine(_projectRoot!, "samples", $"{scenario}-data.json")}");
             Console.WriteLine();
 
             Console.WriteLine("📂 Loading files...");
-            string schemaPath = $"samples/{scenario}.json";
-            string dataPath = $"samples/{scenario}-data.json";
-            string comparePath = $"samples/{scenario}-evaluated-compare.json";
+            string samplesPath = Path.Combine(_projectRoot!, "samples");
+            string schemaPath = Path.Combine(samplesPath, $"{scenario}.json");
+            string dataPath = Path.Combine(samplesPath, $"{scenario}-data.json");
+            string comparePath = Path.Combine(samplesPath, $"{scenario}-evaluated-compare.json");
 
             if (!File.Exists(schemaPath))
             {
@@ -279,7 +280,7 @@ namespace JsonEvalBenchmark
 
             // Save results
             Console.WriteLine("💾 Saving results...");
-            string outputDir = "samples";
+            string outputDir = Path.Combine(_projectRoot!, "samples");
             Directory.CreateDirectory(outputDir);
 
             string evaluatedPath = $"{outputDir}/{scenario}-evaluated-schema.json";
