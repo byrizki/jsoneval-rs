@@ -941,36 +941,73 @@ impl CompiledLogic {
                 let field_label = Box::new(Self::compile(&arr[1])?);
                 let field_value = Box::new(Self::compile(&arr[2])?);
 
-                // Handle triplet syntax: value, operator, field -> {operator: [value, {var: field}]}
                 let condition_args = &arr[3..];
                 let mut conditions = Vec::new();
 
                 let mut i = 0;
-                while i + 2 < condition_args.len() {
-                    let value = &condition_args[i];
-                    let operator = &condition_args[i + 1];
-                    let field = &condition_args[i + 2];
+                while i < condition_args.len() {
+                    let arg = &condition_args[i];
 
-                    if let Value::String(op) = operator {
-                        // Create comparison: {op: [value, {var: field}]}
-                        let field_var = if let Value::String(f) = field {
-                            serde_json::json!({"var": f})
-                        } else {
-                            field.clone()
-                        };
+                    // Check if the current argument is an array of [value, operator, field]
+                    if let Some(arg_arr) = arg.as_array() {
+                        if arg_arr.len() == 3 && arg_arr[1].is_string() {
+                            let is_comparison = matches!(
+                                arg_arr[1].as_str().unwrap(),
+                                "==" | "!=" | "===" | "!==" | "<" | ">" | "<=" | ">="
+                            );
+                            if is_comparison {
+                                let value = &arg_arr[0];
+                                let operator = arg_arr[1].as_str().unwrap();
+                                let field = &arg_arr[2];
 
-                        let comparison = serde_json::json!({
-                            op: [value.clone(), field_var]
-                        });
+                                let field_var = if let Value::String(f) = field {
+                                    serde_json::json!({"var": f})
+                                } else {
+                                    field.clone()
+                                };
 
-                        conditions.push(Self::compile(&comparison)?);
+                                let comparison = serde_json::json!({
+                                    operator: [value.clone(), field_var]
+                                });
+
+                                conditions.push(Self::compile(&comparison)?);
+                                i += 1;
+                                continue;
+                            }
+                        }
                     }
 
-                    i += 3;
-                }
+                    // Look for flat triplet syntax: value, operator, field -> {operator: [value, {var: field}]}
+                    if i + 2 < condition_args.len() {
+                        let value = &condition_args[i];
+                        let operator = &condition_args[i + 1];
+                        let field = &condition_args[i + 2];
 
-                // Handle any remaining individual conditions
-                while i < condition_args.len() {
+                        if let Value::String(op) = operator {
+                            let is_comparison = matches!(
+                                op.as_str(),
+                                "==" | "!=" | "===" | "!==" | "<" | ">" | "<=" | ">="
+                            );
+
+                            if is_comparison {
+                                let field_var = if let Value::String(f) = field {
+                                    serde_json::json!({"var": f})
+                                } else {
+                                    field.clone()
+                                };
+
+                                let comparison = serde_json::json!({
+                                    op: [value.clone(), field_var]
+                                });
+
+                                conditions.push(Self::compile(&comparison)?);
+                                i += 3;
+                                continue;
+                            }
+                        }
+                    }
+
+                    // Handle any remaining individual conditions
                     conditions.push(Self::compile(&Self::preprocess_table_condition(
                         &condition_args[i],
                     ))?);
@@ -1657,5 +1694,157 @@ impl CompiledLogicStore {
 impl Default for CompiledLogicStore {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn is_ok(json_value: serde_json::Value) -> bool {
+        CompiledLogic::compile(&json_value).is_ok()
+    }
+
+    #[test]
+    fn test_compile_literals() {
+        assert!(matches!(CompiledLogic::compile(&json!(null)).unwrap(), CompiledLogic::Null));
+        assert!(matches!(CompiledLogic::compile(&json!(true)).unwrap(), CompiledLogic::Bool(true)));
+        assert!(matches!(CompiledLogic::compile(&json!(false)).unwrap(), CompiledLogic::Bool(false)));
+        assert!(matches!(CompiledLogic::compile(&json!(42.5)).unwrap(), CompiledLogic::Number(n) if n == 42.5));
+        assert!(matches!(CompiledLogic::compile(&json!("hello")).unwrap(), CompiledLogic::String(ref s) if s == "hello"));
+        assert!(matches!(CompiledLogic::compile(&json!([1, 2, 3])).unwrap(), CompiledLogic::Array(_)));
+    }
+
+    #[test]
+    fn test_compile_variables() {
+        assert!(is_ok(json!({"var": "a"})));
+        assert!(is_ok(json!({"var": ["a", 1]})));
+        assert!(!is_ok(json!({"var": {}}))); // Invalid var form
+        assert!(is_ok(json!({"$ref": "#/path"})));
+    }
+
+    #[test]
+    fn test_compile_logical() {
+        assert!(is_ok(json!({"and": [true, false]})));
+        assert!(is_ok(json!({"or": [true, false]})));
+        assert!(is_ok(json!({"not": [true]})));
+        assert!(is_ok(json!({"!": [true]})));
+        assert!(is_ok(json!({"if": [true, 1, 0]})));
+        assert!(is_ok(json!({"xor": [true, false]})));
+        assert!(is_ok(json!({"ifnull": [{"var": "a"}, 0]})));
+        
+        // Errors
+        assert!(!is_ok(json!({"if": []})));
+        assert!(!is_ok(json!({"and": true}))); 
+    }
+
+    #[test]
+    fn test_compile_comparison() {
+        assert!(is_ok(json!({"==": [1, 1]})));
+        assert!(is_ok(json!({"===": [1, 1]})));
+        assert!(is_ok(json!({"!=": [1, 2]})));
+        assert!(is_ok(json!({"!==": [1, 2]})));
+        assert!(is_ok(json!({">": [2, 1]})));
+        assert!(is_ok(json!({">=": [2, 2]})));
+        assert!(is_ok(json!({"<": [1, 2]})));
+        assert!(is_ok(json!({"<=": [2, 2]})));
+
+        // Error
+        assert!(!is_ok(json!({"==": 1})));
+    }
+
+    #[test]
+    fn test_compile_arithmetic() {
+        assert!(is_ok(json!({"+": [1, 2]})));
+        assert!(is_ok(json!({"-": [1, 2]})));
+        assert!(is_ok(json!({"*": [1, 2]})));
+        assert!(is_ok(json!({"/": [1, 2]})));
+        assert!(is_ok(json!({"%": [1, 2]})));
+        assert!(is_ok(json!({"pow": [2, 3]})));
+
+        // Error
+        assert!(!is_ok(json!({"-": "a"}))); // Needs array of arguments
+    }
+
+    #[test]
+    fn test_compile_array_ops() {
+        assert!(is_ok(json!({"map": [[1, 2], {"+": [{"var": ""}, 1]}]})));
+        assert!(is_ok(json!({"filter": [[1, 2], {">": [{"var": ""}, 1]}]})));
+        assert!(is_ok(json!({"reduce": [[1, 2], {"+": [{"var": "current"}, {"var": "accumulator"}]}, 0]})));
+        assert!(is_ok(json!({"all": [[true, false], {"var": ""}]})));
+        assert!(is_ok(json!({"some": [[true, false], {"var": ""}]})));
+        assert!(is_ok(json!({"none": [[true, false], {"var": ""}]})));
+        assert!(is_ok(json!({"merge": [[1], [2]]})));
+        assert!(is_ok(json!({"in": [1, [1, 2, 3]]})));
+        assert!(is_ok(json!({"sum": [{"var": "data"}, "a", 0]})));
+    }
+
+    #[test]
+    fn test_compile_string_ops() {
+        assert!(is_ok(json!({"cat": ["a", "b"]})));
+        assert!(is_ok(json!({"substr": ["hello", 0, 2]})));
+        assert!(is_ok(json!({"search": ["a", "abc", 0]})));
+        assert!(is_ok(json!({"SPLITTEXT": ["a,b", ",", 0]})));
+        assert!(is_ok(json!({"left": ["abc", 2]})));
+        assert!(is_ok(json!({"right": ["abc", 2]})));
+
+        // Error
+        assert!(!is_ok(json!({"substr": "hello"})));
+    }
+
+    #[test]
+    fn test_compile_math_ops() {
+        assert!(is_ok(json!({"max": [1, 2, 3]})));
+        assert!(is_ok(json!({"min": [1, 2, 3]})));
+        assert!(is_ok(json!({"abs": -1})));
+        assert!(is_ok(json!({"round": [1.234, 2]})));
+        assert!(is_ok(json!({"roundup": [1.234, 2]})));
+        assert!(is_ok(json!({"rounddown": [1.234, 2]})));
+        assert!(is_ok(json!({"ceiling": [1.234, 1]})));
+        assert!(is_ok(json!({"floor": [1.234, 1]})));
+        assert!(is_ok(json!({"trunc": [1.234, 2]})));
+    }
+
+    #[test]
+    fn test_compile_date_ops() {
+        assert!(is_ok(json!({"today": []})));
+        assert!(is_ok(json!({"date": [2024, 12, 1]})));
+        assert!(is_ok(json!({"days": ["2024-12-02", "2024-12-01"]})));
+        assert!(is_ok(json!({"year": ["2024-12-01"]})));
+        assert!(is_ok(json!({"month": ["2024-12-01"]})));
+        assert!(is_ok(json!({"day": ["2024-12-01"]})));
+    }
+
+    #[test]
+    fn test_compile_table_ops() {
+        assert!(is_ok(json!({"VALUEAT": [{"var": "t"}, 0, "a"]})));
+        assert!(is_ok(json!({"INDEXAT": ["a", {"var": "t"}, "b", true]})));
+        assert!(is_ok(json!({"MAXAT": [{"var": "t"}, "a"]})));
+        assert!(is_ok(json!({"MATCH": [{"var": "t"}, "==", 1, "a"]})));
+        assert!(is_ok(json!({"MATCHRANGE": [{"var": "t"}, "==", 1, "a"]})));
+        assert!(is_ok(json!({"CHOOSE": [{"var": "t"}, "==", 1, "a"]})));
+        assert!(is_ok(json!({"FINDINDEX": [{"var": "t"}, "==", 1, "a"]})));
+        assert!(is_ok(json!({"MAPOPTIONS": [{"var": "t"}, "a", "b"]})));
+        assert!(is_ok(json!({"MAPOPTIONSIF": [{"var": "t"}, "a", "b", [true, "==", "c"]]})));
+        
+        // Error cases
+        assert!(!is_ok(json!({"VALUEAT": [[{"a": 1}], 0]})));
+        assert!(!is_ok(json!({"MAPOPTIONSIF": [[], "a"]})));
+    }
+
+    #[test]
+    fn test_compile_util_ops() {
+        assert!(is_ok(json!({"missing": ["a", "b"]})));
+        assert!(is_ok(json!({"missing_some": [1, ["a", "b"]]})));
+        assert!(is_ok(json!({"empty": []})));
+        assert!(is_ok(json!({"return": 5})));
+        assert!(is_ok(json!({"RANGEOPTIONS": [1, 5]})));
+    }
+
+    #[test]
+    fn test_compile_unknown() {
+        assert!(!is_ok(json!({"UNKNOWN_OP": [1, 2]})));
+        assert!(!is_ok(json!({"UNKNOWN_NON_ARRAY": 1})));
     }
 }
