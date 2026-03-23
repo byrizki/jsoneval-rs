@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.72] - 2026-03-24
+
+### Changed
+
+- [core] fix evaluation caches
+- [core] fix MAPOPTIONSIF operator
+- [core] optimize FINDINDEX operator
+
 ## [0.0.71] - 2026-03-18
 
 ### Fixed
