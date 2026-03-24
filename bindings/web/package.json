@@ -1,6 +1,6 @@
 {
   "name": "json-eval-rs-web-monorepo",
-  "version": "0.0.72",
+  "version": "0.0.73",
   "private": true,
   "description": "JSON Eval RS Web Bindings - Monorepo",
   "workspaces": [
@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "nextjs": "yarn workspace nextjs dev",
-    "compile": "yarn workspaces run build",
+    "compile": "yarn workspaces foreach run build",
     "clean": "rm -rf packages/*/json_eval_rs* packages/*/*.wasm"
   },
   "repository": {

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.73] - 2026-03-24
+
+### Changed
+
+- [core] fix evaluation smart cache purging
+
 ## [0.0.72] - 2026-03-24
 
 ### Changed

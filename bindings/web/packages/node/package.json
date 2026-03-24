@@ -1,6 +1,6 @@
 {
   "name": "@json-eval-rs/node",
-  "version": "0.0.72",
+  "version": "0.0.73",
   "description": "JSON Eval RS for Node.js and Server-Side Rendering with ergonomic API",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -12,7 +12,7 @@
     "pkg/*.d.ts"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "npx tsc",
     "prepack": "npm run build"
   },
   "keywords": [
@@ -32,7 +32,7 @@
     "directory": "bindings/web/packages/node"
   },
   "dependencies": {
-    "@json-eval-rs/webcore": "*"
+    "@json-eval-rs/webcore": "workspace:*"
   },
   "sideEffects": false
 }

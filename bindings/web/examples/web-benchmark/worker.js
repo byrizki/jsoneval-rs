@@ -128,11 +128,24 @@ async function runBenchmark({ scenario, schemaText, dataText, compareText }) {
     lastSchemaStr = schemaStr;
   }
 
+  je.reloadSchema(schemaStr, contextStr, dataStr);
+
   // Benchmark 2: Evaluate (void, mirrors evaluateOnly)
   const evalStart = performance.now();
   je.evaluate(dataStr, contextStr, null);
   const evaluationMs = performance.now() - evalStart;
   postLog(`  ⚡ Eval: ${evaluationMs.toFixed(3)}ms`);
+
+  const evalStart1 = performance.now();
+  je.evaluateDependentsJS("[]", dataStr, contextStr, true);
+  const evaluationMs1 = performance.now() - evalStart1;
+  postLog(`  ⚡ Eval dependents: ${evaluationMs1.toFixed(3)}ms`);
+
+  // Benchmark 3: Evaluate (void, mirrors evaluateOnly)
+  const evalStart2 = performance.now();
+  je.evaluate(dataStr, contextStr, null);
+  const evaluationMs2 = performance.now() - evalStart2;
+  postLog(`  ⚡ Eval 2: ${evaluationMs2.toFixed(3)}ms`);
 
   let cacheStats = null;
   try {

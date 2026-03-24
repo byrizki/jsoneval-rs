@@ -1,6 +1,6 @@
 {
   "name": "@json-eval-rs/webcore",
-  "version": "0.0.72",
+  "version": "0.0.73",
   "description": "JSON Eval RS core JavaScript wrapper (internal package - not published)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -9,7 +9,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "npx tsc",
     "prepack": "npm run build"
   },
   "keywords": [

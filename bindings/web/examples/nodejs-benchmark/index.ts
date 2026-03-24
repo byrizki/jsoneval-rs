@@ -125,6 +125,7 @@ async function runNodeBenchmark(
   const parseStart = performance.now();
   const je = new JSONEval({ schema, data, context: {} });
   await je.init();
+  je.reloadSchema({ schema, context: {}, data })
   const parsingMs = performance.now() - parseStart;
   console.log(`  📝 Parse (new): ${parsingMs.toFixed(3)}ms`);
 
@@ -133,6 +134,12 @@ async function runNodeBenchmark(
   await je.evaluateOnly({ data, context: {} });
   const evaluationMs = performance.now() - evalStart;
   console.log(`  ⚡ Eval: ${evaluationMs.toFixed(3)}ms`);
+
+  // Benchmark 3: Evaluation
+  const evalStart2 = performance.now();
+  await je.evaluateOnly({ data, context: {} });
+  const evaluationMs2 = performance.now() - evalStart2;
+  console.log(`  ⚡ Eval 2: ${evaluationMs2.toFixed(3)}ms`);
 
   const totalMs = performance.now() - totalStart;
   console.log(`  ⏱️  Total: ${totalMs.toFixed(3)}ms`);
