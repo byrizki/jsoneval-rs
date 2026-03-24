@@ -1,5 +1,5 @@
 use crate::jsoneval::path_utils;
-use crate::topo_sort::common::{collect_transitive_deps, compute_parallel_batches};
+use crate::topo_sort::common::{collect_transitive_deps, compute_evaluation_batches};
 use crate::JSONEval;
 /// Topological sorting for legacy JSONEval
 use indexmap::{IndexMap, IndexSet};
@@ -368,14 +368,14 @@ pub fn topological_sort(lib: &JSONEval) -> Result<Vec<Vec<String>>, String> {
         }
     }
 
-    // Now convert the flat sorted list into parallel batches
-    // Batch nodes by their "level" - all nodes at the same level can run in parallel
-    let batches = compute_parallel_batches(&sorted, &unified_graph, &table_paths);
+    // Now convert the flat sorted list into batches
+    // Batch nodes by their "level" - all nodes at the same level can run together
+    let batches = compute_evaluation_batches(&sorted, &unified_graph, &table_paths);
 
     Ok(batches)
 }
 
-/// Compute parallel execution batches from a topologically sorted list
+/// Compute evaluation batches from a topologically sorted list
 ///
 /// Algorithm: Assign each node to the earliest batch where all its dependencies
 /// have been processed in previous batches.

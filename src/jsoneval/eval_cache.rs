@@ -1,8 +1,4 @@
-#[cfg(feature = "parallel")]
-use dashmap::DashMap;
-#[cfg(not(feature = "parallel"))]
 use std::cell::RefCell;
-#[cfg(not(feature = "parallel"))]
 use std::collections::HashMap;
 
 use ahash::AHasher;
@@ -101,15 +97,9 @@ impl CacheKey {
 }
 
 /// Zero-copy cache store
-/// With parallel feature: Uses DashMap for thread-safe concurrent access
-/// Without parallel feature: Uses HashMap + RefCell for ultra-fast single-threaded access
+/// Uses HashMap + RefCell for ultra-fast single-threaded access
 /// Values are stored behind Arc to enable cheap cloning
 pub struct EvalCache {
-    #[cfg(feature = "parallel")]
-    /// Cache storage: DashMap for thread-safe concurrent access
-    cache: DashMap<CacheKey, Arc<Value>>,
-
-    #[cfg(not(feature = "parallel"))]
     /// Cache storage: HashMap + RefCell for ultra-fast single-threaded access
     cache: RefCell<HashMap<CacheKey, Arc<Value>>>,
 
@@ -122,9 +112,6 @@ impl EvalCache {
     /// Create a new empty cache
     pub fn new() -> Self {
         Self {
-            #[cfg(feature = "parallel")]
-            cache: DashMap::new(),
-            #[cfg(not(feature = "parallel"))]
             cache: RefCell::new(HashMap::new()),
             hits: AtomicUsize::new(0),
             misses: AtomicUsize::new(0),
@@ -134,9 +121,6 @@ impl EvalCache {
     /// Create cache with preallocated capacity
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            #[cfg(feature = "parallel")]
-            cache: DashMap::with_capacity(capacity),
-            #[cfg(not(feature = "parallel"))]
             cache: RefCell::new(HashMap::with_capacity(capacity)),
             hits: AtomicUsize::new(0),
             misses: AtomicUsize::new(0),
@@ -145,22 +129,6 @@ impl EvalCache {
 
     /// Get cached result (zero-copy via Arc clone)
     /// Returns None if not cached
-    #[cfg(feature = "parallel")]
-    /// Thread-safe: can be called concurrently
-    #[inline]
-    pub fn get(&self, key: &CacheKey) -> Option<Arc<Value>> {
-        if let Some(value) = self.cache.get(key) {
-            self.hits.fetch_add(1, Ordering::Relaxed);
-            Some(Arc::clone(value.value()))
-        } else {
-            self.misses.fetch_add(1, Ordering::Relaxed);
-            None
-        }
-    }
-
-    /// Get cached result (zero-copy via Arc clone)
-    /// Returns None if not cached
-    #[cfg(not(feature = "parallel"))]
     /// Ultra-fast single-threaded access
     #[inline]
     pub fn get(&self, key: &CacheKey) -> Option<Arc<Value>> {
@@ -174,15 +142,6 @@ impl EvalCache {
     }
 
     /// Insert result into cache (wraps in Arc for zero-copy sharing)
-    #[cfg(feature = "parallel")]
-    /// Thread-safe: can be called concurrently
-    #[inline]
-    pub fn insert(&self, key: CacheKey, value: Value) {
-        self.cache.insert(key, Arc::new(value));
-    }
-
-    /// Insert result into cache (wraps in Arc for zero-copy sharing)
-    #[cfg(not(feature = "parallel"))]
     /// Ultra-fast single-threaded access
     #[inline]
     pub fn insert(&self, key: CacheKey, value: Value) {
@@ -190,15 +149,6 @@ impl EvalCache {
     }
 
     /// Insert with Arc-wrapped value (zero-copy if already Arc)
-    #[cfg(feature = "parallel")]
-    /// Thread-safe: can be called concurrently
-    #[inline]
-    pub fn insert_arc(&self, key: CacheKey, value: Arc<Value>) {
-        self.cache.insert(key, value);
-    }
-
-    /// Insert with Arc-wrapped value (zero-copy if already Arc)
-    #[cfg(not(feature = "parallel"))]
     /// Ultra-fast single-threaded access
     #[inline]
     pub fn insert_arc(&self, key: CacheKey, value: Arc<Value>) {
@@ -206,15 +156,6 @@ impl EvalCache {
     }
 
     /// Clear all cached entries
-    #[cfg(feature = "parallel")]
-    pub fn clear(&self) {
-        self.cache.clear();
-        self.hits.store(0, Ordering::Relaxed);
-        self.misses.store(0, Ordering::Relaxed);
-    }
-
-    /// Clear all cached entries
-    #[cfg(not(feature = "parallel"))]
     pub fn clear(&self) {
         self.cache.borrow_mut().clear();
         self.hits.store(0, Ordering::Relaxed);
@@ -234,18 +175,6 @@ impl EvalCache {
     }
 
     /// Get cache statistics
-    #[cfg(feature = "parallel")]
-    pub fn stats(&self) -> CacheStats {
-        CacheStats {
-            hits: self.hits.load(Ordering::Relaxed),
-            misses: self.misses.load(Ordering::Relaxed),
-            entries: self.cache.len(),
-            hit_rate: self.hit_rate(),
-        }
-    }
-
-    /// Get cache statistics
-    #[cfg(not(feature = "parallel"))]
     pub fn stats(&self) -> CacheStats {
         CacheStats {
             hits: self.hits.load(Ordering::Relaxed),
@@ -256,42 +185,18 @@ impl EvalCache {
     }
 
     /// Get number of cached entries
-    #[cfg(feature = "parallel")]
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.cache.len()
-    }
-
-    /// Get number of cached entries
-    #[cfg(not(feature = "parallel"))]
     #[inline]
     pub fn len(&self) -> usize {
         self.cache.borrow().len()
     }
 
     /// Check if cache is empty
-    #[cfg(feature = "parallel")]
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.cache.is_empty()
-    }
-
-    /// Check if cache is empty
-    #[cfg(not(feature = "parallel"))]
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.cache.borrow().is_empty()
     }
 
     /// Remove specific entry
-    #[cfg(feature = "parallel")]
-    #[inline]
-    pub fn remove(&self, key: &CacheKey) -> Option<Arc<Value>> {
-        self.cache.remove(key).map(|(_, v)| v)
-    }
-
-    /// Remove specific entry
-    #[cfg(not(feature = "parallel"))]
     #[inline]
     pub fn remove(&self, key: &CacheKey) -> Option<Arc<Value>> {
         self.cache.borrow_mut().remove(key)
@@ -299,17 +204,6 @@ impl EvalCache {
 
     /// Remove entries based on a predicate function
     /// Predicate returns true to keep the entry, false to remove it
-    #[cfg(feature = "parallel")]
-    pub fn retain<F>(&self, predicate: F)
-    where
-        F: Fn(&CacheKey, &Arc<Value>) -> bool,
-    {
-        self.cache.retain(|k, v| predicate(k, v));
-    }
-
-    /// Remove entries based on a predicate function
-    /// Predicate returns true to keep the entry, false to remove it
-    #[cfg(not(feature = "parallel"))]
     pub fn retain<F>(&self, predicate: F)
     where
         F: Fn(&CacheKey, &Arc<Value>) -> bool,
@@ -319,19 +213,6 @@ impl EvalCache {
 
     /// Invalidate cache entries that depend on changed paths
     /// Efficiently removes only affected entries
-    #[cfg(feature = "parallel")]
-    pub fn invalidate_dependencies(&self, changed_paths: &[String]) {
-        // Build a set of changed path hashes for fast lookup
-        let changed_hashes: IndexSet<String> = changed_paths.iter().cloned().collect();
-
-        // Remove cache entries whose eval_key is in the changed set
-        self.cache
-            .retain(|cache_key, _| !changed_hashes.contains(&cache_key.eval_key));
-    }
-
-    /// Invalidate cache entries that depend on changed paths
-    /// Efficiently removes only affected entries
-    #[cfg(not(feature = "parallel"))]
     pub fn invalidate_dependencies(&self, changed_paths: &[String]) {
         // Build a set of changed path hashes for fast lookup
         let changed_hashes: IndexSet<String> = changed_paths.iter().cloned().collect();

@@ -8,11 +8,7 @@ use crate::time_block;
 
 use serde_json::Value;
 
-#[cfg(feature = "parallel")]
-use rayon::prelude::*;
 
-#[cfg(feature = "parallel")]
-use std::sync::Mutex;
 
 impl JSONEval {
     /// Evaluate the schema with the given data and context.
@@ -116,81 +112,13 @@ impl JSONEval {
             // Track cache misses across batches to prevent false hits from large skipped arrays
             let missed_keys = dashmap::DashSet::new();
 
-            // Process each batch - parallelize evaluations within each batch
+            // Process each batch - sequentially
             // Batches are processed sequentially to maintain dependency order
             // Process value evaluations (simple computed fields)
             // These are independent of rule batches and should always run
             let eval_data_values = self.eval_data.clone();
             time_block!("      evaluate values", {
-                #[cfg(feature = "parallel")]
-                if self.value_evaluations.len() > 100 {
-                    let value_results: Mutex<Vec<(String, Value)>> =
-                        Mutex::new(Vec::with_capacity(self.value_evaluations.len()));
-
-                    self.value_evaluations.par_iter().for_each(|eval_key| {
-                        // Skip if has dependencies (will be handled in sorted batches)
-                        if let Some(deps) = self.dependencies.get(eval_key) {
-                            if !deps.is_empty() {
-                                return;
-                            }
-                        }
-
-                        // Filter items if paths are provided
-                        if let Some(filter_paths) = normalized_paths {
-                            if !filter_paths.is_empty()
-                                && !filter_paths.iter().any(|p| {
-                                    eval_key.starts_with(p.as_str())
-                                        || p.starts_with(eval_key.as_str())
-                                })
-                            {
-                                return;
-                            }
-                        }
-
-                        // For value evaluations (e.g. /properties/foo/value), we want the value at that path
-                        // The path in eval_key is like "#/properties/foo/value"
-                        let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
-
-                        // Try cache first (thread-safe)
-                        if let Some(_) = self.try_get_cached(eval_key, &eval_data_values, &missed_keys) {
-                            return;
-                        }
-
-                        // Cache miss - evaluate
-                        if let Some(logic_id) = self.evaluations.get(eval_key) {
-                            if let Ok(val) = self.engine.run(logic_id, eval_data_values.data()) {
-                                let cleaned_val = clean_float_noise_scalar(val);
-                                // Cache result (thread-safe)
-                                self.cache_result(eval_key, Value::Null, &eval_data_values);
-                                value_results
-                                    .lock()
-                                    .unwrap()
-                                    .push((pointer_path, cleaned_val));
-                            }
-                        }
-                    });
-
-                    // Write results to evaluated_schema
-                    for (result_path, value) in value_results.into_inner().unwrap() {
-                        if let Some(pointer_value) = self.evaluated_schema.pointer_mut(&result_path)
-                        {
-                            *pointer_value = value;
-                        }
-                    }
-                }
-
-                // Sequential execution for values (if not parallel or small count)
-                #[cfg(feature = "parallel")]
-                let value_eval_items = if self.value_evaluations.len() > 100 {
-                    &self.value_evaluations[0..0]
-                } else {
-                    &self.value_evaluations
-                };
-
-                #[cfg(not(feature = "parallel"))]
-                let value_eval_items = &self.value_evaluations;
-
-                for eval_key in value_eval_items.iter() {
+                for eval_key in self.value_evaluations.iter() {
                     if let Some(t) = token {
                         if t.is_cancelled() {
                             return Err("Cancelled".to_string());
@@ -266,109 +194,10 @@ impl JSONEval {
                         }
                     }
 
-                    // No pre-checking cache - we'll check inside parallel execution
-                    // This allows thread-safe cache access during parallel evaluation
-
-                    // Parallel execution within batch (no dependencies between items)
-                    // Use Mutex for thread-safe result collection
-                    // Store both eval_key and result for cache storage
+                    // Sequential execution
                     let eval_data_snapshot = self.eval_data.clone();
 
-                    // Parallelize only if batch has multiple items (overhead not worth it for single item)
-
-                    #[cfg(feature = "parallel")]
-                    if batch.len() > 1000 {
-                        let results: Mutex<Vec<(String, String, Value)>> =
-                            Mutex::new(Vec::with_capacity(batch.len()));
-                        batch.par_iter().for_each(|eval_key| {
-                            // Filter individual items if paths are provided
-                            if let Some(filter_paths) = normalized_paths {
-                                if !filter_paths.is_empty()
-                                    && !filter_paths.iter().any(|p| {
-                                        eval_key.starts_with(p.as_str())
-                                            || p.starts_with(eval_key.as_str())
-                                    })
-                                {
-                                    return;
-                                }
-                            }
-
-                            let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
-
-                            // Try cache first (thread-safe)
-                            if let Some(_) = self.try_get_cached(eval_key, &eval_data_snapshot, &missed_keys) {
-                                return;
-                            }
-
-                            // Cache miss - evaluate
-                            let is_table = self.table_metadata.contains_key(eval_key);
-
-                            if is_table {
-                                missed_keys.insert(pointer_path.clone());
-                                // Evaluate table using sandboxed metadata (parallel-safe, immutable parent scope)
-                                if let Ok(rows) = table_evaluate::evaluate_table(
-                                    self,
-                                    eval_key,
-                                    &eval_data_snapshot,
-                                    token
-                                ) {
-                                    let value = Value::Array(rows);
-                                    // Cache result (thread-safe)
-                                    self.cache_result(eval_key, Value::Null, &eval_data_snapshot);
-                                    results.lock().unwrap().push((
-                                        eval_key.clone(),
-                                        pointer_path,
-                                        value,
-                                    ));
-                                }
-                            } else {
-                                if let Some(logic_id) = self.evaluations.get(eval_key) {
-                                    // Evaluate directly with snapshot
-                                    if let Ok(val) =
-                                        self.engine.run(logic_id, eval_data_snapshot.data())
-                                    {
-                                        let cleaned_val = clean_float_noise_scalar(val);
-                                        // Cache result (thread-safe)
-                                        self.cache_result(
-                                            eval_key,
-                                            Value::Null,
-                                            &eval_data_snapshot,
-                                        );
-                                        results.lock().unwrap().push((
-                                            eval_key.clone(),
-                                            pointer_path,
-                                            cleaned_val,
-                                        ));
-                                    }
-                                }
-                            }
-                        });
-
-                        // Write all results back sequentially (already cleaned in parallel execution)
-                        for (_eval_key, path, value) in results.into_inner().unwrap() {
-                            let cleaned_value = value;
-
-                            self.eval_data.set(&path, cleaned_value.clone());
-                            // Also write to evaluated_schema
-                            if let Some(schema_value) = self.evaluated_schema.pointer_mut(&path) {
-                                *schema_value = cleaned_value;
-                            }
-                        }
-                        continue;
-                    }
-
-                    // Sequential execution (single item or parallel feature disabled)
-                    #[cfg(not(feature = "parallel"))]
-                    let batch_items: &[String] = batch;
-
-                    #[cfg(feature = "parallel")]
-                    let batch_items: &[String] = if batch.len() > 1000 {
-                        &batch[0..0]
-                    } else {
-                        batch
-                    }; // Empty slice if already processed in parallel
-
-                    for eval_key in batch_items {
+                    for eval_key in batch {
                         if let Some(t) = token {
                             if t.is_cancelled() {
                                 return Err("Cancelled".to_string());
@@ -472,141 +301,64 @@ impl JSONEval {
                             .collect()
                     });
 
-                    #[cfg(feature = "parallel")]
-                    {
-                        let combined_results: Mutex<Vec<(String, Value)>> =
-                            Mutex::new(Vec::with_capacity(combined_count));
+                    // Sequential evaluation
+                    let combined_evals: Vec<&String> = self
+                        .rules_evaluations
+                        .iter()
+                        .chain(self.others_evaluations.iter())
+                        .collect();
 
-                        self.rules_evaluations
-                            .par_iter()
-                            .chain(self.others_evaluations.par_iter())
-                            .for_each(|eval_key| {
-                                // Filter items if paths are provided
-                                if let Some(filter_paths) = normalized_paths.as_ref() {
-                                    if !filter_paths.is_empty()
-                                        && !filter_paths.iter().any(|p| {
-                                            eval_key.starts_with(p.as_str())
-                                                || p.starts_with(eval_key.as_str())
-                                        })
-                                    {
-                                        return;
-                                    }
-                                }
-
-                                let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
-
-                                // Try cache first (thread-safe)
-                                if let Some(_) = self.try_get_cached(eval_key, &eval_data_snapshot, missed_keys)
-                                {
-                                    return;
-                                }
-
-                                // Cache miss - evaluate
-                                if let Some(logic_id) = self.evaluations.get(eval_key) {
-                                    if let Ok(val) =
-                                        self.engine.run(logic_id, eval_data_snapshot.data())
-                                    {
-                                        let cleaned_val = clean_float_noise_scalar(val);
-                                        // Cache result (thread-safe)
-                                        self.cache_result(
-                                            eval_key,
-                                            Value::Null,
-                                            &eval_data_snapshot,
-                                        );
-                                        combined_results
-                                            .lock()
-                                            .unwrap()
-                                            .push((pointer_path, cleaned_val));
-                                    }
-                                }
-                            });
-
-                        // Write results to evaluated_schema
-                        for (result_path, value) in combined_results.into_inner().unwrap() {
-                            if let Some(pointer_value) =
-                                self.evaluated_schema.pointer_mut(&result_path)
-                            {
-                                // Special handling for rules with $evaluation
-                                // This includes both direct rules and array items: /rules/evaluation/0/$evaluation
-                                if !result_path.starts_with("$")
-                                    && result_path.contains("/rules/")
-                                    && !result_path.ends_with("/value")
-                                {
-                                    match pointer_value.as_object_mut() {
-                                        Some(pointer_obj) => {
-                                            pointer_obj.remove("$evaluation");
-                                            pointer_obj.insert("value".to_string(), value);
-                                        }
-                                        None => continue,
-                                    }
-                                } else {
-                                    *pointer_value = value;
-                                }
+                    for eval_key in combined_evals {
+                        if let Some(t) = token {
+                            if t.is_cancelled() {
+                                return;
                             }
                         }
-                    }
-
-                    #[cfg(not(feature = "parallel"))]
-                    {
-                        // Sequential evaluation
-                        let combined_evals: Vec<&String> = self
-                            .rules_evaluations
-                            .iter()
-                            .chain(self.others_evaluations.iter())
-                            .collect();
-
-                        for eval_key in combined_evals {
-                            if let Some(t) = token {
-                                if t.is_cancelled() {
-                                    return;
-                                }
-                            }
-                            // Filter items if paths are provided
-                            if let Some(filter_paths) = normalized_paths.as_ref() {
-                                if !filter_paths.is_empty()
-                                    && !filter_paths.iter().any(|p| {
-                                        eval_key.starts_with(p.as_str())
-                                            || p.starts_with(eval_key.as_str())
-                                    })
-                                {
-                                    continue;
-                                }
-                            }
-
-                            let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
-
-                            // Try cache first
-                            if let Some(_) = self.try_get_cached(eval_key, &eval_data_snapshot, missed_keys) {
+                        // Filter items if paths are provided
+                        if let Some(filter_paths) = normalized_paths.as_ref() {
+                            if !filter_paths.is_empty()
+                                && !filter_paths.iter().any(|p| {
+                                    eval_key.starts_with(p.as_str())
+                                        || p.starts_with(eval_key.as_str())
+                                })
+                            {
                                 continue;
                             }
+                        }
 
-                            // Cache miss - evaluate
-                            if let Some(logic_id) = self.evaluations.get(eval_key) {
-                                if let Ok(val) =
-                                    self.engine.run(logic_id, eval_data_snapshot.data())
+                        let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
+
+                        // Try cache first
+                        if let Some(_) = self.try_get_cached(eval_key, &eval_data_snapshot, missed_keys) {
+                            continue;
+                        }
+
+                        // Cache miss - evaluate
+                        if let Some(logic_id) = self.evaluations.get(eval_key) {
+                            if let Ok(val) =
+                                self.engine.run(logic_id, eval_data_snapshot.data())
+                            {
+                                let cleaned_val = clean_float_noise_scalar(val);
+                                // Cache result
+                                self.cache_result(eval_key, Value::Null, &eval_data_snapshot);
+
+                                if let Some(pointer_value) =
+                                    self.evaluated_schema.pointer_mut(&pointer_path)
                                 {
-                                    let cleaned_val = clean_float_noise_scalar(val);
-                                    // Cache result
-                                    self.cache_result(eval_key, Value::Null, &eval_data_snapshot);
-
-                                    if let Some(pointer_value) =
-                                        self.evaluated_schema.pointer_mut(&pointer_path)
+                                    if !pointer_path.starts_with("$")
+                                        && pointer_path.contains("/rules/")
+                                        && !pointer_path.ends_with("/value")
                                     {
-                                        if !pointer_path.starts_with("$")
-                                            && pointer_path.contains("/rules/")
-                                            && !pointer_path.ends_with("/value")
-                                        {
-                                            match pointer_value.as_object_mut() {
-                                                Some(pointer_obj) => {
-                                                    pointer_obj.remove("$evaluation");
-                                                    pointer_obj
-                                                        .insert("value".to_string(), cleaned_val);
-                                                }
-                                                None => continue,
+                                        match pointer_value.as_object_mut() {
+                                            Some(pointer_obj) => {
+                                                pointer_obj.remove("$evaluation");
+                                                pointer_obj
+                                                    .insert("value".to_string(), cleaned_val);
                                             }
-                                        } else {
-                                            *pointer_value = cleaned_val;
+                                            None => continue,
                                         }
+                                    } else {
+                                        *pointer_value = cleaned_val;
                                     }
                                 }
                             }

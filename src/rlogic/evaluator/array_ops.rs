@@ -3,11 +3,6 @@ use super::helpers;
 use super::{types::*, Evaluator};
 use serde_json::{Map as JsonMap, Value};
 
-#[cfg(feature = "parallel")]
-use rayon::prelude::*;
-
-#[cfg(feature = "parallel")]
-const PARALLEL_THRESHOLD: usize = 1000; // Parallelize arrays with 10+ elements for better performance
 
 impl Evaluator {
     /// Execute array quantifier (all/some/none) - ZERO-COPY
@@ -23,61 +18,6 @@ impl Evaluator {
         let array_val =
             self.evaluate_with_context(array_expr, user_data, internal_context, depth + 1)?;
         if let Value::Array(arr) = array_val {
-            // Parallelize for large arrays
-            #[cfg(feature = "parallel")]
-            if arr.len() >= PARALLEL_THRESHOLD {
-                let result = match quantifier {
-                    Quantifier::All => {
-                        arr.par_iter()
-                            .try_fold(
-                                || true,
-                                |_, item| -> Result<bool, String> {
-                                    // Use item as user_data, no internal context needed
-                                    let result = self.evaluate_with_context(
-                                        logic_expr,
-                                        item,
-                                        &Value::Null,
-                                        depth + 1,
-                                    )?;
-                                    Ok(helpers::is_truthy(&result))
-                                },
-                            )
-                            .try_reduce(|| true, |a, b| -> Result<bool, String> { Ok(a && b) })?
-                    }
-                    Quantifier::Some => arr
-                        .par_iter()
-                        .try_fold(
-                            || false,
-                            |_, item| -> Result<bool, String> {
-                                let result = self.evaluate_with_context(
-                                    logic_expr,
-                                    item,
-                                    &Value::Null,
-                                    depth + 1,
-                                )?;
-                                Ok(helpers::is_truthy(&result))
-                            },
-                        )
-                        .try_reduce(|| false, |a, b| -> Result<bool, String> { Ok(a || b) })?,
-                    Quantifier::None => arr
-                        .par_iter()
-                        .try_fold(
-                            || true,
-                            |_, item| -> Result<bool, String> {
-                                let result = self.evaluate_with_context(
-                                    logic_expr,
-                                    item,
-                                    &Value::Null,
-                                    depth + 1,
-                                )?;
-                                Ok(!helpers::is_truthy(&result))
-                            },
-                        )
-                        .try_reduce(|| true, |a, b| -> Result<bool, String> { Ok(a && b) })?,
-                };
-                return Ok(Value::Bool(result));
-            }
-
             for item in arr {
                 let result =
                     self.evaluate_with_context(logic_expr, &item, &Value::Null, depth + 1)?;
@@ -114,18 +54,6 @@ impl Evaluator {
         let array_val =
             self.evaluate_with_context(array_expr, user_data, internal_context, depth + 1)?;
         if let Value::Array(arr) = array_val {
-            // Parallelize for large arrays
-            #[cfg(feature = "parallel")]
-            if arr.len() >= PARALLEL_THRESHOLD {
-                let results: Result<Vec<_>, String> = arr
-                    .par_iter()
-                    .map(|item| {
-                        self.evaluate_with_context(logic_expr, item, &Value::Null, depth + 1)
-                    })
-                    .collect();
-                return Ok(Value::Array(results?));
-            }
-
             let mut results = Vec::with_capacity(arr.len());
             for item in &arr {
                 results.push(self.evaluate_with_context(
@@ -153,23 +81,6 @@ impl Evaluator {
         let array_val =
             self.evaluate_with_context(array_expr, user_data, internal_context, depth + 1)?;
         if let Value::Array(arr) = array_val {
-            // Parallelize for large arrays
-            #[cfg(feature = "parallel")]
-            if arr.len() >= PARALLEL_THRESHOLD {
-                let results: Result<Vec<_>, String> = arr
-                    .into_par_iter()
-                    .filter_map(|item| {
-                        match self.evaluate_with_context(logic_expr, &item, &Value::Null, depth + 1)
-                        {
-                            Ok(result) if helpers::is_truthy(&result) => Some(Ok(item)),
-                            Ok(_) => None,
-                            Err(e) => Some(Err(e)),
-                        }
-                    })
-                    .collect();
-                return Ok(Value::Array(results?));
-            }
-
             let mut results = Vec::with_capacity(arr.len());
             for item in arr.into_iter() {
                 let result =
@@ -337,58 +248,17 @@ impl Evaluator {
 
                 if let Some(field_name) = field_name_opt {
                     // Sum with field name
-                    #[cfg(feature = "parallel")]
-                    if items_to_process.len() >= PARALLEL_THRESHOLD {
-                        items_to_process
-                            .par_iter()
-                            .filter_map(|item| {
-                                if let Value::Object(obj) = item {
-                                    obj.get(&field_name).map(|val| helpers::to_f64(val))
-                                } else {
-                                    None
-                                }
-                            })
-                            .sum()
-                    } else {
-                        let mut sum = 0.0_f64;
-                        for item in items_to_process {
-                            if let Value::Object(obj) = item {
-                                if let Some(val) = obj.get(&field_name) {
-                                    sum += helpers::to_f64(val);
-                                }
+                    let mut sum = 0.0_f64;
+                    for item in items_to_process {
+                        if let Value::Object(obj) = item {
+                            if let Some(val) = obj.get(&field_name) {
+                                sum += helpers::to_f64(val);
                             }
                         }
-                        sum
                     }
-
-                    #[cfg(not(feature = "parallel"))]
-                    {
-                        let mut sum = 0.0_f64;
-                        for item in items_to_process {
-                            if let Value::Object(obj) = item {
-                                if let Some(val) = obj.get(&field_name) {
-                                    sum += helpers::to_f64(val);
-                                }
-                            }
-                        }
-                        sum
-                    }
+                    sum
                 } else {
                     // Sum without field name (threshold already applied above)
-                    #[cfg(feature = "parallel")]
-                    if items_to_process.len() >= PARALLEL_THRESHOLD {
-                        items_to_process
-                            .par_iter()
-                            .map(|item| helpers::to_f64(item))
-                            .sum()
-                    } else {
-                        items_to_process
-                            .iter()
-                            .map(|item| helpers::to_f64(item))
-                            .sum()
-                    }
-
-                    #[cfg(not(feature = "parallel"))]
                     items_to_process
                         .iter()
                         .map(|item| helpers::to_f64(item))
@@ -453,7 +323,7 @@ impl Evaluator {
         // OPTIMIZATION: Detect MULTIPLIES containing single FOR loop
         // Pattern: MULTIPLIES([FOR(start, end, body)])
         // Instead of: FOR creates array -> flatten -> multiply
-        // Optimize to: compute product directly in loop (with parallelization)
+        // Optimize to: compute product directly in loop
         if items.len() == 1 {
             if let CompiledLogic::For(start_expr, end_expr, logic_expr) = &items[0] {
                 return self.eval_multiplies_for(
@@ -480,7 +350,6 @@ impl Evaluator {
     }
 
     /// Optimized MULTIPLIES+FOR: compute product directly without intermediate array
-    /// Uses parallel computation for large ranges (>= PARALLEL_THRESHOLD)
     fn eval_multiplies_for(
         &self,
         start_expr: &CompiledLogic,
@@ -502,35 +371,7 @@ impl Evaluator {
             return Ok(Value::Null);
         }
 
-        #[cfg(feature = "parallel")]
-        let range_size = (end - start) as usize;
-
-        // Parallelize for large ranges
-        #[cfg(feature = "parallel")]
-        if range_size >= PARALLEL_THRESHOLD {
-            let result = (start..end)
-                .into_par_iter()
-                .try_fold(
-                    || 1.0_f64,
-                    |product, i| -> Result<f64, String> {
-                        let loop_context = serde_json::json!({
-                            "$loopIteration": i
-                        });
-                        let val = self.evaluate_with_context(
-                            logic_expr,
-                            user_data,
-                            &loop_context,
-                            next_depth,
-                        )?;
-                        Ok(product * helpers::to_f64(&val))
-                    },
-                )
-                .try_reduce(|| 1.0, |a, b| -> Result<f64, String> { Ok(a * b) })?;
-
-            return Ok(self.f64_to_json(result));
-        }
-
-        // Sequential for small ranges or when parallel feature is disabled
+        // Sequential
         let mut product = 1.0_f64;
         for i in start..end {
             let loop_context = serde_json::json!({

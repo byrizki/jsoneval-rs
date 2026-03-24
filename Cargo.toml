@@ -23,7 +23,6 @@ dashmap = "6.0"
 regex = "1.10"
 rmp-serde = "1.3"
 once_cell = "1.19"
-rayon = { version = "1.10", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
 serde-wasm-bindgen = { version = "0.6", optional = true }
 console_error_panic_hook = { version = "0.1", optional = true }
@@ -40,7 +39,6 @@ path = "src/main.rs"
 
 [features]
 default = []
-parallel = ["rayon"]
 wasm = ["wasm-bindgen", "serde-wasm-bindgen", "console_error_panic_hook", "js-sys"]
 ffi = []
 

@@ -23,7 +23,7 @@ fn print_parsed_schema_info(
     println!("{}", "=".repeat(60));
     
     if print_sorted {
-        println!("\n🔄 Sorted Evaluations (Batches for parallel execution):");
+        println!("\n🔄 Sorted Evaluations:");
         println!("   {} batches total", parsed_schema.sorted_evaluations.len());
         for (batch_idx, batch) in parsed_schema.sorted_evaluations.iter().enumerate() {
             println!("\n   Batch {} ({} evaluations):", batch_idx + 1, batch.len());

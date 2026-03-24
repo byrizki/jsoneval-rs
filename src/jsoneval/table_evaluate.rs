@@ -8,19 +8,19 @@ use std::mem;
 
 use crate::jsoneval::cancellation::CancellationToken;
 
-/// Sandboxed table evaluation for safe parallel execution
+/// Sandboxed table evaluation
 ///
 /// All heavy operations (dependency analysis, forward reference checks) are done at parse time.
-/// This function creates an isolated scope to prevent interference between parallel table evaluations.
+/// This function creates an isolated scope to prevent interference between table evaluations.
 ///
-/// # Parallel Safety
+/// # Isolation Safety
 ///
-/// This function is designed for safe parallel execution:
+/// This function is designed for safe execution:
 /// - Takes `scope_data` as an immutable reference (read-only parent scope)
 /// - Creates an isolated sandbox (clone) for all table-specific mutations
 /// - All temporary variables (`$iteration`, `$threshold`, column vars) exist only in the sandbox
-/// - The parent `scope_data` remains unchanged, preventing race conditions
-/// - Multiple tables can be evaluated concurrently without interference
+/// - The parent `scope_data` remains unchanged
+/// - Multiple tables can be evaluated without interference
 ///
 /// # Mutation Safety
 ///

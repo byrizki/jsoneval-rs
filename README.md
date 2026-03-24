@@ -14,12 +14,12 @@
 
 **High-performance JSON Logic evaluation library with schema validation and multi-platform bindings**
 
-`json-eval-rs` is a blazing-fast JSON Logic evaluator written in Rust, featuring a custom-built compiler, intelligent caching, parallel evaluation, and comprehensive schema validation. It provides seamless integration across multiple platforms through native bindings.
+`json-eval-rs` is a blazing-fast JSON Logic evaluator written in Rust, featuring a custom-built compiler, intelligent caching, and comprehensive schema validation. It provides seamless integration across multiple platforms through native bindings.
 
 ## ✨ Key Features
 
 - 🚀 **High Performance**: Custom JSON Logic compiler with pre-compilation and zero-copy caching
-- 🔄 **Parallel Evaluation**: Multi-threaded processing with dependency-aware topological sorting
+- 🔄 **Topological Sorting**: Dependency-aware processing to ensure correct evaluation order
 - 📊 **Schema Validation**: Built-in validation with detailed error reporting
 - 🌐 **Multi-Platform**: Native bindings for Rust, C#/.NET, Web (WASM), and React Native
 - 💾 **Smart Caching**: Content-based caching with Arc-based zero-copy storage
@@ -363,7 +363,7 @@ function ValidationForm() {
 - **RLogic Engine**: Custom JSON Logic compiler with pre-compilation and caching
 - **EvalData**: Proxy-like data wrapper ensuring thread-safe mutations
 - **EvalCache**: Content-based caching system using Arc for zero-copy storage
-- **Table Evaluator**: Specialized parallel processing for table/array data
+- **Table Evaluator**: Specialized processing for table/array data
 - **Schema Parser**: Extracts evaluations and builds dependency graphs
 - **Topological Sort**: Groups evaluations into parallel-executable batches
 
@@ -372,7 +372,7 @@ function ValidationForm() {
 1. **Schema Parsing** → Extract evaluations and build dependency graph
 2. **Logic Compilation** → Pre-compile JSON Logic expressions for performance
 3. **Topological Sorting** → Group evaluations into dependency-ordered batches
-4. **Parallel Evaluation** → Execute batches concurrently with caching
+4. **Batch Evaluation** → Execute batches sequentially with caching
 5. **Result Aggregation** → Clean results and resolve layout references
 
 ## ⚡ Performance
@@ -392,7 +392,6 @@ _Benchmarks run on Intel i7 with complex real-world schemas_
 
 - **Pre-compilation**: JSON Logic expressions compiled once, evaluated many times
 - **Zero-Copy Caching**: Results cached using `Arc<Value>` to avoid deep cloning
-- **Parallel Processing**: Multi-threaded evaluation using `rayon` (disabled for WASM)
 - **SIMD JSON**: Uses `simd-json` for ultra-fast JSON parsing
 - **Smart Dependencies**: Only re-evaluates fields when their dependencies change
 - **Selective Evaluation**: Re-evaluate only specific fields instead of entire schema
@@ -471,7 +470,7 @@ cargo run --bin json-eval-cli -- schema.bform \
 
 **Parsed Schema Inspection Flags:**
 
-- `--print-sorted-evaluations` - Show evaluation batches for parallel execution
+- `--print-sorted-evaluations` - Show evaluation batches organized sequentially
 - `--print-dependencies` - Show dependency graph between evaluations
 - `--print-tables` - Show table definitions
 - `--print-evaluations` - Show all compiled logic expressions

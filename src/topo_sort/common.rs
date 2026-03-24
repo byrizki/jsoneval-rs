@@ -1,13 +1,13 @@
 /// Shared utilities for topological sorting
 use indexmap::{IndexMap, IndexSet};
 
-/// Compute parallel execution batches from sorted dependencies
+/// Compute evaluation batches from sorted dependencies
 ///
-/// Groups evaluations into batches where items in the same batch can be evaluated in parallel.
+/// Groups evaluations into batches where items in the same batch can be evaluated together.
 /// Each batch depends only on items from previous batches.
 ///
 /// Handles table column dependencies by mapping them back to their parent table.
-pub fn compute_parallel_batches(
+pub fn compute_evaluation_batches(
     sorted: &IndexSet<String>,
     graph: &IndexMap<String, IndexSet<String>>,
     table_paths: &IndexSet<String>,

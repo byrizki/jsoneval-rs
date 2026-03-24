@@ -1,7 +1,7 @@
 ---
 seo:
   title: High-performance JSON Logic evaluation library
-  description: json-eval-rs is a blazing-fast JSON Logic evaluator written in Rust, featuring a custom-built compiler, intelligent caching, parallel evaluation, and comprehensive schema validation.
+  description: json-eval-rs is a blazing-fast JSON Logic evaluator written in Rust, featuring a custom-built compiler, intelligent caching, and comprehensive schema validation.
 ---
 
 ::u-page-hero
@@ -9,7 +9,7 @@ seo:
 High-performance JSON Logic evaluation.
 
 #description
-`json-eval-rs` is a blazing-fast JSON Logic evaluator written in Rust, featuring a custom-built compiler, intelligent caching, parallel evaluation, and comprehensive schema validation.
+`json-eval-rs` is a blazing-fast JSON Logic evaluator written in Rust, featuring a custom-built compiler, intelligent caching, and comprehensive schema validation.
 
 #links
   :::u-button

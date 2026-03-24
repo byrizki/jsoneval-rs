@@ -46,7 +46,7 @@ pub struct ParsedSchema {
     /// Dependencies map (evaluation key -> set of dependency paths) (wrapped in Arc for zero-copy sharing)
     pub dependencies: Arc<IndexMap<String, IndexSet<String>>>,
 
-    /// Evaluations grouped into parallel-executable batches (wrapped in Arc for zero-copy sharing)
+    /// Evaluations grouped into batches (wrapped in Arc for zero-copy sharing)
     /// Each inner Vec contains evaluations that can run concurrently
     pub sorted_evaluations: Arc<Vec<Vec<String>>>,
 

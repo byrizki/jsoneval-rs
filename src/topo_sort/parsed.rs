@@ -1,5 +1,5 @@
 use crate::jsoneval::path_utils;
-use crate::topo_sort::common::{collect_transitive_deps, compute_parallel_batches};
+use crate::topo_sort::common::{collect_transitive_deps, compute_evaluation_batches};
 use crate::ParsedSchema;
 /// Topological sorting for ParsedSchema
 use indexmap::{IndexMap, IndexSet};
@@ -307,7 +307,7 @@ pub fn topological_sort_parsed(parsed: &ParsedSchema) -> Result<Vec<Vec<String>>
         }
     }
 
-    let batches = compute_parallel_batches(&sorted, &unified_graph, &table_paths);
+    let batches = compute_evaluation_batches(&sorted, &unified_graph, &table_paths);
 
     Ok(batches)
 }

@@ -197,7 +197,7 @@ mod tests {
 
     #[test]
     fn test_compile_and_get() {
-        // Don't clear store to avoid breaking parallel tests
+        // Don't clear store to avoid breaking tests
         
         let logic = r#"{"==": [{"var": "x"}, 10]}"#;
         let id = compile_logic(logic).expect("Failed to compile");
@@ -240,7 +240,7 @@ mod tests {
 
         let stats_after = get_store_stats();
         // Should have at least one more (or same if already existed from other tests, but likely unique)
-        // With parallel tests, exact count is hard. 
+        // With tests, exact count is hard. 
         // Just verify stats are accessible.
         assert!(stats_after.compiled_count >= stats_before.compiled_count);
         assert!(stats_after.next_id >= stats_before.next_id);

@@ -279,7 +279,7 @@ target_link_libraries(json-eval-rn
 
 ### Benefits
 - Non-blocking JavaScript thread
-- True parallelism for CPU-bound operations
+- Better array processing optimization
 - No impact on UI responsiveness
 
 ### Memory Usage
