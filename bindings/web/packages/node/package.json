@@ -32,7 +32,7 @@
     "directory": "bindings/web/packages/node"
   },
   "dependencies": {
-    "@json-eval-rs/webcore": "workspace:*"
+    "@json-eval-rs/webcore": "*"
   },
   "sideEffects": false
 }

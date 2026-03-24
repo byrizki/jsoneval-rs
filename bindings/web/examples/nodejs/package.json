@@ -7,7 +7,7 @@
     "test": "tsx index.ts"
   },
   "dependencies": {
-    "@json-eval-rs/node": "workspace:*",
+    "@json-eval-rs/node": "*",
     "@types/node": "^20.0.0",
     "tsx": "^4.7.0",
     "typescript": "^5.0.0"
