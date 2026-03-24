@@ -48,28 +48,7 @@ impl JSONEval {
 
             // Selectively purge cache entries that depend on changed data
             // Only purge if values actually changed
-            // Convert changed_paths to data pointer format for cache purging
-            let data_paths: Vec<String> = changed_paths
-                .iter()
-                .map(|path| {
-                    // Robust normalization: normalize to schema pointer first, then strip schema-specific parts
-                    // This handles both "illustration.insured.name" and "#/illustration/properties/insured/properties/name"
-                    let schema_ptr = path_utils::dot_notation_to_schema_pointer(path);
-
-                    // Remove # prefix and /properties/ segments to get pure data location
-                    let normalized = schema_ptr
-                        .trim_start_matches('#')
-                        .replace("/properties/", "/");
-
-                    // Ensure it starts with / for data pointer
-                    if normalized.starts_with('/') {
-                        normalized
-                    } else {
-                        format!("/{}", normalized)
-                    }
-                })
-                .collect();
-            self.purge_cache_for_changed_data_with_comparison(&data_paths, &old_data, &data_value);
+            self.purge_cache_for_changed_data_with_comparison(&old_data, &data_value);
         }
 
         let mut result = Vec::new();

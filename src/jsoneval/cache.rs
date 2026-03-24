@@ -7,7 +7,6 @@ use crate::jsoneval::path_utils;
 use indexmap::IndexSet;
 use serde_json::Value;
 
-
 impl JSONEval {
     /// Check if a dependency should be part of the cache key
     /// Check if a dependency should be cached
@@ -137,28 +136,58 @@ impl JSONEval {
     /// Purge cache entries affected by changed data paths, comparing old and new values
     /// Selectively purge cache entries that depend on changed data paths
     /// Only removes cache entries whose dependencies intersect with changed_paths
-    /// Compares old vs new values and only purges if values actually changed
-    pub fn purge_cache_for_changed_data_with_comparison(
-        &self,
-        changed_data_paths: &[String],
-        old_data: &Value,
-        new_data: &Value,
-    ) {
-        if changed_data_paths.is_empty() {
+    /// Recursively find all paths where the values differ
+    fn compute_changed_paths(old: &Value, new: &Value, current_path: String, changed: &mut Vec<String>) {
+        if old == new {
             return;
         }
 
-        // Check which paths actually have different values
-        let mut actually_changed_paths = Vec::new();
-        for path in changed_data_paths {
-            let old_val = old_data.pointer(path);
-            let new_val = new_data.pointer(path);
-
-            // Only add to changed list if values differ
-            if old_val != new_val {
-                actually_changed_paths.push(path.clone());
+        match (old, new) {
+            (Value::Object(o1), Value::Object(o2)) => {
+                for (k, v2) in o2 {
+                    if let Some(v1) = o1.get(k) {
+                        if v1 != v2 {
+                            let path = format!("{}/{}", current_path, k);
+                            Self::compute_changed_paths(v1, v2, path, changed);
+                        }
+                    } else {
+                        let path = format!("{}/{}", current_path, k);
+                        changed.push(path);
+                    }
+                }
+                for k in o1.keys() {
+                    if !o2.contains_key(k) {
+                        let path = format!("{}/{}", current_path, k);
+                        changed.push(path);
+                    }
+                }
+            }
+            (Value::Array(a1), Value::Array(a2)) if a1.len() == a2.len() => {
+                for (i, (v1, v2)) in a1.iter().zip(a2.iter()).enumerate() {
+                    if v1 != v2 {
+                        let path = format!("{}/{}", current_path, i);
+                        Self::compute_changed_paths(v1, v2, path, changed);
+                    }
+                }
+            }
+            _ => {
+                if current_path.is_empty() {
+                    changed.push("/".to_string());
+                } else {
+                    changed.push(current_path);
+                }
             }
         }
+    }
+
+    /// Compares old vs new values by deep diffing and purges affected entries
+    pub fn purge_cache_for_changed_data_with_comparison(
+        &self,
+        old_data: &Value,
+        new_data: &Value,
+    ) {
+        let mut actually_changed_paths = Vec::new();
+        Self::compute_changed_paths(old_data, new_data, "".to_string(), &mut actually_changed_paths);
 
         // If no values actually changed, no need to purge
         if actually_changed_paths.is_empty() {

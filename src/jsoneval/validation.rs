@@ -28,8 +28,9 @@ impl JSONEval {
             // Acquire lock for synchronous execution
             let _lock = self.eval_lock.lock().unwrap();
 
-            // Save old data for comparison
+            // Save old data and context for comparison
             let old_data = self.eval_data.snapshot_data();
+            let old_context = self.context.clone();
 
              // Parse and update data
             let data_value = json_parser::parse_json_str(data)?;
@@ -39,18 +40,19 @@ impl JSONEval {
                 Value::Object(serde_json::Map::new())
             };
 
+            // Update context
+            self.context = context_value.clone();
+
             // Update eval_data with new data/context
             self.eval_data.replace_data_and_context(data_value.clone(), context_value);
 
             // Calculate changed paths for cache purging (root changed)
             // Selectively purge cache entries that depend on root data
             // Convert changed_paths to data pointer format for cache purging
-             let changed_data_paths = vec!["/".to_string()];
-            
              // Selectively purge cache entries
-             self.purge_cache_for_changed_data_with_comparison(&changed_data_paths, &old_data, &data_value);
+             self.purge_cache_for_changed_data_with_comparison(&old_data, &data_value);
              
-             if context.is_some() {
+             if context.is_some() && old_context != self.context {
                  self.purge_cache_for_context_change();
              }
             

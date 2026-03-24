@@ -1,6 +1,32 @@
 use serde_json::Value;
 use std::cell::RefCell;
 
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
+
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+}
+
+/// Cross-platform debug logging macro.
+/// Prints natively to console.log in WASM environments, and falls back to println! elsewhere.
+#[macro_export]
+macro_rules! debug_log {
+    ($($t:tt)*) => {
+        let msg = format!($($t)*);
+        #[cfg(feature = "wasm")]
+        {
+            $crate::utils::log(&format!("[WASM DEBUG] {}", msg));
+        }
+        #[cfg(not(feature = "wasm"))]
+        {
+            println!("[WASM DEBUG] {}", msg);
+        }
+    }
+}
 
 // Timing infrastructure
 thread_local! {

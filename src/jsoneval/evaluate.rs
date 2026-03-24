@@ -46,29 +46,24 @@ impl JSONEval {
                 json_parser::parse_json_str(context.unwrap_or("{}"))?
             });
 
-            // Collect top-level data keys to selectively purge cache (before move)
-            let changed_data_paths: Vec<String> = if let Some(obj) = data.as_object() {
-                obj.keys().map(|k| format!("/{}", k)).collect()
-            } else {
-                Vec::new()
-            };
-
-            // Capture old data before overwriting, to allow precise value-based cache invalidation
+            // Capture old data and context before overwriting, to allow precise value-based cache invalidation
             let old_data = self.data.clone();
+            let old_context = self.context.clone();
             
-            // Store data and replace in eval_data (clone once instead of twice)
+            // Store data, context and replace in eval_data (clone once instead of twice)
             self.data = data.clone();
+            self.context = context.clone();
             time_block!("  replace_data_and_context", {
                 self.eval_data.replace_data_and_context(data, context);
             });
 
-            // Selectively purge cache entries that depend on changed top-level data keys
+            // Selectively purge cache entries by deeply diffing data
             // This is more efficient than clearing entire cache
             time_block!("  purge_cache", {
-                self.purge_cache_for_changed_data_with_comparison(&changed_data_paths, &old_data, &self.data);
+                self.purge_cache_for_changed_data_with_comparison(&old_data, &self.data);
 
-                // Also purge context-dependent cache if context was provided
-                if context_provided {
+                // Only purge context-dependent cache if context actually changed
+                if context_provided && old_context != self.context {
                     self.purge_cache_for_context_change();
                 }
             });
