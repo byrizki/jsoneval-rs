@@ -33,7 +33,7 @@ impl JSONEval {
                 return Err("Cancelled".to_string());
             }
         }
-        time_block!("evaluate() [total]", {
+        time_block!("evaluate() [total]", { 
             let context_provided = context.is_some();
 
             // Use SIMD-accelerated JSON parsing
@@ -58,9 +58,10 @@ impl JSONEval {
             time_block!("  purge_cache", {
                 self.purge_cache_for_changed_data_with_comparison(&old_data, &self.data);
 
-                // Only purge context-dependent cache if context actually changed
+                // Only purge context-dependent cache if context actually changed.
+                // Deep-diff to avoid invalidating unrelated context-dependent entries.
                 if context_provided && old_context != self.context {
-                    self.purge_cache_for_context_change();
+                    self.purge_cache_for_changed_context_with_comparison(&old_context, &self.context);
                 }
             });
 
@@ -81,6 +82,10 @@ impl JSONEval {
             // Acquire lock for synchronous execution
             let _lock = self.eval_lock.lock().unwrap();
 
+            // Clear missed keys at the start of each explicit evaluate call
+            self.missed_keys.clear();
+
+ 
             // Normalize paths to schema pointers for correct filtering
             let normalized_paths_storage; // Keep alive
             let normalized_paths = if let Some(p_list) = paths {
@@ -110,7 +115,7 @@ impl JSONEval {
             let eval_batches = self.sorted_evaluations.clone();
             
             // Track cache misses across batches to prevent false hits from large skipped arrays
-            let missed_keys = dashmap::DashSet::new();
+            // Use persisted missed_keys from JSONEval
 
             // Process each batch - sequentially
             // Batches are processed sequentially to maintain dependency order
@@ -145,23 +150,33 @@ impl JSONEval {
                     let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
 
                     // Try cache first
-                    if let Some(_) = self.try_get_cached(eval_key, &eval_data_values, &missed_keys) {
+                    if let Some(_) = self.try_get_cached(eval_key, &eval_data_values) {
                         continue;
                     }
 
                     // Cache miss - evaluate
                     if let Some(logic_id) = self.evaluations.get(eval_key) {
                         if let Ok(val) = self.engine.run(logic_id, eval_data_values.data()) {
-                            let cleaned_val = clean_float_noise_scalar(val);
-                            // Cache result
-                            self.cache_result(eval_key, Value::Null, &eval_data_values);
+                             let cleaned_val = clean_float_noise_scalar(val);
+                             let old_val = self.eval_data.get(&pointer_path).unwrap_or(&Value::Null);
 
-                            if let Some(pointer_value) =
-                                self.evaluated_schema.pointer_mut(&pointer_path)
-                            {
-                                *pointer_value = cleaned_val;
-                            }
+                             if &cleaned_val != old_val {
+                                 // Track cache miss only on actual change
+                                 self.missed_keys.insert(pointer_path.clone());
+                             }
+ 
+                             // Cache result
+                             self.cache_result(eval_key, Value::Null, &eval_data_values);
+ 
+                             if let Some(pointer_value) =
+                                 self.evaluated_schema.pointer_mut(&pointer_path)
+                             {
+                                 *pointer_value = cleaned_val;
+                             }
                         }
+                    } else {
+                        // Cache sentinel for static $params to prevent repeated misses
+                        self.cache_result(eval_key, Value::Null, &eval_data_values);
                     }
                 }
             });
@@ -218,21 +233,32 @@ impl JSONEval {
                         let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
 
                         // Try cache first
-                        if let Some(_) = self.try_get_cached(eval_key, &eval_data_snapshot, &missed_keys) {
+                        if let Some(_) = self.try_get_cached(eval_key, &eval_data_snapshot) {
                             continue;
                         }
 
                         // Cache miss - evaluate
+                        let mut has_changes = false;
                         let is_table = self.table_metadata.contains_key(eval_key);
 
                         if is_table {
-                            missed_keys.insert(pointer_path.clone());
                             if let Ok(rows) =
                                 table_evaluate::evaluate_table(self, eval_key, &eval_data_snapshot, token)
                             {
                                 let value = Value::Array(rows);
-                                self.cache_result(eval_key, Value::Null, &eval_data_snapshot);
+                                let old_val = self.eval_data.get(&pointer_path).unwrap_or(&Value::Null);
+                                if &value != old_val {
+                                    has_changes = true;
 
+                                    // Table version changed
+                                    let norm = eval_key.trim_start_matches('#');
+                                    if norm.starts_with("/$params/") || norm == "/$params" {
+                                        self.bump_params_version(eval_key);
+                                    }
+                                }
+
+                                self.cache_result(eval_key, Value::Null, &eval_data_snapshot);
+ 
                                 self.eval_data.set(&pointer_path, value.clone());
                                 if let Some(schema_value) =
                                     self.evaluated_schema.pointer_mut(&pointer_path)
@@ -246,9 +272,21 @@ impl JSONEval {
                                     self.engine.run(logic_id, eval_data_snapshot.data())
                                 {
                                     let cleaned_val = clean_float_noise_scalar(val);
-                                    // Cache result
-                                    self.cache_result(eval_key, Value::Null, &eval_data_snapshot);
+                                    let old_val = self.eval_data.get(&pointer_path).unwrap_or(&Value::Null);
+                                    
+                                    if &cleaned_val != old_val {
+                                        has_changes = true;
 
+                                        // Track version changes for $params paths so that
+                                        // downstream entries depending on them correctly invalidate.
+                                        let norm = eval_key.trim_start_matches('#');
+                                        if norm.starts_with("/$params/") || norm == "/$params" {
+                                            self.bump_params_version(eval_key);
+                                        }
+                                    }
+ 
+                                    self.cache_result(eval_key, Value::Null, &eval_data_snapshot);
+ 
                                     self.eval_data.set(&pointer_path, cleaned_val.clone());
                                     if let Some(schema_value) =
                                         self.evaluated_schema.pointer_mut(&pointer_path)
@@ -258,6 +296,10 @@ impl JSONEval {
                                 }
                             }
                         }
+
+                        if has_changes {
+                            self.missed_keys.insert(pointer_path.clone());
+                        }
                     }
                 }
             });
@@ -265,13 +307,13 @@ impl JSONEval {
             // Drop lock before calling evaluate_others
             drop(_lock);
 
-            self.evaluate_others(paths, token, &missed_keys);
+            self.evaluate_others(paths, token);
 
             Ok(())
         })
     }
 
-    pub(crate) fn evaluate_others(&mut self, paths: Option<&[String]>, token: Option<&CancellationToken>, missed_keys: &dashmap::DashSet<String>) {
+    pub(crate) fn evaluate_others(&mut self, paths: Option<&[String]>, token: Option<&CancellationToken>) {
         if let Some(t) = token {
             if t.is_cancelled() {
                 return;
@@ -329,7 +371,7 @@ impl JSONEval {
                         let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
 
                         // Try cache first
-                        if let Some(_) = self.try_get_cached(eval_key, &eval_data_snapshot, missed_keys) {
+                        if let Some(_) = self.try_get_cached(eval_key, &eval_data_snapshot) {
                             continue;
                         }
 
@@ -339,6 +381,7 @@ impl JSONEval {
                                 self.engine.run(logic_id, eval_data_snapshot.data())
                             {
                                 let cleaned_val = clean_float_noise_scalar(val);
+
                                 // Cache result
                                 self.cache_result(eval_key, Value::Null, &eval_data_snapshot);
 

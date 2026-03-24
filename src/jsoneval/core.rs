@@ -9,6 +9,7 @@ use crate::rlogic::{RLogic, RLogicConfig};
 
 use crate::time_block;
 
+use dashmap::DashMap;
 use indexmap::IndexMap;
 use serde::de::Error as _;
 use serde_json::Value;
@@ -45,6 +46,8 @@ impl Clone for JSONEval {
             cached_msgpack_schema: self.cached_msgpack_schema.clone(),
             conditional_hidden_fields: self.conditional_hidden_fields.clone(),
             conditional_readonly_fields: self.conditional_readonly_fields.clone(),
+            params_versions: Arc::clone(&self.params_versions),
+            missed_keys: Arc::clone(&self.missed_keys),
             regex_cache: RwLock::new(HashMap::new()),
         }
     }
@@ -99,11 +102,13 @@ impl JSONEval {
                         &context,
                     ),
                     eval_cache: EvalCache::new(),
-                    cache_enabled: true, // Caching enabled by default
+                    cache_enabled: true,
                     eval_lock: Mutex::new(()),
                     cached_msgpack_schema: None,
                     conditional_hidden_fields: Arc::new(Vec::new()),
                     conditional_readonly_fields: Arc::new(Vec::new()),
+                    params_versions: Arc::new(DashMap::new()),
+                    missed_keys: Arc::new(dashmap::DashSet::new()),
                     regex_cache: RwLock::new(HashMap::new()),
                 }
             });
@@ -167,11 +172,13 @@ impl JSONEval {
             evaluated_schema: evaluated_schema.clone(),
             eval_data: EvalData::with_schema_data_context(&evaluated_schema, &data, &context),
             eval_cache: EvalCache::new(),
-            cache_enabled: true, // Caching enabled by default
+            cache_enabled: true,
             eval_lock: Mutex::new(()),
             cached_msgpack_schema: Some(cached_msgpack),
             conditional_hidden_fields: Arc::new(Vec::new()),
             conditional_readonly_fields: Arc::new(Vec::new()),
+            params_versions: Arc::new(DashMap::new()),
+            missed_keys: Arc::new(dashmap::DashSet::new()),
             regex_cache: RwLock::new(HashMap::new()),
         };
         parse_schema::legacy::parse_schema(&mut instance)?;
@@ -231,9 +238,8 @@ impl JSONEval {
             subforms.insert(path.clone(), Box::new(subform_eval));
         }
 
-        let instance = Self {
+        let mut instance = Self {
             schema: Arc::clone(&parsed.schema),
-            // Zero-copy Arc clones (just increments reference count, no data copying)
             evaluations: Arc::clone(&parsed.evaluations),
             tables: Arc::clone(&parsed.tables),
             table_metadata: Arc::clone(&parsed.table_metadata),
@@ -254,14 +260,16 @@ impl JSONEval {
             evaluated_schema: (*evaluated_schema).clone(),
             eval_data: EvalData::with_schema_data_context(&evaluated_schema, &data, &context),
             eval_cache: EvalCache::new(),
-            cache_enabled: true, // Caching enabled by default
+            cache_enabled: true,
             eval_lock: Mutex::new(()),
             cached_msgpack_schema: None,
             conditional_hidden_fields: Arc::clone(&parsed.conditional_hidden_fields),
             conditional_readonly_fields: Arc::clone(&parsed.conditional_readonly_fields),
+            params_versions: Arc::new(DashMap::new()),
+            missed_keys: Arc::new(dashmap::DashSet::new()),
             regex_cache: RwLock::new(HashMap::new()),
         };
-
+        instance.init_params_versions();
         Ok(instance)
     }
 
@@ -297,6 +305,7 @@ impl JSONEval {
 
         // Clear cache when schema changes
         self.eval_cache.clear();
+        self.init_params_versions();
 
         // Clear MessagePack cache since schema has been mutated
         self.cached_msgpack_schema = None;
@@ -455,6 +464,7 @@ impl JSONEval {
 
         // Clear cache when schema changes
         self.eval_cache.clear();
+        self.init_params_versions();
 
         // Clear MessagePack cache since we're loading from ParsedSchema
         self.cached_msgpack_schema = None;

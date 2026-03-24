@@ -53,7 +53,7 @@ impl JSONEval {
              self.purge_cache_for_changed_data_with_comparison(&old_data, &data_value);
              
              if context.is_some() && old_context != self.context {
-                 self.purge_cache_for_context_change();
+                 self.purge_cache_for_changed_context_with_comparison(&old_context, &self.context);
              }
             
             // Drop lock before calling evaluate_others which needs mutable access
@@ -61,8 +61,7 @@ impl JSONEval {
 
             // Re-evaluate rule evaluations to ensure fresh values
             // This ensures all rule.$evaluation expressions are re-computed
-            let missed_keys = dashmap::DashSet::new();
-            self.evaluate_others(paths, token, &missed_keys);
+            self.evaluate_others(paths, token);
 
             // Update evaluated_schema with fresh evaluations
             self.evaluated_schema = self.get_evaluated_schema(false);

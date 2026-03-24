@@ -53,15 +53,15 @@ impl JSONEval {
 
         let mut result = Vec::new();
         let mut processed = IndexSet::new();
+        // Tracks every data path written by process_dependents_queue / recursive_hide_effect
+        // so we can do a targeted cache purge instead of clearing the entire cache.
+        let mut invalidated_paths: IndexSet<String> = IndexSet::new();
 
-        // Normalize all changed paths and add to processing queue
-        // Converts: "illustration.insured.name" -> "#/illustration/properties/insured/properties/name"
         let mut to_process: Vec<(String, bool)> = changed_paths
             .iter()
             .map(|path| (path_utils::dot_notation_to_schema_pointer(path), false))
-            .collect(); // (path, is_transitive)
+            .collect();
 
-        // Process dependents recursively (always nested/transitive)
         Self::process_dependents_queue(
             &self.engine,
             &self.evaluations,
@@ -72,23 +72,30 @@ impl JSONEval {
             &mut processed,
             &mut result,
             token,
-            canceled_paths.as_mut().map(|v| &mut **v)
+            canceled_paths.as_mut().map(|v| &mut **v),
+            &mut invalidated_paths,
         )?;
+
 
         // If re_evaluate is true, perform full evaluation with the mutated eval_data
         // Then perform post-evaluation checks (ReadOnly, Hidden)
         if re_evaluate {
             // Drop lock for evaluate_internal
-            drop(_lock); 
+            drop(_lock);
 
-            // Clear the entire eval cache before re-evaluation.
-            // The dependents graph processing above may have modified eval_data for
-            // many fields beyond the user's changed_paths, but those changes were not
-            // tracked for cache purging. Clearing ensures evaluate_internal doesn't
-            // return stale cached results for fields whose dependencies were updated.
-            self.eval_cache.clear();
+            // Include trigger fields in invalidated_paths so depending entries (e.g. tables) are purged.
+            for raw_path in changed_paths {
+                let data_path = path_utils::dot_notation_to_schema_pointer(raw_path)
+                    .replace("/properties/", "/");
+                let data_path = data_path.trim_start_matches('#').to_string();
+                invalidated_paths.insert(data_path);
+            }
+
+            // Selective cache purge based on recorded data mutations
+            self.purge_cache_for_affected_data_paths(&invalidated_paths);
 
             self.evaluate_internal(None, token)?;
+
             
             // Re-acquire lock for ReadOnly/Hidden processing
             let _lock = self.eval_lock.lock().unwrap();
@@ -136,7 +143,6 @@ impl JSONEval {
                 result.push(Value::Object(change_obj));
             }
             
-            // Refund process queue for ReadOnly effects
             if !to_process.is_empty() {
                  Self::process_dependents_queue(
                     &self.engine,
@@ -148,9 +154,11 @@ impl JSONEval {
                     &mut processed,
                     &mut result,
                     token,
-                    canceled_paths.as_mut().map(|v| &mut **v)
+                    canceled_paths.as_mut().map(|v| &mut **v),
+                    &mut invalidated_paths,
                 )?;
             }
+
 
             // 2. Recursive Hide Pass
             // Collect hidden fields that have values
@@ -164,20 +172,20 @@ impl JSONEval {
                 }
             }
             
-            // Logic for recursive hiding (using reffed_by)
             if !hidden_fields.is_empty() {
                 Self::recursive_hide_effect(
                     &self.engine,
                     &self.evaluations,
                     &self.reffed_by,
                     &mut self.eval_data,
-                    hidden_fields, 
-                    &mut to_process, 
-                    &mut result
+                    hidden_fields,
+                    &mut to_process,
+                    &mut result,
+                    &mut invalidated_paths,
                 );
             }
+
             
-            // Process queue for Hidden effects
              if !to_process.is_empty() {
                  Self::process_dependents_queue(
                     &self.engine,
@@ -189,9 +197,11 @@ impl JSONEval {
                     &mut processed,
                     &mut result,
                     token,
-                    canceled_paths.as_mut().map(|v| &mut **v)
+                    canceled_paths.as_mut().map(|v| &mut **v),
+                    &mut invalidated_paths,
                 )?;
             }
+
         }
 
         Ok(Value::Array(result))
@@ -477,7 +487,8 @@ impl JSONEval {
         }
     }
 
-    /// Perform recursive hiding effect using reffed_by graph
+    /// Perform recursive hiding effect using reffed_by graph.
+    /// Collects every data path that gets nulled into `invalidated_paths`.
     pub(crate) fn recursive_hide_effect(
         engine: &RLogic,
         evaluations: &IndexMap<String, LogicId>,
@@ -485,7 +496,8 @@ impl JSONEval {
         eval_data: &mut EvalData,
         mut hidden_fields: Vec<String>,
         queue: &mut Vec<(String, bool)>, 
-        result: &mut Vec<Value>
+        result: &mut Vec<Value>,
+        invalidated_paths: &mut IndexSet<String>,
     ) {
         while let Some(hf) = hidden_fields.pop() {
             let data_path = path_utils::normalize_to_json_pointer(&hf)
@@ -495,6 +507,7 @@ impl JSONEval {
             
             // clear data
             eval_data.set(&data_path, Value::Null);
+            invalidated_paths.insert(data_path.clone());
             
              // Create dependent object for result
             let mut change_obj = serde_json::Map::new();
@@ -549,8 +562,8 @@ impl JSONEval {
         }
     }
 
-    /// Process the dependents queue
-    /// This handles the transitive propagation of changes based on the dependents graph
+    /// Process the dependents queue.
+    /// Collects every data path written into `eval_data` into `invalidated_paths`.
     pub(crate) fn process_dependents_queue(
         engine: &RLogic,
         evaluations: &IndexMap<String, LogicId>,
@@ -562,6 +575,7 @@ impl JSONEval {
         result: &mut Vec<Value>,
         token: Option<&CancellationToken>,
         canceled_paths: Option<&mut Vec<String>>,
+        invalidated_paths: &mut IndexSet<String>,
     ) -> Result<(), String> {
         while let Some((current_path, is_transitive)) = queue.pop() {
             if let Some(t) = token {
@@ -664,11 +678,11 @@ impl JSONEval {
                         };
 
                         if clear_bool {
-                            // Clear the field
                             if data_path == current_data_path {
                                 current_value = Value::Null;
                             }
                             eval_data.set(&data_path, Value::Null);
+                            invalidated_paths.insert(data_path.clone());
                             change_obj.insert("clear".to_string(), Value::Bool(true));
                             add_transitive = true;
                             add_deps = true;
@@ -688,11 +702,11 @@ impl JSONEval {
                         let cleaned_val = clean_float_noise_scalar(computed_value);
 
                         if cleaned_val != current_ref_value && cleaned_val != Value::Null {
-                            // Set the value
                             if data_path == current_data_path {
                                 current_value = cleaned_val.clone();
                             }
                             eval_data.set(&data_path, cleaned_val.clone());
+                            invalidated_paths.insert(data_path.clone());
                             change_obj.insert("value".to_string(), cleaned_val);
                             add_transitive = true;
                             add_deps = true;

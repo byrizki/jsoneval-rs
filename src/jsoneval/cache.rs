@@ -22,115 +22,162 @@ impl JSONEval {
         }
     }
 
-    /// Try to get a result from cache
-    /// Helper: Try to get cached result for an evaluation (thread-safe)
     /// Try to get a value from cache if it exists and dependencies match
     pub(crate) fn try_get_cached(
         &self,
         eval_key: &str,
         eval_data_snapshot: &EvalData,
-        missed_keys: &dashmap::DashSet<String>,
     ) -> Option<Value> {
-        // Skip cache lookup if caching is disabled
         if !self.cache_enabled {
             return None;
         }
 
-        // Get dependencies for this evaluation
-        let deps = self.dependencies.get(eval_key)?;
-
-        // If no dependencies, use simple cache key
+        let empty_deps = IndexSet::new();
+        let deps = self.dependencies.get(eval_key).unwrap_or(&empty_deps);
+ 
         let cache_key = if deps.is_empty() {
             CacheKey::simple(eval_key.to_string())
         } else {
-            // If any dependency missed the cache in this batch, force a cache miss
-            // This prevents false cache hits when large data arrays are intentionally skipped in hashes
-            if deps.iter().any(|dep| missed_keys.contains(dep)) {
+            let normalized_eval_key = path_utils::normalize_to_json_pointer(eval_key);
+            if let Some(_) = deps.iter().find(|dep| {
+                // Skip self-dependency: a key should not invalidate itself
+                dep.as_str() != normalized_eval_key.as_ref()
+                    && self.missed_keys.contains(dep.as_str())
+            }) {
                 return None;
             }
 
-            // Filter dependencies (exclude $ keys except $context)
             let filtered_deps: IndexSet<String> = deps
                 .iter()
                 .filter(|dep_key| self.should_cache_dependency(dep_key) && dep_key.as_str() != path_utils::normalize_to_json_pointer(eval_key))
                 .cloned()
                 .collect();
 
-            // Collect dependency values
-            let dep_values: Vec<(String, &Value)> = filtered_deps
+            // Collect dep values; for $params deps use the version counter as the value.
+            let dep_values: Vec<(String, Value)> = filtered_deps
                 .iter()
                 .filter_map(|dep_key| {
+                    if self.is_params_dep(dep_key) {
+                        let ver = self.params_version_for(dep_key);
+                        return Some((dep_key.clone(), Value::Number(ver.into())));
+                    }
                     eval_data_snapshot.get(dep_key).and_then(|v| {
-                        // Skip large arrays that contain no actionable schema keys
-                        // to avoid hashing large amounts of pure data
                         if let Value::Array(arr) = v {
                             if arr.len() > 10 && !crate::parse_schema::common::has_actionable_keys(v) {
                                 return None;
                             }
                         }
-                        Some((dep_key.clone(), v))
+                        Some((dep_key.clone(), v.clone()))
                     })
                 })
                 .collect();
 
-            CacheKey::new(eval_key.to_string(), &filtered_deps, &dep_values)            
+            let dep_refs: Vec<(String, &Value)> = dep_values.iter().map(|(k, v)| (k.clone(), v)).collect();
+ 
+            CacheKey::new(eval_key.to_string(), &filtered_deps, &dep_refs)
         };
 
-        // Try cache lookup (zero-copy via Arc, thread-safe)
-        self.eval_cache
+        let result = self.eval_cache
             .get(&cache_key)
-            .map(|arc_val| (*arc_val).clone())
+            .map(|arc_val| (*arc_val).clone());
+            
+            
+        result
     }
 
     /// Cache a result
-    /// Helper: Store evaluation result in cache (thread-safe)
     pub(crate) fn cache_result(
         &self,
         eval_key: &str,
         value: Value,
         eval_data_snapshot: &EvalData,
     ) {
-        // Skip cache insertion if caching is disabled
         if !self.cache_enabled {
             return;
         }
-
-        // Get dependencies for this evaluation
-        let deps = match self.dependencies.get(eval_key) {
-            Some(d) => d,
-            None => {
-                // No dependencies - use simple cache key
-                let cache_key = CacheKey::simple(eval_key.to_string());
-                self.eval_cache.insert(cache_key, value);
-                return;
-            }
-        };
-
-        // Filter and collect dependency values (exclude $ keys except $context)
-        let filtered_deps: IndexSet<String> = deps
-            .iter()
-            .filter(|dep_key| self.should_cache_dependency(dep_key) && dep_key.as_str() != path_utils::normalize_to_json_pointer(eval_key))
-            .cloned()
-            .collect();
-
-        let dep_values: Vec<(String, &Value)> = filtered_deps
-            .iter()
-            .filter_map(|dep_key| {
-                eval_data_snapshot.get(dep_key).and_then(|v| {
-                    if let Value::Array(arr) = v {
-                        if arr.len() > 10 && !crate::parse_schema::common::has_actionable_keys(v) {
-                            return None;
+ 
+        let cache_key = if let Some(deps) = self.dependencies.get(eval_key) {
+            if deps.is_empty() {
+                CacheKey::simple(eval_key.to_string())
+            } else {
+                let filtered_deps: IndexSet<String> = deps
+                    .iter()
+                    .filter(|dep_key| self.should_cache_dependency(dep_key) && dep_key.as_str() != path_utils::normalize_to_json_pointer(eval_key))
+                    .cloned()
+                    .collect();
+    
+                // Collect dep values; for $params deps use the version counter as the value.
+                let dep_values: Vec<(String, Value)> = filtered_deps
+                    .iter()
+                    .filter_map(|dep_key| {
+                        if self.is_params_dep(dep_key) {
+                            let ver = self.params_version_for(dep_key);
+                            return Some((dep_key.clone(), Value::Number(ver.into())));
                         }
-                    }
-                    Some((dep_key.clone(), v))
-                })
-            })
-            .collect();
-
-        let cache_key = CacheKey::new(eval_key.to_string(), &filtered_deps, &dep_values);
-        
+                        eval_data_snapshot.get(dep_key).and_then(|v| {
+                            if let Value::Array(arr) = v {
+                                if arr.len() > 10 && !crate::parse_schema::common::has_actionable_keys(v) {
+                                    return None;
+                                }
+                            }
+                            Some((dep_key.clone(), v.clone()))
+                        })
+                    })
+                    .collect();
+    
+                let dep_refs: Vec<(String, &Value)> = dep_values.iter().map(|(k, v)| (k.clone(), v)).collect();
+                CacheKey::new(eval_key.to_string(), &filtered_deps, &dep_refs)
+            }
+        } else {
+            CacheKey::simple(eval_key.to_string())
+        };
+ 
         self.eval_cache.insert(cache_key, value);
+    }
 
+    /// Returns true if `dep_key` refers to a `$params` evaluation.
+    #[inline]
+    fn is_params_dep(&self, dep_key: &str) -> bool {
+        (dep_key.starts_with("/$params") || dep_key.starts_with("$params.") || dep_key.starts_with("$params/"))
+            && self.params_versions.contains_key(dep_key)
+    }
+
+    /// Returns the current version counter for a `$params` dep key.
+    /// Falls back to 0 if the key is not tracked (shouldn't happen in practice).
+    #[inline]
+    fn params_version_for(&self, dep_key: &str) -> u64 {
+        self.params_versions
+            .get(dep_key)
+            .map(|v| *v)
+            .unwrap_or(0)
+    }
+
+    /// Bump the version counter for a `$params` evaluation key.
+    /// Called immediately after every uncached `$params` evaluation run.
+    /// `eval_key` is the raw schema key (e.g. `#/$params/accessList`).
+    pub(crate) fn bump_params_version(&self, eval_key: &str) {
+        let norm = eval_key.trim_start_matches('#');
+        if let Some(mut ver) = self.params_versions.get_mut(norm) {
+            *ver += 1;
+        }
+    }
+
+    /// Populate params_versions from the current evaluations map.
+    /// Should be called once after schema is parsed (or reloaded).
+    pub(crate) fn init_params_versions(&mut self) {
+        self.params_versions.clear();
+        for eval_key in self.evaluations.keys() {
+            let norm = eval_key.trim_start_matches('#');
+            if norm.starts_with("/$params/") || norm == "/$params" {
+                self.params_versions.insert(norm.to_string(), 0);
+            }
+        }
+        for table_key in self.tables.keys() {
+            let norm = table_key.trim_start_matches('#');
+            if norm.starts_with("/$params/") || norm == "/$params" {
+                self.params_versions.insert(norm.to_string(), 0);
+            }
+        }
     }
 
     /// Purge cache entries affected by changed data paths, comparing old and new values
@@ -180,158 +227,122 @@ impl JSONEval {
         }
     }
 
-    /// Compares old vs new values by deep diffing and purges affected entries
-    pub fn purge_cache_for_changed_data_with_comparison(
+    /// Purge cache entries whose dependencies intersect a known set of written data paths.
+    /// Used after `process_dependents_queue` / `recursive_hide_effect` to avoid a full cache clear.
+    /// `written_paths` are plain JSON pointer data paths (e.g. `/illustration/insured/name`),
+    /// i.e. the `/properties/` segments are already stripped out.
+    pub(crate) fn purge_cache_for_affected_data_paths(&self, written_paths: &IndexSet<String>) {
+        if written_paths.is_empty() {
+            return;
+        }
+
+        let mut affected_eval_keys = IndexSet::new();
+
+        for (eval_key, deps) in self.dependencies.iter() {
+            let is_affected = deps.iter().any(|dep| {
+                // Skip $params deps — they are handled via version tokens
+                if dep.starts_with("/$params") || dep.starts_with("$params.") || dep.starts_with("$params/") {
+                    return false;
+                }
+                // Normalize dep paths (strip /properties/) to match written data paths
+                let dep_data = dep.replace("/properties/", "/");
+                written_paths.iter().any(|written| {
+                    dep_data == *written
+                        || dep_data.starts_with(&format!("{}/", written))
+                        || written.starts_with(&format!("{}/", dep_data))
+                })
+            });
+
+            if is_affected {
+                affected_eval_keys.insert(eval_key.clone());
+            }
+        }
+
+        self.eval_cache
+            .retain(|cache_key, _| !affected_eval_keys.contains(&cache_key.eval_key));
+    }
+
+
+    /// Shared helper: deep-diff `old` vs `new`, then purge all cache entries whose
+    /// dependencies are matched by `dep_matches(dep_key, &changed_paths)`.
+    fn purge_cache_for_changed_values<F>(&self, old: &Value, new: &Value, dep_matches: F)
+    where
+        F: Fn(&str, &[String]) -> bool,
+    {
+        let mut changed_paths = Vec::new();
+        Self::compute_changed_paths(old, new, String::new(), &mut changed_paths);
+
+        if changed_paths.is_empty() {
+            return;
+        }
+
+        let mut affected_eval_keys = IndexSet::new();
+
+        for (eval_key, deps) in self.dependencies.iter() {
+            if deps.iter().any(|dep| dep_matches(dep, &changed_paths)) {
+                affected_eval_keys.insert(eval_key.clone());
+            }
+        }
+
+        self.eval_cache
+            .retain(|cache_key, _| !affected_eval_keys.contains(&cache_key.eval_key));
+    }
+
+    /// Deep-diff old vs new form data and purge affected cache entries.
+    pub fn purge_cache_for_changed_data_with_comparison(&self, old_data: &Value, new_data: &Value) {
+        self.purge_cache_for_changed_values(old_data, new_data, |dep, changed_paths| {
+            // TODO: $params dependencies need separate handling — their values are
+            // derived from schema evaluations, not raw form data. Skip for now to
+            // avoid over-invalidating cache entries that depend on computed params.
+            if dep.starts_with("/$params") || dep.starts_with("$params.") || dep.starts_with("$params/") {
+                return false;
+            }
+
+            changed_paths.iter().any(|p| {
+                dep == p || dep.starts_with(&format!("{}/", p)) || p.starts_with(&format!("{}/", dep))
+            })
+        });
+    }
+
+    /// Deep-diff old vs new context and purge only entries that depend on
+    /// the specific context fields that actually changed.
+    pub fn purge_cache_for_changed_context_with_comparison(
         &self,
-        old_data: &Value,
-        new_data: &Value,
+        old_context: &Value,
+        new_context: &Value,
     ) {
-        let mut actually_changed_paths = Vec::new();
-        Self::compute_changed_paths(old_data, new_data, "".to_string(), &mut actually_changed_paths);
-
-        // If no values actually changed, no need to purge
-        if actually_changed_paths.is_empty() {
-            return;
-        }
-
-        // Find all eval_keys that depend on the actually changed data paths
-        let mut affected_eval_keys = IndexSet::new();
-
-        for (eval_key, deps) in self.dependencies.iter() {
-            // Check if this evaluation depends on any of the changed paths
-            let is_affected = deps.iter().any(|dep| {
-                // Check if the dependency matches any changed path
-                actually_changed_paths.iter().any(|changed_path| {
-                    // Exact match or prefix match (for nested fields)
-                    dep == changed_path
-                        || dep.starts_with(&format!("{}/", changed_path))
-                        || changed_path.starts_with(&format!("{}/", dep))
-                })
-            });
-
-            if is_affected {
-                affected_eval_keys.insert(eval_key.clone());
+        self.purge_cache_for_changed_values(old_context, new_context, |dep, changed_paths| {
+            // Only consider $context dependencies
+            if !(dep == "$context"
+                || dep.starts_with("$context.")
+                || dep.starts_with("/$context")
+                || dep.starts_with("$context/"))
+            {
+                return false;
             }
-        }
 
-        // Remove all cache entries for affected eval_keys using retain
-        // Keep entries whose eval_key is NOT in the affected set
-        self.eval_cache
-            .retain(|cache_key, _| !affected_eval_keys.contains(&cache_key.eval_key));
-    }
-
-    /// Selectively purge cache entries that depend on changed data paths
-    /// Finds all eval_keys that depend on the changed paths and removes them
-    /// Selectively purge cache entries that depend on changed data paths
-    /// Simpler version without value comparison for cases where we don't have old data
-    pub fn purge_cache_for_changed_data(&self, changed_data_paths: &[String]) {
-        if changed_data_paths.is_empty() {
-            return;
-        }
-
-        // Find all eval_keys that depend on the changed paths
-        let mut affected_eval_keys = IndexSet::new();
-
-        for (eval_key, deps) in self.dependencies.iter() {
-            // Check if this evaluation depends on any of the changed paths
-            let is_affected = deps.iter().any(|dep| {
-                // Check if dependency path matches any changed data path using flexible matching
-                changed_data_paths.iter().any(|changed_for_purge| {
-                    // Check both directions:
-                    // 1. Dependency matches changed data (dependency is child of change)
-                    // 2. Changed data matches dependency (change is child of dependency)
-                    Self::paths_match_flexible(dep, changed_for_purge)
-                        || Self::paths_match_flexible(changed_for_purge, dep)
-                })
-            });
-
-            if is_affected {
-                affected_eval_keys.insert(eval_key.clone());
-            }
-        }
-
-        // Remove all cache entries for affected eval_keys using retain
-        // Keep entries whose eval_key is NOT in the affected set
-        self.eval_cache
-            .retain(|cache_key, _| !affected_eval_keys.contains(&cache_key.eval_key));
-    }
-
-    /// Flexible path matching that handles structural schema keywords (e.g. properties, oneOf)
-    /// Returns true if schema_path structurally matches data_path
-    fn paths_match_flexible(schema_path: &str, data_path: &str) -> bool {
-        let s_segs: Vec<&str> = schema_path
-            .trim_start_matches('#')
-            .trim_start_matches('/')
-            .split('/')
-            .filter(|s| !s.is_empty())
-            .collect();
-        let d_segs: Vec<&str> = data_path
-            .trim_start_matches('/')
-            .split('/')
-            .filter(|s| !s.is_empty())
-            .collect();
-
-        let mut d_idx = 0;
-
-        for s_seg in s_segs {
-            // If we matched all data segments, we are good (schema is deeper/parent)
-            if d_idx >= d_segs.len() {
+            // Root-context dependency — always affected when any context field changed
+            if dep == "$context" {
                 return true;
             }
 
-            let d_seg = d_segs[d_idx];
-
-            if s_seg == d_seg {
-                // Exact match, advance data pointer
-                d_idx += 1;
-            } else if s_seg == "items"
-                || s_seg == "additionalProperties"
-                || s_seg == "patternProperties"
-            {
-                // Wildcard match for arrays/maps - consume data segment if it looks valid
-                // Note: items matches array index (numeric). additionalProperties matches any key.
-                if s_seg == "items" {
-                    // Only match if data segment is numeric (array index)
-                    if d_seg.chars().all(|c| c.is_ascii_digit()) {
-                        d_idx += 1;
-                    }
-                } else {
-                    // additionalProperties/patternProperties matches any string key
-                    d_idx += 1;
+            // Normalise each changed relative path to both dep-key formats and match:
+            //   /profile/sob  ->  "/$context/profile/sob"  (slash form)
+            //                     "$context.profile.sob"   (dot form)
+            changed_paths.iter().any(|p| {
+                if p == "/" || p.is_empty() {
+                    return true;
                 }
-            } else if Self::is_structural_keyword(s_seg)
-                || s_seg.chars().all(|c| c.is_ascii_digit())
-            {
-                // Skip structural keywords (properties, oneOf, etc) and numeric indices in schema (e.g. oneOf/0)
-                continue;
-            } else {
-                // Mismatch: schema has a named segment that data doesn't have
-                return false;
-            }
-        }
-
-        // Return true if we consumed all data segments
-        true
-    }
-    
-    /// Purge cache entries affected by context changes
-    /// Purge cache entries that depend on context
-    pub fn purge_cache_for_context_change(&self) {
-        // Find all eval_keys that depend on $context
-        let mut affected_eval_keys = IndexSet::new();
-
-        for (eval_key, deps) in self.dependencies.iter() {
-            let is_affected = deps.iter().any(|dep| {
-                dep == "$context" || dep.starts_with("$context.") || dep.starts_with("/$context")
-            });
-
-            if is_affected {
-                affected_eval_keys.insert(eval_key.clone());
-            }
-        }
-
-        self.eval_cache
-            .retain(|cache_key, _| !affected_eval_keys.contains(&cache_key.eval_key));
+                let slash = format!("/$context{}", p);
+                let dot = format!("$context{}", p.replace('/', "."));
+                dep == slash
+                    || dep == dot
+                    || dep.starts_with(&format!("{}/", slash))
+                    || dep.starts_with(&format!("{}.", dot))
+                    || slash.starts_with(&format!("{}/", dep))
+                    || dot.starts_with(&format!("{}.", dep))
+            })
+        });
     }
 
     /// Get cache statistics
@@ -365,28 +376,6 @@ impl JSONEval {
     pub fn is_cache_enabled(&self) -> bool {
         self.cache_enabled
     }
-
-    /// Helper to check if a key is a structural JSON Schema keyword
-    /// Helper to check if a key is a structural JSON Schema keyword
-    fn is_structural_keyword(key: &str) -> bool {
-        matches!(
-            key,
-            "properties"
-                | "definitions"
-                | "$defs"
-                | "allOf"
-                | "anyOf"
-                | "oneOf"
-                | "not"
-                | "if"
-                | "then"
-                | "else"
-                | "dependentSchemas"
-                | "$params"
-                | "dependencies"
-        )
-    }
-    
     /// Get cache size
     pub fn cache_len(&self) -> usize {
         self.eval_cache.len()
