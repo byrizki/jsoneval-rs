@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.74] - 2026-03-25
+
+### Changed
+
+- [core] improve caches
+- [core] remove parallel feature
+
 ## [0.0.73] - 2026-03-24
 
 ### Changed
