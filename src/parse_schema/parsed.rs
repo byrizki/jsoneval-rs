@@ -445,8 +445,8 @@ fn create_subform_parsed(
     subforms: &mut IndexMap<String, Arc<ParsedSchema>>,
     parsed: &ParsedSchema,
 ) -> Result<(), String> {
-    // Extract field key from path (e.g., "#/riders" -> "riders")
-    let field_key = path.trim_start_matches('#').trim_start_matches('/');
+    // Extract field key from path (e.g., "#/properties/riders" -> "riders")
+    let field_key = path.split('/').last().unwrap_or(path);
 
     // Build subform schema: { $params: from parent, [field_key]: items content }
     let mut subform_schema = serde_json::Map::new();

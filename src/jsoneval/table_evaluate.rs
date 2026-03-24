@@ -63,10 +63,12 @@ pub fn evaluate_table(
     let mut sandbox = scope_data.clone();
 
     // PHASE 0: Evaluate $datas FIRST (before skip/clear)
-    let _existing_table_value = sandbox.get(&table_pointer_path).cloned();
-
     let empty_context = Value::Object(Map::new());
     for (name, logic, literal) in metadata.data_plans.iter() {
+        if sandbox.get(name.as_ref()).is_some() {
+            continue;
+        }
+
         let value = match logic {
             Some(logic_id) => {
                 match lib

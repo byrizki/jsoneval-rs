@@ -485,3 +485,37 @@ fn test_nonexistent_subform_error() {
     assert!(result.is_err());
     assert!(result.unwrap_err().contains("Subform not found"));
 }
+
+#[test]
+fn test_nested_subform_key() {
+    let schema = json!({
+        "properties": {
+            "form": {
+                "type": "object",
+                "properties": {
+                    "riders": {
+                        "type": "array",
+                        "items": {
+                            "properties": {
+                                "name": { "type": "string" }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    let schema_str = serde_json::to_string(&schema).unwrap();
+    let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
+    
+    // Subform path should be #/properties/form/properties/riders
+    assert!(eval.has_subform("#/properties/form/properties/riders"));
+    
+    // Get schema without params
+    let schema_without_params = eval.get_evaluated_schema_without_params_subform("#/properties/form/properties/riders", false);
+    
+    // Should have "riders" key instead of "properties/form/properties/riders"
+    assert!(schema_without_params.get("riders").is_some(), "Should extract only the last segment of the path as key");
+    assert!(schema_without_params.get("properties").is_none(), "Should not contain 'properties' from parent path");
+}
