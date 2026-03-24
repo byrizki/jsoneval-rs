@@ -549,6 +549,10 @@ fn categorize_evaluations(lib: &mut JSONEval) {
         }
 
         // Categorize based on path patterns
+        if eval_key.contains("/$params/") {
+            continue;
+        }
+
         if eval_key.contains("/rules/") {
             rules_evaluations.push(eval_key.clone());
         } else if !eval_key.contains("/dependents/") {
@@ -573,7 +577,7 @@ fn process_value_fields(lib: &mut JSONEval, value_fields: Vec<String>) {
         }
 
         // Skip table-related paths
-        if lib.tables.iter().any(|(key, _)| path.starts_with(key)) {
+        if path.contains("/$params/") || lib.tables.iter().any(|(key, _)| path.starts_with(key)) {
             continue;
         }
 

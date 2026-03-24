@@ -14,6 +14,11 @@ pub fn topological_sort_parsed(parsed: &ParsedSchema) -> Result<Vec<Vec<String>>
         .evaluations
         .keys()
         .filter(|key| {
+            let is_params = key.contains("/$params/");
+            if is_params {
+                return true;
+            }
+
             !key.contains("/dependents/")
                 && !key.contains("/rules/")
                 && !key.contains("/options/")

@@ -553,6 +553,10 @@ fn categorize_evaluations_parsed(parsed: &mut ParsedSchema) {
         }
 
         // Categorize based on path patterns
+        if eval_key.contains("/$params/") {
+            continue;
+        }
+
         if eval_key.contains("/rules/") {
             rules_evaluations.push(eval_key.clone());
         } else if !eval_key.contains("/dependents/") {
@@ -577,7 +581,7 @@ fn process_value_fields_parsed(parsed: &mut ParsedSchema, value_fields: Vec<Stri
         }
 
         // Skip table-related paths
-        if parsed.tables.iter().any(|(key, _)| path.starts_with(key)) {
+        if path.contains("/$params/") || parsed.tables.iter().any(|(key, _)| path.starts_with(key)) {
             continue;
         }
 

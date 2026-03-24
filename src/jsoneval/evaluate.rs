@@ -194,13 +194,13 @@ impl JSONEval {
                     }
 
                     // Check if we can skip this entire batch optimization
-                    // If paths are provided, we can check if ANY item in batch matches ANY path
                     if let Some(filter_paths) = normalized_paths {
                         if !filter_paths.is_empty() {
                             let batch_has_match = batch.iter().any(|eval_key| {
                                 filter_paths.iter().any(|p| {
                                     eval_key.starts_with(p.as_str())
-                                        || p.starts_with(eval_key.as_str())
+                                        || (p.starts_with(eval_key.as_str())
+                                            && !eval_key.contains("/$params/"))
                                 })
                             });
                             if !batch_has_match {
@@ -223,7 +223,8 @@ impl JSONEval {
                             if !filter_paths.is_empty()
                                 && !filter_paths.iter().any(|p| {
                                     eval_key.starts_with(p.as_str())
-                                        || p.starts_with(eval_key.as_str())
+                                        || (p.starts_with(eval_key.as_str())
+                                            && !eval_key.contains("/$params/"))
                                 })
                             {
                                 continue;
@@ -361,7 +362,8 @@ impl JSONEval {
                             if !filter_paths.is_empty()
                                 && !filter_paths.iter().any(|p| {
                                     eval_key.starts_with(p.as_str())
-                                        || p.starts_with(eval_key.as_str())
+                                        || (p.starts_with(eval_key.as_str())
+                                            && !eval_key.contains("/$params/"))
                                 })
                             {
                                 continue;
