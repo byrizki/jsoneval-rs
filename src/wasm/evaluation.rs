@@ -81,6 +81,7 @@ impl JSONEvalWasm {
         data: Option<String>,
         context: Option<String>,
         re_evaluate: bool,
+        include_subforms: Option<bool>,
     ) -> Result<String, JsValue> {
         let data_str = data.as_deref();
         let ctx = context.as_deref();
@@ -89,7 +90,7 @@ impl JSONEvalWasm {
         let paths = vec![changed_path.to_string()];
 
         let token = self.reset_token();
-        match self.inner.evaluate_dependents(&paths, data_str, ctx, re_evaluate, token.as_ref(), None) {
+        match self.inner.evaluate_dependents(&paths, data_str, ctx, re_evaluate, token.as_ref(), None, include_subforms.unwrap_or(true)) {
              Ok(result) => serde_json::to_string(&result).map_err(|e| {
                 let error_msg = format!("Failed to serialize dependents: {}", e);
                 console_log(&format!("[WASM ERROR] {}", error_msg));
@@ -117,6 +118,7 @@ impl JSONEvalWasm {
         data: Option<String>,
         context: Option<String>,
         re_evaluate: bool,
+        include_subforms: Option<bool>,
     ) -> Result<JsValue, JsValue> {
         // Parse JSON array of paths
         let paths: Vec<String> = serde_json::from_str(changed_paths_json).map_err(|e| {
@@ -131,7 +133,7 @@ impl JSONEvalWasm {
         let token = self.reset_token();
         match self
             .inner
-            .evaluate_dependents(&paths, data_str, ctx, re_evaluate, token.as_ref(), None)
+            .evaluate_dependents(&paths, data_str, ctx, re_evaluate, token.as_ref(), None, include_subforms.unwrap_or(true))
         {
             Ok(result) => super::to_value(&result).map_err(|e| {
                 let error_msg = format!("Failed to serialize dependents: {}", e);

@@ -119,6 +119,8 @@ export interface EvaluateDependentsOptions {
     context?: string | object;
     /** If true, performs full evaluation after processing dependents */
     reEvaluate?: boolean;
+    /** If true, evaluates all registered subforms and appends per-item results (default: true) */
+    includeSubforms?: boolean;
 }
 /**
  * Options for evaluating a subform
@@ -158,6 +160,8 @@ export interface EvaluateDependentsSubformOptions {
     context?: string | object;
     /** If true, performs full evaluation after processing dependents */
     reEvaluate?: boolean;
+    /** If true, evaluates nested sub-subforms and appends per-item results (default: true) */
+    includeSubforms?: boolean;
 }
 /**
  * Options for resolving layout in a subform

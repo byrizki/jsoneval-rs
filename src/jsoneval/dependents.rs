@@ -1,6 +1,8 @@
 use super::JSONEval;
 use crate::jsoneval::json_parser;
 use crate::jsoneval::path_utils;
+use crate::jsoneval::path_utils::get_value_by_pointer_without_properties;
+use crate::jsoneval::path_utils::normalize_to_json_pointer;
 use crate::rlogic::{LogicId, RLogic};
 use crate::jsoneval::types::DependentItem;
 use crate::jsoneval::cancellation::CancellationToken;
@@ -22,6 +24,7 @@ impl JSONEval {
         re_evaluate: bool,
         token: Option<&CancellationToken>,
         mut canceled_paths: Option<&mut Vec<String>>,
+        include_subforms: bool,
     ) -> Result<Value, String> {
         // Check cancellation
         if let Some(t) = token {
@@ -204,6 +207,102 @@ impl JSONEval {
                 )?;
             }
 
+        }
+
+        if include_subforms {
+            let subform_paths: Vec<String> = self.subforms.keys().cloned().collect();
+            for subform_path in subform_paths {
+                let field_key = subform_field_key(&subform_path);
+                let subform_dot_path = crate::jsoneval::path_utils::pointer_to_dot_notation(&subform_path).replace(".properties.", ".");
+                let field_prefix = format!("{}.", field_key);
+
+                // Borrow array items from current eval_data (zero-cost Arc deref)
+                let items: Vec<Value> = get_value_by_pointer_without_properties(self.eval_data.data(), &normalize_to_json_pointer(&subform_path))
+                    .and_then(|v| v.as_array())
+                    .cloned()          // clone the Vec<Value> reference list (shallow Arc clone per item)
+                    .unwrap_or_default();
+
+                if items.is_empty() {
+                    continue;
+                }
+
+                for (idx, item) in items.iter().enumerate() {
+                    // Subforms expect the data to be wrapped in the field key
+                    // We merge main form data so that $params and other top-level fields are available
+                    let mut merged_data = self.eval_data.data().clone();
+                    if let Value::Object(ref mut map) = merged_data {
+                        map.insert(field_key.clone(), item.clone());
+                    } else {
+                        let mut map = serde_json::Map::new();
+                        map.insert(field_key.clone(), item.clone());
+                        merged_data = Value::Object(map);
+                    }
+                    
+                    // Map absolute array changed paths (e.g., "illustration.insured.riders[0].base") to flat internal paths ("riders.base")
+                    let mut item_changed_paths = Vec::new();
+                    let prefix_with_bracket = format!("{}[{}].", subform_dot_path, idx);
+                    let prefix_with_dot = format!("{}.{}.", subform_dot_path, idx);
+                    
+                    for path in changed_paths {
+                        if path.starts_with(&prefix_with_bracket) {
+                            item_changed_paths.push(path.replacen(&prefix_with_bracket, &field_prefix, 1));
+                        } else if path.starts_with(&prefix_with_dot) {
+                            item_changed_paths.push(path.replacen(&prefix_with_dot, &field_prefix, 1));
+                        }
+                        // Fallback support for paths matching the internal field key exactly without parent context
+                        else if path.starts_with(&format!("{}[{}].", field_key, idx)) {
+                            item_changed_paths.push(path.replacen(&format!("{}[{}].", field_key, idx), &field_prefix, 1));
+                        }
+                    }
+
+                    // If there are no relevant changes and we aren't re-evaluating, we can skip this item
+                    if item_changed_paths.is_empty() && !re_evaluate {
+                        continue;
+                    }
+
+                    if let Some(subform) = self.subforms.get_mut(&subform_path) {
+                        // Bypass string overhead: update the subform data natively!
+                        // This achieves "zero-copy" across string boundaries, though native serde_json::Value
+                        // internal mapping still clones fields natively during the map insert.
+                        subform.eval_data.replace_data_and_context(
+                            merged_data, 
+                            self.eval_data.data().get("$context").cloned().unwrap_or(serde_json::Value::Null)
+                        );
+
+                        // context is passed through as-is natively via replace_data_and_context above
+                        let subform_result_or_err = subform.evaluate_dependents(
+                            &item_changed_paths,
+                            None, // passing None skips string parsing entirely
+                            None,
+                            re_evaluate,
+                            token,
+                            None,
+                            false,
+                        );
+
+                        if let Ok(Value::Array(changes)) = subform_result_or_err {
+                            for change in changes {
+                                if let Some(obj) = change.as_object() {
+                                    let mut new_obj = obj.clone();
+                                    if let Some(Value::String(ref_path)) = obj.get("$ref") {
+                                        // Map the isolated subform's path (e.g. "riders.calculated.value") 
+                                        // to the absolute index-qualified parent path (e.g. "illustration.insured.riders.0.calculated.value")
+                                        let new_ref = if ref_path.starts_with(&field_prefix) {
+                                            let trailing_path = &ref_path[field_prefix.len()..];
+                                            format!("{}.{}.{}", subform_dot_path, idx, trailing_path)
+                                        } else {
+                                            // Fallback if the path didn't start with the subform's root key
+                                            format!("{}.{}.{}", subform_dot_path, idx, ref_path)
+                                        };
+                                        new_obj.insert("$ref".to_string(), Value::String(new_ref));
+                                    }
+                                    result.push(Value::Object(new_obj));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         Ok(Value::Array(result))
@@ -729,4 +828,23 @@ impl JSONEval {
         }
         Ok(())
     }
+}
+
+/// Extract the field key from a subform path.
+///
+/// Examples:
+/// - `#/riders`                               → `riders`
+/// - `#/properties/form/properties/riders`    → `riders`
+/// - `#/items`                                → `items`
+fn subform_field_key(subform_path: &str) -> String {
+    // Strip leading `#/`
+    let stripped = subform_path.trim_start_matches('#').trim_start_matches('/');
+
+    // The last non-"properties" segment is the field key
+    stripped
+        .split('/')
+        .filter(|seg| !seg.is_empty() && *seg != "properties")
+        .last()
+        .unwrap_or(stripped)
+        .to_string()
 }

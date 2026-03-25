@@ -72,9 +72,10 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
         data: String?,
         context: String?,
         reEvaluate: Boolean,
+        includeSubforms: Boolean,
         promise: Promise
     ) {
-        nativeEvaluateDependentsAsync(handle, changedPathsJson, data ?: "", context ?: "", reEvaluate, promise)
+        nativeEvaluateDependentsAsync(handle, changedPathsJson, data ?: "", context ?: "", reEvaluate, includeSubforms, promise)
     }
 
     @ReactMethod
@@ -390,9 +391,10 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
         data: String?,
         context: String?,
         reEvaluate: Boolean,
+        includeSubforms: Boolean,
         promise: Promise
     ) {
-        nativeEvaluateDependentsSubformAsync(handle, subformPath, changedPath, data ?: "", context ?: "", reEvaluate, promise)
+        nativeEvaluateDependentsSubformAsync(handle, subformPath, changedPath, data ?: "", context ?: "", reEvaluate, includeSubforms, promise)
     }
 
     @ReactMethod
@@ -576,6 +578,7 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
         data: String,
         context: String,
         reEvaluate: Boolean,
+        includeSubforms: Boolean,
         promise: Promise
     )
     private external fun nativeGetEvaluatedSchemaAsync(handle: String, skipLayout: Boolean, promise: Promise)
@@ -648,7 +651,7 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
 
     private external fun nativeEvaluateSubform(handle: String, subformPath: String, data: String, context: String, pathsJson: String, promise: Promise)
     private external fun nativeValidateSubformAsync(handle: String, subformPath: String, data: String, context: String, promise: Promise)
-    private external fun nativeEvaluateDependentsSubformAsync(handle: String, subformPath: String, changedPath: String, data: String, context: String, reEvaluate: Boolean, promise: Promise)
+    private external fun nativeEvaluateDependentsSubformAsync(handle: String, subformPath: String, changedPath: String, data: String, context: String, reEvaluate: Boolean, includeSubforms: Boolean, promise: Promise)
     private external fun nativeResolveLayoutSubformAsync(handle: String, subformPath: String, evaluate: Boolean, promise: Promise)
     private external fun nativeGetEvaluatedSchemaSubformAsync(handle: String, subformPath: String, resolveLayout: Boolean, promise: Promise)
     private external fun nativeGetSchemaValueSubformAsync(handle: String, subformPath: String, promise: Promise)

@@ -152,6 +152,8 @@ export interface EvaluateDependentsOptions {
   context?: any;
   /** If true, performs full evaluation after processing dependents */
   reEvaluate?: boolean;
+  /** If true, also evaluates dependents in all registered subforms and appends their schema values (default: true) */
+  includeSubforms?: boolean;
 }
 
 /**
@@ -266,6 +268,8 @@ export interface EvaluateDependentsSubformOptions {
   context?: any;
   /** If true, performs full evaluation after processing dependents */
   reEvaluate?: boolean;
+  /** If true, also evaluates dependents in sub-subforms and appends their schema values (default: true) */
+  includeSubforms?: boolean;
 }
 
 /**
@@ -619,6 +623,7 @@ export class JSONEvalCore {
     data,
     context,
     reEvaluate = true,
+    includeSubforms = true,
   }: EvaluateDependentsOptions): Promise<DependentChange[]> {
     await this.init();
     try {
@@ -629,7 +634,8 @@ export class JSONEvalCore {
         typeof paths === "string" ? paths : JSONStringify(paths),
         data ? typeof data === "string" ? data : JSONStringify(data) : null,
         context ? typeof context === "string" ? context : JSONStringify(context) : null,
-        reEvaluate
+        reEvaluate,
+        includeSubforms
       );
     } catch (error: any) {
       throw new Error(`Dependent evaluation failed: ${error.message || error}`);
@@ -1081,6 +1087,7 @@ export class JSONEvalCore {
     data,
     context,
     reEvaluate = true,
+    includeSubforms = true,
   }: EvaluateDependentsSubformOptions): Promise<DependentChange[]> {
     await this.init();
 
@@ -1092,7 +1099,8 @@ export class JSONEvalCore {
       typeof paths === "string" ? paths : JSONStringify(paths),
       data ? typeof data === "string" ? data : JSONStringify(data) : null,
       context ? typeof context === "string" ? context : JSONStringify(context) : null,
-      reEvaluate
+      reEvaluate,
+      includeSubforms
     );
   }
 
@@ -1105,6 +1113,7 @@ export class JSONEvalCore {
     changedPaths,
     data,
     context,
+    includeSubforms = true,
   }: EvaluateDependentsSubformOptions): Promise<string> {
     await this.init();
     const paths = Array.isArray(changedPaths) ? changedPaths : [changedPaths];
@@ -1112,7 +1121,9 @@ export class JSONEvalCore {
       subformPath,
       typeof paths === "string" ? paths : JSONStringify(paths),
       data ? typeof data === "string" ? data : JSONStringify(data) : null,
-      context ? typeof context === "string" ? context : JSONStringify(context) : null
+      context ? typeof context === "string" ? context : JSONStringify(context) : null,
+      false,
+      includeSubforms
     );
   }
 

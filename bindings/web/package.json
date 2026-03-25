@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "nextjs": "yarn workspace nextjs dev",
-    "compile": "yarn workspaces foreach run build",
+    "compile": "yarn workspaces run build",
     "clean": "rm -rf packages/*/json_eval_rs* packages/*/*.wasm"
   },
   "repository": {

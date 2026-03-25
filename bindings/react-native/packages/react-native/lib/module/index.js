@@ -288,12 +288,13 @@ export class JSONEval {
         changedPaths,
         data,
         context,
-        reEvaluate = true
+        reEvaluate = true,
+        includeSubforms = true
       } = options;
       const changedPathsJson = typeof changedPaths === 'string' ? changedPaths : JSONStringify(changedPaths);
       const dataStr = data ? this.toJsonString(data) : null;
       const contextStr = context ? this.toJsonString(context) : null;
-      const resultStr = await JsonEvalRs.evaluateDependents(this.handle, changedPathsJson, dataStr, contextStr, reEvaluate);
+      const resultStr = await JsonEvalRs.evaluateDependents(this.handle, changedPathsJson, dataStr, contextStr, reEvaluate, includeSubforms);
       return JSONParse(resultStr);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -679,10 +680,9 @@ export class JSONEval {
     this.throwIfDisposed();
     const dataStr = options.data ? this.toJsonString(options.data) : null;
     const contextStr = options.context ? this.toJsonString(options.context) : null;
-
-    // For now, pass the first path since native bridge expects single path (wraps internally)
     const changedPath = options.changedPaths[0] || '';
-    const resultStr = await JsonEvalRs.evaluateDependentsSubform(this.handle, options.subformPath, changedPath, dataStr, contextStr, options.reEvaluate ?? true);
+    const includeSubforms = options.includeSubforms ?? true;
+    const resultStr = await JsonEvalRs.evaluateDependentsSubform(this.handle, options.subformPath, changedPath, dataStr, contextStr, options.reEvaluate ?? true, includeSubforms);
     return JSONParse(resultStr);
   }
 

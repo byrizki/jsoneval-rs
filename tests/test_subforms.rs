@@ -272,7 +272,8 @@ fn test_evaluate_dependents_subform() {
         None,
         false,
         None,
-        None
+        None,
+        true
     );
     
     assert!(result.is_ok(), "Should successfully evaluate dependents");
@@ -515,7 +516,102 @@ fn test_nested_subform_key() {
     // Get schema without params
     let schema_without_params = eval.get_evaluated_schema_without_params_subform("#/properties/form/properties/riders", false);
     
-    // Should have "riders" key instead of "properties/form/properties/riders"
+// Should have "riders" key instead of "properties/form/properties/riders"
     assert!(schema_without_params.get("riders").is_some(), "Should extract only the last segment of the path as key");
     assert!(schema_without_params.get("properties").is_none(), "Should not contain 'properties' from parent path");
+}
+
+#[test]
+fn test_evaluate_dependents_subform_array_iteration() {
+    let schema = json!({
+        "$params": {
+            "constants": {
+                "MULTIPLIER": 2
+            }
+        },
+        "riders": {
+            "type": "array",
+            "items": {
+                "properties": {
+                    "base": {
+                        "type": "number",
+                        "dependents": [
+                            {
+                                "$ref": "#/riders/properties/calculated/value",
+                                "value": {
+                                    "$evaluation": {
+                                        "*": [
+                                            { "$ref": "#/riders/properties/base" },
+                                            { "$ref": "#/$params/constants/MULTIPLIER" }
+                                        ]
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    "calculated": {
+                        "type": "number",
+                        "condition": {
+                            "disabled": true
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    let schema_str = serde_json::to_string(&schema).unwrap();
+    let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
+
+    let data = json!({
+        "riders": [
+            { "base": 10 },
+            { "base": 20 }
+        ]
+    });
+    let data_str = serde_json::to_string(&data).unwrap();
+
+    let subform_schema = eval.get_evaluated_schema_subform("#/riders", false);
+    println!("Subform schema: {}", serde_json::to_string_pretty(&subform_schema).unwrap());
+    
+    // Check subform internally before and after
+    let subform_values_before = eval.get_schema_value_object_subform("#/riders");
+    println!("Subform values before: {:?}", subform_values_before);
+    
+    // Trigger dependents evaluation. We use explicit paths to trigger the dependents on each item
+    // changed_paths = ["riders[0].base", "riders[1].base"], include_subforms = true
+    let result = eval.evaluate_dependents(
+        &["riders[0].base".to_string(), "riders[1].base".to_string()],
+        Some(&data_str),
+        None,
+        true,
+        None,
+        None,
+        true // include_subforms
+    ).unwrap();
+
+    // result should be an array of flat subform execution results
+    let result_arr = result.as_array().expect("result should be an array");
+    
+    // There should be two entries in the array: "riders.0.calculated.value" and "riders.1.calculated.value"
+    assert_eq!(result_arr.len(), 2, "Should have 2 subform result items");
+    
+    let mut found_0 = false;
+    let mut found_1 = false;
+
+    for item in result_arr {
+        let path = item.get("$ref").unwrap().as_str().unwrap();
+        let value = item.get("value").unwrap().as_f64().unwrap();
+        
+        if path == "riders.0.calculated.value" {
+            assert_eq!(value, 20.0);
+            found_0 = true;
+        } else if path == "riders.1.calculated.value" {
+            assert_eq!(value, 40.0);
+            found_1 = true;
+        }
+    }
+    
+    assert!(found_0, "Should have found evaluation for riders[0]");
+    assert!(found_1, "Should have found evaluation for riders[1]");
 }

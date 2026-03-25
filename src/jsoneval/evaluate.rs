@@ -261,11 +261,13 @@ impl JSONEval {
 
                                 self.cache_result(eval_key, Value::Null, &eval_data_snapshot);
  
-                                self.eval_data.set(&pointer_path, value.clone());
-                                if let Some(schema_value) =
-                                    self.evaluated_schema.pointer_mut(&pointer_path)
-                                {
-                                    *schema_value = value;
+                                if has_changes {
+                                    self.eval_data.set(&pointer_path, value.clone());
+                                    if let Some(schema_value) =
+                                        self.evaluated_schema.pointer_mut(&pointer_path)
+                                    {
+                                        *schema_value = value;
+                                    }
                                 }
                             }
                         } else {
@@ -289,11 +291,13 @@ impl JSONEval {
  
                                     self.cache_result(eval_key, Value::Null, &eval_data_snapshot);
  
-                                    self.eval_data.set(&pointer_path, cleaned_val.clone());
-                                    if let Some(schema_value) =
-                                        self.evaluated_schema.pointer_mut(&pointer_path)
-                                    {
-                                        *schema_value = cleaned_val;
+                                    if has_changes {
+                                        self.eval_data.set(&pointer_path, cleaned_val.clone());
+                                        if let Some(schema_value) =
+                                            self.evaluated_schema.pointer_mut(&pointer_path)
+                                        {
+                                            *schema_value = cleaned_val;
+                                        }
                                     }
                                 }
                             }

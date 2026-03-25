@@ -136,13 +136,6 @@ pub unsafe extern "C" fn json_eval_validate_subform(
     }
 }
 
-/// Evaluate dependents in subform when a field changes
-///
-/// # Safety
-///
-/// - handle must be a valid pointer from json_eval_new
-/// - subform_path must be a valid null-terminated UTF-8 string
-/// - changed_path must be a valid null-terminated UTF-8 string
 #[no_mangle]
 pub unsafe extern "C" fn json_eval_evaluate_dependents_subform(
     handle: *mut JSONEvalHandle,
@@ -151,6 +144,7 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents_subform(
     data: *const c_char,
     context: *const c_char,
     re_evaluate: i32,
+    include_subforms: i32,
 ) -> FFIResult {
     if handle.is_null() || subform_path.is_null() || changed_path.is_null() {
         return FFIResult::error("Invalid pointer".to_string());
@@ -191,7 +185,7 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents_subform(
     // Wrap single path in a Vec for the new API
     let paths = vec![path_str.to_string()];
 
-    match eval.evaluate_dependents_subform(subform_str, &paths, data_str, context_str, re_evaluate != 0, token.as_ref(), None) {
+    match eval.evaluate_dependents_subform(subform_str, &paths, data_str, context_str, re_evaluate != 0, token.as_ref(), None, include_subforms != 0) {
         Ok(result) => {
             let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
             FFIResult::success(result_bytes)

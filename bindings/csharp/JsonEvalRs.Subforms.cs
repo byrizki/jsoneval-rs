@@ -89,7 +89,7 @@ namespace JsonEvalRs
         /// <param name="data">Optional updated JSON data string</param>
         /// <param name="context">Optional context data JSON string</param>
         /// <returns>Array of dependent change objects</returns>
-        public JArray EvaluateDependentsSubform(string subformPath, string changedPath, string? data = null, string? context = null, bool reEvaluate = true)
+        public JArray EvaluateDependentsSubform(string subformPath, string changedPath, string? data = null, string? context = null, bool reEvaluate = true, bool includeSubforms = true)
         {
             ThrowIfDisposed();
             if (string.IsNullOrEmpty(subformPath))
@@ -98,9 +98,9 @@ namespace JsonEvalRs
                 throw new ArgumentNullException(nameof(changedPath));
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_evaluate_dependents_subform(_handle, subformPath, changedPath, data, context, reEvaluate ? 1 : 0);
+            var result = Native.json_eval_evaluate_dependents_subform(_handle, subformPath, changedPath, data, context, reEvaluate ? 1 : 0, includeSubforms ? 1 : 0);
 #else
-            var result = Native.json_eval_evaluate_dependents_subform(_handle, Native.ToUTF8Bytes(subformPath)!, Native.ToUTF8Bytes(changedPath)!, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), reEvaluate ? 1 : 0);
+            var result = Native.json_eval_evaluate_dependents_subform(_handle, Native.ToUTF8Bytes(subformPath)!, Native.ToUTF8Bytes(changedPath)!, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), reEvaluate ? 1 : 0, includeSubforms ? 1 : 0);
 #endif
             
             return ProcessResultAsArray(result);
@@ -114,7 +114,7 @@ namespace JsonEvalRs
         /// <param name="data">Optional updated JSON data string</param>
         /// <param name="context">Optional context data JSON string</param>
         /// <returns>JSON string containing array of dependent change objects</returns>
-        public string EvaluateDependentsSubformString(string subformPath, string changedPath, string? data = null, string? context = null, bool reEvaluate = true)
+        public string EvaluateDependentsSubformString(string subformPath, string changedPath, string? data = null, string? context = null, bool reEvaluate = true, bool includeSubforms = true)
         {
             ThrowIfDisposed();
             if (string.IsNullOrEmpty(subformPath))
@@ -123,9 +123,9 @@ namespace JsonEvalRs
                 throw new ArgumentNullException(nameof(changedPath));
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_evaluate_dependents_subform(_handle, subformPath, changedPath, data, context, reEvaluate ? 1 : 0);
+            var result = Native.json_eval_evaluate_dependents_subform(_handle, subformPath, changedPath, data, context, reEvaluate ? 1 : 0, includeSubforms ? 1 : 0);
 #else
-            var result = Native.json_eval_evaluate_dependents_subform(_handle, Native.ToUTF8Bytes(subformPath)!, Native.ToUTF8Bytes(changedPath)!, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), reEvaluate ? 1 : 0);
+            var result = Native.json_eval_evaluate_dependents_subform(_handle, Native.ToUTF8Bytes(subformPath)!, Native.ToUTF8Bytes(changedPath)!, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), reEvaluate ? 1 : 0, includeSubforms ? 1 : 0);
 #endif
             
             return ProcessResultAsString(result);

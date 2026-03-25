@@ -31,7 +31,7 @@ fn test_evaluate_dependents_pre_cancelled() {
     let token = CancellationToken::new();
     token.cancel();
 
-    let result = eval.evaluate_dependents(&vec!["a".to_string()], Some(r#"{"a": "foo"}"#), None, false, Some(&token), None);
+    let result = eval.evaluate_dependents(&vec!["a".to_string()], Some(r#"{"a": "foo"}"#), None, false, Some(&token), None, true);
     assert_eq!(result, Err("Cancelled".to_string()));
 }
 

@@ -387,7 +387,7 @@ namespace JsonEvalRs
         /// <param name="reEvaluate">If true, performs full evaluation after processing dependents</param>
         /// <returns>Array of dependent change objects as JArray</returns>
         public JArray EvaluateDependents(string[] changedPaths, string? data = null, 
-            string? context = null, bool reEvaluate = true)
+            string? context = null, bool reEvaluate = true, bool includeSubforms = true)
         {
             ThrowIfDisposed();
 
@@ -397,9 +397,9 @@ namespace JsonEvalRs
             var changedPathsJson = JsonConvert.SerializeObject(changedPaths);
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_evaluate_dependents(_handle, changedPathsJson, data, context, reEvaluate ? 1 : 0);
+            var result = Native.json_eval_evaluate_dependents(_handle, changedPathsJson, data, context, reEvaluate ? 1 : 0, includeSubforms ? 1 : 0);
 #else
-            var result = Native.json_eval_evaluate_dependents(_handle, Native.ToUTF8Bytes(changedPathsJson)!, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), reEvaluate ? 1 : 0);
+            var result = Native.json_eval_evaluate_dependents(_handle, Native.ToUTF8Bytes(changedPathsJson)!, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), reEvaluate ? 1 : 0, includeSubforms ? 1 : 0);
 #endif
             return ProcessResultAsArray(result);
         }
@@ -413,7 +413,7 @@ namespace JsonEvalRs
         /// <param name="reEvaluate">If true, performs full evaluation after processing dependents</param>
         /// <returns>JSON string containing array of dependent change objects</returns>
         public string EvaluateDependentsString(string[] changedPaths, string? data = null, 
-            string? context = null, bool reEvaluate = true)
+            string? context = null, bool reEvaluate = true, bool includeSubforms = true)
         {
             ThrowIfDisposed();
 
@@ -423,9 +423,9 @@ namespace JsonEvalRs
             var changedPathsJson = JsonConvert.SerializeObject(changedPaths);
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_evaluate_dependents(_handle, changedPathsJson, data, context, reEvaluate ? 1 : 0);
+            var result = Native.json_eval_evaluate_dependents(_handle, changedPathsJson, data, context, reEvaluate ? 1 : 0, includeSubforms ? 1 : 0);
 #else
-            var result = Native.json_eval_evaluate_dependents(_handle, Native.ToUTF8Bytes(changedPathsJson)!, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), reEvaluate ? 1 : 0);
+            var result = Native.json_eval_evaluate_dependents(_handle, Native.ToUTF8Bytes(changedPathsJson)!, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), reEvaluate ? 1 : 0, includeSubforms ? 1 : 0);
 #endif
             return ProcessResultAsString(result);
         }

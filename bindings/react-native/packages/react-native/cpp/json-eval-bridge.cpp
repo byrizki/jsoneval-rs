@@ -22,7 +22,7 @@ extern "C" {
     FFIResult json_eval_evaluate(JSONEvalHandle* handle, const char* data, const char* context, const char* paths_json);
     FFIResult json_eval_get_evaluated_schema_msgpack(JSONEvalHandle* handle, bool skip_layout);
     FFIResult json_eval_validate(JSONEvalHandle* handle, const char* data, const char* context);
-    FFIResult json_eval_evaluate_dependents(JSONEvalHandle* handle, const char* changed_path, const char* data, const char* context, int re_evaluate);
+    FFIResult json_eval_evaluate_dependents(JSONEvalHandle* handle, const char* changed_path, const char* data, const char* context, int re_evaluate, int include_subforms);
     FFIResult json_eval_get_evaluated_schema(JSONEvalHandle* handle, bool skip_layout);
     FFIResult json_eval_get_schema_value(JSONEvalHandle* handle);
     FFIResult json_eval_get_schema_value_array(JSONEvalHandle* handle);
@@ -52,7 +52,7 @@ extern "C" {
     // Subform FFI methods
     FFIResult json_eval_evaluate_subform(JSONEvalHandle* handle, const char* subform_path, const char* data, const char* context, const char* paths_json);
     FFIResult json_eval_validate_subform(JSONEvalHandle* handle, const char* subform_path, const char* data, const char* context);
-    FFIResult json_eval_evaluate_dependents_subform(JSONEvalHandle* handle, const char* subform_path, const char* changed_path, const char* data, const char* context, int re_evaluate);
+    FFIResult json_eval_evaluate_dependents_subform(JSONEvalHandle* handle, const char* subform_path, const char* changed_path, const char* data, const char* context, int re_evaluate, int include_subforms);
     FFIResult json_eval_resolve_layout_subform(JSONEvalHandle* handle, const char* subform_path, bool evaluate);
     FFIResult json_eval_get_evaluated_schema_subform(JSONEvalHandle* handle, const char* subform_path, bool resolve_layout);
     FFIResult json_eval_get_schema_value_subform(JSONEvalHandle* handle, const char* subform_path);
@@ -370,9 +370,10 @@ void JsonEvalBridge::evaluateDependentsAsync(
     const std::string& data,
     const std::string& context,
     bool reEvaluate,
+    bool includeSubforms,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, changedPathsJson, data, context, reEvaluate]() -> std::string {
+    runAsync([handleId, changedPathsJson, data, context, reEvaluate, includeSubforms]() -> std::string {
         std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
@@ -386,7 +387,8 @@ void JsonEvalBridge::evaluateDependentsAsync(
             changedPathsJson.c_str(), 
             dataPtr, 
             ctx,
-            reEvaluate ? 1 : 0
+            reEvaluate ? 1 : 0,
+            includeSubforms ? 1 : 0
         );
         
         if (!result.success) {
@@ -1147,9 +1149,10 @@ void JsonEvalBridge::evaluateDependentsSubformAsync(
     const std::string& data,
     const std::string& context,
     bool reEvaluate,
+    bool includeSubforms,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, subformPath, changedPath, data, context, reEvaluate]() -> std::string {
+    runAsync([handleId, subformPath, changedPath, data, context, reEvaluate, includeSubforms]() -> std::string {
         std::lock_guard<std::mutex> lock(handlesMutex);
         auto it = handles.find(handleId);
         if (it == handles.end()) {
@@ -1158,7 +1161,10 @@ void JsonEvalBridge::evaluateDependentsSubformAsync(
         
         const char* dt = data.empty() ? nullptr : data.c_str();
         const char* ctx = context.empty() ? nullptr : context.c_str();
-        FFIResult result = json_eval_evaluate_dependents_subform(it->second, subformPath.c_str(), changedPath.c_str(), dt, ctx, reEvaluate ? 1 : 0);
+        FFIResult result = json_eval_evaluate_dependents_subform(
+            it->second, subformPath.c_str(), changedPath.c_str(), dt, ctx,
+            reEvaluate ? 1 : 0, includeSubforms ? 1 : 0
+        );
         
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";

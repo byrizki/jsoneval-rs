@@ -145,6 +145,7 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents(
     data: *const c_char,
     context: *const c_char,
     re_evaluate: i32,
+    include_subforms: i32,
 ) -> FFIResult {
     if handle.is_null() || changed_paths_json.is_null() {
         return FFIResult::error("Invalid pointer".to_string());
@@ -183,7 +184,7 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents(
         None
     };
 
-    match eval.evaluate_dependents(&paths, data_str, context_str, re_evaluate != 0, token.as_ref(), None) {
+    match eval.evaluate_dependents(&paths, data_str, context_str, re_evaluate != 0, token.as_ref(), None, include_subforms != 0) {
         Ok(result) => {
             let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
             FFIResult::success(result_bytes)

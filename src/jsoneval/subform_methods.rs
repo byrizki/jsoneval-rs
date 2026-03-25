@@ -55,6 +55,7 @@ impl JSONEval {
         re_evaluate: bool,
         token: Option<&CancellationToken>,
         canceled_paths: Option<&mut Vec<String>>,
+        include_subforms: bool,
     ) -> Result<Value, String> {
         self.sync_caches_to_subforms();
 
@@ -63,7 +64,7 @@ impl JSONEval {
             .get_mut(subform_path)
             .ok_or_else(|| format!("Subform not found: {}", subform_path))?;
 
-        subform.evaluate_dependents(changed_paths, data, context, re_evaluate, token, canceled_paths)
+        subform.evaluate_dependents(changed_paths, data, context, re_evaluate, token, canceled_paths, include_subforms)
     }
 
     /// Resolve layout for subform

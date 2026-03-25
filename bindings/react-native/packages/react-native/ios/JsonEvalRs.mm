@@ -213,6 +213,7 @@ RCT_EXPORT_METHOD(evaluateDependents:(NSString *)handle
                   data:(NSString *)data
                   context:(NSString *)context
                   reEvaluate:(BOOL)reEvaluate
+                  includeSubforms:(BOOL)includeSubforms
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 {
@@ -221,7 +222,7 @@ RCT_EXPORT_METHOD(evaluateDependents:(NSString *)handle
     std::string dataStr = [self stdStringFromNSString:data];
     std::string contextStr = [self stdStringFromNSString:context];
     
-    JsonEvalBridge::evaluateDependentsAsync(handleStr, pathsJsonStr, dataStr, contextStr, reEvaluate,
+    JsonEvalBridge::evaluateDependentsAsync(handleStr, pathsJsonStr, dataStr, contextStr, reEvaluate, includeSubforms,
         [resolve, reject](const std::string& result, const std::string& error) {
             if (error.empty()) {
                 resolve([NSString stringWithUTF8String:result.c_str()]);
@@ -694,6 +695,7 @@ RCT_EXPORT_METHOD(evaluateDependentsSubform:(NSString *)handle
                   data:(NSString *)data
                   context:(NSString *)context
                   reEvaluate:(BOOL)reEvaluate
+                  includeSubforms:(BOOL)includeSubforms
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 {
@@ -703,7 +705,7 @@ RCT_EXPORT_METHOD(evaluateDependentsSubform:(NSString *)handle
     std::string dataStr = [self stdStringFromNSString:data];
     std::string contextStr = [self stdStringFromNSString:context];
     
-    JsonEvalBridge::evaluateDependentsSubformAsync(handleStr, subformPathStr, changedPathStr, dataStr, contextStr, reEvaluate,
+    JsonEvalBridge::evaluateDependentsSubformAsync(handleStr, subformPathStr, changedPathStr, dataStr, contextStr, reEvaluate, includeSubforms,
         [resolve, reject](const std::string& result, const std::string& error) {
             if (error.empty()) {
                 resolve([NSString stringWithUTF8String:result.c_str()]);

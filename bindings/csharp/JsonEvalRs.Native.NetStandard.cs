@@ -92,7 +92,8 @@ namespace JsonEvalRs
             byte[]? changedPathsJson,
             byte[]? data,
             byte[]? context,
-            int reEvaluate
+            int reEvaluate,
+            int includeSubforms
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
@@ -210,7 +211,8 @@ namespace JsonEvalRs
             byte[] changedPath,
             byte[]? data,
             byte[]? context,
-            int reEvaluate
+            int reEvaluate,
+            int includeSubforms
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]

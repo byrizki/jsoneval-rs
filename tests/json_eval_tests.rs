@@ -228,7 +228,8 @@ fn test_evaluate_dependents_basic() {
         None,
         false,
         None,
-        None
+        None,
+        true
     ).expect("evaluate_dependents failed");
 
     // Check result structure
@@ -274,7 +275,8 @@ fn test_evaluate_dependents_with_clear() {
         None,
         false,
         None,
-        None
+        None,
+        true
     ).expect("evaluate_dependents failed");
 
     let changes = result.as_array().unwrap();
@@ -329,7 +331,8 @@ fn test_evaluate_dependents_transitive() {
         None,
         false,
         None,
-        None
+        None,
+        true
     ).expect("evaluate_dependents failed");
 
     let changes = result.as_array().unwrap();
@@ -402,7 +405,8 @@ fn test_evaluate_dependents_no_data_update() {
         None,
         false,
         None,
-        None
+        None,
+        true
     ).expect("evaluate_dependents failed");
 
     let changes = result.as_array().unwrap();
@@ -470,7 +474,8 @@ fn test_evaluate_dependents_output_structure() {
         None,
         false,
         None,
-        None
+        None,
+        true
     ).expect("evaluate_dependents failed");
 
     // Validate result is an array
@@ -598,7 +603,8 @@ fn test_evaluate_dependents_dot_notation() {
         None,
         false,
         None,
-        None
+        None,
+        true
     ).expect("evaluate_dependents failed");
 
     let changes = result.as_array().unwrap();
@@ -635,7 +641,8 @@ fn test_evaluate_dependents_with_dot_notation_input() {
         None,
         false,
         None,
-        None
+        None,
+        true
     ).expect("evaluate_dependents with dot notation failed");
 
     let changes = result.as_array().unwrap();
@@ -668,7 +675,8 @@ fn test_evaluate_dependents_dot_vs_schema_path() {
         None,
         false,
         None,
-        None
+        None,
+        true
     ).expect("Schema path failed");
 
     // Test with dot notation
@@ -682,7 +690,8 @@ fn test_evaluate_dependents_dot_vs_schema_path() {
         None,
         false,
         None,
-        None
+        None,
+        true
     ).expect("Dot notation failed");
 
     // Both should produce the same number of changes

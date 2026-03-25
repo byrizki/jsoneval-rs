@@ -84,6 +84,7 @@ impl JSONEvalWasm {
         data: Option<String>,
         context: Option<String>,
         re_evaluate: bool,
+        include_subforms: Option<bool>,
     ) -> Result<String, JsValue> {
         let data_str = data.as_deref();
         let ctx = context.as_deref();
@@ -96,7 +97,7 @@ impl JSONEvalWasm {
 
         match self
             .inner
-            .evaluate_dependents_subform(subform_path, &paths, data_str, ctx, re_evaluate, None, None)
+            .evaluate_dependents_subform(subform_path, &paths, data_str, ctx, re_evaluate, None, None, include_subforms.unwrap_or(true))
         {
             Ok(result) => {
                 serde_json::to_string(&result).map_err(|e| JsValue::from_str(&e.to_string()))
@@ -120,6 +121,7 @@ impl JSONEvalWasm {
         data: Option<String>,
         context: Option<String>,
         re_evaluate: bool,
+        include_subforms: Option<bool>,
     ) -> Result<JsValue, JsValue> {
         let data_str = data.as_deref();
         let ctx = context.as_deref();
@@ -133,7 +135,7 @@ impl JSONEvalWasm {
 
         match self
             .inner
-            .evaluate_dependents_subform(subform_path, &paths, data_str, ctx, re_evaluate, None, None)
+            .evaluate_dependents_subform(subform_path, &paths, data_str, ctx, re_evaluate, None, None, include_subforms.unwrap_or(true))
         {
             Ok(result) => super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string())),
             Err(e) => Err(JsValue::from_str(&e)),

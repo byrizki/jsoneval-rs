@@ -114,6 +114,7 @@ public:
         const std::string& data,
         const std::string& context,
         bool reEvaluate,
+        bool includeSubforms,
         std::function<void(const std::string&, const std::string&)> callback
     );
 
@@ -484,6 +485,7 @@ public:
         const std::string& data,
         const std::string& context,
         bool reEvaluate,
+        bool includeSubforms,
         std::function<void(const std::string&, const std::string&)> callback
     );
 
