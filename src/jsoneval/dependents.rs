@@ -32,8 +32,6 @@ impl JSONEval {
                 return Err("Cancelled".to_string());
             }
         }
-        self.sync_caches_to_subforms();
-
         // Acquire lock for synchronous execution
         let _lock = self.eval_lock.lock().unwrap();
 

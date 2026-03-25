@@ -22,28 +22,6 @@ impl JSONEval {
         }
     }
 
-    /// Synchronize the parent evaluator's cache state down to all subforms.
-    /// Because EvalCache wraps its contents in Arc natively, this is extremely fast
-    /// (just an Arc clone) and perfectly shares memoized nodes across complex array iterations.
-    pub fn sync_caches_to_subforms(&mut self) {
-        if self.subforms.is_empty() {
-            return;
-        }
-
-        let eval_cache = self.eval_cache.clone();
-        let params_versions = std::sync::Arc::clone(&self.params_versions);
-        let missed_keys = std::sync::Arc::clone(&self.missed_keys);
-
-        for subform in self.subforms.values_mut() {
-            subform.eval_cache = eval_cache.clone();
-            subform.params_versions = std::sync::Arc::clone(&params_versions);
-            subform.missed_keys = std::sync::Arc::clone(&missed_keys);
-            
-            // Recursively sync into deeper nested subforms
-            subform.sync_caches_to_subforms();
-        }
-    }
-
     /// Try to get a value from cache if it exists and dependencies match
     pub(crate) fn try_get_cached(
         &self,

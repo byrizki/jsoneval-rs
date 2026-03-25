@@ -34,7 +34,6 @@ impl JSONEval {
             }
         }
         time_block!("evaluate() [total]", { 
-            self.sync_caches_to_subforms();
             let context_provided = context.is_some();
 
             // Use SIMD-accelerated JSON parsing
