@@ -99,7 +99,7 @@ impl CacheKey {
 /// Zero-copy cache store
 /// Uses HashMap + RefCell for ultra-fast single-threaded access
 /// Values are stored behind Arc to enable cheap cloning
-pub struct EvalCache {
+struct EvalCacheInner {
     /// Cache storage: HashMap + RefCell for ultra-fast single-threaded access
     cache: RefCell<HashMap<CacheKey, Arc<Value>>>,
 
@@ -108,22 +108,34 @@ pub struct EvalCache {
     misses: AtomicUsize,
 }
 
+/// Zero-copy cache store
+/// Uses HashMap + RefCell for ultra-fast single-threaded access
+/// Values are stored behind Arc to enable cheap cloning
+#[derive(Clone)]
+pub struct EvalCache {
+    inner: Arc<EvalCacheInner>,
+}
+
 impl EvalCache {
     /// Create a new empty cache
     pub fn new() -> Self {
         Self {
-            cache: RefCell::new(HashMap::new()),
-            hits: AtomicUsize::new(0),
-            misses: AtomicUsize::new(0),
+            inner: Arc::new(EvalCacheInner {
+                cache: RefCell::new(HashMap::new()),
+                hits: AtomicUsize::new(0),
+                misses: AtomicUsize::new(0),
+            }),
         }
     }
 
     /// Create cache with preallocated capacity
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            cache: RefCell::new(HashMap::with_capacity(capacity)),
-            hits: AtomicUsize::new(0),
-            misses: AtomicUsize::new(0),
+            inner: Arc::new(EvalCacheInner {
+                cache: RefCell::new(HashMap::with_capacity(capacity)),
+                hits: AtomicUsize::new(0),
+                misses: AtomicUsize::new(0),
+            }),
         }
     }
 
@@ -132,11 +144,11 @@ impl EvalCache {
     /// Ultra-fast single-threaded access
     #[inline]
     pub fn get(&self, key: &CacheKey) -> Option<Arc<Value>> {
-        if let Some(value) = self.cache.borrow().get(key) {
-            self.hits.fetch_add(1, Ordering::Relaxed);
+        if let Some(value) = self.inner.cache.borrow().get(key) {
+            self.inner.hits.fetch_add(1, Ordering::Relaxed);
             Some(Arc::clone(value))
         } else {
-            self.misses.fetch_add(1, Ordering::Relaxed);
+            self.inner.misses.fetch_add(1, Ordering::Relaxed);
             None
         }
     }
@@ -145,27 +157,27 @@ impl EvalCache {
     /// Ultra-fast single-threaded access
     #[inline]
     pub fn insert(&self, key: CacheKey, value: Value) {
-        self.cache.borrow_mut().insert(key, Arc::new(value));
+        self.inner.cache.borrow_mut().insert(key, Arc::new(value));
     }
 
     /// Insert with Arc-wrapped value (zero-copy if already Arc)
     /// Ultra-fast single-threaded access
     #[inline]
     pub fn insert_arc(&self, key: CacheKey, value: Arc<Value>) {
-        self.cache.borrow_mut().insert(key, value);
+        self.inner.cache.borrow_mut().insert(key, value);
     }
 
     /// Clear all cached entries
     pub fn clear(&self) {
-        self.cache.borrow_mut().clear();
-        self.hits.store(0, Ordering::Relaxed);
-        self.misses.store(0, Ordering::Relaxed);
+        self.inner.cache.borrow_mut().clear();
+        self.inner.hits.store(0, Ordering::Relaxed);
+        self.inner.misses.store(0, Ordering::Relaxed);
     }
 
     /// Get cache hit rate (0.0 to 1.0)
     pub fn hit_rate(&self) -> f64 {
-        let hits = self.hits.load(Ordering::Relaxed);
-        let misses = self.misses.load(Ordering::Relaxed);
+        let hits = self.inner.hits.load(Ordering::Relaxed);
+        let misses = self.inner.misses.load(Ordering::Relaxed);
         let total = hits + misses;
         if total == 0 {
             0.0
@@ -177,9 +189,9 @@ impl EvalCache {
     /// Get cache statistics
     pub fn stats(&self) -> CacheStats {
         CacheStats {
-            hits: self.hits.load(Ordering::Relaxed),
-            misses: self.misses.load(Ordering::Relaxed),
-            entries: self.cache.borrow().len(),
+            hits: self.inner.hits.load(Ordering::Relaxed),
+            misses: self.inner.misses.load(Ordering::Relaxed),
+            entries: self.inner.cache.borrow().len(),
             hit_rate: self.hit_rate(),
         }
     }
@@ -187,19 +199,19 @@ impl EvalCache {
     /// Get number of cached entries
     #[inline]
     pub fn len(&self) -> usize {
-        self.cache.borrow().len()
+        self.inner.cache.borrow().len()
     }
 
     /// Check if cache is empty
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.cache.borrow().is_empty()
+        self.inner.cache.borrow().is_empty()
     }
 
     /// Remove specific entry
     #[inline]
     pub fn remove(&self, key: &CacheKey) -> Option<Arc<Value>> {
-        self.cache.borrow_mut().remove(key)
+        self.inner.cache.borrow_mut().remove(key)
     }
 
     /// Remove entries based on a predicate function
@@ -208,7 +220,7 @@ impl EvalCache {
     where
         F: Fn(&CacheKey, &Arc<Value>) -> bool,
     {
-        self.cache.borrow_mut().retain(|k, v| predicate(k, v));
+        self.inner.cache.borrow_mut().retain(|k, v| predicate(k, v));
     }
 
     /// Invalidate cache entries that depend on changed paths
@@ -218,7 +230,7 @@ impl EvalCache {
         let changed_hashes: IndexSet<String> = changed_paths.iter().cloned().collect();
 
         // Remove cache entries whose eval_key is in the changed set
-        self.cache
+        self.inner.cache
             .borrow_mut()
             .retain(|cache_key, _| !changed_hashes.contains(&cache_key.eval_key));
     }

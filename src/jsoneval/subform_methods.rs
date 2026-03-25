@@ -16,6 +16,8 @@ impl JSONEval {
         paths: Option<&[String]>,
         token: Option<&CancellationToken>,
     ) -> Result<(), String> {
+        self.sync_caches_to_subforms();
+
         let subform = self
             .subforms
             .get_mut(subform_path)
@@ -33,6 +35,8 @@ impl JSONEval {
         paths: Option<&[String]>,
         token: Option<&CancellationToken>,
     ) -> Result<crate::ValidationResult, String> {
+        self.sync_caches_to_subforms();
+
         let subform = self
             .subforms
             .get_mut(subform_path)
@@ -52,6 +56,8 @@ impl JSONEval {
         token: Option<&CancellationToken>,
         canceled_paths: Option<&mut Vec<String>>,
     ) -> Result<Value, String> {
+        self.sync_caches_to_subforms();
+
         let subform = self
             .subforms
             .get_mut(subform_path)

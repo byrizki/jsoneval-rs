@@ -25,6 +25,8 @@ impl JSONEval {
             }
         }
         time_block!("validate() [total]", {
+            self.sync_caches_to_subforms();
+
             // Acquire lock for synchronous execution
             let _lock = self.eval_lock.lock().unwrap();
 
