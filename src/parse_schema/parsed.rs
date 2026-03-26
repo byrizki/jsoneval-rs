@@ -48,8 +48,8 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                             // Filter out simple column references (e.g., "/INSAGE_YEAR", "/PREM_PP")
                             // These are FINDINDEX/MATCH column names, not actual data dependencies
                             // Real dependencies have multiple path segments (e.g., "/illustration/properties/...")
-                            // Update: allow top-level fields (count >= 1 e.g. "/B")
-                            dep.matches('/').count() >= 1 || dep.starts_with("/$")
+                            // Update: allow top-level fields only if they are system paths or deeper paths
+                            dep.matches('/').count() > 1 || dep.starts_with("/$")
                         })
                         .collect();
                     let mut extra_refs = IndexSet::new();
