@@ -51,20 +51,6 @@ namespace JsonEvalRs
         public Dictionary<string, ValidationError> Error { get; set; } = new Dictionary<string, ValidationError>();
     }
 
-    /// <summary>
-    /// Cache statistics
-    /// </summary>
-    public class CacheStats
-    {
-        [JsonProperty("hits")]
-        public ulong Hits { get; set; }
-
-        [JsonProperty("misses")]
-        public ulong Misses { get; set; }
-
-        [JsonProperty("entries")]
-        public ulong Entries { get; set; }
-    }
 
     /// <summary>
     /// Schema value item for path-value pairs

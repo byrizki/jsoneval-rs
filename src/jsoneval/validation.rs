@@ -28,10 +28,6 @@ impl JSONEval {
             // Acquire lock for synchronous execution
             let _lock = self.eval_lock.lock().unwrap();
 
-            // Save old data and context for comparison
-            let old_data = self.eval_data.snapshot_data();
-            let old_context = self.context.clone();
-
              // Parse and update data
             let data_value = json_parser::parse_json_str(data)?;
             let context_value = if let Some(ctx) = context {
@@ -45,16 +41,6 @@ impl JSONEval {
 
             // Update eval_data with new data/context
             self.eval_data.replace_data_and_context(data_value.clone(), context_value);
-
-            // Calculate changed paths for cache purging (root changed)
-            // Selectively purge cache entries that depend on root data
-            // Convert changed_paths to data pointer format for cache purging
-             // Selectively purge cache entries
-             self.purge_cache_for_changed_data_with_comparison(&old_data, &data_value);
-             
-             if context.is_some() && old_context != self.context {
-                 self.purge_cache_for_changed_context_with_comparison(&old_context, &self.context);
-             }
             
             // Drop lock before calling evaluate_others which needs mutable access
             drop(_lock);

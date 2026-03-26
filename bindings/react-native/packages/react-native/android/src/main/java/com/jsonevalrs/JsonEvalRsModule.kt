@@ -233,51 +233,11 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
         }
     }
 
-    @ReactMethod
-    fun cacheStats(
-        handle: String,
-        promise: Promise
-    ) {
-        nativeCacheStatsAsync(handle, promise)
-    }
-
-    @ReactMethod
-    fun clearCache(
-        handle: String,
-        promise: Promise
-    ) {
-        nativeClearCacheAsync(handle, promise)
-    }
-
-    @ReactMethod
-    fun cacheLen(
-        handle: String,
-        promise: Promise
-    ) {
-        nativeCacheLenAsync(handle, promise)
-    }
-
-    @ReactMethod
-    fun enableCache(
-        handle: String,
-        promise: Promise
-    ) {
-        nativeEnableCacheAsync(handle, promise)
-    }
-
-    @ReactMethod
-    fun disableCache(
-        handle: String,
-        promise: Promise
-    ) {
-        nativeDisableCacheAsync(handle, promise)
-    }
-
     @ReactMethod(isBlockingSynchronousMethod = true)
     fun isCacheEnabled(
         handle: String
     ): Boolean {
-        return nativeIsCacheEnabled(handle)
+        return false
     }
 
     @ReactMethod
@@ -593,12 +553,7 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     private external fun nativeReloadSchemaAsync(handle: String, schema: String, context: String, data: String, promise: Promise)
     private external fun nativeReloadSchemaMsgpackAsync(handle: String, schemaMsgpack: ByteArray, context: String, data: String, promise: Promise)
     private external fun nativeReloadSchemaFromCacheAsync(handle: String, cacheKey: String, context: String, data: String, promise: Promise)
-    private external fun nativeCacheStatsAsync(handle: String, promise: Promise)
-    private external fun nativeClearCacheAsync(handle: String, promise: Promise)
-    private external fun nativeCacheLenAsync(handle: String, promise: Promise)
-    private external fun nativeEnableCacheAsync(handle: String, promise: Promise)
-    private external fun nativeDisableCacheAsync(handle: String, promise: Promise)
-    private external fun nativeIsCacheEnabled(handle: String): Boolean
+    private external fun nativeReloadSchemaFromCacheAsync(handle: String, cacheKey: String, context: String, data: String, promise: Promise)
     private external fun nativeValidatePathsAsync(handle: String, data: String, context: String, pathsJson: String, promise: Promise)
     private external fun nativeResolveLayoutAsync(handle: String, evaluate: Boolean, promise: Promise)
     private external fun nativeCompileAndRunLogicAsync(handle: String, logicStr: String, data: String, context: String, promise: Promise)

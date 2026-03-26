@@ -41,7 +41,6 @@ pub mod ffi;
 pub mod wasm;
 
 // Re-export main types for convenience
-pub use jsoneval::eval_cache::{CacheKey, CacheStats, EvalCache};
 pub use jsoneval::eval_data::EvalData;
 pub use jsoneval::parsed_schema::ParsedSchema;
 pub use jsoneval::parsed_schema_cache::{ParsedSchemaCache, ParsedSchemaCacheStats, PARSED_SCHEMA_CACHE};

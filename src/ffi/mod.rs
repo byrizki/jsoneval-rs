@@ -2,7 +2,6 @@
 //!
 //! This module provides a C-compatible API for the JSON evaluation library.
 
-pub mod cache;
 pub mod compiled_logic;
 pub mod core;
 pub mod evaluation;
@@ -17,7 +16,6 @@ pub use parsed_cache::ParsedSchemaCacheHandle;
 pub use types::{FFIResult, JSONEvalHandle};
 
 // Re-export all functions for backward compatibility
-pub use cache::*;
 pub use compiled_logic::*;
 pub use core::*;
 pub use evaluation::*;

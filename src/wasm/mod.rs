@@ -2,7 +2,6 @@
 //!
 //! This module provides JavaScript/TypeScript compatible bindings
 
-pub mod cache;
 pub mod core;
 pub mod evaluation;
 pub mod layout;

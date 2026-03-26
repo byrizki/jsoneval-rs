@@ -4,7 +4,7 @@
 //! across different JSONEval instances and across FFI boundaries.
 
 use super::CompiledLogic;
-use ahash::AHasher;
+use rapidhash::fast::RapidHasher;
 use dashmap::DashMap;
 use once_cell::sync::Lazy;
 use std::hash::{Hash, Hasher};
@@ -38,7 +38,7 @@ static COMPILED_LOGIC_STORE: Lazy<CompiledLogicStore> = Lazy::new(|| {
 /// Recursively hash a serde_json::Value without serializing to string.
 /// Uses type discriminants to avoid hash collisions between different JSON types.
 #[inline]
-fn hash_value(value: &serde_json::Value, hasher: &mut AHasher) {
+fn hash_value(value: &serde_json::Value, hasher: &mut RapidHasher) {
     match value {
         serde_json::Value::Null => 0u8.hash(hasher),
         serde_json::Value::Bool(b) => {
@@ -85,7 +85,7 @@ impl CompiledLogicStore {
     /// Compile logic from a Value and return an ID
     /// If the same logic was compiled before, returns the existing ID
     fn compile_value(&self, logic: &serde_json::Value) -> Result<CompiledLogicId, String> {
-        let mut hasher = AHasher::default();
+        let mut hasher = RapidHasher::default();
         hash_value(logic, &mut hasher);
         let hash = hasher.finish();
 

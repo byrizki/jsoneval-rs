@@ -419,9 +419,6 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
     // Pre-compile all table metadata for zero-copy evaluation
     build_table_metadata(lib)?;
 
-    // Populate $params version counters (one entry per $params $evaluation key)
-    lib.init_params_versions();
-
     Ok(())
 }
 

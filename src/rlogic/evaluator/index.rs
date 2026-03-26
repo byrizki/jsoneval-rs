@@ -1,5 +1,5 @@
 use super::helpers;
-use ahash::{AHashMap, AHashSet};
+use rapidhash::{RapidHashMap, RapidHashSet, HashMapExt};
 use serde_json::Value;
 
 /// Index for a table (array of objects)
@@ -7,7 +7,7 @@ use serde_json::Value;
 #[derive(Debug, Clone, Default)]
 pub struct TableIndex {
     /// Map of column name -> (Map of value hash -> Set of row indices)
-    columns: AHashMap<String, AHashMap<String, AHashSet<usize>>>,
+    columns: RapidHashMap<String, RapidHashMap<String, RapidHashSet<usize>>>,
     /// Total number of rows in the table
     row_count: usize,
 }
@@ -26,7 +26,7 @@ impl TableIndex {
         }
 
         let row_count = arr.len();
-        let mut columns: AHashMap<String, AHashMap<String, AHashSet<usize>>> = AHashMap::new();
+        let mut columns: RapidHashMap<String, RapidHashMap<String, RapidHashSet<usize>>> = RapidHashMap::new();
 
         for (row_idx, row) in arr.iter().enumerate() {
             if let Value::Object(obj) = row {
@@ -47,7 +47,7 @@ impl TableIndex {
     }
 
     /// Look up row indices matching a specific column value
-    pub fn lookup(&self, col_name: &str, value: &Value) -> Option<&AHashSet<usize>> {
+    pub fn lookup(&self, col_name: &str, value: &Value) -> Option<&RapidHashSet<usize>> {
         let col_index = self.columns.get(col_name)?;
         let key = helpers::scalar_hash_key(value)?;
         col_index.get(&key)

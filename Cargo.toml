@@ -17,7 +17,6 @@ serde_json = { version = "1.0", features = ["preserve_order"] }
 simd-json = "0.17"
 indexmap = { version = "2.1", features = ["serde"] }
 chrono = "0.4"
-ahash = { version = "0.8", features = ["serde"] }
 smallvec = "1.13"
 dashmap = "6.0"
 regex = "1.10"
@@ -28,6 +27,7 @@ serde-wasm-bindgen = { version = "0.6", optional = true }
 console_error_panic_hook = { version = "0.1", optional = true }
 js-sys = { version = "0.3", optional = true }
 web-sys = { version = "0.3.91", features = ["console"] }
+rapidhash = "4.4.1"
 
 [lib]
 name = "json_eval_rs"

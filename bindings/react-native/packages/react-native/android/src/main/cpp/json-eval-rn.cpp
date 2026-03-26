@@ -9,8 +9,6 @@ using namespace jsoneval;
 static jclass gPromiseClass = nullptr;
 static jmethodID gResolveMethodID = nullptr;
 static jmethodID gRejectMethodID = nullptr;
-static jclass gIntegerClass = nullptr;
-static jmethodID gIntegerValueOfMethodID = nullptr;
 
 // Helper functions (C++ linkage - internal use only)
 // Helper to convert jstring to std::string
@@ -50,13 +48,6 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
     gResolveMethodID = env->GetMethodID(gPromiseClass, "resolve", "(Ljava/lang/Object;)V");
     gRejectMethodID = env->GetMethodID(gPromiseClass, "reject", "(Ljava/lang/String;Ljava/lang/String;)V");
     env->DeleteLocalRef(promiseClass);
-    
-    // Cache Integer class for cacheLenAsync optimization
-    jclass integerClass = env->FindClass("java/lang/Integer");
-    if (integerClass == nullptr) return JNI_ERR;
-    gIntegerClass = reinterpret_cast<jclass>(env->NewGlobalRef(integerClass));
-    gIntegerValueOfMethodID = env->GetStaticMethodID(gIntegerClass, "valueOf", "(I)Ljava/lang/Integer;");
-    env->DeleteLocalRef(integerClass);
     
     return JNI_VERSION_1_6;
 }
@@ -576,127 +567,6 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeReloadSchemaFromCacheAsync(
     runAsyncWithPromise(env, promise, "RELOAD_CACHE_ERROR", [handleStr, cacheKeyStr, contextStr, dataStr](auto callback) {
         JsonEvalBridge::reloadSchemaFromCacheAsync(handleStr, cacheKeyStr, contextStr, dataStr, callback);
     });
-}
-
-JNIEXPORT void JNICALL
-Java_com_jsonevalrs_JsonEvalRsModule_nativeCacheStatsAsync(
-    JNIEnv* env,
-    jobject /* this */,
-    jstring handle,
-    jobject promise
-) {
-    std::string handleStr = jstringToString(env, handle);
-    
-    runAsyncWithPromise(env, promise, "CACHE_STATS_ERROR", [handleStr](auto callback) {
-        JsonEvalBridge::cacheStatsAsync(handleStr, callback);
-    });
-}
-
-JNIEXPORT void JNICALL
-Java_com_jsonevalrs_JsonEvalRsModule_nativeClearCacheAsync(
-    JNIEnv* env,
-    jobject /* this */,
-    jstring handle,
-    jobject promise
-) {
-    std::string handleStr = jstringToString(env, handle);
-    
-    runAsyncWithPromise(env, promise, "CLEAR_CACHE_ERROR", [handleStr](auto callback) {
-        JsonEvalBridge::clearCacheAsync(handleStr, callback);
-    });
-}
-
-JNIEXPORT void JNICALL
-Java_com_jsonevalrs_JsonEvalRsModule_nativeCacheLenAsync(
-    JNIEnv* env,
-    jobject /* this */,
-    jstring handle,
-    jobject promise
-) {
-    std::string handleStr = jstringToString(env, handle);
-    
-    JavaVM* jvm;
-    env->GetJavaVM(&jvm);
-    jobject globalPromise = env->NewGlobalRef(promise);
-    
-    JsonEvalBridge::cacheLenAsync(handleStr,
-        [jvm, globalPromise](const std::string& result, const std::string& error) {
-            JNIEnv* env = nullptr;
-            jvm->AttachCurrentThread(&env, nullptr);
-            
-            if (error.empty()) {
-                // Optimized: Direct parse and box using cached method IDs
-                jint intValue = std::stoi(result);
-                jobject integerObj = env->CallStaticObjectMethod(gIntegerClass, gIntegerValueOfMethodID, intValue);
-                env->CallVoidMethod(globalPromise, gResolveMethodID, integerObj);
-                env->DeleteLocalRef(integerObj);
-            } else {
-                rejectPromise(env, globalPromise, "CACHE_LEN_ERROR", error);
-            }
-            
-            env->DeleteGlobalRef(globalPromise);
-            jvm->DetachCurrentThread();
-        }
-    );
-}
-
-JNIEXPORT void JNICALL
-Java_com_jsonevalrs_JsonEvalRsModule_nativeValidatePathsAsync(
-    JNIEnv* env,
-    jobject /* this */,
-    jstring handle,
-    jstring data,
-    jstring context,
-    jstring pathsJson,
-    jobject promise
-) {
-    std::string handleStr = jstringToString(env, handle);
-    std::string dataStr = jstringToString(env, data);
-    std::string contextStr = jstringToString(env, context);
-    std::string pathsStr = jstringToString(env, pathsJson);
-    
-    runAsyncWithPromise(env, promise, "VALIDATE_PATHS_ERROR", [handleStr, dataStr, contextStr, pathsStr](auto callback) {
-        JsonEvalBridge::validatePathsAsync(handleStr, dataStr, contextStr, pathsStr, callback);
-    });
-}
-
-JNIEXPORT void JNICALL
-Java_com_jsonevalrs_JsonEvalRsModule_nativeEnableCacheAsync(
-    JNIEnv* env,
-    jobject /* this */,
-    jstring handle,
-    jobject promise
-) {
-    std::string handleStr = jstringToString(env, handle);
-    
-    runAsyncWithPromise(env, promise, "ENABLE_CACHE_ERROR", [handleStr](auto callback) {
-        JsonEvalBridge::enableCacheAsync(handleStr, callback);
-    });
-}
-
-JNIEXPORT void JNICALL
-Java_com_jsonevalrs_JsonEvalRsModule_nativeDisableCacheAsync(
-    JNIEnv* env,
-    jobject /* this */,
-    jstring handle,
-    jobject promise
-) {
-    std::string handleStr = jstringToString(env, handle);
-    
-    runAsyncWithPromise(env, promise, "DISABLE_CACHE_ERROR", [handleStr](auto callback) {
-        JsonEvalBridge::disableCacheAsync(handleStr, callback);
-    });
-}
-
-JNIEXPORT jboolean JNICALL
-Java_com_jsonevalrs_JsonEvalRsModule_nativeIsCacheEnabled(
-    JNIEnv* env,
-    jobject /* this */,
-    jstring handle
-) {
-    std::string handleStr = jstringToString(env, handle);
-    bool enabled = JsonEvalBridge::isCacheEnabled(handleStr);
-    return enabled ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT void JNICALL

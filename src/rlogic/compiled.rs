@@ -1,5 +1,5 @@
 use crate::jsoneval::path_utils;
-use ahash::AHashMap;
+use rapidhash::RapidHashMap;
 use serde::Serialize;
 use serde_json::Value;
 
@@ -1634,16 +1634,16 @@ impl CompiledLogic {
 /// its own local ID mapping to the global storage.
 pub struct CompiledLogicStore {
     next_id: u64,
-    store: AHashMap<LogicId, CompiledLogic>,
-    dependencies: AHashMap<LogicId, Vec<String>>,
+    store: RapidHashMap<LogicId, CompiledLogic>,
+    dependencies: RapidHashMap<LogicId, Vec<String>>,
 }
 
 impl CompiledLogicStore {
     pub fn new() -> Self {
         Self {
             next_id: 0,
-            store: AHashMap::default(),
-            dependencies: AHashMap::default(),
+            store: RapidHashMap::default(),
+            dependencies: RapidHashMap::default(),
         }
     }
 

@@ -13,9 +13,6 @@ type MessageType =
   | 'GET_EVALUATED_SCHEMA'
   | 'GET_SCHEMA_VALUE'
   | 'RELOAD_SCHEMA'
-  | 'CACHE_STATS'
-  | 'CLEAR_CACHE'
-  | 'CACHE_LEN'
   | 'FREE';
 
 interface WorkerMessage {
@@ -135,39 +132,6 @@ self.addEventListener('message', async (event: MessageEvent<WorkerMessage>) => {
         });
         
         self.postMessage({ id, type: 'RELOAD_SCHEMA_SUCCESS' } as WorkerResponse);
-        break;
-      }
-
-      case 'CACHE_STATS': {
-        if (!wasmInstance) {
-          throw new Error('WASM not initialized. Call init() first.');
-        }
-        
-        const result = await wasmInstance.cacheStats();
-        
-        self.postMessage({ id, type: 'CACHE_STATS_SUCCESS', result } as WorkerResponse);
-        break;
-      }
-
-      case 'CLEAR_CACHE': {
-        if (!wasmInstance) {
-          throw new Error('WASM not initialized. Call init() first.');
-        }
-        
-        await wasmInstance.clearCache();
-        
-        self.postMessage({ id, type: 'CLEAR_CACHE_SUCCESS' } as WorkerResponse);
-        break;
-      }
-
-      case 'CACHE_LEN': {
-        if (!wasmInstance) {
-          throw new Error('WASM not initialized. Call init() first.');
-        }
-        
-        const result = await wasmInstance.cacheLen();
-        
-        self.postMessage({ id, type: 'CACHE_LEN_SUCCESS', result } as WorkerResponse);
         break;
       }
 

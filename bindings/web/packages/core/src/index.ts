@@ -217,18 +217,6 @@ export interface ReloadSchemaOptions {
 }
 
 /**
- * Cache statistics
- */
-export interface CacheStats {
-  /** Number of cache hits */
-  hits: number;
-  /** Number of cache misses */
-  misses: number;
-  /** Number of cached entries */
-  entries: number;
-}
-
-/**
  * Options for evaluating a subform
  */
 export interface EvaluateSubformOptions {
@@ -878,51 +866,11 @@ export class JSONEvalCore {
   }
 
   /**
-   * Get cache statistics
-   */
-  async cacheStats(): Promise<CacheStats> {
-    await this.init();
-    return this._instance.cacheStats();
-  }
-
-  /**
-   * Clear the evaluation cache
-   */
-  async clearCache(): Promise<void> {
-    await this.init();
-    this._instance.clearCache();
-  }
-
-  /**
-   * Get the number of cached entries
-   */
-  async cacheLen(): Promise<number> {
-    await this.init();
-    return this._instance.cacheLen();
-  }
-
-  /**
-   * Enable evaluation caching
-   */
-  async enableCache(): Promise<void> {
-    await this.init();
-    this._instance.enableCache();
-  }
-
-  /**
-   * Disable evaluation caching
-   */
-  async disableCache(): Promise<void> {
-    await this.init();
-    this._instance.disableCache();
-  }
-
-  /**
    * Check if evaluation caching is enabled
+   * @deprecated Evaluation caching has been removed
    */
   isCacheEnabled(): boolean {
-    if (!this._instance) return true; // Default is enabled
-    return this._instance.isCacheEnabled();
+    return false;
   }
 
   /**

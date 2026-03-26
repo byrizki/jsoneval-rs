@@ -1,5 +1,4 @@
 use super::JSONEval;
-use crate::jsoneval::eval_cache::EvalCache;
 use crate::jsoneval::eval_data::EvalData;
 use crate::jsoneval::json_parser;
 use crate::parse_schema;
@@ -9,7 +8,6 @@ use crate::rlogic::{RLogic, RLogicConfig};
 
 use crate::time_block;
 
-use dashmap::DashMap;
 use indexmap::IndexMap;
 use serde::de::Error as _;
 use serde_json::Value;
@@ -20,7 +18,6 @@ use std::sync::{Arc, Mutex, RwLock};
 impl Clone for JSONEval {
     fn clone(&self) -> Self {
         Self {
-            cache_enabled: self.cache_enabled,
             schema: Arc::clone(&self.schema),
             engine: Arc::clone(&self.engine),
             evaluations: self.evaluations.clone(),
@@ -41,13 +38,10 @@ impl Clone for JSONEval {
             data: self.data.clone(),
             evaluated_schema: self.evaluated_schema.clone(),
             eval_data: self.eval_data.clone(),
-            eval_cache: EvalCache::new(), // Create fresh cache for the clone
             eval_lock: Mutex::new(()),    // Create fresh mutex for the clone
             cached_msgpack_schema: self.cached_msgpack_schema.clone(),
             conditional_hidden_fields: self.conditional_hidden_fields.clone(),
             conditional_readonly_fields: self.conditional_readonly_fields.clone(),
-            params_versions: Arc::clone(&self.params_versions),
-            missed_keys: Arc::clone(&self.missed_keys),
             regex_cache: RwLock::new(HashMap::new()),
         }
     }
@@ -101,14 +95,10 @@ impl JSONEval {
                         &data,
                         &context,
                     ),
-                    eval_cache: EvalCache::new(),
-                    cache_enabled: true,
                     eval_lock: Mutex::new(()),
                     cached_msgpack_schema: None,
                     conditional_hidden_fields: Arc::new(Vec::new()),
                     conditional_readonly_fields: Arc::new(Vec::new()),
-                    params_versions: Arc::new(DashMap::new()),
-                    missed_keys: Arc::new(dashmap::DashSet::new()),
                     regex_cache: RwLock::new(HashMap::new()),
                 }
             });
@@ -171,14 +161,10 @@ impl JSONEval {
             data: data.clone(),
             evaluated_schema: evaluated_schema.clone(),
             eval_data: EvalData::with_schema_data_context(&evaluated_schema, &data, &context),
-            eval_cache: EvalCache::new(),
-            cache_enabled: true,
             eval_lock: Mutex::new(()),
             cached_msgpack_schema: Some(cached_msgpack),
             conditional_hidden_fields: Arc::new(Vec::new()),
             conditional_readonly_fields: Arc::new(Vec::new()),
-            params_versions: Arc::new(DashMap::new()),
-            missed_keys: Arc::new(dashmap::DashSet::new()),
             regex_cache: RwLock::new(HashMap::new()),
         };
         parse_schema::legacy::parse_schema(&mut instance)?;
@@ -238,7 +224,7 @@ impl JSONEval {
             subforms.insert(path.clone(), Box::new(subform_eval));
         }
 
-        let mut instance = Self {
+        let instance = Self {
             schema: Arc::clone(&parsed.schema),
             evaluations: Arc::clone(&parsed.evaluations),
             tables: Arc::clone(&parsed.tables),
@@ -259,17 +245,12 @@ impl JSONEval {
             data: data.clone(),
             evaluated_schema: (*evaluated_schema).clone(),
             eval_data: EvalData::with_schema_data_context(&evaluated_schema, &data, &context),
-            eval_cache: EvalCache::new(),
-            cache_enabled: true,
             eval_lock: Mutex::new(()),
             cached_msgpack_schema: None,
             conditional_hidden_fields: Arc::clone(&parsed.conditional_hidden_fields),
             conditional_readonly_fields: Arc::clone(&parsed.conditional_readonly_fields),
-            params_versions: Arc::new(DashMap::new()),
-            missed_keys: Arc::new(dashmap::DashSet::new()),
             regex_cache: RwLock::new(HashMap::new()),
         };
-        instance.init_params_versions();
         Ok(instance)
     }
 
@@ -302,10 +283,6 @@ impl JSONEval {
         // Re-initialize eval_data with new schema, data, and context
         self.eval_data =
             EvalData::with_schema_data_context(&self.evaluated_schema, &data, &context);
-
-        // Clear cache when schema changes
-        self.eval_cache.clear();
-        self.init_params_versions();
 
         // Clear MessagePack cache since schema has been mutated
         self.cached_msgpack_schema = None;
@@ -345,12 +322,7 @@ impl JSONEval {
         // This is necessary because RLogic is wrapped in Arc and config is part of the evaluator
         self.engine = Arc::new(RLogic::with_config(config));
 
-        // Note: We need to recompile all evaluations because they're associated with the old engine
-        // Re-parse the schema to recompile all evaluations with the new engine
         let _ = parse_schema::legacy::parse_schema(self);
-
-        // Clear cache since evaluation results may change with new timezone
-        self.eval_cache.clear();
     }
 
     /// Reload schema from MessagePack-encoded bytes
@@ -395,9 +367,6 @@ impl JSONEval {
         // Re-initialize eval_data
         self.eval_data =
             EvalData::with_schema_data_context(&self.evaluated_schema, &data, &context);
-
-        // Clear cache when schema changes
-        self.eval_cache.clear();
 
         // Cache the MessagePack for future retrievals
         self.cached_msgpack_schema = Some(schema_msgpack.to_vec());
@@ -461,10 +430,6 @@ impl JSONEval {
         // Re-initialize eval_data
         self.eval_data =
             EvalData::with_schema_data_context(&self.evaluated_schema, &data, &context);
-
-        // Clear cache when schema changes
-        self.eval_cache.clear();
-        self.init_params_versions();
 
         // Clear MessagePack cache since we're loading from ParsedSchema
         self.cached_msgpack_schema = None;

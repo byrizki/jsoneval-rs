@@ -388,15 +388,6 @@ fn main() {
             println!("  Total iterations: {}", total_iterations);
             println!("  Average per iteration: {:?}", avg_time);
             println!("  Min: {:?} | Max: {:?}", min_time, max_time);
-            
-            // Show cache statistics
-            let cache_stats = eval.cache_stats();
-            println!("  Cache: {} entries, {} hits, {} misses ({:.1}% hit rate)",
-                cache_stats.entries,
-                cache_stats.hits,
-                cache_stats.misses,
-                cache_stats.hit_rate * 100.0
-            );
         }
 
         let total_time = parse_time + eval_time;

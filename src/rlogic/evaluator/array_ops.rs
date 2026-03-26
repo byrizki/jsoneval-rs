@@ -153,7 +153,7 @@ impl Evaluator {
         internal_context: &Value,
         depth: usize,
     ) -> Result<Value, String> {
-        use ahash::{AHashSet, RandomState};
+        use rapidhash::{RapidHashSet, HashSetExt};
 
         const HASH_SET_THRESHOLD: usize = 32;
 
@@ -165,7 +165,7 @@ impl Evaluator {
         if let Value::Array(arr) = array_val {
             if arr.len() > HASH_SET_THRESHOLD {
                 if let Some(key) = helpers::scalar_hash_key(&value) {
-                    let mut set = AHashSet::with_capacity_and_hasher(arr.len(), RandomState::new());
+                    let mut set = RapidHashSet::with_capacity(arr.len());
                     let mut all_scalar = true;
                     for item in &arr {
                         if let Some(item_key) = helpers::scalar_hash_key(item) {

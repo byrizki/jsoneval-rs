@@ -1,10 +1,6 @@
-
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use dashmap::DashMap;
-
-use crate::jsoneval::eval_cache::EvalCache;
 use crate::jsoneval::eval_data::EvalData;
 
 use crate::jsoneval::table_metadata::TableMetadata;
@@ -18,10 +14,8 @@ use indexmap::{IndexMap, IndexSet};
 
 use serde_json::Value;
 
-pub mod cache;
 pub mod cancellation;
 pub mod dependents;
-pub mod eval_cache;
 pub mod eval_data;
 pub mod evaluate;
 pub mod getters;
@@ -60,21 +54,10 @@ pub struct JSONEval {
     pub conditional_hidden_fields: Arc<Vec<String>>,
     pub conditional_readonly_fields: Arc<Vec<String>>,
 
-    /// Version counters for `$params` evaluations that have a `$evaluation` expression.
-    /// The key is the eval_key (e.g. `/$params/accessList`).
-    /// Each counter is bumped every time the evaluation runs without a cache hit,
-    /// so downstream entries that depend on `$params` keys can use the version as a
-    /// lightweight cache-key component instead of hashing the full value.
-    pub params_versions: Arc<DashMap<String, u64>>,
-
-    pub missed_keys: Arc<dashmap::DashSet<String>>,
-
     pub context: Value,
     pub data: Value,
     pub evaluated_schema: Value,
     pub eval_data: EvalData,
-    pub eval_cache: EvalCache,
-    pub cache_enabled: bool,
     pub(crate) eval_lock: Mutex<()>,
     pub(crate) cached_msgpack_schema: Option<Vec<u8>>,
     pub(crate) regex_cache: std::sync::RwLock<HashMap<String, regex::Regex>>,

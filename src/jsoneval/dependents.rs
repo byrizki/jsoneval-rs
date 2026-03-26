@@ -37,9 +37,6 @@ impl JSONEval {
 
         // Update data if provided
         if let Some(data_str) = data {
-            // Save old data for comparison
-            let old_data = self.eval_data.snapshot_data();
-
             let data_value = json_parser::parse_json_str(data_str)?;
             let context_value = if let Some(ctx) = context {
                 json_parser::parse_json_str(ctx)?
@@ -48,17 +45,10 @@ impl JSONEval {
             };
             self.eval_data
                 .replace_data_and_context(data_value.clone(), context_value);
-
-            // Selectively purge cache entries that depend on changed data
-            // Only purge if values actually changed
-            self.purge_cache_for_changed_data_with_comparison(&old_data, &data_value);
         }
 
         let mut result = Vec::new();
         let mut processed = IndexSet::new();
-        // Tracks every data path written by process_dependents_queue / recursive_hide_effect
-        // so we can do a targeted cache purge instead of clearing the entire cache.
-        let mut invalidated_paths: IndexSet<String> = IndexSet::new();
 
         let mut to_process: Vec<(String, bool)> = changed_paths
             .iter()
@@ -76,7 +66,6 @@ impl JSONEval {
             &mut result,
             token,
             canceled_paths.as_mut().map(|v| &mut **v),
-            &mut invalidated_paths,
         )?;
 
 
@@ -85,17 +74,6 @@ impl JSONEval {
         if re_evaluate {
             // Drop lock for evaluate_internal
             drop(_lock);
-
-            // Include trigger fields in invalidated_paths so depending entries (e.g. tables) are purged.
-            for raw_path in changed_paths {
-                let data_path = path_utils::dot_notation_to_schema_pointer(raw_path)
-                    .replace("/properties/", "/");
-                let data_path = data_path.trim_start_matches('#').to_string();
-                invalidated_paths.insert(data_path);
-            }
-
-            // Selective cache purge based on recorded data mutations
-            self.purge_cache_for_affected_data_paths(&invalidated_paths);
 
             self.evaluate_internal(None, token)?;
 
@@ -158,7 +136,6 @@ impl JSONEval {
                     &mut result,
                     token,
                     canceled_paths.as_mut().map(|v| &mut **v),
-                    &mut invalidated_paths,
                 )?;
             }
 
@@ -184,7 +161,6 @@ impl JSONEval {
                     hidden_fields,
                     &mut to_process,
                     &mut result,
-                    &mut invalidated_paths,
                 );
             }
 
@@ -201,7 +177,6 @@ impl JSONEval {
                     &mut result,
                     token,
                     canceled_paths.as_mut().map(|v| &mut **v),
-                    &mut invalidated_paths,
                 )?;
             }
 
@@ -596,7 +571,6 @@ impl JSONEval {
         mut hidden_fields: Vec<String>,
         queue: &mut Vec<(String, bool)>, 
         result: &mut Vec<Value>,
-        invalidated_paths: &mut IndexSet<String>,
     ) {
         while let Some(hf) = hidden_fields.pop() {
             let data_path = path_utils::normalize_to_json_pointer(&hf)
@@ -606,7 +580,6 @@ impl JSONEval {
             
             // clear data
             eval_data.set(&data_path, Value::Null);
-            invalidated_paths.insert(data_path.clone());
             
              // Create dependent object for result
             let mut change_obj = serde_json::Map::new();
@@ -674,7 +647,6 @@ impl JSONEval {
         result: &mut Vec<Value>,
         token: Option<&CancellationToken>,
         canceled_paths: Option<&mut Vec<String>>,
-        invalidated_paths: &mut IndexSet<String>,
     ) -> Result<(), String> {
         while let Some((current_path, is_transitive)) = queue.pop() {
             if let Some(t) = token {
@@ -781,7 +753,6 @@ impl JSONEval {
                                 current_value = Value::Null;
                             }
                             eval_data.set(&data_path, Value::Null);
-                            invalidated_paths.insert(data_path.clone());
                             change_obj.insert("clear".to_string(), Value::Bool(true));
                             add_transitive = true;
                             add_deps = true;
@@ -805,7 +776,6 @@ impl JSONEval {
                                 current_value = cleaned_val.clone();
                             }
                             eval_data.set(&data_path, cleaned_val.clone());
-                            invalidated_paths.insert(data_path.clone());
                             change_obj.insert("value".to_string(), cleaned_val);
                             add_transitive = true;
                             add_deps = true;

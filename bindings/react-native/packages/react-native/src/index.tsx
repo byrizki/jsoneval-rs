@@ -126,18 +126,6 @@ export interface ValidatePathsOptions {
 }
 
 /**
- * Cache statistics
- */
-export interface CacheStats {
-  /** Number of cache hits */
-  hits: number;
-  /** Number of cache misses */
-  misses: number;
-  /** Number of cached entries */
-  entries: number;
-}
-
-/**
  * Options for evaluating dependents
  */
 export interface EvaluateDependentsOptions {
@@ -906,67 +894,11 @@ export class JSONEval {
   }
 
   /**
-   * Get cache statistics
-   * @returns Promise resolving to cache statistics
-   * @throws {Error} If operation fails
-   */
-  async cacheStats(): Promise<CacheStats> {
-    this.throwIfDisposed();
-    const resultStr = await JsonEvalRs.cacheStats(this.handle);
-    return JSONParse(resultStr);
-  }
-
-  /**
-   * Clear the evaluation cache
-   * @returns Promise that resolves when cache is cleared
-   * @throws {Error} If operation fails
-   */
-  async clearCache(): Promise<void> {
-    this.throwIfDisposed();
-    await JsonEvalRs.clearCache(this.handle);
-  }
-
-  /**
-   * Get the number of cached entries
-   * @returns Promise resolving to number of cached entries
-   * @throws {Error} If operation fails
-   */
-  async cacheLen(): Promise<number> {
-    this.throwIfDisposed();
-    return await JsonEvalRs.cacheLen(this.handle);
-  }
-
-  /**
-   * Enable evaluation caching
-   * Useful for reusing JSONEval instances with different data
-   * @returns Promise that resolves when cache is enabled
-   * @throws {Error} If operation fails
-   */
-  async enableCache(): Promise<void> {
-    this.throwIfDisposed();
-    await JsonEvalRs.enableCache(this.handle);
-  }
-
-  /**
-   * Disable evaluation caching
-   * Useful for web API usage where each request creates a new JSONEval instance
-   * Improves performance by skipping cache operations that have no benefit for single-use instances
-   * @returns Promise that resolves when cache is disabled
-   * @throws {Error} If operation fails
-   */
-  async disableCache(): Promise<void> {
-    this.throwIfDisposed();
-    await JsonEvalRs.disableCache(this.handle);
-  }
-
-  /**
    * Check if evaluation caching is enabled
-   * @returns Boolean indicating if caching is enabled
-   * @throws {Error} If operation fails
+   * @deprecated Evaluation caching has been removed
    */
   isCacheEnabled(): boolean {
-    this.throwIfDisposed();
-    return JsonEvalRs.isCacheEnabled(this.handle);
+    return false;
   }
 
   /**
