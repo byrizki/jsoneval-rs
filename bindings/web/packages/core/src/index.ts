@@ -639,14 +639,16 @@ export class JSONEvalCore {
     data,
     context,
     reEvaluate = true,
-  }: { changedPath: string, data?: any, context?: any, reEvaluate?: boolean }): Promise<string> {
+    includeSubforms = true,
+  }: { changedPath: string, data?: any, context?: any, reEvaluate?: boolean, includeSubforms?: boolean }): Promise<string> {
     await this.init();
     try {
       return this._instance.evaluateDependents(
         changedPath,
         data ? typeof data === "string" ? data : JSONStringify(data) : null,
         context ? typeof context === "string" ? context : JSONStringify(context) : null,
-        reEvaluate
+        reEvaluate,
+        includeSubforms
       );
     } catch (error: any) {
       throw new Error(`Dependent evaluation failed: ${error.message || error}`);
@@ -863,14 +865,6 @@ export class JSONEvalCore {
         `Failed to reload schema from cache: ${error.message || error}`
       );
     }
-  }
-
-  /**
-   * Check if evaluation caching is enabled
-   * @deprecated Evaluation caching has been removed
-   */
-  isCacheEnabled(): boolean {
-    return false;
   }
 
   /**

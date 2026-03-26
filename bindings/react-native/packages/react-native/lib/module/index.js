@@ -53,10 +53,6 @@ export let ReturnFormat = /*#__PURE__*/function (ReturnFormat) {
  */
 
 /**
- * Cache statistics
- */
-
-/**
  * Options for evaluating dependents
  */
 
@@ -171,6 +167,31 @@ export class JSONEval {
   }
 
   /**
+   * Creates a new JSON evaluator instance from a MessagePack-encoded schema
+   * @param schemaMsgpack - MessagePack-encoded schema bytes (Uint8Array or number array)
+   * @param context - Optional context data
+   * @param data - Optional initial data
+   * @returns New JSONEval instance
+   * @throws {Error} If creation fails
+   */
+  static fromMsgpack(schemaMsgpack, context, data) {
+    const contextStr = context ? typeof context === 'string' ? context : JSONStringify(context) : null;
+    const dataStr = data ? typeof data === 'string' ? data : JSONStringify(data) : null;
+    try {
+      // Convert Uint8Array to number array if needed
+      const msgpackArray = schemaMsgpack instanceof Uint8Array ? Array.from(schemaMsgpack) : schemaMsgpack;
+      const handle = JsonEvalRs.createFromMsgpack(msgpackArray, contextStr, dataStr);
+      return new JSONEval({
+        schema: {},
+        _handle: handle
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to create JSONEval instance from MessagePack: ${errorMessage}`);
+    }
+  }
+
+  /**
    * Evaluates logic expression without creating an instance
    * @param logicStr - JSON Logic expression as string or object
    * @param data - Optional data as string or object
@@ -257,6 +278,27 @@ export class JSONEval {
   }
 
   /**
+   * Evaluate schema with provided data (only updates internal state)
+   * @param options - Evaluation options
+   * @returns Promise that resolves when evaluation is complete
+   * @throws {Error} If evaluation fails
+   */
+  async evaluateOnly(options) {
+    this.throwIfDisposed();
+    try {
+      const dataStr = this.toJsonString(options.data);
+      const contextStr = options.context ? this.toJsonString(options.context) : null;
+      const pathsJson = options.paths ? typeof options.paths === 'string' ? options.paths : JSONStringify(options.paths) : null;
+
+      // Call optimized native method that returns void/empty string
+      await JsonEvalRs.evaluateOnly(this.handle, dataStr, contextStr, pathsJson);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Evaluation failed: ${errorMessage}`);
+    }
+  }
+
+  /**
    * Validate data against schema rules
    * @param options - Validation options
    * @returns Promise resolving to ValidationResult
@@ -296,6 +338,32 @@ export class JSONEval {
       const contextStr = context ? this.toJsonString(context) : null;
       const resultStr = await JsonEvalRs.evaluateDependents(this.handle, changedPathsJson, dataStr, contextStr, reEvaluate, includeSubforms);
       return JSONParse(resultStr);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Dependent evaluation failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Re-evaluate fields that depend on a changed path (returns JSON string)
+   * @param options - Dependent evaluation options
+   * @returns Promise resolving to JSON string of dependent field changes
+   * @throws {Error} If evaluation fails
+   */
+  async evaluateDependentsString(options) {
+    this.throwIfDisposed();
+    try {
+      const {
+        changedPaths,
+        data,
+        context,
+        reEvaluate = true,
+        includeSubforms = true
+      } = options;
+      const changedPathsJson = typeof changedPaths === 'string' ? changedPaths : JSONStringify(changedPaths);
+      const dataStr = data ? this.toJsonString(data) : null;
+      const contextStr = context ? this.toJsonString(context) : null;
+      return await JsonEvalRs.evaluateDependents(this.handle, changedPathsJson, dataStr, contextStr, reEvaluate, includeSubforms);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       throw new Error(`Dependent evaluation failed: ${errorMessage}`);
@@ -481,70 +549,6 @@ export class JSONEval {
   }
 
   /**
-   * Get cache statistics
-   * @returns Promise resolving to cache statistics
-   * @throws {Error} If operation fails
-   */
-  async cacheStats() {
-    this.throwIfDisposed();
-    const resultStr = await JsonEvalRs.cacheStats(this.handle);
-    return JSONParse(resultStr);
-  }
-
-  /**
-   * Clear the evaluation cache
-   * @returns Promise that resolves when cache is cleared
-   * @throws {Error} If operation fails
-   */
-  async clearCache() {
-    this.throwIfDisposed();
-    await JsonEvalRs.clearCache(this.handle);
-  }
-
-  /**
-   * Get the number of cached entries
-   * @returns Promise resolving to number of cached entries
-   * @throws {Error} If operation fails
-   */
-  async cacheLen() {
-    this.throwIfDisposed();
-    return await JsonEvalRs.cacheLen(this.handle);
-  }
-
-  /**
-   * Enable evaluation caching
-   * Useful for reusing JSONEval instances with different data
-   * @returns Promise that resolves when cache is enabled
-   * @throws {Error} If operation fails
-   */
-  async enableCache() {
-    this.throwIfDisposed();
-    await JsonEvalRs.enableCache(this.handle);
-  }
-
-  /**
-   * Disable evaluation caching
-   * Useful for web API usage where each request creates a new JSONEval instance
-   * Improves performance by skipping cache operations that have no benefit for single-use instances
-   * @returns Promise that resolves when cache is disabled
-   * @throws {Error} If operation fails
-   */
-  async disableCache() {
-    this.throwIfDisposed();
-    await JsonEvalRs.disableCache(this.handle);
-  }
-
-  /**
-   * Check if evaluation caching is enabled
-   * @returns Boolean indicating if caching is enabled
-   * @throws {Error} If operation fails
-   */
-  isCacheEnabled() {
-    this.throwIfDisposed();
-    return JsonEvalRs.isCacheEnabled(this.handle);
-  }
-
-  /**
    * Resolve layout with optional evaluation
    * @param evaluate - If true, runs evaluation before resolving layout (default: false)
    * @returns Promise that resolves when layout resolution is complete
@@ -639,6 +643,16 @@ export class JSONEval {
     return JSONParse(resultStr);
   }
 
+  /**
+   * Validate data against schema rules with optional path filtering (alias for validatePaths in RN)
+   * @param options - Validation options with optional path filtering
+   * @returns Promise resolving to ValidationResult (same as validatePaths for RN)
+   * @throws {Error} If validation operation fails
+   */
+  async validatePathsOnly(options) {
+    return this.validatePaths(options);
+  }
+
   // ============================================================================
   // Subform Methods
   // ============================================================================
@@ -680,10 +694,25 @@ export class JSONEval {
     this.throwIfDisposed();
     const dataStr = options.data ? this.toJsonString(options.data) : null;
     const contextStr = options.context ? this.toJsonString(options.context) : null;
+
+    // For now, pass the first path since native bridge expects single path (wraps internally)
     const changedPath = options.changedPaths[0] || '';
-    const includeSubforms = options.includeSubforms ?? true;
-    const resultStr = await JsonEvalRs.evaluateDependentsSubform(this.handle, options.subformPath, changedPath, dataStr, contextStr, options.reEvaluate ?? true, includeSubforms);
+    const resultStr = await JsonEvalRs.evaluateDependentsSubform(this.handle, options.subformPath, changedPath, dataStr, contextStr, options.reEvaluate ?? true, options.includeSubforms ?? true);
     return JSONParse(resultStr);
+  }
+
+  /**
+   * Evaluate dependents in a subform when fields change (returns JSON string)
+   * @param options - Options including subform path, changed paths array, and optional data
+   * @returns Promise resolving to JSON string of dependent evaluation results
+   * @throws {Error} If evaluation fails
+   */
+  async evaluateDependentsSubformString(options) {
+    this.throwIfDisposed();
+    const dataStr = options.data ? this.toJsonString(options.data) : null;
+    const contextStr = options.context ? this.toJsonString(options.context) : null;
+    const changedPath = options.changedPaths[0] || '';
+    return await JsonEvalRs.evaluateDependentsSubform(this.handle, options.subformPath, changedPath, dataStr, contextStr, options.reEvaluate ?? true, options.includeSubforms ?? true);
   }
 
   /**

@@ -97,17 +97,6 @@ export interface ValidatePathsOptions {
     paths?: string[];
 }
 /**
- * Cache statistics
- */
-export interface CacheStats {
-    /** Number of cache hits */
-    hits: number;
-    /** Number of cache misses */
-    misses: number;
-    /** Number of cached entries */
-    entries: number;
-}
-/**
  * Options for evaluating dependents
  */
 export interface EvaluateDependentsOptions {
@@ -119,7 +108,7 @@ export interface EvaluateDependentsOptions {
     context?: string | object;
     /** If true, performs full evaluation after processing dependents */
     reEvaluate?: boolean;
-    /** If true, evaluates all registered subforms and appends per-item results (default: true) */
+    /** If true, includes subforms in the evaluation */
     includeSubforms?: boolean;
 }
 /**
@@ -160,7 +149,7 @@ export interface EvaluateDependentsSubformOptions {
     context?: string | object;
     /** If true, performs full evaluation after processing dependents */
     reEvaluate?: boolean;
-    /** If true, evaluates nested sub-subforms and appends per-item results (default: true) */
+    /** If true, includes subforms in the evaluation */
     includeSubforms?: boolean;
 }
 /**
@@ -294,6 +283,15 @@ export declare class JSONEval {
      */
     static fromCache(cacheKey: string, context?: string | object | null, data?: string | object | null): JSONEval;
     /**
+     * Creates a new JSON evaluator instance from a MessagePack-encoded schema
+     * @param schemaMsgpack - MessagePack-encoded schema bytes (Uint8Array or number array)
+     * @param context - Optional context data
+     * @param data - Optional initial data
+     * @returns New JSONEval instance
+     * @throws {Error} If creation fails
+     */
+    static fromMsgpack(schemaMsgpack: Uint8Array | number[], context?: string | object | null, data?: string | object | null): JSONEval;
+    /**
      * Evaluates logic expression without creating an instance
      * @param logicStr - JSON Logic expression as string or object
      * @param data - Optional data as string or object
@@ -330,6 +328,13 @@ export declare class JSONEval {
      */
     evaluate(options: EvaluateOptions): Promise<any>;
     /**
+     * Evaluate schema with provided data (only updates internal state)
+     * @param options - Evaluation options
+     * @returns Promise that resolves when evaluation is complete
+     * @throws {Error} If evaluation fails
+     */
+    evaluateOnly(options: EvaluateOptions): Promise<void>;
+    /**
      * Validate data against schema rules
      * @param options - Validation options
      * @returns Promise resolving to ValidationResult
@@ -343,6 +348,13 @@ export declare class JSONEval {
      * @throws {Error} If evaluation fails
      */
     evaluateDependents(options: EvaluateDependentsOptions): Promise<DependentChange[]>;
+    /**
+     * Re-evaluate fields that depend on a changed path (returns JSON string)
+     * @param options - Dependent evaluation options
+     * @returns Promise resolving to JSON string of dependent field changes
+     * @throws {Error} If evaluation fails
+     */
+    evaluateDependentsString(options: EvaluateDependentsOptions): Promise<string>;
     /**
      * Get the evaluated schema with optional layout resolution
      * @param skipLayout - Whether to skip layout resolution (default: false)
@@ -434,45 +446,6 @@ export declare class JSONEval {
      */
     reloadSchemaFromCache(cacheKey: string, context?: string | object | null, data?: string | object | null): Promise<void>;
     /**
-     * Get cache statistics
-     * @returns Promise resolving to cache statistics
-     * @throws {Error} If operation fails
-     */
-    cacheStats(): Promise<CacheStats>;
-    /**
-     * Clear the evaluation cache
-     * @returns Promise that resolves when cache is cleared
-     * @throws {Error} If operation fails
-     */
-    clearCache(): Promise<void>;
-    /**
-     * Get the number of cached entries
-     * @returns Promise resolving to number of cached entries
-     * @throws {Error} If operation fails
-     */
-    cacheLen(): Promise<number>;
-    /**
-     * Enable evaluation caching
-     * Useful for reusing JSONEval instances with different data
-     * @returns Promise that resolves when cache is enabled
-     * @throws {Error} If operation fails
-     */
-    enableCache(): Promise<void>;
-    /**
-     * Disable evaluation caching
-     * Useful for web API usage where each request creates a new JSONEval instance
-     * Improves performance by skipping cache operations that have no benefit for single-use instances
-     * @returns Promise that resolves when cache is disabled
-     * @throws {Error} If operation fails
-     */
-    disableCache(): Promise<void>;
-    /**
-     * Check if evaluation caching is enabled
-     * @returns Boolean indicating if caching is enabled
-     * @throws {Error} If operation fails
-     */
-    isCacheEnabled(): boolean;
-    /**
      * Resolve layout with optional evaluation
      * @param evaluate - If true, runs evaluation before resolving layout (default: false)
      * @returns Promise that resolves when layout resolution is complete
@@ -532,6 +505,13 @@ export declare class JSONEval {
      */
     validatePaths(options: ValidatePathsOptions): Promise<ValidationResult>;
     /**
+     * Validate data against schema rules with optional path filtering (alias for validatePaths in RN)
+     * @param options - Validation options with optional path filtering
+     * @returns Promise resolving to ValidationResult (same as validatePaths for RN)
+     * @throws {Error} If validation operation fails
+     */
+    validatePathsOnly(options: ValidatePathsOptions): Promise<any>;
+    /**
      * Evaluate a subform with data
      * @param options - Evaluation options including subform path and data
      * @returns Promise that resolves when evaluation is complete
@@ -552,6 +532,13 @@ export declare class JSONEval {
      * @throws {Error} If evaluation fails
      */
     evaluateDependentsSubform(options: EvaluateDependentsSubformOptions): Promise<DependentChange[]>;
+    /**
+     * Evaluate dependents in a subform when fields change (returns JSON string)
+     * @param options - Options including subform path, changed paths array, and optional data
+     * @returns Promise resolving to JSON string of dependent evaluation results
+     * @throws {Error} If evaluation fails
+     */
+    evaluateDependentsSubformString(options: EvaluateDependentsSubformOptions): Promise<string>;
     /**
      * Resolve layout for subform
      * @param options - Options including subform path and evaluate flag

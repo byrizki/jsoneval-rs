@@ -233,13 +233,6 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
         }
     }
 
-    @ReactMethod(isBlockingSynchronousMethod = true)
-    fun isCacheEnabled(
-        handle: String
-    ): Boolean {
-        return false
-    }
-
     @ReactMethod
     fun setTimezoneOffset(
         handle: String,

@@ -137,6 +137,8 @@ export interface EvaluateDependentsOptions {
   context?: string | object;
   /** If true, performs full evaluation after processing dependents */
   reEvaluate?: boolean;
+  /** If true, includes subforms in the evaluation */
+  includeSubforms?: boolean;
 }
 
 /**
@@ -179,6 +181,8 @@ export interface EvaluateDependentsSubformOptions {
   context?: string | object;
   /** If true, performs full evaluation after processing dependents */
   reEvaluate?: boolean;
+  /** If true, includes subforms in the evaluation */
+  includeSubforms?: boolean;
 }
 
 /**
@@ -574,7 +578,7 @@ export class JSONEval {
     this.throwIfDisposed();
 
     try {
-      const { changedPaths, data, context, reEvaluate = true } = options;
+      const { changedPaths, data, context, reEvaluate = true, includeSubforms = true } = options;
       const changedPathsJson = typeof changedPaths === 'string' ? changedPaths : JSONStringify(changedPaths);
       const dataStr = data ? this.toJsonString(data) : null;
       const contextStr = context ? this.toJsonString(context) : null;
@@ -584,7 +588,8 @@ export class JSONEval {
         changedPathsJson,
         dataStr,
         contextStr,
-        reEvaluate
+        reEvaluate,
+        includeSubforms
       );
       return JSONParse(resultStr);
     } catch (error) {
@@ -606,7 +611,7 @@ export class JSONEval {
     this.throwIfDisposed();
 
     try {
-      const { changedPaths, data, context, reEvaluate = true } = options;
+      const { changedPaths, data, context, reEvaluate = true, includeSubforms = true } = options;
       const changedPathsJson = typeof changedPaths === 'string' ? changedPaths : JSONStringify(changedPaths);
       const dataStr = data ? this.toJsonString(data) : null;
       const contextStr = context ? this.toJsonString(context) : null;
@@ -616,7 +621,8 @@ export class JSONEval {
         changedPathsJson,
         dataStr,
         contextStr,
-        reEvaluate
+        reEvaluate,
+        includeSubforms
       );
     } catch (error) {
       const errorMessage =
@@ -894,14 +900,6 @@ export class JSONEval {
   }
 
   /**
-   * Check if evaluation caching is enabled
-   * @deprecated Evaluation caching has been removed
-   */
-  isCacheEnabled(): boolean {
-    return false;
-  }
-
-  /**
    * Resolve layout with optional evaluation
    * @param evaluate - If true, runs evaluation before resolving layout (default: false)
    * @returns Promise that resolves when layout resolution is complete
@@ -1119,7 +1117,8 @@ export class JSONEval {
       changedPath,
       dataStr,
       contextStr,
-      options.reEvaluate ?? true
+      options.reEvaluate ?? true,
+      options.includeSubforms ?? true
     );
     return JSONParse(resultStr);
   }
@@ -1148,7 +1147,8 @@ export class JSONEval {
       changedPath,
       dataStr,
       contextStr,
-      options.reEvaluate ?? true
+      options.reEvaluate ?? true,
+      options.includeSubforms ?? true
     );
   }
 
