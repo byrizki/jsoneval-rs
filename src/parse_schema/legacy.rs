@@ -43,7 +43,7 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
                         .get_referenced_vars(&logic_id)
                         .unwrap_or_default()
                         .into_iter()
-                        .map(|dep| path_utils::normalize_to_json_pointer(&dep).into_owned())
+                        .map(|dep| path_utils::canonicalize_schema_path(&dep).into_owned())
                         .filter(|dep| {
                             // Filter out simple column references (e.g., "/INSAGE_YEAR", "/PREM_PP")
                             // These are FINDINDEX/MATCH column names, not actual data dependencies

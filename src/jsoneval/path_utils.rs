@@ -141,6 +141,87 @@ pub fn pointer_to_dot_notation(path: &str) -> String {
     clean_path.replace('/', ".")
 }
 
+/// Canonicalize a path for schema lookups.
+///
+/// This performs a single-pass conversion that:
+/// 1. Normalizes the path to a JSON pointer (starts with /).
+/// 2. Injects `/properties/` segments for data paths (e.g., `a.b.c` -> `/a/properties/b/properties/c`).
+/// 3. Preserves system paths starting with `$` (e.g., `/$params` -> `/$params`).
+/// 4. Handles existing JSON pointers/schema refs by re-canonicalizing them.
+///
+/// Returns `Cow::Borrowed` if the path is already canonical.
+pub fn canonicalize_schema_path(path: &str) -> Cow<'_, str> {
+    if path.is_empty() {
+        return Cow::Borrowed("");
+    }
+
+    // Fast check for already normalized system paths
+    if path.starts_with("/$") && !path.contains('.') && !path.contains("//") {
+        return Cow::Borrowed(path);
+    }
+
+    // Identify system paths early
+    let is_system = path.starts_with('$') || path.starts_with("/$") || path.starts_with("#/$");
+
+    // Clean prefix and detect if we need to do work
+    let clean_path = if path.starts_with("#/") {
+        &path[2..]
+    } else if path.starts_with('/') {
+        &path[1..]
+    } else if path.starts_with('#') {
+        &path[1..]
+    } else {
+        path
+    };
+
+    // If it's a simple top-level field with no dots/slashes, and not system,
+    // we can just prepend / and return borrowed if it was already /field
+    if !is_system
+        && !clean_path.contains('.')
+        && !clean_path.contains('/')
+        && !clean_path.is_empty()
+    {
+        if path.starts_with('/') && path.len() == clean_path.len() + 1 {
+            return Cow::Borrowed(path);
+        }
+        let mut s = String::with_capacity(clean_path.len() + 1);
+        s.push('/');
+        s.push_str(clean_path);
+        return Cow::Owned(s);
+    }
+
+    // Full decomposition and reconstruction
+    let mut result = String::with_capacity(path.len() * 2);
+    result.push('/');
+
+    let parts = clean_path.split(|c| c == '/' || c == '.');
+    let mut first = true;
+
+    for part in parts {
+        if part.is_empty() || part == "properties" {
+            continue;
+        }
+
+        if !first && !is_system {
+            result.push_str("properties/");
+        }
+        result.push_str(part);
+        result.push('/');
+        first = false;
+    }
+
+    if result.len() > 1 {
+        result.pop(); // Remove trailing slash
+    }
+
+    // If result matches original exactly, return borrowed
+    if result == path {
+        Cow::Borrowed(path)
+    } else {
+        Cow::Owned(result)
+    }
+}
+
 /// Fast JSON pointer-based value access using serde's native implementation
 ///
 /// This is significantly faster than manual path traversal for deeply nested objects

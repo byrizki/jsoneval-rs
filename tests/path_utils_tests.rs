@@ -1,4 +1,7 @@
-use json_eval_rs::jsoneval::path_utils::{normalize_to_json_pointer, get_value_by_pointer, dot_notation_to_schema_pointer, pointer_to_dot_notation};
+use json_eval_rs::jsoneval::path_utils::{
+    canonicalize_schema_path, dot_notation_to_schema_pointer, get_value_by_pointer,
+    normalize_to_json_pointer, pointer_to_dot_notation,
+};
 use serde_json::json;
 
 #[test]
@@ -133,12 +136,41 @@ fn test_dollar_params_path_conversion() {
     );
     
     assert_eq!(
-        dot_notation_to_schema_pointer("$defs.Person.name"),
-        "#/$defs/Person/name"
-    );
-    
-    assert_eq!(
         dot_notation_to_schema_pointer("$params.config.settings.timeout"),
         "#/$params/config/settings/timeout"
     );
+    
+    assert_eq!(
+        dot_notation_to_schema_pointer("$defs.Person.name"),
+        "#/$defs/Person/name"
+    );
+}
+
+#[test]
+fn test_canonicalize_schema_path() {
+    // Basic data paths
+    assert_eq!(canonicalize_schema_path("a.b.c"), "/a/properties/b/properties/c");
+    assert_eq!(canonicalize_schema_path("/a/b/c"), "/a/properties/b/properties/c");
+    assert_eq!(canonicalize_schema_path("illustration.insured.name"), "/illustration/properties/insured/properties/name");
+    
+    // System paths
+    assert_eq!(canonicalize_schema_path("$params.constants.RATE"), "/$params/constants/RATE");
+    assert_eq!(canonicalize_schema_path("/$params/constants/RATE"), "/$params/constants/RATE");
+    assert_eq!(canonicalize_schema_path("#/$params/constants/RATE"), "/$params/constants/RATE");
+    
+    // Already canonical data paths
+    assert_eq!(canonicalize_schema_path("/a/properties/b/properties/c"), "/a/properties/b/properties/c");
+    
+    // Mixed dots and slashes (unusual but supported)
+    assert_eq!(canonicalize_schema_path("a/b.c"), "/a/properties/b/properties/c");
+    
+    // Schema refs
+    assert_eq!(canonicalize_schema_path("#/illustration/properties/insured"), "/illustration/properties/insured");
+    
+    // Simple top-level fields
+    assert_eq!(canonicalize_schema_path("field"), "/field");
+    assert_eq!(canonicalize_schema_path("/field"), "/field");
+    
+    // Empty
+    assert_eq!(canonicalize_schema_path(""), "");
 }
