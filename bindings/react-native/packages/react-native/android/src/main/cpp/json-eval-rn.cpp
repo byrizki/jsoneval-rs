@@ -298,6 +298,7 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeEvaluateDependentsAsync(
     jstring data,
     jstring context,
     jboolean reEvaluate,
+    jboolean includeSubforms,
     jobject promise
 ) {
     std::string handleStr = jstringToString(env, handle);
@@ -305,9 +306,10 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeEvaluateDependentsAsync(
     std::string dataStr = jstringToString(env, data);
     std::string contextStr = jstringToString(env, context);
     bool reEval = static_cast<bool>(reEvaluate);
+    bool includeSubf = static_cast<bool>(includeSubforms);
     
-    runAsyncWithPromise(env, promise, "EVALUATE_DEPENDENTS_ERROR", [handleStr, pathStr, dataStr, contextStr, reEval](auto callback) {
-        JsonEvalBridge::evaluateDependentsAsync(handleStr, pathStr, dataStr, contextStr, reEval, callback);
+    runAsyncWithPromise(env, promise, "EVALUATE_DEPENDENTS_ERROR", [handleStr, pathStr, dataStr, contextStr, reEval, includeSubf](auto callback) {
+        JsonEvalBridge::evaluateDependentsAsync(handleStr, pathStr, dataStr, contextStr, reEval, includeSubf, callback);
     });
 }
 
@@ -704,6 +706,7 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeEvaluateDependentsSubformAsync(
     jstring data,
     jstring context,
     jboolean reEvaluate,
+    jboolean includeSubforms,
     jobject promise
 ) {
     std::string handleStr = jstringToString(env, handle);
@@ -712,9 +715,10 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeEvaluateDependentsSubformAsync(
     std::string dataStr = jstringToString(env, data);
     std::string contextStr = jstringToString(env, context);
     bool reEval = static_cast<bool>(reEvaluate);
+    bool includeSubf = static_cast<bool>(includeSubforms);
     
-    runAsyncWithPromise(env, promise, "EVALUATE_DEPENDENTS_SUBFORM_ERROR", [handleStr, subformPathStr, changedPathStr, dataStr, contextStr, reEval](auto callback) {
-        JsonEvalBridge::evaluateDependentsSubformAsync(handleStr, subformPathStr, changedPathStr, dataStr, contextStr, reEval, callback);
+    runAsyncWithPromise(env, promise, "EVALUATE_DEPENDENTS_SUBFORM_ERROR", [handleStr, subformPathStr, changedPathStr, dataStr, contextStr, reEval, includeSubf](auto callback) {
+        JsonEvalBridge::evaluateDependentsSubformAsync(handleStr, subformPathStr, changedPathStr, dataStr, contextStr, reEval, includeSubf, callback);
     });
 }
 
