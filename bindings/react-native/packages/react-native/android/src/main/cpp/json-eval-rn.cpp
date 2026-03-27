@@ -290,6 +290,26 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeValidateAsync(
 }
 
 JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeValidatePathsAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jstring data,
+    jstring context,
+    jstring pathsJson,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    std::string dataStr = jstringToString(env, data);
+    std::string contextStr = jstringToString(env, context);
+    std::string pathsJsonStr = jstringToString(env, pathsJson);
+    
+    runAsyncWithPromise(env, promise, "VALIDATE_PATHS_ERROR", [handleStr, dataStr, contextStr, pathsJsonStr](auto callback) {
+        JsonEvalBridge::validatePathsAsync(handleStr, dataStr, contextStr, pathsJsonStr, callback);
+    });
+}
+
+JNIEXPORT void JNICALL
 Java_com_jsonevalrs_JsonEvalRsModule_nativeEvaluateDependentsAsync(
     JNIEnv* env,
     jobject /* this */,

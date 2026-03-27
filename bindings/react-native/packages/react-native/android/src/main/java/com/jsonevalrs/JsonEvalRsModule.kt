@@ -546,7 +546,6 @@ class JsonEvalRsModule(reactContext: ReactApplicationContext) :
     private external fun nativeReloadSchemaAsync(handle: String, schema: String, context: String, data: String, promise: Promise)
     private external fun nativeReloadSchemaMsgpackAsync(handle: String, schemaMsgpack: ByteArray, context: String, data: String, promise: Promise)
     private external fun nativeReloadSchemaFromCacheAsync(handle: String, cacheKey: String, context: String, data: String, promise: Promise)
-    private external fun nativeReloadSchemaFromCacheAsync(handle: String, cacheKey: String, context: String, data: String, promise: Promise)
     private external fun nativeValidatePathsAsync(handle: String, data: String, context: String, pathsJson: String, promise: Promise)
     private external fun nativeResolveLayoutAsync(handle: String, evaluate: Boolean, promise: Promise)
     private external fun nativeCompileAndRunLogicAsync(handle: String, logicStr: String, data: String, context: String, promise: Promise)
