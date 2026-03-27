@@ -12,6 +12,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   create-release:
@@ -24,7 +25,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -114,7 +115,7 @@ jobs:
 
       - name: Create GitHub Release
         id: create_release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.get_version.outputs.tag }}
           name: ${{ steps.get_version.outputs.tag }}
@@ -133,7 +134,7 @@ jobs:
     outputs:
       should_run: ${{ steps.check.outputs.should_run }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - id: check
       name: Check for [RN] flag
       run: |
@@ -215,7 +216,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     
     - name: Setup Rust
       uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -231,7 +232,7 @@ jobs:
         echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
     
     - name: Cache cargo build
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: |
           ~/.cargo/registry
@@ -243,7 +244,7 @@ jobs:
       run: cargo build --release --target ${{ matrix.target }} --features ${{ matrix.build_features }}
     
     - name: Upload native library artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: native-${{ matrix.target }}
         path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
@@ -255,17 +256,17 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         dotnet-version: |
           8.0.x
           6.0.x
     
     - name: Download all native libraries
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         pattern: native-*
         path: artifacts/
@@ -319,7 +320,7 @@ jobs:
         unzip -l "$NUPKG" | grep -E '\.(dll|so|dylib)$' || echo "⚠ No native libraries found in package!"
     
     - name: Upload NuGet package
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: nuget-package
         path: bindings/csharp/bin/Release/*.nupkg
@@ -333,7 +334,7 @@ jobs:
       RUSTFLAGS: "--cfg=getrandom_backend=\"wasm_js\""
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     
     - name: Setup Rust
       uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -342,7 +343,7 @@ jobs:
         target: wasm32-unknown-unknown
     
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version: '20'
     
@@ -350,7 +351,7 @@ jobs:
       run: curl https://wasm-bindgen.github.io/wasm-pack/installer/init.sh -sSf | bash
     
     - name: Cache cargo build
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: |
           ~/.cargo/registry
@@ -462,7 +463,7 @@ jobs:
         tar -tzf *.tgz | grep -E 'package/pkg/.*\.js$' && echo "✓ pkg/*.js files included" || echo "❌ No pkg/*.js files"
     
     - name: Upload web packages
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: web-packages
         path: |
@@ -473,7 +474,7 @@ jobs:
         if-no-files-found: error
     
     - name: Upload WASM artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: wasm-modules
         path: |
@@ -492,7 +493,7 @@ jobs:
           - x86_64
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     
     - name: Setup Rust
       uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -521,7 +522,7 @@ jobs:
         echo "NDK toolchain added to PATH"
     
     - name: Cache cargo build
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: |
           ~/.cargo/registry
@@ -565,7 +566,7 @@ jobs:
         ls -lh bindings/react-native/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}/
     
     - name: Upload Android JNI library artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: android-jni-${{ matrix.target }}
         path: bindings/react-native/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}/
@@ -577,10 +578,10 @@ jobs:
     runs-on: macos-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     
     - name: Download iOS libraries
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         pattern: native-*-apple-ios*
         path: ios-artifacts/
@@ -639,7 +640,7 @@ jobs:
         fi
     
     - name: Upload XCFramework
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: ios-xcframework
         path: JsonEvalRs.xcframework/
@@ -651,15 +652,15 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version: '20'
     
     - name: Download Android JNI libraries
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         pattern: android-jni-*
         path: android-jni-artifacts/
@@ -684,7 +685,7 @@ jobs:
         find bindings/react-native/packages/react-native/android/src/main/jniLibs -name "*.so" -exec ls -lh {} \;
     
     - name: Download iOS XCFramework
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: ios-xcframework
         path: bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework/
@@ -715,7 +716,7 @@ jobs:
         npm pack
     
     - name: Upload React Native package
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: react-native-package
         path: bindings/react-native/packages/react-native/*.tgz
@@ -726,7 +727,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     
     - name: Setup Rust
       uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -734,7 +735,7 @@ jobs:
         toolchain: stable
     
     - name: Cache cargo build
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: |
           ~/.cargo/registry
@@ -754,15 +755,15 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version: '20'
     
     - name: Setup Java
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@v5
       with:
         distribution: 'zulu'
         java-version: '17'
@@ -771,7 +772,7 @@ jobs:
       uses: android-actions/setup-android@v3
     
     - name: Download Android JNI libraries
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         pattern: android-jni-*
         path: android-artifacts/
@@ -820,7 +821,7 @@ jobs:
         yarn install
     
     - name: Setup Gradle cache
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: |
           ~/.gradle/caches
@@ -858,15 +859,15 @@ jobs:
     runs-on: macos-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v6
       with:
         node-version: '20'
     
     - name: Download iOS XCFramework
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: ios-xcframework
         path: ios-xcframework-artifacts/
@@ -890,7 +891,7 @@ jobs:
         yarn workspace @json-eval-rs/react-native prepare
 
     - name: Setup CocoaPods cache
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: |
           bindings/react-native/examples/rncli/ios/Pods
@@ -928,7 +929,7 @@ jobs:
     
     - name: Upload iOS build logs
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: react-native-ios-build-logs
         path: ~/Library/Logs/xcodebuild/
@@ -944,10 +945,10 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     
     - name: Download all artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         path: release-artifacts/
     
@@ -1000,7 +1001,7 @@ jobs:
         echo "  .nupkg files: $(ls -1 *.nupkg 2>/dev/null | wc -l)"
     
     - name: Upload artifacts to release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ needs.create-release.outputs.tag }}
         files: |

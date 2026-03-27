@@ -833,7 +833,6 @@ namespace JsonEvalRs
 #endif
                 Native.json_eval_free_result(result);
                 throw new JsonEvalException(error);
-                Native.json_eval_free_result(result);
             }
         }
 
