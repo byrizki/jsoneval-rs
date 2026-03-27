@@ -86,40 +86,64 @@ pub fn normalize_ref_path(path: &str) -> String {
     path_utils::normalize_to_json_pointer(path).into_owned()
 }
 
-/// OPTIMIZED: Fast variable access - paths are pre-normalized during compilation
-/// This method is now only used for legacy/fallback cases
-#[inline(always)]
-pub fn get_var<'a>(data: &'a Value, name: &str) -> Option<&'a Value> {
-    if name.is_empty() {
-        return Some(data);
+use crate::rlogic::Evaluator;
+
+impl Evaluator {
+    /// OPTIMIZED: Fast variable access - paths are pre-normalized during compilation
+    #[inline(always)]
+    pub(crate) fn get_var<'a>(&'a self, data: &'a Value, name: &str) -> Option<&'a Value> {
+        if name.is_empty() {
+            return Some(data);
+        }
+
+        // Fast intercept for static arrays to handle deep lookup paths
+        // e.g., name = "/$params/R_PROD_RIDER/0/PLAN_NAME"
+        if let Some(arrays) = &self.static_arrays {
+            if name.starts_with("/$params/") && name.len() > 9 {
+                let end_idx = name[9..].find('/').map(|i| i + 9).unwrap_or(name.len());
+                let base_path = &name[..end_idx]; // e.g., "/$params/R_PROD_RIDER"
+                
+                if let Some(arc_val) = arrays.get(base_path) {
+                    if end_idx == name.len() {
+                        return Some(&**arc_val);
+                    } else {
+                        let remainder = &name[end_idx..];
+                        return path_utils::get_value_by_pointer_without_properties(arc_val, remainder);
+                    }
+                }
+            }
+        }
+
+        // Direct JSON pointer access without re-normalization
+        let val = path_utils::get_value_by_pointer_without_properties(data, name);
+        
+        // Resolve $static_array transparency for exact marker matches
+        if let Some(v) = val {
+            if let Some(obj) = v.as_object() {
+                if let Some(Value::String(static_path)) = obj.get("$static_array") {
+                    if let Some(arrays) = &self.static_arrays {
+                        if let Some(arc_val) = arrays.get(static_path) {
+                            return Some(&**arc_val);
+                        }
+                    }
+                }
+            }
+        }
+        val
     }
 
-    // OPTIMIZED: Assume path is already normalized (from compilation)
-    // Direct JSON pointer access without re-normalization
-    path_utils::get_value_by_pointer_without_properties(data, name)
-}
-
-/// Get variable with layered context (primary first, then fallback)
-#[inline]
-pub fn get_var_layered<'a>(
-    primary: &'a Value,
-    fallback: &'a Value,
-    name: &str,
-) -> Option<&'a Value> {
-    get_var(primary, name).or_else(|| get_var(fallback, name))
-}
-
-/// Check if key is missing (null or not present)
-#[inline]
-pub fn is_key_missing(data: &Value, key: &str) -> bool {
-    if key.is_empty() {
-        return false;
+    /// Check if key is missing (null or not present)
+    #[inline]
+    pub(crate) fn is_key_missing(&self, data: &Value, key: &str) -> bool {
+        if key.is_empty() {
+            return false;
+        }
+        let pointer = path_utils::normalize_to_json_pointer(key);
+        if pointer.is_empty() {
+            return false;
+        }
+        self.get_var(data, &pointer).map(|v| v.is_null()).unwrap_or(true)
     }
-    let pointer = path_utils::normalize_to_json_pointer(key);
-    if pointer.is_empty() {
-        return false;
-    }
-    get_var(data, &pointer).map(|v| v.is_null()).unwrap_or(true)
 }
 
 /// Check if value is truthy

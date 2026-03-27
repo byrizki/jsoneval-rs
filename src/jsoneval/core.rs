@@ -42,6 +42,7 @@ impl Clone for JSONEval {
             cached_msgpack_schema: self.cached_msgpack_schema.clone(),
             conditional_hidden_fields: self.conditional_hidden_fields.clone(),
             conditional_readonly_fields: self.conditional_readonly_fields.clone(),
+            static_arrays: self.static_arrays.clone(),
             regex_cache: RwLock::new(HashMap::new()),
         }
     }
@@ -55,7 +56,7 @@ impl JSONEval {
     ) -> Result<Self, serde_json::Error> {
         time_block!("JSONEval::new() [total]", {
             // Use serde_json for schema (needs arbitrary_precision) and SIMD for data (needs speed)
-            let schema_val: Value =
+            let mut schema_val: Value =
                 time_block!("  parse schema JSON", { serde_json::from_str(schema)? });
             let context: Value = time_block!("  parse context JSON", {
                 json_parser::parse_json_str(context.unwrap_or("{}"))
@@ -65,9 +66,21 @@ impl JSONEval {
                 json_parser::parse_json_str(data.unwrap_or("{}"))
                     .map_err(serde_json::Error::custom)?
             });
+            
+            // Extract large static arrays
+            let static_arrays = if let Some(params) = schema_val.get_mut("$params").and_then(|v| v.as_object_mut()) {
+                crate::jsoneval::static_arrays::extract_from_params(params)
+            } else {
+                IndexMap::new()
+            };
+            let static_arrays = Arc::new(static_arrays);
             let evaluated_schema = schema_val.clone();
+            
             // Use default config: tracking enabled
             let engine_config = RLogicConfig::default();
+            let mut engine = RLogic::with_config(engine_config);
+            engine.set_static_arrays(Arc::clone(&static_arrays));
+
 
             let mut instance = time_block!("  create instance struct", {
                 Self {
@@ -85,7 +98,7 @@ impl JSONEval {
                     layout_paths: Arc::new(Vec::new()),
                     options_templates: Arc::new(Vec::new()),
                     subforms: IndexMap::new(),
-                    engine: Arc::new(RLogic::with_config(engine_config)),
+                    engine: Arc::new(engine),
                     reffed_by: Arc::new(IndexMap::new()),
                     context: context.clone(),
                     data: data.clone(),
@@ -99,6 +112,65 @@ impl JSONEval {
                     cached_msgpack_schema: None,
                     conditional_hidden_fields: Arc::new(Vec::new()),
                     conditional_readonly_fields: Arc::new(Vec::new()),
+                    static_arrays,
+                    regex_cache: RwLock::new(HashMap::new()),
+                }
+            });
+            time_block!("  parse_schema", {
+                parse_schema::legacy::parse_schema(&mut instance)
+                    .map_err(serde_json::Error::custom)?
+            });
+            Ok(instance)
+        })
+    }
+
+    /// Create a new JSONEval instance for a subform, avoiding string serialization
+    pub(crate) fn new_subform(
+        schema_val: Value,
+        context: Value,
+        static_arrays: Arc<IndexMap<String, Arc<Value>>>,
+    ) -> Result<Self, serde_json::Error> {
+        time_block!("JSONEval::new_subform() [total]", {
+            // Data is empty for a subform initially
+            let data = Value::Object(serde_json::Map::new());
+            let evaluated_schema = schema_val.clone();
+            
+            // Use default config: tracking enabled
+            let engine_config = RLogicConfig::default();
+            let mut engine = RLogic::with_config(engine_config);
+            engine.set_static_arrays(Arc::clone(&static_arrays));
+
+            let mut instance = time_block!("  create instance struct", {
+                Self {
+                    schema: Arc::new(schema_val),
+                    evaluations: Arc::new(IndexMap::new()),
+                    tables: Arc::new(IndexMap::new()),
+                    table_metadata: Arc::new(IndexMap::new()),
+                    dependencies: Arc::new(IndexMap::new()),
+                    sorted_evaluations: Arc::new(Vec::new()),
+                    dependents_evaluations: Arc::new(IndexMap::new()),
+                    rules_evaluations: Arc::new(Vec::new()),
+                    fields_with_rules: Arc::new(Vec::new()),
+                    others_evaluations: Arc::new(Vec::new()),
+                    value_evaluations: Arc::new(Vec::new()),
+                    layout_paths: Arc::new(Vec::new()),
+                    options_templates: Arc::new(Vec::new()),
+                    subforms: IndexMap::new(),
+                    engine: Arc::new(engine),
+                    reffed_by: Arc::new(IndexMap::new()),
+                    context: context.clone(),
+                    data: data.clone(),
+                    evaluated_schema: evaluated_schema.clone(),
+                    eval_data: EvalData::with_schema_data_context(
+                        &evaluated_schema,
+                        &data,
+                        &context,
+                    ),
+                    eval_lock: Mutex::new(()),
+                    cached_msgpack_schema: None,
+                    conditional_hidden_fields: Arc::new(Vec::new()),
+                    conditional_readonly_fields: Arc::new(Vec::new()),
+                    static_arrays,
                     regex_cache: RwLock::new(HashMap::new()),
                 }
             });
@@ -130,15 +202,26 @@ impl JSONEval {
         let cached_msgpack = schema_msgpack.to_vec();
 
         // Deserialize MessagePack schema to Value
-        let schema_val: Value = rmp_serde::from_slice(schema_msgpack)
+        let mut schema_val: Value = rmp_serde::from_slice(schema_msgpack)
             .map_err(|e| format!("Failed to deserialize MessagePack schema: {}", e))?;
 
         let context: Value = json_parser::parse_json_str(context.unwrap_or("{}"))
             .map_err(|e| format!("Failed to parse context: {}", e))?;
         let data: Value = json_parser::parse_json_str(data.unwrap_or("{}"))
             .map_err(|e| format!("Failed to parse data: {}", e))?;
+            
+        // Extract large static arrays
+        let static_arrays = if let Some(params) = schema_val.get_mut("$params").and_then(|v| v.as_object_mut()) {
+            crate::jsoneval::static_arrays::extract_from_params(params)
+        } else {
+            IndexMap::new()
+        };
+        let static_arrays = Arc::new(static_arrays);
         let evaluated_schema = schema_val.clone();
+        
         let engine_config = RLogicConfig::default();
+        let mut engine = RLogic::with_config(engine_config);
+        engine.set_static_arrays(Arc::clone(&static_arrays));
 
         let mut instance = Self {
             schema: Arc::new(schema_val),
@@ -155,7 +238,7 @@ impl JSONEval {
             layout_paths: Arc::new(Vec::new()),
             options_templates: Arc::new(Vec::new()),
             subforms: IndexMap::new(),
-            engine: Arc::new(RLogic::with_config(engine_config)),
+            engine: Arc::new(engine),
             reffed_by: Arc::new(IndexMap::new()),
             context: context.clone(),
             data: data.clone(),
@@ -165,6 +248,7 @@ impl JSONEval {
             cached_msgpack_schema: Some(cached_msgpack),
             conditional_hidden_fields: Arc::new(Vec::new()),
             conditional_readonly_fields: Arc::new(Vec::new()),
+            static_arrays,
             regex_cache: RwLock::new(HashMap::new()),
         };
         parse_schema::legacy::parse_schema(&mut instance)?;
@@ -249,6 +333,7 @@ impl JSONEval {
             cached_msgpack_schema: None,
             conditional_hidden_fields: Arc::clone(&parsed.conditional_hidden_fields),
             conditional_readonly_fields: Arc::clone(&parsed.conditional_readonly_fields),
+            static_arrays: Arc::clone(&parsed.static_arrays),
             regex_cache: RwLock::new(HashMap::new()),
         };
         Ok(instance)
@@ -261,15 +346,27 @@ impl JSONEval {
         data: Option<&str>,
     ) -> Result<(), String> {
         // Use serde_json for schema (precision) and SIMD for data (speed)
-        let schema_val: Value =
+        let mut schema_val: Value =
             serde_json::from_str(schema).map_err(|e| format!("failed to parse schema: {e}"))?;
         let context: Value = json_parser::parse_json_str(context.unwrap_or("{}"))?;
         let data: Value = json_parser::parse_json_str(data.unwrap_or("{}"))?;
-        self.schema = Arc::new(schema_val);
         self.context = context.clone();
         self.data = data.clone();
+        
+        let static_arrays = if let Some(params) = schema_val.get_mut("$params").and_then(|v| v.as_object_mut()) {
+            crate::jsoneval::static_arrays::extract_from_params(params)
+        } else {
+            IndexMap::new()
+        };
+        let static_arrays = Arc::new(static_arrays);
+        self.static_arrays = Arc::clone(&static_arrays);
+        self.schema = Arc::new(schema_val);
         self.evaluated_schema = (*self.schema).clone();
-        self.engine = Arc::new(RLogic::new());
+        
+        let mut engine = RLogic::new();
+        engine.set_static_arrays(static_arrays);
+        self.engine = Arc::new(engine);
+
         self.dependents_evaluations = Arc::new(IndexMap::new());
         self.rules_evaluations = Arc::new(Vec::new());
         self.fields_with_rules = Arc::new(Vec::new());
@@ -320,7 +417,9 @@ impl JSONEval {
 
         // Recreate the engine with the new configuration
         // This is necessary because RLogic is wrapped in Arc and config is part of the evaluator
-        self.engine = Arc::new(RLogic::with_config(config));
+        let mut engine = RLogic::with_config(config);
+        engine.set_static_arrays(Arc::clone(&self.static_arrays));
+        self.engine = Arc::new(engine);
 
         let _ = parse_schema::legacy::parse_schema(self);
     }
@@ -343,17 +442,28 @@ impl JSONEval {
         data: Option<&str>,
     ) -> Result<(), String> {
         // Deserialize MessagePack to Value
-        let schema_val: Value = rmp_serde::from_slice(schema_msgpack)
+        let mut schema_val: Value = rmp_serde::from_slice(schema_msgpack)
             .map_err(|e| format!("failed to deserialize MessagePack schema: {e}"))?;
 
         let context: Value = json_parser::parse_json_str(context.unwrap_or("{}"))?;
         let data: Value = json_parser::parse_json_str(data.unwrap_or("{}"))?;
 
-        self.schema = Arc::new(schema_val);
         self.context = context.clone();
         self.data = data.clone();
+        
+        let static_arrays = if let Some(params) = schema_val.get_mut("$params").and_then(|v| v.as_object_mut()) {
+            crate::jsoneval::static_arrays::extract_from_params(params)
+        } else {
+            IndexMap::new()
+        };
+        let static_arrays = Arc::new(static_arrays);
+        self.static_arrays = Arc::clone(&static_arrays);
+        self.schema = Arc::new(schema_val);
         self.evaluated_schema = (*self.schema).clone();
-        self.engine = Arc::new(RLogic::new());
+        
+        let mut engine = RLogic::new();
+        engine.set_static_arrays(static_arrays);
+        self.engine = Arc::new(engine);
         self.dependents_evaluations = Arc::new(IndexMap::new());
         self.rules_evaluations = Arc::new(Vec::new());
         self.fields_with_rules = Arc::new(Vec::new());
@@ -410,6 +520,7 @@ impl JSONEval {
         self.value_evaluations = parsed.value_evaluations.clone();
         self.layout_paths = parsed.layout_paths.clone();
         self.options_templates = parsed.options_templates.clone();
+        self.static_arrays = parsed.static_arrays.clone();
 
         // Share the engine Arc (cheap pointer clone, not data clone)
         self.engine = parsed.engine.clone();

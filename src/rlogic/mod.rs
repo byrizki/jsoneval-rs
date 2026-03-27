@@ -39,6 +39,11 @@ impl RLogic {
         }
     }
 
+    /// Set static arrays for evaluation context
+    pub fn set_static_arrays(&mut self, static_arrays: std::sync::Arc<indexmap::IndexMap<String, std::sync::Arc<Value>>>) {
+        self.evaluator.set_static_arrays(static_arrays);
+    }
+
     /// Compile a JSON Logic expression
     pub fn compile(&mut self, logic: &Value) -> Result<LogicId, String> {
         self.store.compile(logic)

@@ -8,7 +8,7 @@ impl Evaluator {
     /// Resolve table reference directly - ZERO-COPY with optimized lookup
     #[inline]
     pub(super) fn resolve_table_ref<'a>(
-        &self,
+        &'a self,
         table_expr: &CompiledLogic,
         user_data: &'a Value,
         internal_context: &'a Value,
@@ -18,24 +18,24 @@ impl Evaluator {
             CompiledLogic::Var(name, _) => {
                 // OPTIMIZATION: Fast path for common table names (no empty check overhead)
                 let value = if name.is_empty() {
-                    helpers::get_var(user_data, name)
+                    self.get_var(user_data, name)
                 } else {
                     // Try user_data first for tables (internal_context rarely has tables)
-                    helpers::get_var(user_data, name)
-                        .or_else(|| helpers::get_var(internal_context, name))
+                    self.get_var(user_data, name)
+                        .or_else(|| self.get_var(internal_context, name))
                 };
                 value
-                    .filter(|v| !v.is_null())
-                    .map(TableRef::Borrowed)
+                    .filter(|v: &&Value| !v.is_null())
+                    .map(|v| TableRef::Borrowed(v))
                     .ok_or_else(|| format!("Variable not found: {}", name))
             }
             CompiledLogic::Ref(path, _) => {
                 // Tables are usually in user_data, not internal_context
-                let value = helpers::get_var(user_data, path)
-                    .or_else(|| helpers::get_var(internal_context, path));
+                let value = self.get_var(user_data, path)
+                    .or_else(|| self.get_var(internal_context, path));
                 value
-                    .filter(|v| !v.is_null())
-                    .map(TableRef::Borrowed)
+                    .filter(|v: &&Value| !v.is_null())
+                    .map(|v| TableRef::Borrowed(v))
                     .ok_or_else(|| format!("Reference not found: {}", path))
             }
             _ => self
@@ -47,7 +47,7 @@ impl Evaluator {
     /// Fast path to get borrowed array slice from table expression - ZERO-COPY
     #[inline]
     pub(super) fn get_table_array<'a>(
-        &self,
+        &'a self,
         table_expr: &CompiledLogic,
         user_data: &'a Value,
         internal_context: &'a Value,
@@ -76,10 +76,10 @@ impl Evaluator {
             CompiledLogic::Var(name, _) => {
                 // OPTIMIZATION: Check user_data first (column names usually come from there)
                 let value = if name.is_empty() {
-                    helpers::get_var(user_data, name)
+                    self.get_var(user_data, name)
                 } else {
-                    helpers::get_var(user_data, name)
-                        .or_else(|| helpers::get_var(internal_context, name))
+                    self.get_var(user_data, name)
+                        .or_else(|| self.get_var(internal_context, name))
                 };
                 Ok(value.cloned().unwrap_or(Value::Null))
             }
@@ -705,11 +705,11 @@ impl Evaluator {
             // Var: check internal_context → row → user_data
             CompiledLogic::Var(name, default) => {
                 let value = if name.is_empty() {
-                    helpers::get_var(user_data, name)
+                    self.get_var(user_data, name)
                 } else {
-                    helpers::get_var(internal_context, name)
-                        .or_else(|| helpers::get_var(row, name))
-                        .or_else(|| helpers::get_var(user_data, name))
+                    self.get_var(internal_context, name)
+                        .or_else(|| self.get_var(row, name))
+                        .or_else(|| self.get_var(user_data, name))
                 };
                 match value {
                     Some(v) if !v.is_null() => Ok(v.clone()),
@@ -722,8 +722,8 @@ impl Evaluator {
 
             // Ref ($ref): check internal_context → user_data (NOT row, $ref is outer-scope)
             CompiledLogic::Ref(path, default) => {
-                let value = helpers::get_var(internal_context, path)
-                    .or_else(|| helpers::get_var(user_data, path));
+                let value = self.get_var(internal_context, path)
+                    .or_else(|| self.get_var(user_data, path));
                 match value {
                     Some(v) if !v.is_null() => Ok(v.clone()),
                     _ => match default {

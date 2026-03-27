@@ -2,7 +2,7 @@
 // These optimizations avoid double-looping when VALUEAT wraps table lookup operations
 
 use super::super::compiled::CompiledLogic;
-use super::helpers::{self, is_truthy, loose_equal, to_f64 as to_number};
+use super::helpers::{is_truthy, loose_equal, to_f64 as to_number};
 use super::Evaluator;
 use serde_json::Value;
 
@@ -164,28 +164,28 @@ impl Evaluator {
             CompiledLogic::Var(name, _) => {
                 // Try internal context first, then user data
                 let value = if name.is_empty() {
-                    helpers::get_var(user_data, name)
+                    self.get_var(user_data, name)
                 } else {
-                    helpers::get_var(internal_context, name)
-                        .or_else(|| helpers::get_var(user_data, name))
+                    self.get_var(internal_context, name)
+                        .or_else(|| self.get_var(user_data, name))
                 };
 
                 value
-                    .and_then(|v| v.as_array())
-                    .map(|arr| arr.len() >= OPTIMIZATION_MIN_SIZE)
+                    .and_then(|v: &Value| v.as_array())
+                    .map(|arr: &Vec<Value>| arr.len() >= OPTIMIZATION_MIN_SIZE)
                     .unwrap_or(false)
             }
             CompiledLogic::Ref(path, _) => {
                 let value = if path.is_empty() {
-                    helpers::get_var(user_data, path)
+                    self.get_var(user_data, path)
                 } else {
-                    helpers::get_var(internal_context, path)
-                        .or_else(|| helpers::get_var(user_data, path))
+                    self.get_var(internal_context, path)
+                        .or_else(|| self.get_var(user_data, path))
                 };
 
                 value
-                    .and_then(|v| v.as_array())
-                    .map(|arr| arr.len() >= OPTIMIZATION_MIN_SIZE)
+                    .and_then(|v: &Value| v.as_array())
+                    .map(|arr: &Vec<Value>| arr.len() >= OPTIMIZATION_MIN_SIZE)
                     .unwrap_or(false)
             }
             _ => {

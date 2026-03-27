@@ -31,6 +31,7 @@ pub mod table_evaluate;
 pub mod table_metadata;
 pub mod types;
 pub mod validation;
+pub mod static_arrays;
 
 pub struct JSONEval {
     pub schema: Arc<Value>,
@@ -53,6 +54,7 @@ pub struct JSONEval {
 
     pub conditional_hidden_fields: Arc<Vec<String>>,
     pub conditional_readonly_fields: Arc<Vec<String>>,
+    pub static_arrays: Arc<IndexMap<String, Arc<Value>>>,
 
     pub context: Value,
     pub data: Value,

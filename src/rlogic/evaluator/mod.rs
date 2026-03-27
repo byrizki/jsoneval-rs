@@ -35,6 +35,8 @@ pub struct Evaluator {
     config: RLogicConfig,
     /// Upfront indices for large tables (name -> index)
     indices: RwLock<HashMap<String, TableIndex>>,
+    /// Extracted large static arrays for zero-copy resolution
+    static_arrays: Option<std::sync::Arc<indexmap::IndexMap<String, std::sync::Arc<Value>>>>,
 }
 
 impl Evaluator {
@@ -42,12 +44,18 @@ impl Evaluator {
         Self {
             config: RLogicConfig::default(),
             indices: RwLock::new(HashMap::new()),
+            static_arrays: None,
         }
     }
 
     pub fn with_config(mut self, config: RLogicConfig) -> Self {
         self.config = config;
         self
+    }
+
+    /// Set static arrays for evaluation context
+    pub fn set_static_arrays(&mut self, static_arrays: std::sync::Arc<indexmap::IndexMap<String, std::sync::Arc<Value>>>) {
+        self.static_arrays = Some(static_arrays);
     }
 
     /// Build and store index for a table
@@ -582,7 +590,7 @@ impl Evaluator {
             CompiledLogic::Missing(keys) => {
                 let missing: Vec<_> = keys
                     .iter()
-                    .filter(|key| is_key_missing(user_data, key))
+                    .filter(|key| self.is_key_missing(user_data, key))
                     .map(|k| Value::String(k.clone()))
                     .collect();
                 Ok(Value::Array(missing))
@@ -594,7 +602,7 @@ impl Evaluator {
 
                 let present = keys
                     .iter()
-                    .filter(|key| !is_key_missing(user_data, key))
+                    .filter(|key| !self.is_key_missing(user_data, key))
                     .count();
 
                 if present >= minimum {
@@ -602,7 +610,7 @@ impl Evaluator {
                 } else {
                     let missing: Vec<_> = keys
                         .iter()
-                        .filter(|key| is_key_missing(user_data, key))
+                        .filter(|key| self.is_key_missing(user_data, key))
                         .map(|k| Value::String(k.clone()))
                         .collect();
                     Ok(Value::Array(missing))
@@ -752,9 +760,9 @@ impl Evaluator {
         // Special case: empty name "" refers to root context (user_data only)
         // For named variables, try internal context first (for $loopIteration, $iteration, etc.)
         let value = if name.is_empty() {
-            get_var(user_data, name)
+            self.get_var(user_data, name)
         } else {
-            get_var(internal_context, name).or_else(|| get_var(user_data, name))
+            self.get_var(internal_context, name).or_else(|| self.get_var(user_data, name))
         };
         match value {
             Some(v) if !v.is_null() => Ok(v.clone()), // Only clone the resolved value

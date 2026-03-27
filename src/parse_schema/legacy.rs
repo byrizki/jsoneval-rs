@@ -477,14 +477,11 @@ fn create_subform(
 
     subform_schema.insert(field_key.to_string(), Value::Object(field_obj));
 
-    // Create sub-JSONEval with isolated schema
-    let subform_schema_json = serde_json::to_string(&subform_schema)
-        .map_err(|e| format!("Failed to serialize subform schema: {}", e))?;
-
-    let sub_eval = crate::JSONEval::new(
-        &subform_schema_json,
-        Some(&serde_json::to_string(&parent.context).unwrap_or("{}".to_string())),
-        None, // No data initially
+    // Create sub-JSONEval with isolated schema, zero-copying context and static_arrays
+    let sub_eval = crate::JSONEval::new_subform(
+        Value::Object(subform_schema),
+        parent.context.clone(),
+        std::sync::Arc::clone(&parent.static_arrays),
     )
     .map_err(|e| format!("Failed to create subform for {}: {}", field_key, e))?;
 

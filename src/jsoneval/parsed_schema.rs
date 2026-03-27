@@ -87,6 +87,9 @@ pub struct ParsedSchema {
     
     /// Cached paths of fields that have disabled conditions and value property (wrapped in Arc for zero-copy sharing)
     pub conditional_readonly_fields: Arc<Vec<String>>,
+
+    /// Extracted large static arrays from $params to avoid massive cloning (wrapped in Arc for zero-copy sharing)
+    pub static_arrays: Arc<IndexMap<String, Arc<Value>>>,
 }
 
 impl ParsedSchema {
@@ -114,8 +117,15 @@ impl ParsedSchema {
     /// # Returns
     ///
     /// A Result containing the ParsedSchema or an error
-    pub fn parse_value(schema_val: Value) -> Result<Self, String> {
+    pub fn parse_value(mut schema_val: Value) -> Result<Self, String> {
         let engine_config = RLogicConfig::default();
+
+        // Pre-process: extract large static arrays from $params to prevent massive cloning
+        let static_arrays = if let Some(params) = schema_val.get_mut("$params").and_then(|v| v.as_object_mut()) {
+            crate::jsoneval::static_arrays::extract_from_params(params)
+        } else {
+            IndexMap::new()
+        };
 
         let mut parsed = Self {
             schema: Arc::new(schema_val),
@@ -136,6 +146,7 @@ impl ParsedSchema {
             reffed_by: Arc::new(IndexMap::new()),
             conditional_hidden_fields: Arc::new(Vec::new()),
             conditional_readonly_fields: Arc::new(Vec::new()),
+            static_arrays: Arc::new(static_arrays),
         };
 
         // Parse the schema to populate all fields
