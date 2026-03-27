@@ -1,10 +1,12 @@
+use std::sync::Arc;
+
 use super::JSONEval;
+use crate::jsoneval::cancellation::CancellationToken;
 use crate::jsoneval::json_parser;
 use crate::jsoneval::path_utils;
 use crate::jsoneval::table_evaluate;
-use crate::jsoneval::cancellation::CancellationToken;
-use crate::utils::clean_float_noise_scalar;
 use crate::time_block;
+use crate::utils::clean_float_noise_scalar;
 
 use serde_json::Value;
 
@@ -221,12 +223,19 @@ impl JSONEval {
                             if let Ok(rows) =
                                 table_evaluate::evaluate_table(self, eval_key, &eval_data_snapshot, token)
                             {
-                                let value = Value::Array(rows);
-                                self.eval_data.set(&pointer_path, value.clone());
+                                let static_key = format!("/$table{}", pointer_path);
+                                let arc_value = std::sync::Arc::new(Value::Array(rows));
+
+                                Arc::make_mut(&mut self.static_arrays)
+                                    .insert(static_key.clone(), std::sync::Arc::clone(&arc_value));
+
+                                self.eval_data.set(&pointer_path, Value::clone(&arc_value));
+
+                                let marker = serde_json::json!({ "$static_array": static_key });
                                 if let Some(schema_value) =
                                     self.evaluated_schema.pointer_mut(&pointer_path)
                                 {
-                                    *schema_value = value;
+                                    *schema_value = marker;
                                 }
                             }
                         } else {
