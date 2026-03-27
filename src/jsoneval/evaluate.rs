@@ -189,7 +189,9 @@ impl JSONEval {
                     }
 
                     // Sequential execution
-                    let eval_data_snapshot = self.eval_data.clone();
+                    // Use exclusive_clone() so self.eval_data.set() within this batch
+                    // is always zero-cost (Arc rc stays 1 on self.eval_data).
+                    let eval_data_snapshot = self.eval_data.exclusive_clone();
 
                     for eval_key in batch {
                         if let Some(t) = token {

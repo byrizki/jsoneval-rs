@@ -107,6 +107,17 @@ impl EvalData {
         Arc::clone(&self.data)
     }
 
+    /// Deep-clone into a new, exclusive EvalData (Arc strong count = 1).
+    ///
+    /// Unlike `clone()` which bumps the Arc reference count (causing `Arc::make_mut`
+    /// to reallocate on the first mutation), this copies the inner Value once and
+    /// wraps it in a fresh Arc. All subsequent `set()` / `push_to_array()` calls
+    /// on the returned instance are zero-cost because the Arc is always exclusive.
+    #[inline]
+    pub fn exclusive_clone(&self) -> Self {
+        Self::new((*self.data).clone())
+    }
+
     /// Set a field value and increment version
     /// Accepts both dotted notation (user.name) and JSON pointer format (/user/name)
     /// Uses CoW: clones data only if shared

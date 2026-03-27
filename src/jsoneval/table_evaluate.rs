@@ -59,8 +59,9 @@ pub fn evaluate_table(
 
     let table_pointer_path = path_utils::normalize_to_json_pointer(eval_key);
 
-    // CREATE SANDBOXED SCOPE (thread-safe isolation)
-    let mut sandbox = scope_data.clone();
+    // CREATE SANDBOXED SCOPE — exclusive Arc (rc = 1) so every sandbox.set()
+    // inside this function is zero-cost (Arc::make_mut never reallocates).
+    let mut sandbox = EvalData::new(scope_data.data().clone());
 
     // PHASE 0: Evaluate $datas FIRST (before skip/clear)
     let empty_context = Value::Object(Map::new());
