@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.75] - 2026-03-27
+
+### Changed
+
+- [core] [RN] [Web] remove cache, improve evaluation speed
+
 ## [0.0.74] - 2026-03-25
 
 ### Changed
