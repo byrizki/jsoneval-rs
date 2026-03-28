@@ -203,6 +203,28 @@ impl EvalData {
         array.as_array_mut()?.get_mut(index)?.as_object_mut()
     }
 
+    /// Get a mutable reference to a table row object using pre-parsed segments
+    /// This bypasses repetitive JSON pointer string parsing and allocation
+    #[inline(always)]
+    pub fn get_table_row_mut_by_segments(
+        &mut self,
+        segments: &[&str],
+        index: usize,
+    ) -> Option<&mut Map<String, Value>> {
+        let mut target = Arc::make_mut(&mut self.data);
+        for &segment in segments {
+            target = match target {
+                Value::Object(map) => map.get_mut(segment)?,
+                Value::Array(list) => {
+                    let idx = segment.parse::<usize>().ok()?;
+                    list.get_mut(idx)?
+                }
+                _ => return None,
+            };
+        }
+        target.as_array_mut()?.get_mut(index)?.as_object_mut()
+    }
+
     /// Get multiple field values efficiently (for cache key generation)
     /// OPTIMIZED: Use batch pointer resolution for better performance
     pub fn get_values<'a>(&'a self, paths: &'a [String]) -> Vec<Cow<'a, Value>> {

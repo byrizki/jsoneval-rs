@@ -58,6 +58,11 @@ pub fn evaluate_table(
     }
 
     let table_pointer_path = path_utils::normalize_to_json_pointer(eval_key);
+    let table_pointer_segments: Vec<&str> = if table_pointer_path.starts_with('/') {
+        table_pointer_path.split('/').skip(1).collect()
+    } else {
+        vec![table_pointer_path.as_ref()]
+    };
 
     // CREATE SANDBOXED SCOPE — exclusive Arc (rc = 1) so every sandbox.set()
     // inside this function is zero-cost (Arc::make_mut never reallocates).
@@ -305,7 +310,7 @@ pub fn evaluate_table(
                         };
 
                         if let Some(row_obj) =
-                            sandbox.get_table_row_mut(&table_pointer_path, target_idx)
+                            sandbox.get_table_row_mut_by_segments(&table_pointer_segments, target_idx)
                         {
                             if let Some(cell) = row_obj.get_mut(column.name.as_ref()) {
                                 *cell = value.clone();
@@ -451,7 +456,7 @@ pub fn evaluate_table(
 
                                     // [Opt 5] Pre-allocated rows guarantee the key exists
                                     if let Some(row_obj) = sandbox
-                                        .get_table_row_mut(&table_pointer_path, target_idx)
+                                        .get_table_row_mut_by_segments(&table_pointer_segments, target_idx)
                                     {
                                         if let Some(cell) = row_obj.get_mut(column.name.as_ref()) {
                                             if *cell != value {
