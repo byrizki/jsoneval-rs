@@ -82,6 +82,17 @@ impl RLogic {
             .evaluate_with_internal_context(logic, user_data, internal_context)
     }
 
+    /// Evaluate a compiled logic expression directly, bypassing cache lookups and AST cloning
+    pub fn run_precompiled_with_context(
+        &self,
+        logic: &CompiledLogic,
+        user_data: &Value,
+        internal_context: &Value,
+    ) -> Result<Value, String> {
+        self.evaluator
+            .evaluate_with_internal_context(logic, user_data, internal_context)
+    }
+
     /// Evaluate a compiled logic expression with custom config
     pub fn run_with_config(
         &self,

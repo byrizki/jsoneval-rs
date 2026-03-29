@@ -385,6 +385,32 @@ fn evaluate_table_inner(
                         .map(|&col_idx| columns[col_idx].name.as_ref())
                         .collect();
 
+                    // Pre-compute backward dependency mappings to integer arrays preventing string sweeps
+                    let mut unknown_deps = vec![false; forward_cols.len()];
+                    let forward_deps: Vec<Vec<usize>> = forward_cols
+                        .iter()
+                        .enumerate()
+                        .map(|(fwd_idx, &col_idx)| {
+                            let mut deps = Vec::new();
+                            for dep in columns[col_idx].dependencies.iter() {
+                                if dep == "$iteration" || dep == "$threshold" {
+                                    continue;
+                                }
+                                if dep.starts_with('$') {
+                                    let dep_name = dep.trim_start_matches('$');
+                                    if let Some(&dep_fwd_idx) = forward_col_map.get(dep_name) {
+                                        deps.push(dep_fwd_idx);
+                                    } else if !normal_col_set.contains(dep_name) {
+                                        unknown_deps[fwd_idx] = true;
+                                    }
+                                } else {
+                                    unknown_deps[fwd_idx] = true;
+                                }
+                            }
+                            deps
+                        })
+                        .collect();
+
                     let changed_len = iter_count * forward_cols.len();
                     let mut prev_changed = vec![true; changed_len];
                     let mut curr_changed = vec![false; changed_len];
@@ -435,31 +461,13 @@ fn evaluate_table_inner(
                                 let mut should_evaluate = _sweep_num == 1;
 
                                 if !should_evaluate && !column.has_forward_ref {
-                                    should_evaluate = column.dependencies.iter().any(|dep| {
-                                        if dep == "$iteration" || dep == "$threshold" {
-                                            return false;
-                                        }
-
-                                        if dep.starts_with('$') {
-                                            let dep_name = dep.trim_start_matches('$');
-
-                                            if let Some(&dep_fwd_idx) =
-                                                forward_col_map.get(dep_name)
-                                            {
-                                                return prev_changed[row_offset
-                                                    * forward_cols.len()
-                                                    + dep_fwd_idx];
-                                            }
-
-                                            if normal_col_set.contains(dep_name) {
-                                                return false;
-                                            }
-
-                                            true
-                                        } else {
-                                            true
-                                        }
-                                    });
+                                    if unknown_deps[fwd_idx] {
+                                        should_evaluate = true;
+                                    } else {
+                                        should_evaluate = forward_deps[fwd_idx].iter().any(|&dep_fwd_idx| {
+                                            prev_changed[row_offset * forward_cols.len() + dep_fwd_idx]
+                                        });
+                                    }
                                 } else if !should_evaluate {
                                     should_evaluate = true;
                                 }
