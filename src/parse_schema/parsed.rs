@@ -501,8 +501,13 @@ fn collect_table_dependencies_parsed(parsed: &mut ParsedSchema) {
 
         // Collect dependencies from all evaluations that belong to this table
         for (eval_key, deps) in &dependencies {
-            // Check if this evaluation is within the table
-            if eval_key.starts_with(&table_key) && eval_key != &table_key {
+            // Check if this evaluation is within the table (must be a proper child, not a prefix match)
+            // e.g., "#/$params/references/ILST_TABLE/$table/..." should match ILST_TABLE
+            // but "#/$params/references/ILST_TABLE_CSV/..." should NOT match ILST_TABLE
+            let is_child = eval_key.len() > table_key.len()
+                && eval_key.starts_with(table_key.as_str())
+                && eval_key.as_bytes().get(table_key.len()) == Some(&b'/');
+            if is_child {
                 // Add all dependencies from table cells/columns
                 for dep in deps {
                     // Filter out self-references and internal table paths

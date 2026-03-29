@@ -14,8 +14,9 @@ use serde_json::Value;
 
 
 impl JSONEval {
-    /// Evaluate fields that depend on a changed path
-    /// This processes all dependent fields transitively when a source field changes
+    /// Evaluate fields that depend on a changed path.
+    /// Processes all dependent fields transitively, then optionally performs a full
+    /// re-evaluation pass (for read-only / hide effects) and cascades into subforms.
     pub fn evaluate_dependents(
         &mut self,
         changed_paths: &[String],
@@ -26,16 +27,14 @@ impl JSONEval {
         mut canceled_paths: Option<&mut Vec<String>>,
         include_subforms: bool,
     ) -> Result<Value, String> {
-        // Check cancellation
         if let Some(t) = token {
             if t.is_cancelled() {
                 return Err("Cancelled".to_string());
             }
         }
-        // Acquire lock for synchronous execution
         let _lock = self.eval_lock.lock().unwrap();
 
-        // Update data if provided
+        // Update data if provided, diff versions
         if let Some(data_str) = data {
             let data_value = json_parser::parse_json_str(data_str)?;
             let context_value = if let Some(ctx) = context {
@@ -43,13 +42,14 @@ impl JSONEval {
             } else {
                 Value::Object(serde_json::Map::new())
             };
-            self.eval_data
-                .replace_data_and_context(data_value.clone(), context_value);
+            let old_data = self.eval_data.snapshot_data_clone();
+            self.eval_data.replace_data_and_context(data_value, context_value);
+            let new_data = self.eval_data.snapshot_data_clone();
+            self.eval_cache.store_snapshot_and_diff_versions(&old_data, &new_data);
         }
 
         let mut result = Vec::new();
         let mut processed = IndexSet::new();
-
         let mut to_process: Vec<(String, bool)> = changed_paths
             .iter()
             .map(|path| (path_utils::dot_notation_to_schema_pointer(path), false))
@@ -59,6 +59,7 @@ impl JSONEval {
             &self.engine,
             &self.evaluations,
             &mut self.eval_data,
+            &mut self.eval_cache,
             &self.dependents_evaluations,
             &self.evaluated_schema,
             &mut to_process,
@@ -68,218 +69,334 @@ impl JSONEval {
             canceled_paths.as_mut().map(|v| &mut **v),
         )?;
 
+        // Drop the lock before calling sub-methods that may re-acquire it
+        drop(_lock);
 
-        // If re_evaluate is true, perform full evaluation with the mutated eval_data
-        // Then perform post-evaluation checks (ReadOnly, Hidden)
         if re_evaluate {
-            // Drop lock for evaluate_internal
-            drop(_lock);
-
-            self.evaluate_internal(None, token)?;
-
-            
-            // Re-acquire lock for ReadOnly/Hidden processing
-            let _lock = self.eval_lock.lock().unwrap();
-
-            // 1. Read-Only Pass
-            // Collect read-only fields - include ALL readonly values in the result
-            let mut readonly_changes = Vec::new();
-            let mut readonly_values = Vec::new();  // Track all readonly values (including unchanged)
-            
-            // OPTIMIZATION: Use conditional_readonly_fields cache instead of recursing whole schema
-            // self.collect_readonly_fixes(&self.evaluated_schema, "#", &mut readonly_changes);
-            for path in self.conditional_readonly_fields.iter() {
-                let normalized = path_utils::normalize_to_json_pointer(path);
-                if let Some(schema_element) = self.evaluated_schema.pointer(&normalized) {
-                    self.check_readonly_for_dependents(schema_element, path, &mut readonly_changes, &mut readonly_values);
-                }
-            }
-
-            // Apply fixes for changed values and add to queue
-            for (path, schema_value) in readonly_changes {
-                // Set data to match schema value
-                let data_path = path_utils::normalize_to_json_pointer(&path)
-                    .replace("/properties/", "/")
-                    .trim_start_matches('#')
-                    .to_string();
-                
-                self.eval_data.set(&data_path, schema_value.clone());
-                
-                // Add to process queue for changed values
-                to_process.push((path, true));
-            }
-            
-            // Add ALL readonly values to result (both changed and unchanged)
-            for (path, schema_value) in readonly_values {
-                let data_path = path_utils::normalize_to_json_pointer(&path)
-                    .replace("/properties/", "/")
-                    .trim_start_matches('#')
-                    .to_string();
-                
-                let mut change_obj = serde_json::Map::new();
-                change_obj.insert("$ref".to_string(), Value::String(path_utils::pointer_to_dot_notation(&data_path)));
-                change_obj.insert("$readonly".to_string(), Value::Bool(true));
-                change_obj.insert("value".to_string(), schema_value);
-                
-                result.push(Value::Object(change_obj));
-            }
-            
-            if !to_process.is_empty() {
-                 Self::process_dependents_queue(
-                    &self.engine,
-                    &self.evaluations,
-                    &mut self.eval_data,
-                    &self.dependents_evaluations,
-                    &self.evaluated_schema,
-                    &mut to_process,
-                    &mut processed,
-                    &mut result,
-                    token,
-                    canceled_paths.as_mut().map(|v| &mut **v),
-                )?;
-            }
-
-
-            // 2. Recursive Hide Pass
-            // Collect hidden fields that have values
-            let mut hidden_fields = Vec::new();
-            // OPTIMIZATION: Use conditional_hidden_fields cache instead of recursing whole schema
-            // self.collect_hidden_fields(&self.evaluated_schema, "#", &mut hidden_fields);
-            for path in self.conditional_hidden_fields.iter() {
-                let normalized = path_utils::normalize_to_json_pointer(path);
-                 if let Some(schema_element) = self.evaluated_schema.pointer(&normalized) {
-                    self.check_hidden_field(schema_element, path, &mut hidden_fields);
-                }
-            }
-            
-            if !hidden_fields.is_empty() {
-                Self::recursive_hide_effect(
-                    &self.engine,
-                    &self.evaluations,
-                    &self.reffed_by,
-                    &mut self.eval_data,
-                    hidden_fields,
-                    &mut to_process,
-                    &mut result,
-                );
-            }
-
-            
-             if !to_process.is_empty() {
-                 Self::process_dependents_queue(
-                    &self.engine,
-                    &self.evaluations,
-                    &mut self.eval_data,
-                    &self.dependents_evaluations,
-                    &self.evaluated_schema,
-                    &mut to_process,
-                    &mut processed,
-                    &mut result,
-                    token,
-                    canceled_paths.as_mut().map(|v| &mut **v),
-                )?;
-            }
-
+            self.run_re_evaluate_pass(token, &mut to_process, &mut processed, &mut result, canceled_paths.as_mut().map(|v| &mut **v))?;
         }
 
         if include_subforms {
-            let subform_paths: Vec<String> = self.subforms.keys().cloned().collect();
-            for subform_path in subform_paths {
-                let field_key = subform_field_key(&subform_path);
-                let subform_dot_path = crate::jsoneval::path_utils::pointer_to_dot_notation(&subform_path).replace(".properties.", ".");
-                let field_prefix = format!("{}.", field_key);
-
-                // Borrow array items from current eval_data (zero-cost Arc deref)
-                let items: Vec<Value> = get_value_by_pointer_without_properties(self.eval_data.data(), &normalize_to_json_pointer(&subform_path))
-                    .and_then(|v| v.as_array())
-                    .cloned()          // clone the Vec<Value> reference list (shallow Arc clone per item)
-                    .unwrap_or_default();
-
-                if items.is_empty() {
-                    continue;
-                }
-
-                for (idx, item) in items.iter().enumerate() {
-                    // Subforms expect the data to be wrapped in the field key
-                    // We merge main form data so that $params and other top-level fields are available
-                    let mut merged_data = self.eval_data.data().clone();
-                    if let Value::Object(ref mut map) = merged_data {
-                        map.insert(field_key.clone(), item.clone());
-                    } else {
-                        let mut map = serde_json::Map::new();
-                        map.insert(field_key.clone(), item.clone());
-                        merged_data = Value::Object(map);
-                    }
-                    
-                    // Map absolute array changed paths (e.g., "illustration.insured.riders[0].base") to flat internal paths ("riders.base")
-                    let mut item_changed_paths = Vec::new();
-                    let prefix_with_bracket = format!("{}[{}].", subform_dot_path, idx);
-                    let prefix_with_dot = format!("{}.{}.", subform_dot_path, idx);
-                    
-                    for path in changed_paths {
-                        if path.starts_with(&prefix_with_bracket) {
-                            item_changed_paths.push(path.replacen(&prefix_with_bracket, &field_prefix, 1));
-                        } else if path.starts_with(&prefix_with_dot) {
-                            item_changed_paths.push(path.replacen(&prefix_with_dot, &field_prefix, 1));
-                        }
-                        // Fallback support for paths matching the internal field key exactly without parent context
-                        else if path.starts_with(&format!("{}[{}].", field_key, idx)) {
-                            item_changed_paths.push(path.replacen(&format!("{}[{}].", field_key, idx), &field_prefix, 1));
-                        }
-                    }
-
-                    // If there are no relevant changes and we aren't re-evaluating, we can skip this item
-                    if item_changed_paths.is_empty() && !re_evaluate {
-                        continue;
-                    }
-
-                    if let Some(subform) = self.subforms.get_mut(&subform_path) {
-                        // Bypass string overhead: update the subform data natively!
-                        // This achieves "zero-copy" across string boundaries, though native serde_json::Value
-                        // internal mapping still clones fields natively during the map insert.
-                        subform.eval_data.replace_data_and_context(
-                            merged_data, 
-                            self.eval_data.data().get("$context").cloned().unwrap_or(serde_json::Value::Null)
-                        );
-
-                        // context is passed through as-is natively via replace_data_and_context above
-                        let subform_result_or_err = subform.evaluate_dependents(
-                            &item_changed_paths,
-                            None, // passing None skips string parsing entirely
-                            None,
-                            re_evaluate,
-                            token,
-                            None,
-                            false,
-                        );
-
-                        if let Ok(Value::Array(changes)) = subform_result_or_err {
-                            for change in changes {
-                                if let Some(obj) = change.as_object() {
-                                    let mut new_obj = obj.clone();
-                                    if let Some(Value::String(ref_path)) = obj.get("$ref") {
-                                        // Map the isolated subform's path (e.g. "riders.calculated.value") 
-                                        // to the absolute index-qualified parent path (e.g. "illustration.insured.riders.0.calculated.value")
-                                        let new_ref = if ref_path.starts_with(&field_prefix) {
-                                            let trailing_path = &ref_path[field_prefix.len()..];
-                                            format!("{}.{}.{}", subform_dot_path, idx, trailing_path)
-                                        } else {
-                                            // Fallback if the path didn't start with the subform's root key
-                                            format!("{}.{}.{}", subform_dot_path, idx, ref_path)
-                                        };
-                                        new_obj.insert("$ref".to_string(), Value::String(new_ref));
-                                    }
-                                    result.push(Value::Object(new_obj));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            self.run_subform_pass(changed_paths, re_evaluate, token, &mut result)?;
         }
 
         Ok(Value::Array(result))
     }
+
+    /// Full re-evaluation pass: runs `evaluate_internal`, then applies read-only fixes and
+    /// recursive hide effects, feeding any newly-generated changes back into the dependents queue.
+    fn run_re_evaluate_pass(
+        &mut self,
+        token: Option<&CancellationToken>,
+        to_process: &mut Vec<(String, bool)>,
+        processed: &mut IndexSet<String>,
+        result: &mut Vec<Value>,
+        mut canceled_paths: Option<&mut Vec<String>>,
+    ) -> Result<(), String> {
+        // Snapshot non-param evaluated values before re-evaluation so we can emit diffs
+        let pre_eval_snapshot: Vec<(String, Value)> = self.sorted_evaluations
+            .iter()
+            .flatten()
+            .filter(|key| !key.contains("/$params/") && !key.contains("/$"))
+            .filter_map(|key| {
+                let ptr = path_utils::normalize_to_json_pointer(key);
+                self.evaluated_schema.pointer(&ptr).map(|v| (key.clone(), v.clone()))
+            })
+            .collect();
+
+        self.evaluate_internal(None, token)?;
+
+        // Emit result entries for every sorted-evaluation whose value changed
+        for (eval_key, old_val) in &pre_eval_snapshot {
+            let ptr = path_utils::normalize_to_json_pointer(eval_key);
+            if let Some(new_val) = self.evaluated_schema.pointer(&ptr) {
+                if new_val != old_val {
+                    let data_path = ptr
+                        .replace("/properties/", "/")
+                        .trim_start_matches('#')
+                        .trim_start_matches('/')
+                        .to_string();
+                    let dot_path = data_path.trim_end_matches("/value").replace('/', ".");
+                    let mut obj = serde_json::Map::new();
+                    obj.insert("$ref".to_string(), Value::String(dot_path));
+                    obj.insert("value".to_string(), new_val.clone());
+                    result.push(Value::Object(obj));
+                }
+            }
+        }
+
+        // Re-acquire lock for post-eval passes
+        let _lock = self.eval_lock.lock().unwrap();
+
+        // --- Read-Only Pass ---
+        let mut readonly_changes = Vec::new();
+        let mut readonly_values = Vec::new();
+        for path in self.conditional_readonly_fields.iter() {
+            let normalized = path_utils::normalize_to_json_pointer(path);
+            if let Some(schema_el) = self.evaluated_schema.pointer(&normalized) {
+                self.check_readonly_for_dependents(schema_el, path, &mut readonly_changes, &mut readonly_values);
+            }
+        }
+        for (path, schema_value) in readonly_changes {
+            let data_path = path_utils::normalize_to_json_pointer(&path)
+                .replace("/properties/", "/")
+                .trim_start_matches('#')
+                .to_string();
+            self.eval_data.set(&data_path, schema_value.clone());
+            self.eval_cache.bump_data_version(&data_path);
+            to_process.push((path, true));
+        }
+        for (path, schema_value) in readonly_values {
+            let data_path = path_utils::normalize_to_json_pointer(&path)
+                .replace("/properties/", "/")
+                .trim_start_matches('#')
+                .to_string();
+            let mut obj = serde_json::Map::new();
+            obj.insert("$ref".to_string(), Value::String(path_utils::pointer_to_dot_notation(&data_path)));
+            obj.insert("$readonly".to_string(), Value::Bool(true));
+            obj.insert("value".to_string(), schema_value);
+            result.push(Value::Object(obj));
+        }
+        if !to_process.is_empty() {
+            Self::process_dependents_queue(
+                &self.engine,
+                &self.evaluations,
+                &mut self.eval_data,
+                &mut self.eval_cache,
+                &self.dependents_evaluations,
+                &self.evaluated_schema,
+                to_process,
+                processed,
+                result,
+                token,
+                canceled_paths.as_mut().map(|v| &mut **v),
+            )?;
+        }
+
+        // --- Recursive Hide Pass ---
+        let mut hidden_fields = Vec::new();
+        for path in self.conditional_hidden_fields.iter() {
+            let normalized = path_utils::normalize_to_json_pointer(path);
+            if let Some(schema_el) = self.evaluated_schema.pointer(&normalized) {
+                self.check_hidden_field(schema_el, path, &mut hidden_fields);
+            }
+        }
+        if !hidden_fields.is_empty() {
+            Self::recursive_hide_effect(
+                &self.engine,
+                &self.evaluations,
+                &self.reffed_by,
+                &mut self.eval_data,
+                &mut self.eval_cache,
+                hidden_fields,
+                to_process,
+                result,
+            );
+        }
+        if !to_process.is_empty() {
+            Self::process_dependents_queue(
+                &self.engine,
+                &self.evaluations,
+                &mut self.eval_data,
+                &mut self.eval_cache,
+                &self.dependents_evaluations,
+                &self.evaluated_schema,
+                to_process,
+                processed,
+                result,
+                token,
+                canceled_paths.as_mut().map(|v| &mut **v),
+            )?;
+        }
+
+        Ok(())
+    }
+
+    /// Cascade dependency evaluation into each subform item.
+    ///
+    /// For every registered subform, this method iterates over its array items and runs
+    /// `evaluate_dependents` on the subform using the cache-swap strategy so the subform
+    /// can see global main-form Tier 2 cache entries (avoiding redundant table re-evaluation).
+    ///
+    /// `sub_re_evaluate` is set **only** when the parent's bumped `data_versions` intersect
+    /// with paths the subform actually depends on — preventing expensive full re-evals on
+    /// subform items whose dependencies did not change.
+    fn run_subform_pass(
+        &mut self,
+        changed_paths: &[String],
+        re_evaluate: bool,
+        token: Option<&CancellationToken>,
+        result: &mut Vec<Value>,
+    ) -> Result<(), String> {
+        let subform_paths: Vec<String> = self.subforms.keys().cloned().collect();
+        for subform_path in subform_paths {
+            let field_key = subform_field_key(&subform_path);
+            let subform_dot_path = path_utils::pointer_to_dot_notation(&subform_path)
+                .replace(".properties.", ".");
+            let field_prefix = format!("{}.", field_key);
+
+            let items: Vec<Value> = get_value_by_pointer_without_properties(
+                self.eval_data.data(),
+                &normalize_to_json_pointer(&subform_path),
+            )
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+
+            if items.is_empty() {
+                continue;
+            }
+
+            // Collect all dependency paths for this subform (used to decide sub_re_evaluate)
+            let subform_dep_paths: Vec<String> = self
+                .subforms
+                .get(&subform_path)
+                .map(|sf| {
+                    sf.dependencies
+                        .values()
+                        .flatten()
+                        .map(|dep| {
+                            path_utils::normalize_to_json_pointer(dep)
+                                .replace("/properties/", "/")
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            for (idx, item) in items.iter().enumerate() {
+                // Build merged data: parent data with this item slotted under field_key
+                #[cfg(debug_assertions)]
+                let mut merged_data: Value = {
+                    let json_str = self.eval_data.data().to_string();
+                    serde_json::from_str(&json_str).unwrap_or(Value::Null)
+                };
+                #[cfg(not(debug_assertions))]
+                let mut merged_data: Value = self.eval_data.data().clone();
+
+                if let Value::Object(ref mut map) = merged_data {
+                    map.insert(field_key.clone(), item.clone());
+                } else {
+                    let mut map = serde_json::Map::new();
+                    map.insert(field_key.clone(), item.clone());
+                    merged_data = Value::Object(map);
+                }
+
+                // Map absolute changed paths → subform-internal paths for this item index
+                let prefix_dot = format!("{}.{}.", subform_dot_path, idx);
+                let prefix_bracket = format!("{}[{}].", subform_dot_path, idx);
+                let prefix_field_bracket = format!("{}[{}].", field_key, idx);
+
+                let item_changed_paths: Vec<String> = changed_paths
+                    .iter()
+                    .filter_map(|p| {
+                        if p.starts_with(&prefix_bracket) {
+                            Some(p.replacen(&prefix_bracket, &field_prefix, 1))
+                        } else if p.starts_with(&prefix_dot) {
+                            Some(p.replacen(&prefix_dot, &field_prefix, 1))
+                        } else if p.starts_with(&prefix_field_bracket) {
+                            Some(p.replacen(&prefix_field_bracket, &field_prefix, 1))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                if item_changed_paths.is_empty() && !re_evaluate {
+                    continue;
+                }
+
+                // Smart sub_re_evaluate: only trigger full re-eval in the subform when
+                // the parent's global data_versions contain bumps on paths that this subform
+                // depends on. Uses the parent's global versions because per-item versions
+                // are only merged during the cache swap (which happens below).
+                let sub_re_evaluate = if re_evaluate {
+                    self.eval_cache.data_versions.has_any_version_for(&subform_dep_paths)
+                        || !item_changed_paths.is_empty()
+                } else {
+                    false
+                };
+
+                // If nothing changed and re_evaluate not required, skip entirely
+                if !sub_re_evaluate && item_changed_paths.is_empty() {
+                    continue;
+                }
+
+                // Ensure item_changed_paths is non-empty for the subform call
+                // (pass a sentinel if we only need re_evaluate without specific paths)
+                if item_changed_paths.is_empty() && sub_re_evaluate {
+                    // No specific field changed within this item — pass empty slice
+                    // The subform will run re_evaluate_pass purely from cache state
+                }
+
+                let Some(subform) = self.subforms.get_mut(&subform_path) else {
+                    continue;
+                };
+
+                // Prepare cache state for this item
+                self.eval_cache.ensure_active_item_cache(idx);
+                let old_item_val = self.eval_cache.subform_caches
+                    .get(&idx)
+                    .map(|c| c.item_snapshot.clone())
+                    .unwrap_or(Value::Null);
+
+                subform.eval_data.replace_data_and_context(
+                    merged_data,
+                    self.eval_data.data().get("$context").cloned().unwrap_or(Value::Null),
+                );
+                let new_item_val = subform.eval_data.data().get(&field_key).cloned().unwrap_or(Value::Null);
+
+                // Cache-swap: lend parent cache to subform
+                let mut parent_cache = std::mem::take(&mut self.eval_cache);
+                parent_cache.ensure_active_item_cache(idx);
+                if let Some(c) = parent_cache.subform_caches.get_mut(&idx) {
+                    c.data_versions.merge_from(&parent_cache.data_versions);
+                    crate::jsoneval::eval_cache::diff_and_update_versions(
+                        &mut c.data_versions,
+                        &format!("/{}", field_key),
+                        &old_item_val,
+                        &new_item_val,
+                    );
+                    c.item_snapshot = new_item_val.clone();
+                }
+                parent_cache.set_active_item(idx);
+                std::mem::swap(&mut subform.eval_cache, &mut parent_cache);
+
+                let subform_result = subform.evaluate_dependents(
+                    &item_changed_paths,
+                    None,
+                    None,
+                    sub_re_evaluate,
+                    token,
+                    None,
+                    false,
+                );
+
+                // Restore parent cache
+                std::mem::swap(&mut subform.eval_cache, &mut parent_cache);
+                parent_cache.clear_active_item();
+                self.eval_cache = parent_cache;
+
+                if let Ok(Value::Array(changes)) = subform_result {
+                    for change in changes {
+                        if let Some(obj) = change.as_object() {
+                            let mut new_obj = obj.clone();
+                            if let Some(Value::String(ref_path)) = obj.get("$ref") {
+                                let new_ref = if ref_path.starts_with(&field_prefix) {
+                                    format!("{}.{}.{}", subform_dot_path, idx, &ref_path[field_prefix.len()..])
+                                } else {
+                                    format!("{}.{}.{}", subform_dot_path, idx, ref_path)
+                                };
+                                new_obj.insert("$ref".to_string(), Value::String(new_ref));
+                            }
+                            result.push(Value::Object(new_obj));
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
 
     /// Helper to evaluate a dependent value - uses pre-compiled eval keys for fast lookup
     pub(crate) fn evaluate_dependent_value_static(
@@ -568,6 +685,7 @@ impl JSONEval {
         evaluations: &IndexMap<String, LogicId>,
         reffed_by: &IndexMap<String, Vec<String>>,
         eval_data: &mut EvalData,
+        eval_cache: &mut crate::jsoneval::eval_cache::EvalCache,
         mut hidden_fields: Vec<String>,
         queue: &mut Vec<(String, bool)>, 
         result: &mut Vec<Value>,
@@ -580,6 +698,7 @@ impl JSONEval {
             
             // clear data
             eval_data.set(&data_path, Value::Null);
+            eval_cache.bump_data_version(&data_path);
             
              // Create dependent object for result
             let mut change_obj = serde_json::Map::new();
@@ -640,6 +759,7 @@ impl JSONEval {
         engine: &RLogic,
         evaluations: &IndexMap<String, LogicId>,
         eval_data: &mut EvalData,
+        eval_cache: &mut crate::jsoneval::eval_cache::EvalCache,
         dependents_evaluations: &IndexMap<String, Vec<DependentItem>>,
         evaluated_schema: &Value,
         queue: &mut Vec<(String, bool)>,
@@ -753,6 +873,7 @@ impl JSONEval {
                                 current_value = Value::Null;
                             }
                             eval_data.set(&data_path, Value::Null);
+                            eval_cache.bump_data_version(&data_path);
                             change_obj.insert("clear".to_string(), Value::Bool(true));
                             add_transitive = true;
                             add_deps = true;
@@ -776,6 +897,7 @@ impl JSONEval {
                                 current_value = cleaned_val.clone();
                             }
                             eval_data.set(&data_path, cleaned_val.clone());
+                            eval_cache.bump_data_version(&data_path);
                             change_obj.insert("value".to_string(), cleaned_val);
                             add_transitive = true;
                             add_deps = true;

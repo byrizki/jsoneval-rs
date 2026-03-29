@@ -50,8 +50,10 @@ impl JSONEval {
         })
     }
 
-    /// Internal helper to evaluate with all data/context provided as Values
-    fn evaluate_internal_with_new_data(
+    /// Internal helper to evaluate with all data/context provided as Values.
+    /// `pub(crate)` so the cache-swap path in `evaluate_subform` can call it directly
+    /// after swapping the parent cache in, bypassing the string-parsing overhead.
+    pub(crate) fn evaluate_internal_with_new_data(
         &mut self,
         data: Value,
         context: Value,
@@ -59,6 +61,16 @@ impl JSONEval {
         token: Option<&CancellationToken>,
     ) -> Result<(), String> {
         time_block!("  evaluate_internal_with_new_data", {
+            let old_cache_snapshot = self.eval_cache.get_active_snapshot();
+            let has_previous_eval = old_cache_snapshot != Value::Null;
+            let old_data = if has_previous_eval {
+                old_cache_snapshot
+            } else {
+                self.eval_data.snapshot_data_clone()
+            };
+
+            let old_context = self.eval_data.data().get("$context").cloned().unwrap_or(Value::Null);
+
             // Store data, context and replace in eval_data (clone once instead of twice)
             self.data = data.clone();
             self.context = context.clone();
@@ -66,9 +78,36 @@ impl JSONEval {
                 self.eval_data.replace_data_and_context(data, context);
             });
 
+            let new_data = self.eval_data.snapshot_data_clone();
+            let new_context = self.eval_data.data().get("$context").cloned().unwrap_or(Value::Null);
+
+            if has_previous_eval && old_data == new_data && old_context == new_context && paths.is_none() {
+                // Perfect cache hit for unmodified payload: fully skip tree traversal
+                return Ok(());
+            }
+
+            self.eval_cache.store_snapshot_and_diff_versions(&old_data, &new_data);
+
             // Call internal evaluate (uses existing data if not provided)
             self.evaluate_internal(paths, token)
         })
+    }
+
+    /// Fast variant of `evaluate_internal_with_new_data` for the cache-swap path.
+    ///
+    /// The caller (e.g. `run_subform_pass` / `evaluate_subform_item`) has **already**:
+    /// 1. Called `replace_data_and_context` on `subform.eval_data` with the merged payload.
+    /// 2. Computed the item-level diff and bumped `subform_caches[idx].data_versions` accordingly.
+    /// 3. Swapped the parent cache into `subform.eval_cache` so Tier 2 entries are visible.
+    ///
+    /// Skipping the expensive `snapshot_data_clone()` × 2 and `diff_and_update_versions`
+    /// saves ~40–80ms per rider on a 5 MB parent payload.
+    pub(crate) fn evaluate_internal_pre_diffed(
+        &mut self,
+        paths: Option<&[String]>,
+        token: Option<&CancellationToken>,
+    ) -> Result<(), String> {
+        self.evaluate_internal(paths, token)
     }
 
     /// Internal evaluate that can be called when data is already set
@@ -117,8 +156,7 @@ impl JSONEval {
 
             // Process each batch - sequentially
             // Batches are processed sequentially to maintain dependency order
-            // Process value evaluations (simple computed fields)
-            // These are independent of rule batches and should always run
+            // Process value evaluations (simple computed fields with no dependencies)
             let eval_data_values = self.eval_data.clone();
             time_block!("      evaluate values", {
                 for eval_key in self.value_evaluations.iter() {
@@ -127,7 +165,7 @@ impl JSONEval {
                             return Err("Cancelled".to_string());
                         }
                     }
-                    // Skip if has dependencies (will be handled in sorted batches)
+                    // Skip if has dependencies (handled in sorted batches with correct ordering)
                     if let Some(deps) = self.dependencies.get(eval_key) {
                         if !deps.is_empty() {
                             continue;
@@ -146,11 +184,19 @@ impl JSONEval {
                     }
 
                     let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
+                    let empty_deps = indexmap::IndexSet::new();
+                    let deps = self.dependencies.get(eval_key).unwrap_or(&empty_deps);
+
+                    // Cache hit check
+                    if let Some(_cached_result) = self.eval_cache.check_cache(eval_key, deps) {
+                        continue;
+                    }
 
                     // Cache miss - evaluate
                     if let Some(logic_id) = self.evaluations.get(eval_key) {
                         if let Ok(val) = self.engine.run(logic_id, eval_data_values.data()) {
                              let cleaned_val = clean_float_noise_scalar(val);
+                             self.eval_cache.store_cache(eval_key, deps, cleaned_val.clone());
 
                              if let Some(pointer_value) =
                                  self.evaluated_schema.pointer_mut(&pointer_path)
@@ -190,6 +236,34 @@ impl JSONEval {
                         }
                     }
 
+                    // Fast path: try to resolve every eval_key in this batch from cache.
+                    // If all hit, skip the expensive exclusive_clone() of the full eval_data tree.
+                    // This is critical for subforms where eval_data contains the full parent payload.
+                    {
+                        let mut batch_hits: Vec<(String, Value)> = Vec::with_capacity(batch.len());
+                        let all_hit = batch.iter().all(|eval_key| {
+                            let empty_deps = indexmap::IndexSet::new();
+                            let deps = self.dependencies.get(eval_key).unwrap_or(&empty_deps);
+                            if let Some(cached) = self.eval_cache.check_cache(eval_key, deps) {
+                                let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
+                                batch_hits.push((pointer_path, cached));
+                                true
+                            } else {
+                                false
+                            }
+                        });
+
+                        if all_hit {
+                            // Populate eval_data so downstream batches see these values
+                            for (ptr, val) in batch_hits {
+                                self.eval_data.set(&ptr, val);
+                            }
+                            continue;
+                        }
+                        // Partial or full miss — fall through to the normal exclusive_clone path below.
+                        // batch_hits is dropped here; cache lookups will repeat but that's cheap.
+                    }
+
                     // Sequential execution
                     // Use exclusive_clone() so self.eval_data.set() within this batch
                     // is always zero-cost (Arc rc stays 1 on self.eval_data).
@@ -220,11 +294,54 @@ impl JSONEval {
                         let is_table = self.table_metadata.contains_key(eval_key);
 
                         if is_table {
+                            let mut external_deps = indexmap::IndexSet::new();
+                            let pointer_data_prefix = pointer_path.replace("/properties/", "/");
+                            let pointer_data_prefix_slash = format!("{}/", pointer_data_prefix);
+                            if let Some(deps) = self.dependencies.get(eval_key) {
+                                for dep in deps {
+                                    let dep_data_path = crate::jsoneval::path_utils::normalize_to_json_pointer(dep).replace("/properties/", "/");
+                                    if dep_data_path != pointer_data_prefix && !dep_data_path.starts_with(&pointer_data_prefix_slash) {
+                                        external_deps.insert(dep.clone());
+                                    }
+                                }
+                            }
+
+                            if let Some(cached_result) = self.eval_cache.check_cache(eval_key, &external_deps) {
+                                let static_key = format!("/$table{}", pointer_path);
+                                let arc_value = std::sync::Arc::new(cached_result.clone());
+
+                                Arc::make_mut(&mut self.static_arrays)
+                                    .insert(static_key.clone(), std::sync::Arc::clone(&arc_value));
+
+                                self.eval_data.set(&pointer_path, Value::clone(&arc_value));
+
+                                let marker = serde_json::json!({ "$static_array": static_key });
+                                if let Some(schema_value) =
+                                    self.evaluated_schema.pointer_mut(&pointer_path)
+                                {
+                                    *schema_value = marker;
+                                }
+                                continue;
+                            }
+
                             if let Ok(rows) =
                                 table_evaluate::evaluate_table(self, eval_key, &eval_data_snapshot, token)
                             {
+                                let result_val = Value::Array(rows);
+                                self.eval_cache.store_cache(eval_key, &external_deps, result_val.clone());
+
+                                // Only bump version if the table result actually changed
+                                let old_table_val = self.eval_data.get(&pointer_data_prefix).cloned().unwrap_or(Value::Null);
+                                if result_val != old_table_val {
+                                    if pointer_data_prefix.starts_with("/$params") {
+                                        self.eval_cache.bump_params_version(&pointer_data_prefix);
+                                    } else {
+                                        self.eval_cache.bump_data_version(&pointer_data_prefix);
+                                    }
+                                }
+
                                 let static_key = format!("/$table{}", pointer_path);
-                                let arc_value = std::sync::Arc::new(Value::Array(rows));
+                                let arc_value = std::sync::Arc::new(result_val);
 
                                 Arc::make_mut(&mut self.static_arrays)
                                     .insert(static_key.clone(), std::sync::Arc::clone(&arc_value));
@@ -239,11 +356,34 @@ impl JSONEval {
                                 }
                             }
                         } else {
+                            let empty_deps = indexmap::IndexSet::new();
+                            let deps = self.dependencies.get(eval_key).unwrap_or(&empty_deps);
+                            if let Some(cached_result) = self.eval_cache.check_cache(eval_key, &deps) {
+                                // Must still populate eval_data out of cache so subsequent formulas
+                                // referencing this path in the same iteration can read the exact value
+                                self.eval_data.set(&pointer_path, cached_result.clone());
+                                continue;
+                            }
+
                             if let Some(logic_id) = self.evaluations.get(eval_key) {
                                 if let Ok(val) =
                                     self.engine.run(logic_id, eval_data_snapshot.data())
                                 {
                                     let cleaned_val = clean_float_noise_scalar(val);
+                                    let data_path = pointer_path.replace("/properties/", "/");
+                                    self.eval_cache.store_cache(eval_key, &deps, cleaned_val.clone());
+                                    
+                                    // Check if the value actually changed to avoid cache thrashing
+                                    // Must use data_path (without /properties/) as that's how eval_data stores values
+                                    let old_val = self.eval_data.get(&data_path).cloned().unwrap_or(Value::Null);
+                                    if cleaned_val != old_val {
+                                        if data_path.starts_with("/$params") {
+                                            self.eval_cache.bump_params_version(&data_path);
+                                        } else {
+                                            self.eval_cache.bump_data_version(&data_path);
+                                        }
+                                    }
+
                                     self.eval_data.set(&pointer_path, cleaned_val.clone());
                                     if let Some(schema_value) =
                                         self.evaluated_schema.pointer_mut(&pointer_path)
@@ -323,13 +463,21 @@ impl JSONEval {
                         }
 
                         let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
+                        let empty_deps = indexmap::IndexSet::new();
+                        let deps = self.dependencies.get(eval_key).unwrap_or(&empty_deps);
 
-                        // Cache miss - evaluate
+                        if let Some(_cached_result) = self.eval_cache.check_cache(eval_key, &deps) {
+                             // ALREADY cached properly inside evaluated_schema. Skip pointer_mut string parsing!
+                             continue;
+                        }
+
+                        // Catch miss - evaluate
                         if let Some(logic_id) = self.evaluations.get(eval_key) {
                             if let Ok(val) =
                                 self.engine.run(logic_id, eval_data_snapshot.data())
                             {
                                 let cleaned_val = clean_float_noise_scalar(val);
+                                self.eval_cache.store_cache(eval_key, &deps, cleaned_val.clone());
 
                                 if let Some(pointer_value) =
                                     self.evaluated_schema.pointer_mut(&pointer_path)

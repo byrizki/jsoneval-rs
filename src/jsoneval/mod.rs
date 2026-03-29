@@ -20,6 +20,7 @@ pub mod eval_data;
 pub mod evaluate;
 pub mod getters;
 pub mod core;
+pub mod eval_cache;
 pub mod json_parser;
 pub mod layout;
 pub mod logic;
@@ -60,6 +61,7 @@ pub struct JSONEval {
     pub data: Value,
     pub evaluated_schema: Value,
     pub eval_data: EvalData,
+    pub eval_cache: eval_cache::EvalCache,
     pub(crate) eval_lock: Mutex<()>,
     pub(crate) cached_msgpack_schema: Option<Vec<u8>>,
     pub(crate) regex_cache: std::sync::RwLock<HashMap<String, regex::Regex>>,

@@ -38,6 +38,7 @@ impl Clone for JSONEval {
             data: self.data.clone(),
             evaluated_schema: self.evaluated_schema.clone(),
             eval_data: self.eval_data.clone(),
+            eval_cache: self.eval_cache.clone(),
             eval_lock: Mutex::new(()),    // Create fresh mutex for the clone
             cached_msgpack_schema: self.cached_msgpack_schema.clone(),
             conditional_hidden_fields: self.conditional_hidden_fields.clone(),
@@ -108,6 +109,7 @@ impl JSONEval {
                         &data,
                         &context,
                     ),
+                    eval_cache: crate::jsoneval::eval_cache::EvalCache::new(),
                     eval_lock: Mutex::new(()),
                     cached_msgpack_schema: None,
                     conditional_hidden_fields: Arc::new(Vec::new()),
@@ -166,6 +168,7 @@ impl JSONEval {
                         &data,
                         &context,
                     ),
+                    eval_cache: crate::jsoneval::eval_cache::EvalCache::new(),
                     eval_lock: Mutex::new(()),
                     cached_msgpack_schema: None,
                     conditional_hidden_fields: Arc::new(Vec::new()),
@@ -244,6 +247,7 @@ impl JSONEval {
             data: data.clone(),
             evaluated_schema: evaluated_schema.clone(),
             eval_data: EvalData::with_schema_data_context(&evaluated_schema, &data, &context),
+            eval_cache: crate::jsoneval::eval_cache::EvalCache::new(),
             eval_lock: Mutex::new(()),
             cached_msgpack_schema: Some(cached_msgpack),
             conditional_hidden_fields: Arc::new(Vec::new()),
@@ -329,6 +333,7 @@ impl JSONEval {
             data: data.clone(),
             evaluated_schema: (*evaluated_schema).clone(),
             eval_data: EvalData::with_schema_data_context(&evaluated_schema, &data, &context),
+            eval_cache: crate::jsoneval::eval_cache::EvalCache::new(),
             eval_lock: Mutex::new(()),
             cached_msgpack_schema: None,
             conditional_hidden_fields: Arc::clone(&parsed.conditional_hidden_fields),
@@ -380,6 +385,7 @@ impl JSONEval {
         // Re-initialize eval_data with new schema, data, and context
         self.eval_data =
             EvalData::with_schema_data_context(&self.evaluated_schema, &data, &context);
+        self.eval_cache.clear();
 
         // Clear MessagePack cache since schema has been mutated
         self.cached_msgpack_schema = None;
@@ -477,6 +483,7 @@ impl JSONEval {
         // Re-initialize eval_data
         self.eval_data =
             EvalData::with_schema_data_context(&self.evaluated_schema, &data, &context);
+        self.eval_cache.clear();
 
         // Cache the MessagePack for future retrievals
         self.cached_msgpack_schema = Some(schema_msgpack.to_vec());
@@ -541,6 +548,7 @@ impl JSONEval {
         // Re-initialize eval_data
         self.eval_data =
             EvalData::with_schema_data_context(&self.evaluated_schema, &data, &context);
+        self.eval_cache.clear();
 
         // Clear MessagePack cache since we're loading from ParsedSchema
         self.cached_msgpack_schema = None;

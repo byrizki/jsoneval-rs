@@ -107,6 +107,12 @@ impl EvalData {
         Arc::clone(&self.data)
     }
 
+    /// Returns a deep clone of the current data for diffing before it gets replaced
+    #[inline]
+    pub fn snapshot_data_clone(&self) -> Value {
+        (*self.data).clone()
+    }
+
     /// Deep-clone into a new, exclusive EvalData (Arc strong count = 1).
     ///
     /// Unlike `clone()` which bumps the Arc reference count (causing `Arc::make_mut`

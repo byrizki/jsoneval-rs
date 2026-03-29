@@ -500,8 +500,11 @@ fn collect_table_dependencies(lib: &mut JSONEval) {
 
         // Collect dependencies from all evaluations that belong to this table
         for (eval_key, deps) in &dependencies {
-            // Check if this evaluation is within the table
-            if eval_key.starts_with(table_key) && eval_key != table_key {
+            // Must be a proper child path (e.g. TABLE_KEY/...) not a prefix collision (TABLE_KEY_CSV/...)
+            let is_child = eval_key.len() > table_key.len()
+                && eval_key.starts_with(table_key.as_str())
+                && eval_key.as_bytes().get(table_key.len()) == Some(&b'/');
+            if is_child {
                 // Add all dependencies from table cells/columns
                 for dep in deps {
                     // Filter out self-references and internal table paths
