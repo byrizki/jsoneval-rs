@@ -14,6 +14,24 @@ impl Evaluator {
         internal_context: &'a Value,
         depth: usize,
     ) -> Result<TableRef<'a>, String> {
+        // Fast path: check active table scope for self-table references
+        let var_name = match table_expr {
+            CompiledLogic::Var(name, _) | CompiledLogic::Ref(name, _) => Some(name.as_str()),
+            _ => None,
+        };
+
+        if let Some(name) = var_name {
+            // SAFETY: single-threaded (eval_lock), UnsafeCell access
+            let scope = unsafe { &*self.table_scope.get() };
+            if let Some(ts) = scope.as_ref() {
+                if name == ts.path {
+                    // SAFETY: local_rows outlives this call (table_evaluate_inner scope)
+                    let rows = unsafe { &*ts.rows };
+                    return Ok(TableRef::LocalRows(rows));
+                }
+            }
+        }
+
         match table_expr {
             CompiledLogic::Var(name, _) => {
                 // OPTIMIZATION: Fast path for common table names (no empty check overhead)
@@ -54,6 +72,10 @@ impl Evaluator {
         depth: usize,
     ) -> Result<TableRef<'a>, String> {
         let table_ref = self.resolve_table_ref(table_expr, user_data, internal_context, depth)?;
+        // LocalRows is always an array (from local_rows Vec) — handle before as_value() check
+        if matches!(table_ref, TableRef::LocalRows(_)) {
+            return Ok(table_ref);
+        }
         match table_ref.as_value() {
             Value::Array(_) => Ok(table_ref),
             Value::Null => Err("Table reference is null".to_string()),

@@ -90,10 +90,36 @@ use crate::rlogic::Evaluator;
 
 impl Evaluator {
     /// OPTIMIZED: Fast variable access - paths are pre-normalized during compilation
+    ///
+    /// Resolution order:
+    /// 1. Active table scope (for self-table references during table evaluation)
+    /// 2. Static arrays store (for large pre-extracted $params arrays)
+    /// 3. Normal JSON pointer access on data
+    /// 4. $static_array marker transparency
     #[inline(always)]
     pub(crate) fn get_var<'a>(&'a self, data: &'a Value, name: &str) -> Option<&'a Value> {
         if name.is_empty() {
             return Some(data);
+        }
+
+        // Fast intercept for self-table current row reference
+        if name.starts_with("/$") {
+            // SAFETY: single-threaded (eval_lock held during this scope), UnsafeCell
+            let scope = unsafe { &*self.table_scope.get() };
+            if let Some(ts) = scope.as_ref() {
+                if let Some(row_idx) = ts.current_row {
+                    let field = &name[2..]; // e.g., "POL_YEAR"
+                    // SAFETY: local_rows outlives this evaluation frame
+                    let rows = unsafe { &*ts.rows };
+                    if let Some(row) = rows.get(row_idx) {
+                        if let Value::Object(obj) = row {
+                            if let Some(cell) = obj.get(field) {
+                                return Some(cell);
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // Fast intercept for static arrays to handle deep lookup paths
@@ -102,7 +128,7 @@ impl Evaluator {
             if name.starts_with("/$params/") && name.len() > 9 {
                 let end_idx = name[9..].find('/').map(|i| i + 9).unwrap_or(name.len());
                 let base_path = &name[..end_idx]; // e.g., "/$params/R_PROD_RIDER"
-                
+
                 if let Some(arc_val) = arrays.get(base_path) {
                     if end_idx == name.len() {
                         return Some(&**arc_val);
@@ -116,7 +142,7 @@ impl Evaluator {
 
         // Direct JSON pointer access without re-normalization
         let val = path_utils::get_value_by_pointer_without_properties(data, name);
-        
+
         // Resolve $static_array transparency for exact marker matches
         if let Some(v) = val {
             if let Some(obj) = v.as_object() {

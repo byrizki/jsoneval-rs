@@ -17,7 +17,7 @@ use serde_json::Value;
 pub use compiled::{CompiledLogic, CompiledLogicStore, LogicId};
 pub use compiled_logic_store::{CompiledLogicId, CompiledLogicStoreStats};
 pub use config::RLogicConfig;
-pub use evaluator::Evaluator;
+pub use evaluator::{Evaluator, TableScopeGuard};
 
 /// Main RLogic engine combining compilation and evaluation
 pub struct RLogic {
@@ -127,6 +127,28 @@ impl RLogic {
     /// Clear all stored indices
     pub fn clear_indices(&self) {
         self.evaluator.clear_indices();
+    }
+    /// Register active table scope so self-table Var/Ref/ValueAt references
+    /// are resolved from `rows` rather than user_data.
+    ///
+    /// Returns a RAII guard — scope is cleared when the guard is dropped.
+    pub fn enter_table_scope<'a>(
+        &'a self,
+        path: String,
+        rows: &Vec<Value>,
+    ) -> TableScopeGuard<'a> {
+        self.evaluator.enter_table_scope(path, rows)
+    }
+
+    /// Update the rows pointer inside the active table scope
+    /// (call after any operation that could move the Vec allocation).
+    pub fn update_table_scope_rows(&self, rows: &Vec<Value>) {
+        self.evaluator.update_table_scope_rows(rows);
+    }
+
+    /// Set the row cursor for the active table scope to allow zero-copy evaluation
+    pub fn set_table_scope_row(&self, row_idx: Option<usize>) {
+        self.evaluator.set_table_scope_row(row_idx);
     }
 }
 

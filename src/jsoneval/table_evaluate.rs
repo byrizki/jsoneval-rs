@@ -2,44 +2,47 @@ use crate::jsoneval::eval_data::EvalData;
 use crate::jsoneval::table_metadata::RowMetadata;
 use crate::jsoneval::path_utils;
 use crate::JSONEval;
+use crate::time_block;
 use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
-use std::mem;
 
 use crate::jsoneval::cancellation::CancellationToken;
 
-/// Sandboxed table evaluation
+/// Zero-sandbox table evaluation
 ///
-/// All heavy operations (dependency analysis, forward reference checks) are done at parse time.
-/// This function creates an isolated scope to prevent interference between table evaluations.
+/// Eliminates the full `EvalData` clone (sandbox) by:
+/// 1. **Local row storage**: rows are built into a `Vec<Value>` directly on the stack.
+/// 2. **Self-table scope**: the evaluator's `TableScope` intercepts Var/Ref/ValueAt
+///    lookups for the current table's path, returning rows from local storage.
+/// 3. **Direct mutation**: forward/backward passes index `local_rows` by integer —
+///    no `Arc::make_mut`, no JSON-pointer traversal per cell.
+/// 4. **$datas in context**: evaluated variable bindings are passed as entries
+///    inside `internal_context` (checked first), not written to scope_data.
 ///
-/// # Isolation Safety
-///
-/// This function is designed for safe execution:
-/// - Takes `scope_data` as an immutable reference (read-only parent scope)
-/// - Creates an isolated sandbox (clone) for all table-specific mutations
-/// - All temporary variables (`$iteration`, `$threshold`, column vars) exist only in the sandbox
-/// - The parent `scope_data` remains unchanged
-/// - Multiple tables can be evaluated without interference
-///
-/// # Mutation Safety
-///
-/// **ALL data mutations go through EvalData methods:**
-/// - `sandbox.set()` - sets field values with version tracking
-/// - `sandbox.push_to_array()` - appends to arrays with version tracking
-/// - `sandbox.get_table_row_mut()` - gets mutable row references (followed by mark_modified)
-/// - `sandbox.mark_modified()` - explicitly marks paths as modified
-///
-/// This ensures proper version tracking and mutation safety throughout evaluation.
-///
-/// # Sandboxing Strategy
-///
-/// 1. Clone `scope_data` to create an isolated sandbox at the start
-/// 2. All evaluations and mutations happen within the sandbox via EvalData methods
-/// 3. Extract the final table array from the sandbox
-/// 4. Sandbox is dropped, discarding all temporary state
-/// 5. Parent scope remains pristine and can be safely shared across threads
+/// The caller (`evaluate_internal`) remains responsible for writing results back
+/// to `eval_data` / `static_arrays` / `evaluated_schema`.
 pub fn evaluate_table(
+    lib: &JSONEval,
+    eval_key: &str,
+    scope_data: &EvalData,
+    token: Option<&CancellationToken>,
+) -> Result<Vec<Value>, String> {
+    let _total_start: Option<std::time::Instant> = if crate::utils::is_timing_enabled() {
+        Some(std::time::Instant::now())
+    } else {
+        None
+    };
+    let result = evaluate_table_inner(lib, eval_key, scope_data, token);
+    if let Some(start) = _total_start {
+        crate::utils::record_timing(
+            &format!("[table::{}] total", eval_key),
+            start.elapsed(),
+        );
+    }
+    result
+}
+
+fn evaluate_table_inner(
     lib: &JSONEval,
     eval_key: &str,
     scope_data: &EvalData,
@@ -57,106 +60,111 @@ pub fn evaluate_table(
         }
     }
 
-    let table_pointer_path = path_utils::normalize_to_json_pointer(eval_key);
-    let table_pointer_segments: Vec<&str> = if table_pointer_path.starts_with('/') {
-        table_pointer_path.split('/').skip(1).collect()
-    } else {
-        vec![table_pointer_path.as_ref()]
-    };
+    let table_pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
 
-    // CREATE SANDBOXED SCOPE — exclusive Arc (rc = 1) so every sandbox.set()
-    // inside this function is zero-cost (Arc::make_mut never reallocates).
-    let mut sandbox = EvalData::new(scope_data.data().clone());
-
-    // PHASE 0: Evaluate $datas FIRST (before skip/clear)
-    let empty_context = Value::Object(Map::new());
-    for (name, logic, literal) in metadata.data_plans.iter() {
-        if sandbox.get(name.as_ref()).is_some() {
-            continue;
-        }
-
-        let value = match logic {
-            Some(logic_id) => {
-                match lib
-                    .engine
-                    .run_with_context(logic_id, sandbox.data(), &empty_context)
-                {
-                    Ok(val) => val,
-                    Err(_) => literal
-                        .as_ref()
-                        .map(|arc_val| Value::clone(arc_val))
-                        .unwrap_or(Value::Null),
-                }
+    // PHASE 0: Evaluate $datas first.
+    // Instead of writing to a sandbox, we collect overrides into `data_ctx` which
+    // gets merged into ctx_value (internal_context). The evaluator checks
+    // internal_context before user_data, so $datas are visible to all column logic.
+    let mut data_ctx: Map<String, Value> = Map::new();
+    time_block!(&format!("[table::{}] phase0 $datas", eval_key), {
+        let empty_ctx = Value::Object(Map::new());
+        for (name, logic, literal) in metadata.data_plans.iter() {
+            // Skip if already present in scope_data
+            if scope_data.get(name.as_ref()).is_some() {
+                continue;
             }
-            None => literal
-                .as_ref()
-                .map(|arc_val| Value::clone(arc_val))
-                .unwrap_or(Value::Null),
-        };
 
-        sandbox.set(name.as_ref(), value);
-    }
+            let value = match logic {
+                Some(logic_id) => {
+                    match lib
+                        .engine
+                        .run_with_context(logic_id, scope_data.data(), &empty_ctx)
+                    {
+                        Ok(val) => val,
+                        Err(_) => literal
+                            .as_ref()
+                            .map(|arc_val| Value::clone(arc_val))
+                            .unwrap_or(Value::Null),
+                    }
+                }
+                None => literal
+                    .as_ref()
+                    .map(|arc_val| Value::clone(arc_val))
+                    .unwrap_or(Value::Null),
+            };
 
-    // PHASE 1: Evaluate $skip - if true, return empty immediately
+            // Normalize: strip leading '/' so it becomes a top-level key
+            let key = name.as_ref().trim_start_matches('/').to_string();
+            data_ctx.insert(key, value);
+        }
+    });
+
+    // PHASE 1: Evaluate $skip
     let mut should_skip = metadata.skip_literal;
     if !should_skip {
         if let Some(logic_id) = metadata.skip_logic {
-            let val = lib
-                .engine
-                .run_with_context(&logic_id, sandbox.data(), &empty_context)?;
+            let ctx = Value::Object(data_ctx.clone());
+            let val = time_block!(&format!("[table::{}] phase1 $skip", eval_key), {
+                lib.engine
+                    .run_with_context(&logic_id, scope_data.data(), &ctx)
+                    .unwrap_or(Value::Null)
+            });
             should_skip = val.as_bool().unwrap_or(false);
         }
     }
 
-    // PHASE 2: Check dependencies before evaluation
-    // [Opt 7] Cache required-field results to avoid repeated format!() + pointer lookups
+    // PHASE 2: Check dependencies
     let mut requirement_not_filled = false;
-    if let Some(deps) = lib.dependencies.get(eval_key) {
-        let mut required_cache: HashMap<&str, bool> = HashMap::new();
+    time_block!(&format!("[table::{}] phase2 dep-check", eval_key), {
+        if let Some(deps) = lib.dependencies.get(eval_key) {
+            let mut required_cache: HashMap<&str, bool> = HashMap::new();
 
-        for dep in deps.iter() {
-            if dep.contains("$params")
-                || (!dep.contains("$context") && (dep.starts_with("/$") || dep.starts_with("$")))
-            {
-                continue;
-            }
+            for dep in deps.iter() {
+                if dep.contains("$params")
+                    || (!dep.contains("$context") && (dep.starts_with("/$") || dep.starts_with("$")))
+                {
+                    continue;
+                }
 
-            let is_empty_or_missing = match sandbox.get_without_properties(dep) {
-                Some(dep_value) => match dep_value {
-                    Value::Null => true,
-                    Value::String(s) => s.is_empty(),
-                    Value::Array(arr) => arr.is_empty(),
-                    Value::Object(obj) => obj.is_empty(),
-                    _ => false,
-                },
-                None => true,
-            };
+                let is_empty_or_missing = match scope_data.get_without_properties(dep) {
+                    Some(dep_value) => match dep_value {
+                        Value::Null => true,
+                        Value::String(s) => s.is_empty(),
+                        Value::Array(arr) => arr.is_empty(),
+                        Value::Object(obj) => obj.is_empty(),
+                        _ => false,
+                    },
+                    None => true,
+                };
 
-            if is_empty_or_missing {
-                let is_field_required = *required_cache
-                    .entry(dep.as_str())
-                    .or_insert_with(|| check_field_required(&lib.evaluated_schema, dep));
+                if is_empty_or_missing {
+                    let is_field_required = *required_cache
+                        .entry(dep.as_str())
+                        .or_insert_with(|| check_field_required(&lib.evaluated_schema, dep));
 
-                if is_field_required {
-                    requirement_not_filled = true;
-                    break;
+                    if is_field_required {
+                        requirement_not_filled = true;
+                        break;
+                    }
                 }
             }
         }
-    }
+    });
 
-    // PHASE 3: Evaluate $clear - if true, ensure table is empty
+    // PHASE 3: Evaluate $clear
     let mut should_clear = metadata.clear_literal;
     if !should_clear {
         if let Some(logic_id) = metadata.clear_logic {
-            let val = lib
-                .engine
-                .run_with_context(&logic_id, sandbox.data(), &empty_context)?;
+            let ctx = Value::Object(data_ctx.clone());
+            let val = time_block!(&format!("[table::{}] phase3 $clear", eval_key), {
+                lib.engine
+                    .run_with_context(&logic_id, scope_data.data(), &ctx)
+                    .unwrap_or(Value::Null)
+            });
             should_clear = val.as_bool().unwrap_or(false);
         }
     }
-
-    sandbox.set(&table_pointer_path, Value::Array(Vec::new()));
 
     if should_clear || should_skip || requirement_not_filled {
         return Ok(Vec::new());
@@ -174,37 +182,41 @@ pub fn evaluate_table(
         }
     };
 
+    // Accumulate all row plans into a single local_rows Vec
+    let mut local_rows: Vec<Value> = Vec::new();
+
     for plan in metadata.row_plans.iter() {
         match plan {
             RowMetadata::Static { columns } => {
-                let mut evaluated_row = Map::with_capacity(columns.len());
+                time_block!(&format!("[table::{}] static-row", eval_key), {
+                    let mut evaluated_row = Map::with_capacity(columns.len());
+                    let mut ctx_value = Value::Object(data_ctx.clone());
 
-                // [Opt 1] Build context Value once, mutate in-place between columns
-                let mut ctx_value = Value::Object(Map::new());
+                    for column in columns.iter() {
+                        let value = if let Some(logic_id) = column.logic {
+                            lib.engine
+                                .run_with_context(
+                                    &logic_id,
+                                    scope_data.data(),
+                                    &ctx_value,
+                                )
+                                .unwrap_or(Value::Null)
+                        } else {
+                            column
+                                .literal
+                                .as_ref()
+                                .map(|arc_val| Value::clone(arc_val))
+                                .unwrap_or(Value::Null)
+                        };
 
-                for column in columns.iter() {
-                    let value = if let Some(logic_id) = column.logic {
-                        lib.engine.run_with_context(
-                            &logic_id,
-                            sandbox.data(),
-                            &ctx_value,
-                        )?
-                    } else {
-                        column
-                            .literal
-                            .as_ref()
-                            .map(|arc_val| Value::clone(arc_val))
-                            .unwrap_or(Value::Null)
-                    };
-
-                    // [Opt 1] Update context in-place instead of cloning the whole map
-                    if let Value::Object(ref mut map) = ctx_value {
-                        map.insert(column.var_path.as_ref().to_string(), value.clone());
+                        if let Value::Object(ref mut map) = ctx_value {
+                            map.insert(column.var_path.as_ref().to_string(), value.clone());
+                        }
+                        evaluated_row.insert(column.name.as_ref().to_string(), value);
                     }
-                    evaluated_row.insert(column.name.as_ref().to_string(), value);
-                }
 
-                sandbox.push_to_array(&table_pointer_path, Value::Object(evaluated_row));
+                    local_rows.push(Value::Object(evaluated_row));
+                });
             }
             RowMetadata::Repeat {
                 start,
@@ -213,15 +225,34 @@ pub fn evaluate_table(
                 forward_cols,
                 normal_cols,
             } => {
+                let empty_ctx = Value::Object(data_ctx.clone());
+
                 let start_val = if let Some(logic_id) = start.logic {
-                    lib.engine
-                        .run_with_context(&logic_id, sandbox.data(), &empty_context)?
+                    match lib.engine.run_with_context(&logic_id, scope_data.data(), &empty_ctx) {
+                        Ok(v) => v,
+                        Err(_) => {
+                            // Logic failed: try to use literal as a number, else skip this row group
+                            if let Some(n) = start.literal.as_i64() {
+                                Value::from(n)
+                            } else {
+                                continue; // can't determine bounds, skip
+                            }
+                        }
+                    }
                 } else {
                     Value::clone(&start.literal)
                 };
                 let end_val = if let Some(logic_id) = end.logic {
-                    lib.engine
-                        .run_with_context(&logic_id, sandbox.data(), &empty_context)?
+                    match lib.engine.run_with_context(&logic_id, scope_data.data(), &empty_ctx) {
+                        Ok(v) => v,
+                        Err(_) => {
+                            if let Some(n) = end.literal.as_i64() {
+                                Value::from(n)
+                            } else {
+                                continue;
+                            }
+                        }
+                    }
                 } else {
                     Value::clone(&end.literal)
                 };
@@ -233,118 +264,117 @@ pub fn evaluate_table(
                     continue;
                 }
 
-                let existing_row_count = sandbox
-                    .get(&table_pointer_path)
-                    .and_then(|v| v.as_array())
-                    .map(|arr| arr.len())
-                    .unwrap_or(0);
-
+                let existing_row_count = local_rows.len();
                 let total_rows = (end_idx - start_idx + 1) as usize;
                 let col_count = columns.len();
+                let _ = col_count;
 
-                // [Opt 2] Pre-compute both col_names and var_paths once
+                // Pre-compute column name strings once
                 let col_names: Vec<String> = columns
                     .iter()
                     .map(|col| col.name.as_ref().to_string())
                     .collect();
-                let var_paths: Vec<String> = columns
-                    .iter()
-                    .map(|col| col.var_path.as_ref().to_string())
-                    .collect();
 
-                if let Some(Value::Array(table_arr)) = sandbox.get_mut(&table_pointer_path) {
-                    table_arr.reserve(total_rows);
-                    for _ in 0..total_rows {
-                        let mut row = Map::with_capacity(col_count);
-                        for col_name in &col_names {
-                            row.insert(col_name.clone(), Value::Null);
-                        }
-                        table_arr.push(Value::Object(row));
-                    }
+                // Pre-allocate rows with null cells
+                local_rows.reserve(total_rows);
+                for _ in 0..total_rows {
+                    let row: Map<String, Value> = col_names
+                        .iter()
+                        .map(|n| (n.clone(), Value::Null))
+                        .collect();
+                    local_rows.push(Value::Object(row));
                 }
 
-                // PHASE 4: TOP TO BOTTOM (Forward Pass)
+                // Register this table's scope on the evaluator so self-table
+                // Var/Ref/ValueAt lookups resolve from local_rows.
+                // The guard is dropped at end of this block, clearing the scope.
+                let _scope_guard = lib.engine.enter_table_scope(
+                    table_pointer_path.clone(),
+                    &local_rows,
+                );
+
                 let key_iteration = String::from("$iteration");
                 let key_threshold = String::from("$threshold");
                 let threshold_value = Value::from(end_idx);
 
-                // [D1] Pre-populate context map with all keys to avoid String allocs in loop
-                let mut ctx_value = Value::Object(Map::new());
-                if let Value::Object(ref mut map) = ctx_value {
-                    map.insert(key_threshold.clone(), threshold_value.clone());
-                    map.insert(key_iteration.clone(), Value::Null);
-                    for var_path in &var_paths {
-                        map.insert(var_path.clone(), Value::Null);
-                    }
-                }
+                // Build base ctx with data_ctx entries + iteration slots
+                let mut ctx_value = Value::Object({
+                    let mut m = data_ctx.clone();
+                    m.insert(key_threshold.clone(), threshold_value.clone());
+                    m.insert(key_iteration.clone(), Value::Null);
+                    m
+                });
 
-                for iteration in start_idx..=end_idx {
-                    if let Some(t) = token {
-                        if t.is_cancelled() {
-                            return Err("Cancelled".to_string());
-                        }
-                    }
-                    let row_idx = (iteration - start_idx) as usize;
-                    let target_idx = existing_row_count + row_idx;
-
-                    // [D1] Update $iteration in-place via get_mut (no String alloc)
-                    if let Value::Object(ref mut map) = ctx_value {
-                        if let Some(slot) = map.get_mut(&key_iteration) {
-                            *slot = Value::from(iteration);
-                        }
-                    }
-
-                    for &col_idx in normal_cols.iter() {
-                        let column = &columns[col_idx];
-                        let value = match column.logic {
-                            Some(logic_id) => lib.engine.run_with_context(
-                                &logic_id,
-                                sandbox.data(),
-                                &ctx_value,
-                            )?,
-                            None => column
-                                .literal
-                                .as_ref()
-                                .map(|arc_val| Value::clone(arc_val))
-                                .unwrap_or(Value::Null),
-                        };
-
-                        if let Some(row_obj) =
-                            sandbox.get_table_row_mut_by_segments(&table_pointer_segments, target_idx)
-                        {
-                            if let Some(cell) = row_obj.get_mut(column.name.as_ref()) {
-                                *cell = value.clone();
+                // PHASE 4: FORWARD PASS — top to bottom
+                time_block!(
+                    &format!("[table::{}] forward-pass rows={}", eval_key, total_rows),
+                    {
+                        for iteration in start_idx..=end_idx {
+                            if let Some(t) = token {
+                                if t.is_cancelled() {
+                                    return Err("Cancelled".to_string());
+                                }
                             }
-                        }
-                        // [D1] Update context value in-place via get_mut (no String alloc)
-                        if let Value::Object(ref mut map) = ctx_value {
-                            if let Some(slot) = map.get_mut(&var_paths[col_idx]) {
-                                *slot = value;
+                            let row_idx = existing_row_count + (iteration - start_idx) as usize;
+
+                            // Update $iteration in ctx_value in-place
+                            if let Value::Object(ref mut map) = ctx_value {
+                                if let Some(slot) = map.get_mut(&key_iteration) {
+                                    *slot = Value::from(iteration);
+                                }
                             }
+
+                            // Update the scope guard so self-table lookups see
+                            // the already-populated earlier rows
+                            lib.engine.update_table_scope_rows(&local_rows);
+                            // Point get_var lookup directly to the actively evaluating cell
+                            lib.engine.set_table_scope_row(Some(row_idx));
+
+                            for &col_idx in normal_cols.iter() {
+                                let column = &columns[col_idx];
+                                let value = match column.logic {
+                                    Some(logic_id) => lib.engine
+                                        .run_with_context(
+                                            &logic_id,
+                                            scope_data.data(),
+                                            &ctx_value,
+                                        )
+                                        .unwrap_or(Value::Null),
+                                    None => column
+                                        .literal
+                                        .as_ref()
+                                        .map(|arc_val| Value::clone(arc_val))
+                                        .unwrap_or(Value::Null),
+                                };
+
+                                // Write directly into local_rows — no Arc::make_mut, no pointer traversal
+                                if let Value::Object(ref mut row) = local_rows[row_idx] {
+                                    if let Some(cell) = row.get_mut(column.name.as_ref()) {
+                                        *cell = value;
+                                    }
+                                }
+                            }
+                            // Reset cursor after row
+                            lib.engine.set_table_scope_row(None);
                         }
                     }
-                }
-                // TODO: Implement mark_modified if needed for tracking
-                // sandbox.mark_modified(&table_pointer_path);
+                );
 
-                // PHASE 5 (BACKWARD PASS):
-                // Evaluate columns WITH forward references in sandbox
+                // PHASE 5: BACKWARD PASS for forward-ref columns
                 if !forward_cols.is_empty() {
                     let max_sweeps = 100;
                     let mut scan_from_down = false;
                     let iter_count = (end_idx - start_idx + 1) as usize;
 
-                    // [D1] Pre-populate backward pass context with all keys
-                    let mut ctx_value = Value::Object(Map::new());
-                    if let Value::Object(ref mut map) = ctx_value {
-                        map.insert(key_threshold.clone(), threshold_value.clone());
-                        map.insert(key_iteration.clone(), Value::Null);
-                        for var_path in &var_paths {
-                            map.insert(var_path.clone(), Value::Null);
-                        }
-                    }
+                    // Build backward-pass ctx_value (same structure as forward)
+                    let mut ctx_value = Value::Object({
+                        let mut m = data_ctx.clone();
+                        m.insert(key_threshold.clone(), threshold_value.clone());
+                        m.insert(key_iteration.clone(), Value::Null);
+                        m
+                    });
 
-                    // [Opt 4] Pre-compute HashMap/HashSet for O(1) dependency lookups
+                    // [Opt 4] Pre-compute HashMap/HashSet for O(1) dep lookups
                     let forward_col_map: HashMap<&str, usize> = forward_cols
                         .iter()
                         .enumerate()
@@ -355,14 +385,25 @@ pub fn evaluate_table(
                         .map(|&col_idx| columns[col_idx].name.as_ref())
                         .collect();
 
-                    // [Opt 6] Flatten to 1D and reuse buffers instead of re-allocating
                     let changed_len = iter_count * forward_cols.len();
                     let mut prev_changed = vec![true; changed_len];
                     let mut curr_changed = vec![false; changed_len];
 
+                    let _backward_start: Option<std::time::Instant> =
+                        if crate::utils::is_timing_enabled() {
+                            Some(std::time::Instant::now())
+                        } else {
+                            None
+                        };
+                    let mut total_sweeps: usize = 0;
+
                     for _sweep_num in 1..=max_sweeps {
+                        total_sweeps = _sweep_num;
                         let mut any_changed = false;
                         curr_changed.fill(false);
+
+                        // Update scope so all rows are visible during backward sweep
+                        lib.engine.update_table_scope_rows(&local_rows);
 
                         for iter_offset in 0..iter_count {
                             if let Some(t) = token {
@@ -378,39 +419,21 @@ pub fn evaluate_table(
                             let row_offset = (iteration - start_idx) as usize;
                             let target_idx = existing_row_count + row_offset;
 
-                            // [D1] Update $iteration in-place via get_mut
+                            // Update $iteration in ctx_value in-place
                             if let Value::Object(ref mut map) = ctx_value {
                                 if let Some(slot) = map.get_mut(&key_iteration) {
                                     *slot = Value::from(iteration);
                                 }
                             }
 
-                            if let Some(Value::Array(table_arr)) = sandbox.get(&table_pointer_path)
-                            {
-                                if let Some(Value::Object(row_obj)) = table_arr.get(target_idx) {
-                                    if let Value::Object(ref mut ctx_map) = ctx_value {
-                                        for &col_idx in
-                                            normal_cols.iter().chain(forward_cols.iter())
-                                        {
-                                            if let Some(value) =
-                                                row_obj.get(columns[col_idx].name.as_ref())
-                                            {
-                                                // [D1] Update via get_mut (no String alloc)
-                                                if let Some(slot) = ctx_map.get_mut(&var_paths[col_idx]) {
-                                                    *slot = value.clone();
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            // Explicitly direct column resolution to local stack rows cursor
+                            lib.engine.set_table_scope_row(Some(target_idx));
 
                             for (fwd_idx, &col_idx) in forward_cols.iter().enumerate() {
                                 let column = &columns[col_idx];
 
                                 let mut should_evaluate = _sweep_num == 1;
 
-                                // [Opt 4] Use HashMap/HashSet for O(1) dependency lookups
                                 if !should_evaluate && !column.has_forward_ref {
                                     should_evaluate = column.dependencies.iter().any(|dep| {
                                         if dep == "$iteration" || dep == "$threshold" {
@@ -423,8 +446,9 @@ pub fn evaluate_table(
                                             if let Some(&dep_fwd_idx) =
                                                 forward_col_map.get(dep_name)
                                             {
-                                                return prev_changed
-                                                    [row_offset * forward_cols.len() + dep_fwd_idx];
+                                                return prev_changed[row_offset
+                                                    * forward_cols.len()
+                                                    + dep_fwd_idx];
                                             }
 
                                             if normal_col_set.contains(dep_name) {
@@ -442,11 +466,13 @@ pub fn evaluate_table(
 
                                 if should_evaluate {
                                     let value = match column.logic {
-                                        Some(logic_id) => lib.engine.run_with_context(
-                                            &logic_id,
-                                            sandbox.data(),
-                                            &ctx_value,
-                                        )?,
+                                        Some(logic_id) => lib.engine
+                                            .run_with_context(
+                                                &logic_id,
+                                                scope_data.data(),
+                                                &ctx_value,
+                                            )
+                                            .unwrap_or(Value::Null),
                                         None => column
                                             .literal
                                             .as_ref()
@@ -454,71 +480,51 @@ pub fn evaluate_table(
                                             .unwrap_or(Value::Null),
                                     };
 
-                                    // [Opt 5] Pre-allocated rows guarantee the key exists
-                                    if let Some(row_obj) = sandbox
-                                        .get_table_row_mut_by_segments(&table_pointer_segments, target_idx)
-                                    {
-                                        if let Some(cell) = row_obj.get_mut(column.name.as_ref()) {
+                                    // Write directly to local_rows — no Arc::make_mut
+                                    if let Value::Object(ref mut row) = local_rows[target_idx] {
+                                        if let Some(cell) = row.get_mut(column.name.as_ref()) {
                                             if *cell != value {
                                                 any_changed = true;
-                                                // [Opt 6] Flat 1D indexing
-                                                curr_changed
-                                                    [row_offset * forward_cols.len() + fwd_idx] =
-                                                    true;
-                                                *cell = value.clone();
+                                                curr_changed[row_offset * forward_cols.len()
+                                                    + fwd_idx] = true;
+                                                *cell = value;
                                             }
                                         }
                                     }
-
-                                    // [D1] Update context in-place via get_mut
-                                    if let Value::Object(ref mut map) = ctx_value {
-                                        if let Some(slot) = map.get_mut(&var_paths[col_idx]) {
-                                            *slot = value;
-                                        }
                                     }
-                                }
                             }
                         }
-
+                        // Reset cursor after backwards row evaluating loop
+                        lib.engine.set_table_scope_row(None);
+                        
                         scan_from_down = !scan_from_down;
-                        mem::swap(&mut prev_changed, &mut curr_changed);
+                        std::mem::swap(&mut prev_changed, &mut curr_changed);
 
                         if !any_changed {
                             break;
                         }
                     }
+
+                    if let Some(start) = _backward_start {
+                        crate::utils::record_timing(
+                            &format!(
+                                "[table::{}] backward-pass rows={} sweeps={}",
+                                eval_key, iter_count, total_sweeps
+                            ),
+                            start.elapsed(),
+                        );
+                    }
                 }
+
+                // _scope_guard dropped here → TableScope cleared on evaluator
             }
         }
     }
 
-    let final_rows = if let Some(table_value) = sandbox.get_mut(&table_pointer_path) {
-        if let Some(array) = table_value.as_array_mut() {
-            mem::take(array)
-        } else {
-            Vec::new()
-        }
-    } else {
-        Vec::new()
-    };
-
-    Ok(final_rows)
+    Ok(local_rows)
 }
 
 /// Check if a field is required based on the schema rules
-///
-/// This function looks up the field in the evaluated schema and checks if it has
-/// a "required" rule with value=true. If the field doesn't exist in the schema
-/// or doesn't have a required rule, it's considered optional.
-///
-/// # Arguments
-///
-/// * `schema` - The evaluated schema Value
-/// * `dep_path` - The dependency path (JSON pointer format, e.g., "/properties/field")
-///
-/// # Returns
-///
-/// * `true` if the field is required, `false` if optional or not found
 fn check_field_required(schema: &Value, dep_path: &str) -> bool {
     let rules_path = format!(
         "{}/rules/required",

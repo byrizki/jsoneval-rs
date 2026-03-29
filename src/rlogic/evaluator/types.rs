@@ -34,6 +34,8 @@ pub enum Quantifier {
 pub enum TableRef<'a> {
     Borrowed(&'a Value),
     Owned(Value),
+    /// Direct reference into local_rows inside table_evaluate — zero-copy self-table access
+    LocalRows(&'a Vec<Value>),
 }
 
 impl<'a> TableRef<'a> {
@@ -42,14 +44,24 @@ impl<'a> TableRef<'a> {
         match self {
             TableRef::Borrowed(v) => v,
             TableRef::Owned(v) => v,
+            // LocalRows cannot be expressed as a single &Value without allocation;
+            // callers that need the raw slice should use as_array() directly.
+            TableRef::LocalRows(_) => &Value::Null,
         }
     }
 
     #[inline(always)]
     pub fn as_array(&self) -> Option<&[Value]> {
-        match self.as_value() {
-            Value::Array(arr) => Some(arr.as_slice()),
-            _ => None,
+        match self {
+            TableRef::Borrowed(v) => match v {
+                Value::Array(arr) => Some(arr.as_slice()),
+                _ => None,
+            },
+            TableRef::Owned(v) => match v {
+                Value::Array(arr) => Some(arr.as_slice()),
+                _ => None,
+            },
+            TableRef::LocalRows(rows) => Some(rows.as_slice()),
         }
     }
 }

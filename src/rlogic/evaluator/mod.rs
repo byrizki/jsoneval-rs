@@ -2,6 +2,7 @@ use super::compiled::CompiledLogic;
 use super::config::RLogicConfig;
 use index::TableIndex;
 use serde_json::Value;
+use std::cell::UnsafeCell;
 use std::collections::HashMap;
 use std::sync::RwLock;
 
@@ -21,6 +22,40 @@ pub mod types;
 pub use helpers::*;
 pub use types::*;
 
+/// Active self-table scope set during `evaluate_table_inner`.
+///
+/// # Safety
+/// `rows` is a raw pointer to `local_rows` on the stack of `evaluate_table_inner`.
+/// Valid lifetime: from `enter_table_scope()` to `TableScopeGuard::drop()`.
+/// Evaluation is single-threaded (protected by `eval_lock` in `evaluate_internal`).
+pub(crate) struct TableScope {
+    /// Normalized JSON pointer path to the table being evaluated
+    pub path: String,
+    /// Pointer to the local rows being built in table_evaluate_inner
+    pub rows: *const Vec<Value>,
+    /// Optional cursor to the current row index being evaluated (for fast $column lookup)
+    pub current_row: Option<usize>,
+}
+
+// SAFETY: table evaluation is protected by eval_lock (single-threaded access).
+// UnsafeCell provides interior mutability without adding Sync constraints.
+// The raw *const pointer in TableScope is only accessed under eval_lock.
+unsafe impl Send for TableScope {}
+unsafe impl Send for Evaluator {}
+unsafe impl Sync for Evaluator {}
+
+/// RAII guard that clears the active TableScope on drop
+pub struct TableScopeGuard<'a> {
+    evaluator: &'a Evaluator,
+}
+
+impl<'a> Drop for TableScopeGuard<'a> {
+    fn drop(&mut self) {
+        // SAFETY: single-threaded (eval_lock), no concurrent access
+        unsafe { *self.evaluator.table_scope.get() = None; }
+    }
+}
+
 /// High-performance zero-copy evaluator with dual-context support
 ///
 /// ## Design Principles
@@ -37,6 +72,8 @@ pub struct Evaluator {
     indices: RwLock<HashMap<String, TableIndex>>,
     /// Extracted large static arrays for zero-copy resolution
     static_arrays: Option<std::sync::Arc<indexmap::IndexMap<String, std::sync::Arc<Value>>>>,
+    /// Active self-table scope during table evaluation (None outside table eval)
+    pub(crate) table_scope: UnsafeCell<Option<TableScope>>,
 }
 
 impl Evaluator {
@@ -45,6 +82,50 @@ impl Evaluator {
             config: RLogicConfig::default(),
             indices: RwLock::new(HashMap::new()),
             static_arrays: None,
+            table_scope: UnsafeCell::new(None),
+        }
+    }
+
+    /// Register a table scope for self-reference interception.
+    ///
+    /// Returns a guard that clears the scope on drop.
+    ///
+    /// # Safety
+    /// `rows` must outlive the returned guard. The guard MUST be dropped before
+    /// `rows` is moved or dropped. Caller (table_evaluate_inner) is responsible.
+    pub(crate) fn enter_table_scope<'a>(
+        &'a self,
+        path: String,
+        rows: &Vec<Value>,
+    ) -> TableScopeGuard<'a> {
+        // SAFETY: single-threaded (eval_lock held by caller)
+        unsafe {
+            *self.table_scope.get() = Some(TableScope {
+                path,
+                rows: rows as *const Vec<Value>,
+                current_row: None,
+            });
+        }
+        TableScopeGuard { evaluator: self }
+    }
+
+    /// Update the rows pointer in the active table scope.
+    pub(crate) fn update_table_scope_rows(&self, rows: &Vec<Value>) {
+        // SAFETY: single-threaded (eval_lock held by caller)
+        unsafe {
+            if let Some(ts) = (*self.table_scope.get()).as_mut() {
+                ts.rows = rows as *const Vec<Value>;
+            }
+        }
+    }
+
+    /// Set the row cursor for the active table scope
+    pub(crate) fn set_table_scope_row(&self, row_idx: Option<usize>) {
+        // SAFETY: single-threaded (eval_lock held by caller)
+        unsafe {
+            if let Some(ts) = (*self.table_scope.get()).as_mut() {
+                ts.current_row = row_idx;
+            }
         }
     }
 
@@ -757,6 +838,22 @@ impl Evaluator {
         internal_context: &Value,
         depth: usize,
     ) -> Result<Value, String> {
+        // Fast path: check active table scope first.
+        // When evaluating a table's own columns (forward/backward pass), Var/Ref nodes
+        // that resolve to the table's own path (e.g. used in MAP/FILTER/REDUCE over self)
+        // must see local_rows, not stale data in scope_data.
+        if !name.is_empty() {
+            // SAFETY: single-threaded (eval_lock), UnsafeCell
+            let scope = unsafe { &*self.table_scope.get() };
+            if let Some(ts) = scope.as_ref() {
+                if name == ts.path {
+                    // SAFETY: local_rows outlives this evaluation frame
+                    let rows = unsafe { &*ts.rows };
+                    return Ok(Value::Array(rows.clone()));
+                }
+            }
+        }
+
         // Special case: empty name "" refers to root context (user_data only)
         // For named variables, try internal context first (for $loopIteration, $iteration, etc.)
         let value = if name.is_empty() {
