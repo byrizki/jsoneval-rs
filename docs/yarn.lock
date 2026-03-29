@@ -13227,12 +13227,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"srvx@npm:^0.2.0":
-  version: 0.2.8
-  resolution: "srvx@npm:0.2.8"
-  dependencies:
-    cookie-es: "npm:^2.0.0"
-  checksum: 10c0/d79d1f1f80f4db1e0487fb9a3aeb6aa50ab0e1411a63eb444abda0fa1e6b4df78d53e8ee23d1a928e8f2cb81e7a4370d8443dffb3127b3303806449bd47ae2ab
+"srvx@npm:^0.11.13":
+  version: 0.11.13
+  resolution: "srvx@npm:0.11.13"
+  bin:
+    srvx: bin/srvx.mjs
+  checksum: 10c0/571eb5463eee301a43cfd49b629145962f964a1c049454bd390267c3eae29261d5aee026aefe2ee42a66dbe2bf66db7853d2f8e2d247feea3a6032ba6286c8fd
   languageName: node
   linkType: hard
 
