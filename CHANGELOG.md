@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.76] - 2026-03-30
+
+- [core] Improve large schema parsing
+- [core] Re-implement global evaluation cache mechanism
+
 ## [0.0.75] - 2026-03-27
 
 ### Changed

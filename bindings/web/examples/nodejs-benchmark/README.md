@@ -46,7 +46,7 @@ Results are written to `samples/`:
 
 ```
 🚀 JSON Eval RS - Node.js WASM Benchmark
-📦 WASM version: 0.0.75
+📦 WASM version: 0.0.76
 
 📋 Scenario: 'zcc'
 📁 Project Root: /path/to/jsoneval-rs
