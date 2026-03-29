@@ -1,5 +1,8 @@
 name: Deploy docs to GitHub Pages
 
+permissions:
+  contents: read
+
 on:
   push:
     branches:

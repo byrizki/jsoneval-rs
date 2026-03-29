@@ -1,5 +1,8 @@
 name: Publish Packages
 
+permissions:
+  contents: read
+
 on:
   # Trigger after build-bindings workflow completes successfully
   workflow_run:

@@ -31,5 +31,10 @@
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0"
   },
-  "packageManager": "yarn@1.22.22"
+  "packageManager": "yarn@1.22.22",
+  "resolutions": {
+    "glob": "^11.0.0",
+    "next": "^14.2.10",
+    "brace-expansion": "^2.0.1"
+  }
 }

@@ -33,6 +33,8 @@ export default defineNuxtConfig({
           langs: [
             "js",
             "ts",
+            "jsx",
+            "tsx",
             "json",
             "bash",
             "sh",
