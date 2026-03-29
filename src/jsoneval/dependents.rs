@@ -93,29 +93,30 @@ impl JSONEval {
         result: &mut Vec<Value>,
         mut canceled_paths: Option<&mut Vec<String>>,
     ) -> Result<(), String> {
-        // Snapshot non-param evaluated values before re-evaluation so we can emit diffs
-        let pre_eval_snapshot: Vec<(String, Value)> = self.sorted_evaluations
-            .iter()
-            .flatten()
-            .filter(|key| !key.contains("/$params/") && !key.contains("/$"))
-            .filter_map(|key| {
-                let ptr = path_utils::normalize_to_json_pointer(key);
-                self.evaluated_schema.pointer(&ptr).map(|v| (key.clone(), v.clone()))
-            })
-            .collect();
+        // Snapshot lightweight internal version map before re-evaluation.
+        // This completely skips the previous O(N) memory-heavy deep cloning of all JSON node data!
+        let pre_eval_versions = self.eval_cache.data_versions.clone();
 
         self.evaluate_internal(None, token)?;
 
-        // Emit result entries for every sorted-evaluation whose value changed
-        for (eval_key, old_val) in &pre_eval_snapshot {
-            let ptr = path_utils::normalize_to_json_pointer(eval_key);
-            if let Some(new_val) = self.evaluated_schema.pointer(&ptr) {
-                if new_val != old_val {
-                    let data_path = ptr
-                        .replace("/properties/", "/")
-                        .trim_start_matches('#')
-                        .trim_start_matches('/')
-                        .to_string();
+        // Emit result entries for every sorted-evaluation whose version uniquely bumped
+        for eval_key in self.sorted_evaluations.iter().flatten() {
+            if eval_key.contains("/$params/") || eval_key.contains("/$") {
+                continue;
+            }
+
+            let schema_ptr = path_utils::normalize_to_json_pointer(eval_key);
+            let data_path = schema_ptr
+                .replace("/properties/", "/")
+                .trim_start_matches('#')
+                .trim_start_matches('/')
+                .to_string();
+
+            let old_ver = pre_eval_versions.get(&format!("/{}", data_path));
+            let new_ver = self.eval_cache.data_versions.get(&format!("/{}", data_path));
+
+            if new_ver > old_ver {
+                if let Some(new_val) = self.evaluated_schema.pointer(&schema_ptr) {
                     let dot_path = data_path.trim_end_matches("/value").replace('/', ".");
                     let mut obj = serde_json::Map::new();
                     obj.insert("$ref".to_string(), Value::String(dot_path));
@@ -228,26 +229,31 @@ impl JSONEval {
         token: Option<&CancellationToken>,
         result: &mut Vec<Value>,
     ) -> Result<(), String> {
+        // Collect subform paths once (avoids holding borrow on self.subforms during mutation)
         let subform_paths: Vec<String> = self.subforms.keys().cloned().collect();
+
         for subform_path in subform_paths {
             let field_key = subform_field_key(&subform_path);
+            // Compute dotted path and prefix strings once per subform, not per item
             let subform_dot_path = path_utils::pointer_to_dot_notation(&subform_path)
                 .replace(".properties.", ".");
             let field_prefix = format!("{}.", field_key);
+            let subform_ptr = normalize_to_json_pointer(&subform_path);
 
-            let items: Vec<Value> = get_value_by_pointer_without_properties(
+            // Borrow only the item count first — avoid cloning the full array
+            let item_count = get_value_by_pointer_without_properties(
                 self.eval_data.data(),
-                &normalize_to_json_pointer(&subform_path),
+                &subform_ptr,
             )
             .and_then(|v| v.as_array())
-            .cloned()
-            .unwrap_or_default();
+            .map(|a| a.len())
+            .unwrap_or(0);
 
-            if items.is_empty() {
+            if item_count == 0 {
                 continue;
             }
 
-            // Collect all dependency paths for this subform (used to decide sub_re_evaluate)
+            // Collect dependency paths once per subform for sub_re_evaluate checks
             let subform_dep_paths: Vec<String> = self
                 .subforms
                 .get(&subform_path)
@@ -263,24 +269,11 @@ impl JSONEval {
                 })
                 .unwrap_or_default();
 
-            for (idx, item) in items.iter().enumerate() {
-                // Build merged data: parent data with this item slotted under field_key
-                #[cfg(debug_assertions)]
-                let mut merged_data: Value = {
-                    let json_str = self.eval_data.data().to_string();
-                    serde_json::from_str(&json_str).unwrap_or(Value::Null)
-                };
-                #[cfg(not(debug_assertions))]
-                let mut merged_data: Value = self.eval_data.data().clone();
+            // Evaluate the global re_evaluate decision once per subform
+            let global_sub_re_evaluate = re_evaluate
+                && self.eval_cache.data_versions.has_any_version_for(&subform_dep_paths);
 
-                if let Value::Object(ref mut map) = merged_data {
-                    map.insert(field_key.clone(), item.clone());
-                } else {
-                    let mut map = serde_json::Map::new();
-                    map.insert(field_key.clone(), item.clone());
-                    merged_data = Value::Object(map);
-                }
-
+            for idx in 0..item_count {
                 // Map absolute changed paths → subform-internal paths for this item index
                 let prefix_dot = format!("{}.{}.", subform_dot_path, idx);
                 let prefix_bracket = format!("{}[{}].", subform_dot_path, idx);
@@ -301,32 +294,46 @@ impl JSONEval {
                     })
                     .collect();
 
-                if item_changed_paths.is_empty() && !re_evaluate {
-                    continue;
-                }
+                let sub_re_evaluate = global_sub_re_evaluate || !item_changed_paths.is_empty();
 
-                // Smart sub_re_evaluate: only trigger full re-eval in the subform when
-                // the parent's global data_versions contain bumps on paths that this subform
-                // depends on. Uses the parent's global versions because per-item versions
-                // are only merged during the cache swap (which happens below).
-                let sub_re_evaluate = if re_evaluate {
-                    self.eval_cache.data_versions.has_any_version_for(&subform_dep_paths)
-                        || !item_changed_paths.is_empty()
-                } else {
-                    false
-                };
-
-                // If nothing changed and re_evaluate not required, skip entirely
+                // Skip entirely if there's nothing to do for this item
                 if !sub_re_evaluate && item_changed_paths.is_empty() {
                     continue;
                 }
 
-                // Ensure item_changed_paths is non-empty for the subform call
-                // (pass a sentinel if we only need re_evaluate without specific paths)
-                if item_changed_paths.is_empty() && sub_re_evaluate {
-                    // No specific field changed within this item — pass empty slice
-                    // The subform will run re_evaluate_pass purely from cache state
-                }
+                // Build minimal merged data: clone only item at idx, share $params shallowly.
+                // This avoids cloning the full 5MB parent payload for every item.
+                let item_val = get_value_by_pointer_without_properties(
+                    self.eval_data.data(),
+                    &subform_ptr,
+                )
+                .and_then(|v| v.as_array())
+                .and_then(|a| a.get(idx))
+                .cloned()
+                .unwrap_or(Value::Null);
+
+                // Build a minimal parent object with only the fields the subform needs:
+                // the item under field_key, plus all non-array top-level parent fields
+                // ($params markers, scalars). Large arrays are already stripped to static_arrays.
+                let merged_data = {
+                    let parent = self.eval_data.data();
+                    let mut map = serde_json::Map::new();
+                    if let Value::Object(parent_map) = parent {
+                        for (k, v) in parent_map {
+                            if k == &field_key {
+                                // Will be overridden with the single item below
+                                continue;
+                            }
+                            // Include scalars, objects ($params markers, etc.) but skip
+                            // other large array fields that aren't this subform
+                            if !v.is_array() {
+                                map.insert(k.clone(), v.clone());
+                            }
+                        }
+                    }
+                    map.insert(field_key.clone(), item_val.clone());
+                    Value::Object(map)
+                };
 
                 let Some(subform) = self.subforms.get_mut(&subform_path) else {
                     continue;
@@ -343,7 +350,10 @@ impl JSONEval {
                     merged_data,
                     self.eval_data.data().get("$context").cloned().unwrap_or(Value::Null),
                 );
-                let new_item_val = subform.eval_data.data().get(&field_key).cloned().unwrap_or(Value::Null);
+                let new_item_val = subform.eval_data.data()
+                    .get(&field_key)
+                    .cloned()
+                    .unwrap_or(Value::Null);
 
                 // Cache-swap: lend parent cache to subform
                 let mut parent_cache = std::mem::take(&mut self.eval_cache);
@@ -356,7 +366,7 @@ impl JSONEval {
                         &old_item_val,
                         &new_item_val,
                     );
-                    c.item_snapshot = new_item_val.clone();
+                    c.item_snapshot = new_item_val;
                 }
                 parent_cache.set_active_item(idx);
                 std::mem::swap(&mut subform.eval_cache, &mut parent_cache);
@@ -379,16 +389,20 @@ impl JSONEval {
                 if let Ok(Value::Array(changes)) = subform_result {
                     for change in changes {
                         if let Some(obj) = change.as_object() {
-                            let mut new_obj = obj.clone();
                             if let Some(Value::String(ref_path)) = obj.get("$ref") {
+                                // Remap the $ref path to include the parent path + item index
                                 let new_ref = if ref_path.starts_with(&field_prefix) {
                                     format!("{}.{}.{}", subform_dot_path, idx, &ref_path[field_prefix.len()..])
                                 } else {
                                     format!("{}.{}.{}", subform_dot_path, idx, ref_path)
                                 };
+                                let mut new_obj = obj.clone();
                                 new_obj.insert("$ref".to_string(), Value::String(new_ref));
+                                result.push(Value::Object(new_obj));
+                            } else {
+                                // No $ref rewrite needed — push as-is without cloning the map
+                                result.push(change);
                             }
-                            result.push(Value::Object(new_obj));
                         }
                     }
                 }

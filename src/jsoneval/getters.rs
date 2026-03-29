@@ -98,6 +98,28 @@ impl JSONEval {
         }
     }
 
+    /// Replace any `{"$static_array": "/$table/..."}` and `{"$static_array": "/$params/..."}` markers in `schema_output`
+    /// with the actual evaluated array data from `eval_data`.
+    ///
+    /// By iterating only over tracked `static_arrays`, we replace markers in O(markers) time 
+    /// instead of requiring an expensive O(schema_nodes) recursive tree walk.
+    fn resolve_static_markers_in_value(&self, schema_output: &mut Value) {
+        for (static_key, array_arc) in self.static_arrays.iter() {
+            // Determine the schema pointer path where this marker was placed
+            let schema_path = if static_key.starts_with("/$table") {
+                &static_key["/$table".len()..] // e.g. /properties/product_benefit/...
+            } else {
+                static_key.as_str() // e.g. /$params/references/...
+            };
+
+            // Only attempt replacement if the exact path exists in the cloned schema output
+            if let Some(target_val) = schema_output.pointer_mut(schema_path) {
+                // The actual evaluated array is seamlessly stored right in the map's value
+                *target_val = (**array_arc).clone();
+            }
+        }
+    }
+
     /// Get the evaluated schema with optional layout resolution.
     ///
     /// # Arguments
@@ -106,24 +128,41 @@ impl JSONEval {
     ///
     /// # Returns
     ///
-    /// The evaluated schema as a JSON value.
+    /// The evaluated schema as a JSON value, with all `$static_array` markers resolved
+    /// to their actual evaluated data.
     pub fn get_evaluated_schema(&mut self, skip_layout: bool) -> Value {
+
         time_block!("get_evaluated_schema()", {
             if !skip_layout {
                 if let Err(e) = self.resolve_layout(false) {
                     eprintln!("Warning: Layout resolution failed in get_evaluated_schema: {}", e);
                 }
             }
-            self.evaluated_schema.clone()
+            let mut schema = self.evaluated_schema.clone();
+            self.resolve_static_markers_in_value(&mut schema);
+            schema
         })
     }
 
 
 
-    /// Get specific schema value by path
+    /// Get specific schema value by path, resolving any `$static_array` markers back to
+    /// the actual evaluated data (stored in `eval_data`).
     pub fn get_schema_value_by_path(&self, path: &str) -> Option<Value> {
         let pointer_path = path_utils::dot_notation_to_schema_pointer(path);
-        self.evaluated_schema.pointer(&pointer_path.trim_start_matches('#')).cloned()
+        let val = self.evaluated_schema.pointer(pointer_path.trim_start_matches('#'))?;
+
+        // Resolve $static_array markers: the table evaluator stores a marker object in
+        // evaluated_schema and the real array in eval_data at the equivalent data path.
+        if let Value::Object(map) = val {
+            if let Some(Value::String(static_key)) = map.get("$static_array") {
+                // The data path mirrors the static_key stripped of the "/$table" prefix
+                let data_path = static_key.trim_start_matches("/$table");
+                return self.eval_data.data().pointer(data_path).cloned();
+            }
+        }
+
+        Some(val.clone())
     }
 
     /// Get all schema values (data view)
