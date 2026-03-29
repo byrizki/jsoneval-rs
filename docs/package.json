@@ -24,8 +24,6 @@
     "picomatch": "^4.0.1",
     "brace-expansion": "^2.0.1",
     "devalue": "^5.1.1",
-    "unhead": "^1.11.14",
-    "srvx": "^0.11.13",
     "yaml": "^2.4.5"
   },
   "packageManager": "yarn@4.12.0"
