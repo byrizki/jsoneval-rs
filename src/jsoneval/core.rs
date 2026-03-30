@@ -372,6 +372,11 @@ impl JSONEval {
         engine.set_static_arrays(static_arrays);
         self.engine = Arc::new(engine);
 
+        self.evaluations = Arc::new(IndexMap::new());
+        self.tables = Arc::new(IndexMap::new());
+        self.table_metadata = Arc::new(IndexMap::new());
+        self.dependencies = Arc::new(IndexMap::new());
+        self.sorted_evaluations = Arc::new(Vec::new());
         self.dependents_evaluations = Arc::new(IndexMap::new());
         self.rules_evaluations = Arc::new(Vec::new());
         self.fields_with_rules = Arc::new(Vec::new());
@@ -379,6 +384,9 @@ impl JSONEval {
         self.value_evaluations = Arc::new(Vec::new());
         self.layout_paths = Arc::new(Vec::new());
         self.options_templates = Arc::new(Vec::new());
+        self.reffed_by = Arc::new(IndexMap::new());
+        self.conditional_hidden_fields = Arc::new(Vec::new());
+        self.conditional_readonly_fields = Arc::new(Vec::new());
         self.subforms.clear();
         parse_schema::legacy::parse_schema(self)?;
 
@@ -386,6 +394,9 @@ impl JSONEval {
         self.eval_data =
             EvalData::with_schema_data_context(&self.evaluated_schema, &data, &context);
         self.eval_cache.clear();
+        if let Ok(mut cache) = self.regex_cache.write() {
+            cache.clear();
+        }
 
         // Clear MessagePack cache since schema has been mutated
         self.cached_msgpack_schema = None;
@@ -470,6 +481,11 @@ impl JSONEval {
         let mut engine = RLogic::new();
         engine.set_static_arrays(static_arrays);
         self.engine = Arc::new(engine);
+        self.evaluations = Arc::new(IndexMap::new());
+        self.tables = Arc::new(IndexMap::new());
+        self.table_metadata = Arc::new(IndexMap::new());
+        self.dependencies = Arc::new(IndexMap::new());
+        self.sorted_evaluations = Arc::new(Vec::new());
         self.dependents_evaluations = Arc::new(IndexMap::new());
         self.rules_evaluations = Arc::new(Vec::new());
         self.fields_with_rules = Arc::new(Vec::new());
@@ -477,6 +493,9 @@ impl JSONEval {
         self.value_evaluations = Arc::new(Vec::new());
         self.layout_paths = Arc::new(Vec::new());
         self.options_templates = Arc::new(Vec::new());
+        self.reffed_by = Arc::new(IndexMap::new());
+        self.conditional_hidden_fields = Arc::new(Vec::new());
+        self.conditional_readonly_fields = Arc::new(Vec::new());
         self.subforms.clear();
         parse_schema::legacy::parse_schema(self)?;
 
@@ -484,6 +503,9 @@ impl JSONEval {
         self.eval_data =
             EvalData::with_schema_data_context(&self.evaluated_schema, &data, &context);
         self.eval_cache.clear();
+        if let Ok(mut cache) = self.regex_cache.write() {
+            cache.clear();
+        }
 
         // Cache the MessagePack for future retrievals
         self.cached_msgpack_schema = Some(schema_msgpack.to_vec());
@@ -549,6 +571,10 @@ impl JSONEval {
         self.eval_data =
             EvalData::with_schema_data_context(&self.evaluated_schema, &data, &context);
         self.eval_cache.clear();
+        self.engine.clear_indices();
+        if let Ok(mut cache) = self.regex_cache.write() {
+            cache.clear();
+        }
 
         // Clear MessagePack cache since we're loading from ParsedSchema
         self.cached_msgpack_schema = None;
