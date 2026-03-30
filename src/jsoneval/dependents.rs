@@ -93,71 +93,17 @@ impl JSONEval {
         result: &mut Vec<Value>,
         mut canceled_paths: Option<&mut Vec<String>>,
     ) -> Result<(), String> {
-        // --- Schema Default Value Pass ---
-        let mut default_value_changes = Vec::new();
-        let schema_values = self.get_schema_value_array();
-        
-        if let Value::Array(values) = schema_values {
-            for item in values {
-                if let Value::Object(map) = item {
-                    if let (Some(Value::String(dot_path)), Some(schema_val)) = (map.get("path"), map.get("value")) {
-                        let data_path = dot_path.replace('.', "/");
-                        let current_data = self.eval_data.data().pointer(&format!("/{}", data_path)).unwrap_or(&Value::Null);
-                        
-                        let is_empty = match current_data {
-                            Value::Null => true,
-                            Value::String(s) if s.is_empty() => true,
-                            _ => false,
-                        };
-
-                        let is_schema_val_empty = match schema_val {
-                            Value::Null => true,
-                            Value::String(s) if s.is_empty() => true,
-                            _ => false,
-                        };
-                        
-                        if is_empty && !is_schema_val_empty && current_data != schema_val {
-                             default_value_changes.push((data_path, schema_val.clone(), dot_path.clone()));
-                        }
-                    }
-                }
-            }
-        }
-        
-        for (data_path, schema_val, dot_path) in default_value_changes {
-             self.eval_data.set(&format!("/{}", data_path), schema_val.clone());
-             self.eval_cache.bump_data_version(&format!("/{}", data_path));
-             
-             let mut change_obj = serde_json::Map::new();
-             change_obj.insert("$ref".to_string(), Value::String(dot_path));
-             change_obj.insert("value".to_string(), schema_val);
-             result.push(Value::Object(change_obj));
-             
-             let schema_ptr = format!("#/{}", data_path.replace('/', "/properties/"));
-             to_process.push((schema_ptr, true));
-        }
-
-        if !to_process.is_empty() {
-            Self::process_dependents_queue(
-                &self.engine,
-                &self.evaluations,
-                &mut self.eval_data,
-                &mut self.eval_cache,
-                &self.dependents_evaluations,
-                &self.evaluated_schema,
-                to_process,
-                processed,
-                result,
-                token,
-                canceled_paths.as_mut().map(|v| &mut **v),
-            )?;
-        }
+        // --- Schema Default Value Pass (Before Eval) ---
+        self.run_schema_default_value_pass(token, to_process, processed, result, canceled_paths.as_mut().map(|v| &mut **v))?;
 
         // Snapshot lightweight internal version map before re-evaluation.
         // This completely skips the previous O(N) memory-heavy deep cloning of all JSON node data!
         let pre_eval_versions = self.eval_cache.data_versions.clone();
 
         self.evaluate_internal(None, token)?;
+
+        // --- Schema Default Value Pass (After Eval) ---
+        self.run_schema_default_value_pass(token, to_process, processed, result, canceled_paths.as_mut().map(|v| &mut **v))?;
 
         // Emit result entries for every sorted-evaluation whose version uniquely bumped
         for eval_key in self.sorted_evaluations.iter().flatten() {
@@ -273,6 +219,93 @@ impl JSONEval {
         Ok(())
     }
 
+    /// Internal method to run the schema default value pass.
+    /// Filters for only primitive schema values (not $evaluation objects).
+    fn run_schema_default_value_pass(
+        &mut self,
+        token: Option<&CancellationToken>,
+        to_process: &mut Vec<(String, bool)>,
+        processed: &mut IndexSet<String>,
+        result: &mut Vec<Value>,
+        mut canceled_paths: Option<&mut Vec<String>>,
+    ) -> Result<(), String> {
+        let mut default_value_changes = Vec::new();
+        let schema_values = self.get_schema_value_array();
+        
+        if let Value::Array(values) = schema_values {
+            for item in values {
+                if let Value::Object(map) = item {
+                    if let (Some(Value::String(dot_path)), Some(schema_val)) = (map.get("path"), map.get("value")) {
+                        let schema_ptr = path_utils::dot_notation_to_schema_pointer(dot_path);
+                        if let Some(Value::Object(schema_node)) = self.evaluated_schema.pointer(schema_ptr.trim_start_matches('#')) {
+                            if let Some(Value::Object(condition)) = schema_node.get("condition") {
+                                if let Some(hidden_val) = condition.get("hidden") {
+                                    // Skip if hidden is true OR if it's a non-primitive value (formula object)
+                                    if !hidden_val.is_boolean() || hidden_val.as_bool() == Some(true) {
+                                        continue;
+                                    }
+                                }
+                            }
+                        }
+
+                        let data_path = dot_path.replace('.', "/");
+                        let current_data = self.eval_data.data().pointer(&format!("/{}", data_path)).unwrap_or(&Value::Null);
+                        
+                        let is_empty = match current_data {
+                            Value::Null => true,
+                            Value::String(s) if s.is_empty() => true,
+                            _ => false,
+                        };
+
+                        let is_schema_val_empty = match schema_val {
+                            Value::Null => true,
+                            Value::String(s) if s.is_empty() => true,
+                            Value::Object(map) if map.contains_key("$evaluation") => true,
+                            _ => false,
+                        };
+                        
+                        if is_empty && !is_schema_val_empty && current_data != schema_val {
+                             default_value_changes.push((data_path, schema_val.clone(), dot_path.clone()));
+                        }
+                    }
+                }
+            }
+        }
+        
+        let mut has_changes = false;
+        for (data_path, schema_val, dot_path) in default_value_changes {
+             self.eval_data.set(&format!("/{}", data_path), schema_val.clone());
+             self.eval_cache.bump_data_version(&format!("/{}", data_path));
+             
+             let mut change_obj = serde_json::Map::new();
+             change_obj.insert("$ref".to_string(), Value::String(dot_path));
+             change_obj.insert("value".to_string(), schema_val);
+             result.push(Value::Object(change_obj));
+             
+             let schema_ptr = format!("#/{}", data_path.replace('/', "/properties/"));
+             to_process.push((schema_ptr, true));
+             has_changes = true;
+        }
+
+        if has_changes {
+            Self::process_dependents_queue(
+                &self.engine,
+                &self.evaluations,
+                &mut self.eval_data,
+                &mut self.eval_cache,
+                &self.dependents_evaluations,
+                &self.evaluated_schema,
+                to_process,
+                processed,
+                result,
+                token,
+                canceled_paths.as_mut().map(|v| &mut **v),
+            )?;
+        }
+
+        Ok(())
+    }
+
     /// Cascade dependency evaluation into each subform item.
     ///
     /// For every registered subform, this method iterates over its array items and runs
@@ -312,6 +345,11 @@ impl JSONEval {
             if item_count == 0 {
                 continue;
             }
+
+            // Evict stale per-item caches for indices that no longer exist in the array.
+            // This prevents memory leaks when riders are removed and the array shrinks.
+            self.eval_cache.prune_subform_caches(item_count);
+
 
             // When the parent ran a re_evaluate pass, always pass re_evaluate:true to subforms.
             // The parent's evaluate_internal may have updated $params or other referenced values

@@ -97,6 +97,106 @@ fn normalize_to_subform_key(path: &str) -> String {
 }
 
 impl JSONEval {
+    /// Execute `f` on the subform at `base_path[idx]` with the parent cache swapped in.
+    ///
+    /// Lifecycle:
+    /// 1. Set `data_value` + `context_value` on the subform's `eval_data`.
+    /// 2. Compute item-level diff for `field_key` → bump `subform_caches[idx].data_versions`.
+    /// 3. `mem::take` parent cache → set `active_item_index = Some(idx)` → swap into subform.
+    /// 4. Execute `f(subform)` → collect result.
+    /// 5. Swap parent cache back out → restore `self.eval_cache`.
+    ///
+    /// This ensures all three operations (evaluate / validate / evaluate_dependents)
+    /// share parent-form Tier-2 cache entries, without duplicating the swap boilerplate.
+    fn with_item_cache_swap<F, T>(
+        &mut self,
+        base_path: &str,
+        idx: usize,
+        data_value: Value,
+        context_value: Value,
+        f: F,
+    ) -> Result<T, String>
+    where
+        F: FnOnce(&mut JSONEval) -> Result<T, String>,
+    {
+        let field_key = base_path.split('/').next_back().unwrap_or(base_path).to_string();
+
+        // Step 1: update subform data and extract item snapshot for targeted diff.
+        // Scoped block releases the mutable borrow on `self.subforms` before we touch
+        // `self.eval_cache` (they are disjoint fields, but keep it explicit).
+        let (old_item_snapshot, new_item_val, subform_item_cache_opt) = {
+            let subform = self
+                .subforms
+                .get_mut(base_path)
+                .ok_or_else(|| format!("Subform not found: {}", base_path))?;
+
+            let old_item_snapshot = subform
+                .eval_cache
+                .subform_caches
+                .get(&idx)
+                .map(|c| c.item_snapshot.clone())
+                .unwrap_or(Value::Null);
+
+            subform.eval_data.replace_data_and_context(data_value, context_value);
+            let new_item_val = subform
+                .eval_data
+                .data()
+                .get(&field_key)
+                .cloned()
+                .unwrap_or(Value::Null);
+
+            // Pull out any existing item-scoped entries from the subform's own cache
+            // so they can be merged into the parent cache below.
+            let existing = subform.eval_cache.subform_caches.remove(&idx);
+            (old_item_snapshot, new_item_val, existing)
+        }; // subform borrow released here
+
+        // Step 2: build parent cache with item-scoped diff applied.
+        let mut parent_cache = std::mem::take(&mut self.eval_cache);
+        parent_cache.ensure_active_item_cache(idx);
+        if let Some(c) = parent_cache.subform_caches.get_mut(&idx) {
+            // Inherit parent-level version counters so Tier-2 dep checks are correct.
+            c.data_versions.merge_from(&parent_cache.data_versions);
+            // Diff only the item field to find what changed (skips the 5 MB parent tree).
+            crate::jsoneval::eval_cache::diff_and_update_versions(
+                &mut c.data_versions,
+                &format!("/{}", field_key),
+                &old_item_snapshot,
+                &new_item_val,
+            );
+            c.item_snapshot = new_item_val;
+        }
+        parent_cache.active_item_index = Some(idx);
+
+        // Migrate any item-scoped entries that lived in the subform's own cache.
+        // `or_insert` preserves the parent's newly-diffed entry if it already exists.
+        if let Some(subform_item_cache) = subform_item_cache_opt {
+            parent_cache.subform_caches.entry(idx).or_insert(subform_item_cache);
+        }
+
+        // Step 3: swap parent cache into subform so Tier 1 + Tier 2 entries are visible.
+        {
+            let subform = self.subforms.get_mut(base_path).unwrap();
+            std::mem::swap(&mut subform.eval_cache, &mut parent_cache);
+        }
+
+        // Step 4: run the caller-supplied operation.
+        let result = {
+            let subform = self.subforms.get_mut(base_path).unwrap();
+            f(subform)
+        };
+
+        // Step 5: restore parent cache.
+        {
+            let subform = self.subforms.get_mut(base_path).unwrap();
+            std::mem::swap(&mut subform.eval_cache, &mut parent_cache);
+        }
+        parent_cache.active_item_index = None;
+        self.eval_cache = parent_cache;
+
+        result
+    }
+
     /// Evaluate a subform identified by `subform_path`.
     ///
     /// The path may include a trailing item index to bind the evaluation to a specific
@@ -117,7 +217,6 @@ impl JSONEval {
         token: Option<&CancellationToken>,
     ) -> Result<(), String> {
         let (base_path, idx_opt) = resolve_subform_path(subform_path);
-
         if let Some(idx) = idx_opt {
             self.evaluate_subform_item(&base_path, idx, data, context, paths, token)
         } else {
@@ -130,10 +229,6 @@ impl JSONEval {
     }
 
     /// Internal: evaluate a single subform item at `idx` using the cache-swap strategy.
-    ///
-    /// Avoids the expensive double-snapshot in `evaluate_internal_with_new_data` by computing
-    /// the item-level diff manually (only the item field changes) and calling
-    /// `evaluate_internal_pre_diffed` which skips the redundant full-payload clone.
     fn evaluate_subform_item(
         &mut self,
         base_path: &str,
@@ -151,66 +246,16 @@ impl JSONEval {
         } else {
             Value::Object(serde_json::Map::new())
         };
-
-        let subform = self
-            .subforms
-            .get_mut(base_path)
-            .ok_or_else(|| format!("Subform not found: {}", base_path))?;
-
-        // Derive the field_key from the base_path (last segment of schema pointer)
-        let field_key = base_path.split('/').next_back().unwrap_or(base_path).to_string();
-
-        // Read old item snapshot for targeted diff (avoids full 5MB tree diff)
-        let old_item_snapshot = subform.eval_cache
-            .subform_caches
-            .get(&idx)
-            .map(|c| c.item_snapshot.clone())
-            .unwrap_or(Value::Null);
-
-        // Set the new data on the subform directly — we compute the diff manually below
-        subform.eval_data.replace_data_and_context(data_value, context_value);
-
-        // Extract only the item-specific portion for a targeted diff
-        let new_item_val = subform.eval_data.data().get(&field_key).cloned().unwrap_or(Value::Null);
-
-        // Set up parent cache with item-scoped, targeted diff
-        let mut parent_cache = std::mem::take(&mut self.eval_cache);
-        parent_cache.ensure_active_item_cache(idx);
-        if let Some(c) = parent_cache.subform_caches.get_mut(&idx) {
-            c.data_versions.merge_from(&parent_cache.data_versions);
-            crate::jsoneval::eval_cache::diff_and_update_versions(
-                &mut c.data_versions,
-                &format!("/{}", field_key),
-                &old_item_snapshot,
-                &new_item_val,
-            );
-            c.item_snapshot = new_item_val;
-        }
-        parent_cache.active_item_index = Some(idx);
-
-        // Migrate any existing item-scoped entries from the subform's own cache
-        if let Some(subform_item_cache) = subform.eval_cache.subform_caches.remove(&idx) {
-            parent_cache.subform_caches.entry(idx).or_insert(subform_item_cache);
-        }
-
-        // Swap parent cache into subform so Tier 2 entries are visible
-        std::mem::swap(&mut subform.eval_cache, &mut parent_cache);
-
-        // Versions already diffed above — skip the redundant full-snapshot path
-        let result = subform.evaluate_internal_pre_diffed(paths, token);
-
-        // Restore parent cache
-        std::mem::swap(&mut subform.eval_cache, &mut parent_cache);
-        parent_cache.active_item_index = None;
-        self.eval_cache = parent_cache;
-
-        result
+        self.with_item_cache_swap(base_path, idx, data_value, context_value, |sf| {
+            sf.evaluate_internal_pre_diffed(paths, token)
+        })
     }
-
 
     /// Validate subform data against its schema rules.
     ///
-    /// Supports the same trailing-index path syntax as `evaluate_subform`.
+    /// Supports the same trailing-index path syntax as `evaluate_subform`. When an index
+    /// is present the parent cache is swapped in first, ensuring rule evaluations that
+    /// depend on `$params` tables share already-computed parent-form results.
     pub fn validate_subform(
         &mut self,
         subform_path: &str,
@@ -219,17 +264,38 @@ impl JSONEval {
         paths: Option<&[String]>,
         token: Option<&CancellationToken>,
     ) -> Result<crate::ValidationResult, String> {
-        let (base_path, _) = resolve_subform_path(subform_path);
-        let subform = self
-            .subforms
-            .get_mut(base_path.as_ref() as &str)
-            .ok_or_else(|| format!("Subform not found: {}", base_path))?;
-        subform.validate(data, context, paths, token)
+        let (base_path, idx_opt) = resolve_subform_path(subform_path);
+        if let Some(idx) = idx_opt {
+            let data_value = crate::jsoneval::json_parser::parse_json_str(data)
+                .map_err(|e| format!("Failed to parse subform data: {}", e))?;
+            let context_value = if let Some(ctx) = context {
+                crate::jsoneval::json_parser::parse_json_str(ctx)
+                    .map_err(|e| format!("Failed to parse subform context: {}", e))?
+            } else {
+                Value::Object(serde_json::Map::new())
+            };
+            // Clone data before it is consumed by with_item_cache_swap so we can pass it
+            // to validate_pre_set which needs to run validate_field with the raw data.
+            let data_for_validation = data_value.clone();
+            self.with_item_cache_swap(base_path.as_ref(), idx, data_value, context_value, move |sf| {
+                // Warm the evaluation cache before running rule checks.
+                sf.evaluate_internal_pre_diffed(paths, token)?;
+                sf.validate_pre_set(data_for_validation, paths, token)
+            })
+        } else {
+            let subform = self
+                .subforms
+                .get_mut(base_path.as_ref() as &str)
+                .ok_or_else(|| format!("Subform not found: {}", base_path))?;
+            subform.validate(data, context, paths, token)
+        }
     }
 
     /// Evaluate dependents in a subform when a field changes.
     ///
-    /// Supports the same trailing-index path syntax as `evaluate_subform`.
+    /// Supports the same trailing-index path syntax as `evaluate_subform`. When an index
+    /// is present the parent cache is swapped in, so dependent evaluation runs with
+    /// Tier-2 entries visible and item-scoped version bumps propagate to `eval_generation`.
     pub fn evaluate_dependents_subform(
         &mut self,
         subform_path: &str,
@@ -241,12 +307,39 @@ impl JSONEval {
         canceled_paths: Option<&mut Vec<String>>,
         include_subforms: bool,
     ) -> Result<Value, String> {
-        let (base_path, _) = resolve_subform_path(subform_path);
-        let subform = self
-            .subforms
-            .get_mut(base_path.as_ref() as &str)
-            .ok_or_else(|| format!("Subform not found: {}", base_path))?;
-        subform.evaluate_dependents(changed_paths, data, context, re_evaluate, token, canceled_paths, include_subforms)
+        let (base_path, idx_opt) = resolve_subform_path(subform_path);
+        if let Some(idx) = idx_opt {
+            // Parse or snapshot data for the swap / diff computation.
+            let (data_value, context_value) = if let Some(data_str) = data {
+                let dv = crate::jsoneval::json_parser::parse_json_str(data_str)
+                    .map_err(|e| format!("Failed to parse subform data: {}", e))?;
+                let cv = if let Some(ctx) = context {
+                    crate::jsoneval::json_parser::parse_json_str(ctx)
+                        .map_err(|e| format!("Failed to parse subform context: {}", e))?
+                } else {
+                    Value::Object(serde_json::Map::new())
+                };
+                (dv, cv)
+            } else {
+                // No new data provided — snapshot current subform state so diff is a no-op.
+                let subform = self
+                    .subforms
+                    .get(base_path.as_ref() as &str)
+                    .ok_or_else(|| format!("Subform not found: {}", base_path))?;
+                let dv = subform.eval_data.snapshot_data_clone();
+                (dv, Value::Object(serde_json::Map::new()))
+            };
+            self.with_item_cache_swap(base_path.as_ref(), idx, data_value, context_value, |sf| {
+                // Data is already set by with_item_cache_swap; pass None to avoid re-parsing.
+                sf.evaluate_dependents(changed_paths, None, None, re_evaluate, token, None, include_subforms)
+            })
+        } else {
+            let subform = self
+                .subforms
+                .get_mut(base_path.as_ref() as &str)
+                .ok_or_else(|| format!("Subform not found: {}", base_path))?;
+            subform.evaluate_dependents(changed_paths, data, context, re_evaluate, token, canceled_paths, include_subforms)
+        }
     }
 
     /// Resolve layout for subform.

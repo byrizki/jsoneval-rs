@@ -27,16 +27,14 @@ impl VersionTracker {
         self.versions.insert(path.to_string(), current + 1);
     }
 
+    /// Merge version counters from `other`, taking the **maximum** for each path.
+    /// Using max (not insert) ensures that if this tracker already saw a higher version
+    /// for a path (e.g., from a previous subform evaluation round), it is never downgraded.
     pub fn merge_from(&mut self, other: &VersionTracker) {
         for (k, v) in &other.versions {
-            self.versions.insert(k.clone(), *v);
+            let current = self.versions.get(k).copied().unwrap_or(0);
+            self.versions.insert(k.clone(), current.max(*v));
         }
-    }
-
-    /// Returns true if any of the given paths has a version > 0 (i.e. was bumped at least once).
-    /// Used to decide whether a subform needs a `re_evaluate` pass.
-    pub fn has_any_version_for(&self, paths: &[String]) -> bool {
-        paths.iter().any(|p| self.versions.get(p).copied().unwrap_or(0) > 0)
     }
 }
 
@@ -45,6 +43,11 @@ impl VersionTracker {
 pub struct CacheEntry {
     pub dep_versions: HashMap<String, u64>,
     pub result: Value,
+    /// The `active_item_index` this entry was computed under.
+    /// `None` = computed during main-form evaluation (safe to reuse across all items
+    /// provided the dep versions match). `Some(idx)` = computed for a specific item;
+    /// Tier-2 reuse is restricted to entries whose deps are entirely `$params`-scoped.
+    pub computed_for_item: Option<usize>,
 }
 
 /// Independent cache state for a single item in a subform array
@@ -80,6 +83,11 @@ pub struct EvalCache {
     /// and `evaluate_internal` can skip the full tree traversal.
     pub eval_generation: u64,
     pub last_evaluated_generation: u64,
+
+    /// Snapshot of the last fully-diffed main-form data payload.
+    /// Stored after each successful `evaluate_internal_with_new_data` call so the next
+    /// invocation can avoid an extra `snapshot_data_clone()` when computing the diff.
+    pub main_form_snapshot: Option<Value>,
 }
 
 impl Default for EvalCache {
@@ -98,6 +106,7 @@ impl EvalCache {
             subform_caches: HashMap::new(),
             eval_generation: 0,
             last_evaluated_generation: u64::MAX, // force first evaluate_internal to run
+            main_form_snapshot: None,
         }
     }
 
@@ -109,6 +118,14 @@ impl EvalCache {
         self.subform_caches.clear();
         self.eval_generation = 0;
         self.last_evaluated_generation = u64::MAX;
+        self.main_form_snapshot = None;
+    }
+
+    /// Remove item caches for indices >= `current_count`.
+    /// Call this whenever the subform array length is known to have shrunk so that
+    /// stale per-item version trackers and cached entries do not linger in memory.
+    pub fn prune_subform_caches(&mut self, current_count: usize) {
+        self.subform_caches.retain(|&idx, _| idx < current_count);
     }
 
     /// Returns true if evaluate_internal must run (versions changed since last full evaluation)
@@ -170,13 +187,15 @@ impl EvalCache {
     }
 
     pub fn bump_data_version(&mut self, data_path: &str) {
+        // Always signal that something changed so the parent's needs_full_evaluation()
+        // returns true even when the bump was item-scoped.
+        self.eval_generation += 1;
         if let Some(idx) = self.active_item_index {
             if let Some(cache) = self.subform_caches.get_mut(&idx) {
                 cache.data_versions.bump(data_path);
             }
         } else {
             self.data_versions.bump(data_path);
-            self.eval_generation += 1;
         }
     }
 
@@ -192,19 +211,35 @@ impl EvalCache {
     /// - Tier 2: global `self.entries` — allows Run 1 (main form) results to be reused in Run 2 (subform)
     pub fn check_cache(&self, eval_key: &str, deps: &IndexSet<String>) -> Option<Value> {
         if let Some(idx) = self.active_item_index {
-            // Tier 1: item-specific entries
+            // Tier 1: item-specific entries (always safe to reuse for the same index)
             if let Some(cache) = self.subform_caches.get(&idx) {
                 if let Some(hit) = self.validate_entry(eval_key, deps, &cache.entries, &cache.data_versions) {
                     return Some(hit);
                 }
             }
-            // Tier 2: global entries (may have been stored by main-form Run 1)
-            // Validate against item-scoped data_versions so stale per-item deps aren't silently reused
+
+            // Tier 2: global entries (may have been stored by main-form Run 1).
+            // Only reuse if the entry is index-safe:
+            //   (a) computed with no active item (main-form result), OR
+            //   (b) computed for the same item index, OR
+            //   (c) all deps are $params-scoped (truly index-independent)
             let item_data_versions = self.subform_caches
                 .get(&idx)
                 .map(|c| &c.data_versions)
                 .unwrap_or(&self.data_versions);
-            self.validate_entry(eval_key, deps, &self.entries, item_data_versions)
+
+            if let Some(entry) = self.entries.get(eval_key) {
+                let index_safe = match entry.computed_for_item {
+                    None => true,
+                    Some(stored_idx) if stored_idx == idx => true,
+                    _ => entry.dep_versions.keys().all(|p| p.starts_with("/$params")),
+                };
+                if index_safe {
+                    return self.validate_entry(eval_key, deps, &self.entries, item_data_versions);
+                }
+            }
+
+            None
         } else {
             self.validate_entry(eval_key, deps, &self.entries, &self.data_versions)
         }
@@ -276,8 +311,9 @@ impl EvalCache {
             }
         }
 
-        // Phase 2: insert into the correct tier
-        let entry = CacheEntry { dep_versions, result };
+        // Phase 2: insert into the correct tier, tagging with the current item index.
+        let computed_for_item = self.active_item_index;
+        let entry = CacheEntry { dep_versions, result, computed_for_item };
         if let Some(idx) = self.active_item_index {
             // Store item-scoped: isolates per-rider entries so riders with different data don't collide
             self.subform_caches.get_mut(&idx).unwrap().entries.insert(eval_key.to_string(), entry);
@@ -308,8 +344,10 @@ fn diff_and_update_versions_internal(tracker: &mut VersionTracker, pointer: &str
             for k in b.keys() { keys.insert(k.as_str()); }
 
             for key in keys {
-                // Do not deep-diff $params, it is manually tracked via bumps on evaluations.
-                if pointer.is_empty() && key == "$params" {
+                // Do not deep-diff $params at any nesting level — it is manually tracked
+                // via bump_params_version on evaluations. Skipping at root-only was insufficient
+                // when item data is diffed via a non-empty pointer prefix.
+                if key == "$params" {
                     continue;
                 }
                 

@@ -83,6 +83,45 @@ impl JSONEval {
         })
     }
 
+    /// Validate using the data already present in `eval_data` (set by `with_item_cache_swap`).
+    ///
+    /// Skips JSON parsing and `replace_data_and_context` — use this inside the
+    /// cache-swap closure to avoid redundant work when the subform data is already set.
+    pub(crate) fn validate_pre_set(
+        &mut self,
+        data_value: Value,
+        paths: Option<&[String]>,
+        token: Option<&CancellationToken>,
+    ) -> Result<crate::ValidationResult, String> {
+        // Re-evaluate rule evaluations with the current (already-set) data.
+        self.evaluate_others(paths, token);
+        self.evaluated_schema = self.get_evaluated_schema(false);
+
+        let mut errors: IndexMap<String, ValidationError> = IndexMap::new();
+
+        let fields: Vec<String> = self.fields_with_rules.iter().cloned().collect();
+        for field_path in &fields {
+            if let Some(filter_paths) = paths {
+                if !filter_paths.is_empty()
+                    && !filter_paths.iter().any(|p| {
+                        field_path.starts_with(p.as_str()) || p.starts_with(field_path.as_str())
+                    })
+                {
+                    continue;
+                }
+            }
+            if let Some(t) = token {
+                if t.is_cancelled() {
+                    return Err("Cancelled".to_string());
+                }
+            }
+            self.validate_field(field_path, &data_value, &mut errors);
+        }
+
+        let has_error = !errors.is_empty();
+        Ok(crate::ValidationResult { has_error, errors })
+    }
+
     /// Validate a single field that has rules
     pub(crate) fn validate_field(
         &self,

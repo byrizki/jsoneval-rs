@@ -61,13 +61,12 @@ impl JSONEval {
         token: Option<&CancellationToken>,
     ) -> Result<(), String> {
         time_block!("  evaluate_internal_with_new_data", {
-            let old_cache_snapshot = self.eval_cache.get_active_snapshot();
-            let has_previous_eval = old_cache_snapshot != Value::Null;
-            let old_data = if has_previous_eval {
-                old_cache_snapshot
-            } else {
-                self.eval_data.snapshot_data_clone()
-            };
+            // Reuse the previously stored snapshot as `old_data` to avoid an O(n) deep clone
+            // on every main-form evaluation call.
+            let has_previous_eval = self.eval_cache.main_form_snapshot.is_some();
+            let old_data = self.eval_cache.main_form_snapshot
+                .take()
+                .unwrap_or_else(|| self.eval_data.snapshot_data_clone());
 
             let old_context = self.eval_data.data().get("$context").cloned().unwrap_or(Value::Null);
 
@@ -82,11 +81,15 @@ impl JSONEval {
             let new_context = self.eval_data.data().get("$context").cloned().unwrap_or(Value::Null);
 
             if has_previous_eval && old_data == new_data && old_context == new_context && paths.is_none() {
-                // Perfect cache hit for unmodified payload: fully skip tree traversal
+                // Perfect cache hit for unmodified payload: fully skip tree traversal.
+                // Restore snapshot since nothing changed.
+                self.eval_cache.main_form_snapshot = Some(new_data);
                 return Ok(());
             }
 
             self.eval_cache.store_snapshot_and_diff_versions(&old_data, &new_data);
+            // Save snapshot for the next evaluation cycle (avoids one snapshot_data_clone() call).
+            self.eval_cache.main_form_snapshot = Some(new_data);
 
             // Call internal evaluate (uses existing data if not provided)
             self.evaluate_internal(paths, token)
@@ -99,6 +102,7 @@ impl JSONEval {
     /// 1. Called `replace_data_and_context` on `subform.eval_data` with the merged payload.
     /// 2. Computed the item-level diff and bumped `subform_caches[idx].data_versions` accordingly.
     /// 3. Swapped the parent cache into `subform.eval_cache` so Tier 2 entries are visible.
+    /// 4. Set `active_item_index = Some(idx)` on the swapped-in cache.
     ///
     /// Skipping the expensive `snapshot_data_clone()` × 2 and `diff_and_update_versions`
     /// saves ~40–80ms per rider on a 5 MB parent payload.
@@ -107,6 +111,11 @@ impl JSONEval {
         paths: Option<&[String]>,
         token: Option<&CancellationToken>,
     ) -> Result<(), String> {
+        debug_assert!(
+            self.eval_cache.active_item_index.is_some(),
+            "evaluate_internal_pre_diffed called without active_item_index — \
+             caller must set up the cache-swap before calling this method"
+        );
         self.evaluate_internal(paths, token)
     }
 
@@ -302,6 +311,20 @@ impl JSONEval {
                                     let dep_data_path = crate::jsoneval::path_utils::normalize_to_json_pointer(dep).replace("/properties/", "/");
                                     if dep_data_path != pointer_data_prefix && !dep_data_path.starts_with(&pointer_data_prefix_slash) {
                                         external_deps.insert(dep.clone());
+                                    }
+                                }
+                            }
+
+                            #[cfg(debug_assertions)]
+                            if external_deps.is_empty() {
+                                if let Some(meta) = self.table_metadata.get(eval_key) {
+                                    if !meta.data_plans.is_empty() {
+                                        eprintln!(
+                                            "[jsoneval DEBUG] table {} has zero external_deps but \
+                                             non-empty data_plans — $params changes may not \
+                                             invalidate its cache",
+                                            eval_key
+                                        );
                                     }
                                 }
                             }
