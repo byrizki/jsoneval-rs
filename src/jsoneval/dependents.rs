@@ -93,6 +93,66 @@ impl JSONEval {
         result: &mut Vec<Value>,
         mut canceled_paths: Option<&mut Vec<String>>,
     ) -> Result<(), String> {
+        // --- Schema Default Value Pass ---
+        let mut default_value_changes = Vec::new();
+        let schema_values = self.get_schema_value_array();
+        
+        if let Value::Array(values) = schema_values {
+            for item in values {
+                if let Value::Object(map) = item {
+                    if let (Some(Value::String(dot_path)), Some(schema_val)) = (map.get("path"), map.get("value")) {
+                        let data_path = dot_path.replace('.', "/");
+                        let current_data = self.eval_data.data().pointer(&format!("/{}", data_path)).unwrap_or(&Value::Null);
+                        
+                        let is_empty = match current_data {
+                            Value::Null => true,
+                            Value::String(s) if s.is_empty() => true,
+                            _ => false,
+                        };
+
+                        let is_schema_val_empty = match schema_val {
+                            Value::Null => true,
+                            Value::String(s) if s.is_empty() => true,
+                            _ => false,
+                        };
+                        
+                        if is_empty && !is_schema_val_empty && current_data != schema_val {
+                             default_value_changes.push((data_path, schema_val.clone(), dot_path.clone()));
+                        }
+                    }
+                }
+            }
+        }
+        
+        for (data_path, schema_val, dot_path) in default_value_changes {
+             self.eval_data.set(&format!("/{}", data_path), schema_val.clone());
+             self.eval_cache.bump_data_version(&format!("/{}", data_path));
+             
+             let mut change_obj = serde_json::Map::new();
+             change_obj.insert("$ref".to_string(), Value::String(dot_path));
+             change_obj.insert("value".to_string(), schema_val);
+             result.push(Value::Object(change_obj));
+             
+             let schema_ptr = format!("#/{}", data_path.replace('/', "/properties/"));
+             to_process.push((schema_ptr, true));
+        }
+
+        if !to_process.is_empty() {
+            Self::process_dependents_queue(
+                &self.engine,
+                &self.evaluations,
+                &mut self.eval_data,
+                &mut self.eval_cache,
+                &self.dependents_evaluations,
+                &self.evaluated_schema,
+                to_process,
+                processed,
+                result,
+                token,
+                canceled_paths.as_mut().map(|v| &mut **v),
+            )?;
+        }
+
         // Snapshot lightweight internal version map before re-evaluation.
         // This completely skips the previous O(N) memory-heavy deep cloning of all JSON node data!
         let pre_eval_versions = self.eval_cache.data_versions.clone();
