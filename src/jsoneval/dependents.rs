@@ -253,25 +253,10 @@ impl JSONEval {
                 continue;
             }
 
-            // Collect dependency paths once per subform for sub_re_evaluate checks
-            let subform_dep_paths: Vec<String> = self
-                .subforms
-                .get(&subform_path)
-                .map(|sf| {
-                    sf.dependencies
-                        .values()
-                        .flatten()
-                        .map(|dep| {
-                            path_utils::normalize_to_json_pointer(dep)
-                                .replace("/properties/", "/")
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
-
-            // Evaluate the global re_evaluate decision once per subform
-            let global_sub_re_evaluate = re_evaluate
-                && self.eval_cache.data_versions.has_any_version_for(&subform_dep_paths);
+            // When the parent ran a re_evaluate pass, always pass re_evaluate:true to subforms.
+            // The parent's evaluate_internal may have updated $params or other referenced values
+            // that the subform formulas read, even if none of the subform's own dep paths bumped.
+            let global_sub_re_evaluate = re_evaluate;
 
             for idx in 0..item_count {
                 // Map absolute changed paths → subform-internal paths for this item index
