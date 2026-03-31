@@ -1192,7 +1192,18 @@ impl JSONEval {
                         )?;
                         let cleaned_val = clean_float_noise_scalar(computed_value);
 
-                        if cleaned_val != current_ref_value && cleaned_val != Value::Null {
+                        if cleaned_val == Value::Null && current_ref_value != Value::Null {
+                            // Schema value resolved to null — treat as explicit clear so the
+                            // consumer receives `null` instead of seeing `undefined`.
+                            if data_path == current_data_path {
+                                current_value = Value::Null;
+                            }
+                            eval_data.set(&data_path, Value::Null);
+                            eval_cache.bump_data_version(&data_path);
+                            change_obj.insert("clear".to_string(), Value::Bool(true));
+                            add_transitive = true;
+                            add_deps = true;
+                        } else if cleaned_val != current_ref_value && cleaned_val != Value::Null {
                             if data_path == current_data_path {
                                 current_value = cleaned_val.clone();
                             }
