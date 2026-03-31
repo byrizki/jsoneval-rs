@@ -223,6 +223,27 @@ impl JSONEval {
             }
         }
 
+        // Coerce a field value to f64 based on the schema type.
+        // The frontend often serialises number fields as JSON strings (e.g. "5000000").
+        // `as_f64()` returns None for strings, which caused minValue/maxValue to silently
+        // skip even when the value is present and below/above the threshold.
+        let schema_type = schema_map
+            .get("type")
+            .and_then(|t| t.as_str())
+            .unwrap_or("");
+        let coerce_to_f64 = |v: &Value| -> Option<f64> {
+            if let Some(n) = v.as_f64() {
+                return Some(n);
+            }
+            // For number/integer fields, try parsing string representations.
+            if matches!(schema_type, "number" | "integer") {
+                if let Some(s) = v.as_str() {
+                    return s.trim().parse::<f64>().ok();
+                }
+            }
+            None
+        };
+
         // Get the evaluated rule from evaluated_schema (which has $evaluation already processed)
         // Convert field_path to schema path
         let schema_path = path_utils::dot_notation_to_schema_pointer(field_path);
@@ -371,7 +392,7 @@ impl JSONEval {
             "minValue" => {
                 if !is_empty {
                     if let Some(min) = rule_active.as_f64() {
-                        if let Some(val) = field_data.as_f64() {
+                        if let Some(val) = coerce_to_f64(field_data) {
                             if val < min {
                                 errors.insert(
                                     field_path.to_string(),
@@ -392,7 +413,7 @@ impl JSONEval {
             "maxValue" => {
                 if !is_empty {
                     if let Some(max) = rule_active.as_f64() {
-                        if let Some(val) = field_data.as_f64() {
+                        if let Some(val) = coerce_to_f64(field_data) {
                             if val > max {
                                 errors.insert(
                                     field_path.to_string(),
