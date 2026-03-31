@@ -25,6 +25,7 @@ pub(crate) fn to_value(
 ) -> Result<JsValue, serde_wasm_bindgen::Error> {
     let serializer = serde_wasm_bindgen::Serializer::new()
         .serialize_maps_as_objects(true)
+        .serialize_missing_as_null(true)
         .serialize_large_number_types_as_bigints(true);
     value.serialize(&serializer)
 }
