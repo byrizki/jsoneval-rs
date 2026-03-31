@@ -84,7 +84,24 @@ impl JSONEval {
         }
 
         if include_subforms {
-            self.run_subform_pass(changed_paths, re_evaluate, token, &mut result)?;
+            // Augment changed_paths with every subform item field already written into result
+            // by the dependents queue and re-evaluate pass. Without this, when a main-form
+            // dependent rule writes to e.g. `riders.0.benefit`, that path never appears in
+            // `item_changed_paths` inside run_subform_pass → the item is skipped → the
+            // subform item's own `benefit.dependents` never fire.
+            let extended_paths: Vec<String> = {
+                let mut paths = changed_paths.to_vec();
+                for item in &result {
+                    if let Some(ref_val) = item.get("$ref").and_then(|v| v.as_str()) {
+                        let s = ref_val.to_string();
+                        if !paths.contains(&s) {
+                            paths.push(s);
+                        }
+                    }
+                }
+                paths
+            };
+            self.run_subform_pass(&extended_paths, re_evaluate, token, &mut result)?;
         }
 
         // Deduplicate by $ref — keep the last entry for each path.
