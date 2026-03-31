@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.77] - 2026-04-01
+
+### Changed
+
+- [core] Boost and fix evaluation cache
+
 ## [0.0.76] - 2026-03-30
 
 - [core] Improve large schema parsing
