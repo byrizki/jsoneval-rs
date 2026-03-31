@@ -7,7 +7,7 @@ use json_eval_rs::JSONEval;
 use serde_json::{Map, Value};
 
 fn print_help(program_name: &str) {
-    println!("\n🚀 JSON Evaluation - Basic Example (JSON Schema)\n");
+    println!("\n🚀 JSON Evaluation - Basic Example (JSON/MsgPack Schema)\n");
     println!("USAGE:");
     println!("    {} [OPTIONS] [FILTER]\n", program_name);
     println!("OPTIONS:");
@@ -17,9 +17,9 @@ fn print_help(program_name: &str) {
     println!("ARGUMENTS:");
     println!("    [FILTER]           Optional filter to match scenario names\n");
     println!("DESCRIPTION:");
-    println!("    Evaluates JSON schemas using JSONEval::new() with JSON string input.\n");
+    println!("    Evaluates schemas using JSONEval::new() or JSONEval::new_from_msgpack().\n");
     println!("EXAMPLES:");
-    println!("    {}                 # Run all JSON schema scenarios", program_name);
+    println!("    {}                 # Run all scenarios", program_name);
     println!("    {} zcc             # Run scenarios matching 'zcc'", program_name);
     println!("    {} --compare       # Run with comparison enabled", program_name);
     println!("    {} zcc --timing    # Run with detailed timing breakdown", program_name);
@@ -56,7 +56,7 @@ fn main() {
         i += 1;
     }
     
-    println!("\n🚀 JSON Evaluation - Basic Example (JSON Schema)\n");
+    println!("\n🚀 JSON Evaluation - Basic Example (JSON/MsgPack Schema)\n");
     
     if enable_comparison {
         println!("🔍 Comparison: enabled");
@@ -70,9 +70,6 @@ fn main() {
     
     let samples_dir = Path::new("samples");
     let mut scenarios = common::discover_scenarios(samples_dir);
-    
-    // Filter out MessagePack scenarios - only use JSON
-    scenarios.retain(|s| !s.is_msgpack);
     
     // Filter scenarios if a filter is provided
     if let Some(ref filter) = scenario_filter {
@@ -121,14 +118,21 @@ fn main() {
         let data_str = fs::read_to_string(&scenario.data_path)
             .unwrap_or_else(|e| panic!("failed to read {}: {}", scenario.data_path.display(), e));
 
-        // Step 1: Parse schema (JSONEval::new)
+        // Step 1: Parse schema
         let parse_start = Instant::now();
         
-        let schema_str = fs::read_to_string(&scenario.schema_path)
-            .unwrap_or_else(|e| panic!("failed to read {}: {}", scenario.schema_path.display(), e));
-        
-        let mut eval = JSONEval::new(&schema_str, None, Some(&data_str))
-            .unwrap_or_else(|e| panic!("failed to create JSONEval: {}", e));
+        let mut eval = if scenario.is_msgpack {
+            let schema_msgpack = fs::read(&scenario.schema_path)
+                .unwrap_or_else(|e| panic!("failed to read {}: {}", scenario.schema_path.display(), e));
+            println!("  📦 MessagePack schema size: {} bytes", schema_msgpack.len());
+            JSONEval::new_from_msgpack(&schema_msgpack, None, Some(&data_str))
+                .unwrap_or_else(|e| panic!("failed to create JSONEval from MessagePack: {}", e))
+        } else {
+            let schema_str = fs::read_to_string(&scenario.schema_path)
+                .unwrap_or_else(|e| panic!("failed to read {}: {}", scenario.schema_path.display(), e));
+            JSONEval::new(&schema_str, None, Some(&data_str))
+                .unwrap_or_else(|e| panic!("failed to create JSONEval: {}", e))
+        };
         
         let parse_time = parse_start.elapsed();
         println!("  📝 Parse (new): {:?}", parse_time);
@@ -227,3 +231,4 @@ fn main() {
     
     println!("\n✅ All scenarios completed!\n");
 }
+

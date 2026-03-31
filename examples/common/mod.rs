@@ -34,23 +34,19 @@ pub fn discover_scenarios(dir: &Path) -> Vec<Scenario> {
         };
 
         if let Some(base) = file_name.strip_suffix("-data.json") {
-            // Check for MessagePack schema first (.bform), then JSON (.json)
-            let (schema_path, is_msgpack) = {
-                let msgpack_path = dir.join(format!("{}.bform", base));
-                let json_path = dir.join(format!("{}.json", base));
-                
-                if msgpack_path.exists() {
-                    (msgpack_path, true)
-                } else if json_path.exists() {
-                    (json_path, false)
-                } else {
-                    eprintln!(
-                        "⚠️  Skipping scenario `{}`: schema file `{}.json` or `{}.bform` missing",
-                        base, base, base
-                    );
-                    continue;
-                }
-            };
+            let json_path = dir.join(format!("{}.json", base));
+            let msgpack_path = dir.join(format!("{}.bform", base));
+            
+            let has_json = json_path.exists();
+            let has_msgpack = msgpack_path.exists();
+            
+            if !has_json && !has_msgpack {
+                eprintln!(
+                    "⚠️  Skipping scenario `{}`: schema file `{}.json` or `{}.bform` missing",
+                    base, base, base
+                );
+                continue;
+            }
 
             let comparison_path = {
                 let candidate = dir.join(format!("{}-evaluated-compare.json", base));
@@ -61,13 +57,32 @@ pub fn discover_scenarios(dir: &Path) -> Vec<Scenario> {
                 }
             };
 
-            scenarios.push(Scenario {
-                name: base.to_string(),
-                schema_path,
-                data_path: path.clone(),
-                comparison_path,
-                is_msgpack,
-            });
+            if has_json {
+                scenarios.push(Scenario {
+                    name: base.to_string(),
+                    schema_path: json_path,
+                    data_path: path.clone(),
+                    comparison_path: comparison_path.clone(),
+                    is_msgpack: false,
+                });
+            }
+
+            if has_msgpack {
+                // If both exist, use a different name for MessagePack to avoid overwriting results
+                let name = if has_json {
+                    format!("{}-msgpack", base)
+                } else {
+                    base.to_string()
+                };
+                
+                scenarios.push(Scenario {
+                    name,
+                    schema_path: msgpack_path,
+                    data_path: path.clone(),
+                    comparison_path: comparison_path.clone(),
+                    is_msgpack: true,
+                });
+            }
         }
     }
 

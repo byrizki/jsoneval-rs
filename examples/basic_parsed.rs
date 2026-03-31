@@ -8,7 +8,7 @@ use json_eval_rs::{JSONEval, ParsedSchema};
 use serde_json::{Map, Value};
 
 fn print_help(program_name: &str) {
-    println!("\n🚀 JSON Evaluation - Basic Example (ParsedSchema)\n");
+    println!("\n🚀 JSON Evaluation - Basic Example (Parsed / JSON & MsgPack)\n");
     println!("USAGE:");
     println!("    {} [OPTIONS] [FILTER]\n", program_name);
     println!("OPTIONS:");
@@ -19,7 +19,7 @@ fn print_help(program_name: &str) {
     println!("    [FILTER]           Optional filter to match scenario names\n");
     println!("DESCRIPTION:");
     println!("    Evaluates schemas using ParsedSchema for efficient caching.");
-    println!("    Schema is parsed once and reused with Arc<ParsedSchema>.\n");
+    println!("    Supports JSON (.json) and MessagePack (.bform) schemas.\n");
     println!("EXAMPLES:");
     println!("    {}                 # Run all scenarios with ParsedSchema", program_name);
     println!("    {} zcc             # Run scenarios matching 'zcc'", program_name);
@@ -58,7 +58,7 @@ fn main() {
         i += 1;
     }
     
-    println!("\n🚀 JSON Evaluation - Basic Example (ParsedSchema)\n");
+    println!("\n🚀 JSON Evaluation - Basic Example (Parsed / JSON & MsgPack)\n");
     println!("📦 Using Arc<ParsedSchema> for efficient caching\n");
     
     if enable_comparison {
