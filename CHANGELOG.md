@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.79] - 2026-04-01
+
+### Fixed
+
+- [core] fix subform dependents from main form dependents call
+- [core] fix null dependents default value to clear form data
+- [wasm] fix wasm validate subform
+
 ## [0.0.78] - 2026-04-01
 
 ### Fixed
