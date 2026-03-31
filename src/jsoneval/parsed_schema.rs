@@ -130,9 +130,14 @@ impl ParsedSchema {
             IndexMap::new()
         };
 
+        let static_arrays = Arc::new(static_arrays);
+
+        let mut engine = RLogic::with_config(engine_config);
+        engine.set_static_arrays(Arc::clone(&static_arrays));
+
         let mut parsed = Self {
             schema: Arc::new(schema_val),
-            engine: Arc::new(RLogic::with_config(engine_config)),
+            engine: Arc::new(engine),
             evaluations: Arc::new(IndexMap::new()),
             tables: Arc::new(IndexMap::new()),
             table_metadata: Arc::new(IndexMap::new()),
@@ -149,7 +154,7 @@ impl ParsedSchema {
             reffed_by: Arc::new(IndexMap::new()),
             conditional_hidden_fields: Arc::new(Vec::new()),
             conditional_readonly_fields: Arc::new(Vec::new()),
-            static_arrays: Arc::new(static_arrays),
+            static_arrays,
         };
 
         // Parse the schema to populate all fields
