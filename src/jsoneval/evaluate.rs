@@ -385,6 +385,11 @@ impl JSONEval {
                                 // Must still populate eval_data out of cache so subsequent formulas
                                 // referencing this path in the same iteration can read the exact value
                                 self.eval_data.set(&pointer_path, cached_result.clone());
+                                if let Some(schema_value) =
+                                    self.evaluated_schema.pointer_mut(&pointer_path)
+                                {
+                                    *schema_value = cached_result;
+                                }
                                 continue;
                             }
 
@@ -489,12 +494,24 @@ impl JSONEval {
                         let empty_deps = indexmap::IndexSet::new();
                         let deps = self.dependencies.get(eval_key).unwrap_or(&empty_deps);
 
-                        if let Some(_cached_result) = self.eval_cache.check_cache(eval_key, &deps) {
-                             // ALREADY cached properly inside evaluated_schema. Skip pointer_mut string parsing!
-                             continue;
+                        if let Some(cached_result) = self.eval_cache.check_cache(eval_key, &deps) {
+                            if let Some(pointer_value) =
+                                self.evaluated_schema.pointer_mut(&pointer_path)
+                            {
+                                if !pointer_path.starts_with("$")
+                                    && pointer_path.contains("/rules/")
+                                    && !pointer_path.ends_with("/value")
+                                {
+                                    if let Some(pointer_obj) = pointer_value.as_object_mut() {
+                                        pointer_obj.remove("$evaluation");
+                                        pointer_obj.insert("value".to_string(), cached_result.clone());
+                                    }
+                                } else {
+                                    *pointer_value = cached_result.clone();
+                                }
+                            }
+                            continue;
                         }
-
-                        // Catch miss - evaluate
                         if let Some(logic_id) = self.evaluations.get(eval_key) {
                             if let Ok(val) =
                                 self.engine.run(logic_id, eval_data_snapshot.data())

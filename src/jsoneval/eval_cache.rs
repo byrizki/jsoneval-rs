@@ -36,6 +36,18 @@ impl VersionTracker {
             self.versions.insert(k.clone(), current.max(*v));
         }
     }
+
+    /// Merge only `/$params`-prefixed version counters from `other` (max strategy).
+    /// Used when giving a per-item tracker the latest schema-level param versions
+    /// without absorbing data-path bumps that belong to other items.
+    pub fn merge_from_params(&mut self, other: &VersionTracker) {
+        for (k, v) in &other.versions {
+            if k.starts_with("/$params") {
+                let current = self.versions.get(k).copied().unwrap_or(0);
+                self.versions.insert(k.clone(), current.max(*v));
+            }
+        }
+    }
 }
 
 /// A cached evaluation result with the specific dependency versions it was evaluated against
@@ -128,6 +140,35 @@ impl EvalCache {
         self.subform_caches.retain(|&idx, _| idx < current_count);
     }
 
+    /// Invalidate all `$params`-scoped table cache entries for a specific item.
+    ///
+    /// Called when a brand-new subform item is introduced so that `$params` tables
+    /// that aggregate array data (e.g. WOP_RIDERS) are forced to recompute instead
+    /// of returning stale results cached from a prior main-form evaluation that ran
+    /// when the item was absent (and thus saw zero/null for that item's values).
+    pub fn invalidate_params_tables_for_item(&mut self, idx: usize, table_keys: &[String]) {
+        // Bump params_versions so T2 global entries for these tables are stale.
+        for key in table_keys {
+            let data_path = crate::jsoneval::path_utils::normalize_to_json_pointer(key)
+                .replace("/properties/", "/");
+            let data_path = data_path.trim_start_matches('#');
+            let data_path = if data_path.starts_with('/') {
+                data_path.to_string()
+            } else {
+                format!("/{}", data_path)
+            };
+            self.params_versions.bump(&data_path);
+            self.eval_generation += 1;
+        }
+
+        // Evict matching T1 (item-level) entries so they are not reused.
+        if let Some(item_cache) = self.subform_caches.get_mut(&idx) {
+            for key in table_keys {
+                item_cache.entries.remove(key);
+            }
+        }
+    }
+
     /// Returns true if evaluate_internal must run (versions changed since last full evaluation)
     pub fn needs_full_evaluation(&self) -> bool {
         self.eval_generation != self.last_evaluated_generation
@@ -214,6 +255,9 @@ impl EvalCache {
             // Tier 1: item-specific entries (always safe to reuse for the same index)
             if let Some(cache) = self.subform_caches.get(&idx) {
                 if let Some(hit) = self.validate_entry(eval_key, deps, &cache.entries, &cache.data_versions) {
+                    if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() {
+                        println!("Cache HIT [T1 idx={}] {}", idx, eval_key);
+                    }
                     return Some(hit);
                 }
             }
@@ -230,12 +274,22 @@ impl EvalCache {
 
             if let Some(entry) = self.entries.get(eval_key) {
                 let index_safe = match entry.computed_for_item {
-                    None => true,
+                    // Main-form entry (no active item when stored): only safe if ALL its deps
+                    // are $params-scoped. Non-$params deps (like /riders/prem_pay_period) mean
+                    // the formula result is rider-specific — using it for a different rider via
+                    // the batch fast path would corrupt eval_data and poison subsequent formulas.
+                    None => entry.dep_versions.keys().all(|p| p.starts_with("/$params")),
                     Some(stored_idx) if stored_idx == idx => true,
                     _ => entry.dep_versions.keys().all(|p| p.starts_with("/$params")),
                 };
                 if index_safe {
-                    return self.validate_entry(eval_key, deps, &self.entries, item_data_versions);
+                    let result = self.validate_entry(eval_key, deps, &self.entries, item_data_versions);
+                    if result.is_some() {
+                        if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() {
+                            println!("Cache HIT [T2 idx={} for={:?}] {}", idx, entry.computed_for_item, eval_key);
+                        }
+                    }
+                    return result;
                 }
             }
 
@@ -244,6 +298,8 @@ impl EvalCache {
             self.validate_entry(eval_key, deps, &self.entries, &self.data_versions)
         }
     }
+
+
 
     fn validate_entry(
         &self,
@@ -313,6 +369,16 @@ impl EvalCache {
 
         // Phase 2: insert into the correct tier, tagging with the current item index.
         let computed_for_item = self.active_item_index;
+        if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() && eval_key.contains("em_dur") {
+            let dv = if let Some(idx) = self.active_item_index {
+                self.subform_caches.get(&idx).map(|c| &c.data_versions)
+            } else {
+                None
+            };
+            println!("Cache STORE [item={:?}] {} deps={:?} | /riders/prem_pay_period in dv={:?}",
+                computed_for_item, eval_key, dep_versions,
+                dv.map(|d| d.get("/riders/prem_pay_period")));
+        }
         let entry = CacheEntry { dep_versions, result, computed_for_item };
         if let Some(idx) = self.active_item_index {
             // Store item-scoped: isolates per-rider entries so riders with different data don't collide
@@ -368,10 +434,47 @@ fn diff_and_update_versions_internal(tracker: &mut VersionTracker, pointer: &str
                 diff_and_update_versions_internal(tracker, &next_path, a_val, b_val);
             }
         }
-        (old_leaf, new_leaf) => {
-            if old_leaf != new_leaf {
+        (old_val, new_val) => {
+            if old_val != new_val {
                 tracker.bump(pointer);
+                
+                // If either side contains nested structures (e.g. Object replaced by Null, or vice versa)
+                // we must recursively bump all paths inside them so targeted cache entries invalidate.
+                if old_val.is_object() || old_val.is_array() {
+                    traverse_and_bump(tracker, pointer, old_val);
+                }
+                if new_val.is_object() || new_val.is_array() {
+                    traverse_and_bump(tracker, pointer, new_val);
+                }
             }
         }
     }
 }
+
+/// Recursively traverses a value and bumps the version for every nested path.
+/// Used when a structural type mismatch occurs (e.g., Object -> Null) so that
+/// cache entries depending on nested fields are correctly invalidated.
+fn traverse_and_bump(tracker: &mut VersionTracker, pointer: &str, val: &Value) {
+    match val {
+        Value::Object(map) => {
+            for (key, v) in map {
+                if key == "$params" {
+                    continue; // Skip the special top-level params branch if it leaked here
+                }
+                let escaped_key = key.replace('~', "~0").replace('/', "~1");
+                let next_path = format!("{}/{}", pointer, escaped_key);
+                tracker.bump(&next_path);
+                traverse_and_bump(tracker, &next_path, v);
+            }
+        }
+        Value::Array(arr) => {
+            for (i, v) in arr.iter().enumerate() {
+                let next_path = format!("{}/{}", pointer, i);
+                tracker.bump(&next_path);
+                traverse_and_bump(tracker, &next_path, v);
+            }
+        }
+        _ => {}
+    }
+}
+

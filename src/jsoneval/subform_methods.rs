@@ -97,6 +97,30 @@ fn normalize_to_subform_key(path: &str) -> String {
 }
 
 impl JSONEval {
+    /// Resolves the subform path, allowing aliases like "riders" to match the full
+    /// schema pointer "#/illustration/properties/product_benefit/properties/riders".
+    /// This ensures alias paths and full paths share the same underlying subform store and cache.
+    pub(crate) fn resolve_subform_path_alias(&self, path: &str) -> (String, Option<usize>) {
+        let (mut canonical, idx) = resolve_subform_path(path);
+        
+        if !self.subforms.contains_key(&canonical) {
+            let search_suffix = if canonical.starts_with("#/") {
+                format!("/properties/{}", &canonical[2..])
+            } else {
+                format!("/properties/{}", canonical)
+            };
+            
+            for k in self.subforms.keys() {
+                if k.ends_with(&search_suffix) || k == &canonical {
+                    canonical = k.to_string();
+                    break;
+                }
+            }
+        }
+        
+        (canonical, idx)
+    }
+
     /// Execute `f` on the subform at `base_path[idx]` with the parent cache swapped in.
     ///
     /// Lifecycle:
@@ -124,7 +148,7 @@ impl JSONEval {
         // Step 1: update subform data and extract item snapshot for targeted diff.
         // Scoped block releases the mutable borrow on `self.subforms` before we touch
         // `self.eval_cache` (they are disjoint fields, but keep it explicit).
-        let (old_item_snapshot, new_item_val, subform_item_cache_opt) = {
+        let (old_item_snapshot, new_item_val, subform_item_cache_opt, array_path, item_path) = {
             let subform = self
                 .subforms
                 .get_mut(base_path)
@@ -145,18 +169,30 @@ impl JSONEval {
                 .cloned()
                 .unwrap_or(Value::Null);
 
+            // INJECT the item into the parent array location within subform's eval_data!
+            // The frontend sometimes only provides the active item root but leaves the
+            // corresponding slot empty or stale in the parent array tree of the wrapper.
+            // Formulas that aggregate over the parent array must see the active item.
+            let data_pointer = crate::jsoneval::path_utils::normalize_to_json_pointer(base_path).replace("/properties/", "/");
+            let array_path = data_pointer.to_string();
+            let item_path = format!("{}/{}", array_path, idx);
+            subform.eval_data.set(&item_path, new_item_val.clone());
+
             // Pull out any existing item-scoped entries from the subform's own cache
             // so they can be merged into the parent cache below.
             let existing = subform.eval_cache.subform_caches.remove(&idx);
-            (old_item_snapshot, new_item_val, existing)
+            (old_item_snapshot, new_item_val, existing, array_path, item_path)
         }; // subform borrow released here
 
         // Step 2: build parent cache with item-scoped diff applied.
+        let is_new_item = old_item_snapshot == Value::Null;
+
         let mut parent_cache = std::mem::take(&mut self.eval_cache);
         parent_cache.ensure_active_item_cache(idx);
         if let Some(c) = parent_cache.subform_caches.get_mut(&idx) {
-            // Inherit parent-level version counters so Tier-2 dep checks are correct.
-            c.data_versions.merge_from(&parent_cache.data_versions);
+            // Only inherit $params-scoped versions from the parent so that data-path
+            // bumps from other items or previous calls don't contaminate this item's baseline.
+            c.data_versions.merge_from_params(&parent_cache.params_versions);
             // Diff only the item field to find what changed (skips the 5 MB parent tree).
             crate::jsoneval::eval_cache::diff_and_update_versions(
                 &mut c.data_versions,
@@ -164,14 +200,93 @@ impl JSONEval {
                 &old_item_snapshot,
                 &new_item_val,
             );
-            c.item_snapshot = new_item_val;
+            c.item_snapshot = new_item_val.clone();
         }
         parent_cache.active_item_index = Some(idx);
 
-        // Migrate any item-scoped entries that lived in the subform's own cache.
-        // `or_insert` preserves the parent's newly-diffed entry if it already exists.
+        // Restore cached entries that lived in the subform's own per-item cache.
         if let Some(subform_item_cache) = subform_item_cache_opt {
-            parent_cache.subform_caches.entry(idx).or_insert(subform_item_cache);
+            if let Some(c) = parent_cache.subform_caches.get_mut(&idx) {
+                for (k, v) in subform_item_cache.entries {
+                    c.entries.entry(k).or_insert(v);
+                }
+            }
+        }
+
+        // Insert into the parent eval_data as well (to make the item visible to global formulas on main evaluate)
+        // If the item is new, bump the array version so that T2 global cache entries validating
+        // against the item's inherited parent versions know the array has expanded.
+        self.eval_data.set(&item_path, new_item_val.clone());
+        if is_new_item {
+            parent_cache.bump_data_version(&array_path);
+        }
+
+        // When a brand-new item is introduced or when readonly fields change, `$params` tables that
+        // aggregate array data (e.g. WOP_RIDERS) must be re-evaluated.
+        // We MUST evaluate them on the PARENT engine because they require the full parent array
+        // (which now includes `new_item_val`) to compute sums correctly.
+        if is_new_item {
+            let params_table_keys: Vec<String> = self
+                .table_metadata
+                .keys()
+                .filter(|k| k.starts_with("#/$params"))
+                .cloned()
+                .collect();
+            if !params_table_keys.is_empty() {
+                parent_cache.invalidate_params_tables_for_item(idx, &params_table_keys);
+                
+                let eval_data_snapshot = self.eval_data.exclusive_clone();
+                for key in &params_table_keys {
+                    // CRITICAL FIX: Only evaluate global tables on the parent if they do NOT
+                    // depend on subform-specific item paths (like `#/riders/...`).
+                    // Tables like WOP_ZLOB_PREMI_TABLE contain formulas like `#/riders/properties/code`
+                    // and MUST be evaluated by the subform engine to see the subform's current data.
+                    // Tables like WOP_RIDERS contain formulas like `#/illustration/product_benefit/riders`
+                    // and MUST be evaluated by the parent engine to see the full parent array.
+                    let depends_on_subform_item = if let Some(deps) = self.dependencies.get(key) {
+                        let subform_dep_prefix = format!("#/{}/properties/", field_key);
+                        let subform_dep_prefix_short = format!("#/{}/", field_key);
+                        deps.iter().any(|dep| dep.starts_with(&subform_dep_prefix) || dep.starts_with(&subform_dep_prefix_short))
+                    } else {
+                        false
+                    };
+
+                    if depends_on_subform_item {
+                        continue;
+                    }
+
+                    // Evaluate the table using parent's updated data
+                    if let Ok(rows) = crate::jsoneval::table_evaluate::evaluate_table(self, key, &eval_data_snapshot, None) {
+                        if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() {
+                            println!("PARENT EVALUATED TABLE {} -> {} rows", key, rows.len());
+                        }
+                        let result_val = serde_json::Value::Array(rows);
+                        
+                        // Collect external dependencies for this cache entry
+                        let mut external_deps = indexmap::IndexSet::new();
+                        let pointer_data_prefix = crate::jsoneval::path_utils::normalize_to_json_pointer(key).replace("/properties/", "/");
+                        let pointer_data_prefix_slash = format!("{}/", pointer_data_prefix);
+                        if let Some(deps) = self.dependencies.get(key) {
+                            for dep in deps {
+                                let dep_data_path = crate::jsoneval::path_utils::normalize_to_json_pointer(dep).replace("/properties/", "/");
+                                if dep_data_path != pointer_data_prefix && !dep_data_path.starts_with(&pointer_data_prefix_slash) {
+                                    external_deps.insert(dep.clone());
+                                }
+                            }
+                        }
+                        
+                        // We must temporarily clear active_item_index so store_cache puts this in T2 (global)
+                        // Then the subform can hit it via T2 fallback check.
+                        parent_cache.active_item_index = None;
+                        parent_cache.store_cache(key, &external_deps, result_val);
+                        parent_cache.active_item_index = Some(idx);
+                    } else {
+                        if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() {
+                            println!("PARENT EVALUATED TABLE {} -> ERROR", key);
+                        }
+                    }
+                }
+            }
         }
 
         // Step 3: swap parent cache into subform so Tier 1 + Tier 2 entries are visible.
@@ -216,7 +331,7 @@ impl JSONEval {
         paths: Option<&[String]>,
         token: Option<&CancellationToken>,
     ) -> Result<(), String> {
-        let (base_path, idx_opt) = resolve_subform_path(subform_path);
+        let (base_path, idx_opt) = self.resolve_subform_path_alias(subform_path);
         if let Some(idx) = idx_opt {
             self.evaluate_subform_item(&base_path, idx, data, context, paths, token)
         } else {
@@ -246,6 +361,7 @@ impl JSONEval {
         } else {
             Value::Object(serde_json::Map::new())
         };
+
         self.with_item_cache_swap(base_path, idx, data_value, context_value, |sf| {
             sf.evaluate_internal_pre_diffed(paths, token)
         })
@@ -264,7 +380,7 @@ impl JSONEval {
         paths: Option<&[String]>,
         token: Option<&CancellationToken>,
     ) -> Result<crate::ValidationResult, String> {
-        let (base_path, idx_opt) = resolve_subform_path(subform_path);
+        let (base_path, idx_opt) = self.resolve_subform_path_alias(subform_path);
         if let Some(idx) = idx_opt {
             let data_value = crate::jsoneval::json_parser::parse_json_str(data)
                 .map_err(|e| format!("Failed to parse subform data: {}", e))?;
@@ -274,8 +390,6 @@ impl JSONEval {
             } else {
                 Value::Object(serde_json::Map::new())
             };
-            // Clone data before it is consumed by with_item_cache_swap so we can pass it
-            // to validate_pre_set which needs to run validate_field with the raw data.
             let data_for_validation = data_value.clone();
             self.with_item_cache_swap(base_path.as_ref(), idx, data_value, context_value, move |sf| {
                 // Warm the evaluation cache before running rule checks.
@@ -307,7 +421,7 @@ impl JSONEval {
         canceled_paths: Option<&mut Vec<String>>,
         include_subforms: bool,
     ) -> Result<Value, String> {
-        let (base_path, idx_opt) = resolve_subform_path(subform_path);
+        let (base_path, idx_opt) = self.resolve_subform_path_alias(subform_path);
         if let Some(idx) = idx_opt {
             // Parse or snapshot data for the swap / diff computation.
             let (data_value, context_value) = if let Some(data_str) = data {
@@ -348,7 +462,7 @@ impl JSONEval {
         subform_path: &str,
         evaluate: bool,
     ) -> Result<(), String> {
-        let (base_path, _) = resolve_subform_path(subform_path);
+        let (base_path, _) = self.resolve_subform_path_alias(subform_path);
         let subform = self
             .subforms
             .get_mut(base_path.as_ref() as &str)
@@ -363,7 +477,7 @@ impl JSONEval {
         subform_path: &str,
         resolve_layout: bool,
     ) -> Value {
-        let (base_path, _) = resolve_subform_path(subform_path);
+        let (base_path, _) = self.resolve_subform_path_alias(subform_path);
         if let Some(subform) = self.subforms.get_mut(base_path.as_ref() as &str) {
             subform.get_evaluated_schema(resolve_layout)
         } else {
@@ -373,7 +487,7 @@ impl JSONEval {
 
     /// Get schema value from subform in nested object format (all .value fields).
     pub fn get_schema_value_subform(&mut self, subform_path: &str) -> Value {
-        let (base_path, _) = resolve_subform_path(subform_path);
+        let (base_path, _) = self.resolve_subform_path_alias(subform_path);
         if let Some(subform) = self.subforms.get_mut(base_path.as_ref() as &str) {
             subform.get_schema_value()
         } else {
@@ -383,7 +497,7 @@ impl JSONEval {
 
     /// Get schema values from subform as a flat array of path-value pairs.
     pub fn get_schema_value_array_subform(&self, subform_path: &str) -> Value {
-        let (base_path, _) = resolve_subform_path(subform_path);
+        let (base_path, _) = self.resolve_subform_path_alias(subform_path);
         if let Some(subform) = self.subforms.get(base_path.as_ref() as &str) {
             subform.get_schema_value_array()
         } else {
@@ -393,7 +507,7 @@ impl JSONEval {
 
     /// Get schema values from subform as a flat object with dotted path keys.
     pub fn get_schema_value_object_subform(&self, subform_path: &str) -> Value {
-        let (base_path, _) = resolve_subform_path(subform_path);
+        let (base_path, _) = self.resolve_subform_path_alias(subform_path);
         if let Some(subform) = self.subforms.get(base_path.as_ref() as &str) {
             subform.get_schema_value_object()
         } else {
@@ -407,7 +521,7 @@ impl JSONEval {
         subform_path: &str,
         resolve_layout: bool,
     ) -> Value {
-        let (base_path, _) = resolve_subform_path(subform_path);
+        let (base_path, _) = self.resolve_subform_path_alias(subform_path);
         if let Some(subform) = self.subforms.get_mut(base_path.as_ref() as &str) {
             subform.get_evaluated_schema_without_params(resolve_layout)
         } else {
@@ -422,7 +536,7 @@ impl JSONEval {
         schema_path: &str,
         skip_layout: bool,
     ) -> Option<Value> {
-        let (base_path, _) = resolve_subform_path(subform_path);
+        let (base_path, _) = self.resolve_subform_path_alias(subform_path);
         self.subforms.get_mut(base_path.as_ref() as &str).map(|sf| {
             sf.get_evaluated_schema_by_paths(&[schema_path.to_string()], skip_layout, Some(ReturnFormat::Nested))
         })
@@ -436,7 +550,7 @@ impl JSONEval {
         skip_layout: bool,
         format: Option<crate::ReturnFormat>,
     ) -> Value {
-        let (base_path, _) = resolve_subform_path(subform_path);
+        let (base_path, _) = self.resolve_subform_path_alias(subform_path);
         if let Some(subform) = self.subforms.get_mut(base_path.as_ref() as &str) {
             subform.get_evaluated_schema_by_paths(schema_paths, skip_layout, Some(format.unwrap_or(ReturnFormat::Flat)))
         } else {
@@ -453,7 +567,7 @@ impl JSONEval {
         subform_path: &str,
         schema_path: &str,
     ) -> Option<Value> {
-        let (base_path, _) = resolve_subform_path(subform_path);
+        let (base_path, _) = self.resolve_subform_path_alias(subform_path);
         self.subforms.get(base_path.as_ref() as &str).and_then(|sf| sf.get_schema_by_path(schema_path))
     }
 
@@ -464,7 +578,7 @@ impl JSONEval {
         schema_paths: &[String],
         format: Option<crate::ReturnFormat>,
     ) -> Value {
-        let (base_path, _) = resolve_subform_path(subform_path);
+        let (base_path, _) = self.resolve_subform_path_alias(subform_path);
         if let Some(subform) = self.subforms.get(base_path.as_ref() as &str) {
             subform.get_schema_by_paths(schema_paths, Some(format.unwrap_or(ReturnFormat::Flat)))
         } else {
@@ -482,7 +596,7 @@ impl JSONEval {
 
     /// Check if a subform exists at the given path.
     pub fn has_subform(&self, subform_path: &str) -> bool {
-        let (base_path, _) = resolve_subform_path(subform_path);
+        let (base_path, _) = self.resolve_subform_path_alias(subform_path);
         self.subforms.contains_key(base_path.as_ref() as &str)
     }
 }

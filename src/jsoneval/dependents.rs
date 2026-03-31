@@ -80,7 +80,26 @@ impl JSONEval {
             self.run_subform_pass(changed_paths, re_evaluate, token, &mut result)?;
         }
 
-        Ok(Value::Array(result))
+        // Deduplicate by $ref — keep the last entry for each path.
+        // Multiple passes (dependents queue, re-evaluate, subform) may independently emit
+        // the same $ref when cache versions cause overlapping detections. The subform pass
+        // result is most specific and wins because it is appended last.
+        let deduped = {
+            let mut seen: IndexMap<String, usize> = IndexMap::new();
+            for (i, item) in result.iter().enumerate() {
+                if let Some(r) = item.get("$ref").and_then(|v| v.as_str()) {
+                    seen.insert(r.to_string(), i);
+                }
+            }
+            let last_indices: IndexSet<usize> = seen.values().copied().collect();
+            let out: Vec<Value> = result.into_iter().enumerate()
+                .filter(|(i, _)| last_indices.contains(i))
+                .map(|(_, item)| item)
+                .collect();
+            out
+        };
+
+        Ok(Value::Array(deduped))
     }
 
     /// Full re-evaluation pass: runs `evaluate_internal`, then applies read-only fixes and
@@ -96,16 +115,29 @@ impl JSONEval {
         // --- Schema Default Value Pass (Before Eval) ---
         self.run_schema_default_value_pass(token, to_process, processed, result, canceled_paths.as_mut().map(|v| &mut **v))?;
 
-        // Snapshot lightweight internal version map before re-evaluation.
-        // This completely skips the previous O(N) memory-heavy deep cloning of all JSON node data!
-        let pre_eval_versions = self.eval_cache.data_versions.clone();
+        // Resolve the correct data_versions tracker before snapshotting.
+        // When active_item_index is Some(idx), evaluate_internal bumps
+        // subform_caches[idx].data_versions — NOT the main data_versions.
+        // Using the main tracker for both snapshot and post-eval lookup would make
+        // old_ver == new_ver always, so no changed values would ever be emitted.
+        let pre_eval_versions = if let Some(idx) = self.eval_cache.active_item_index {
+            self.eval_cache.subform_caches
+                .get(&idx)
+                .map(|c| c.data_versions.clone())
+                .unwrap_or_else(|| self.eval_cache.data_versions.clone())
+        } else {
+            self.eval_cache.data_versions.clone()
+        };
 
         self.evaluate_internal(None, token)?;
 
         // --- Schema Default Value Pass (After Eval) ---
         self.run_schema_default_value_pass(token, to_process, processed, result, canceled_paths.as_mut().map(|v| &mut **v))?;
 
-        // Emit result entries for every sorted-evaluation whose version uniquely bumped
+        // Emit result entries for every sorted-evaluation whose version uniquely bumped.
+        // Again resolve to the per-item tracker so the comparison uses the same source
+        // that evaluate_internal wrote into.
+        let active_idx = self.eval_cache.active_item_index;
         for eval_key in self.sorted_evaluations.iter().flatten() {
             if eval_key.contains("/$params/") || eval_key.contains("/$") {
                 continue;
@@ -118,8 +150,16 @@ impl JSONEval {
                 .trim_start_matches('/')
                 .to_string();
 
-            let old_ver = pre_eval_versions.get(&format!("/{}", data_path));
-            let new_ver = self.eval_cache.data_versions.get(&format!("/{}", data_path));
+            let version_path = format!("/{}", data_path);
+            let old_ver = pre_eval_versions.get(&version_path);
+            let new_ver = if let Some(idx) = active_idx {
+                self.eval_cache.subform_caches
+                    .get(&idx)
+                    .map(|c| c.data_versions.get(&version_path))
+                    .unwrap_or_else(|| self.eval_cache.data_versions.get(&version_path))
+            } else {
+                self.eval_cache.data_versions.get(&version_path)
+            };
 
             if new_ver > old_ver {
                 if let Some(new_val) = self.evaluated_schema.pointer(&schema_ptr) {
@@ -164,6 +204,33 @@ impl JSONEval {
             obj.insert("value".to_string(), schema_value);
             result.push(Value::Object(obj));
         }
+
+        // When readonly fields were updated during a subform item evaluation, `$params`
+        // tables that aggregate rider data (e.g. WOP_RIDERS) may still hold stale cached
+        // results — their static external_deps do not include individual rider paths like
+        // /riders/loading_benefit/first_prem, so a version bump on first_prem alone is
+        // not enough to bust their T1 cache entry. Re-running evaluate_internal (after
+        // invalidating their T1 entries) forces a fresh recomputation with the updated data.
+        let had_readonly_changes = !to_process.is_empty();
+        if had_readonly_changes {
+            if let Some(active_idx) = self.eval_cache.active_item_index {
+                let params_table_keys: Vec<String> = self
+                    .table_metadata
+                    .keys()
+                    .filter(|k| k.starts_with("#/$params"))
+                    .cloned()
+                    .collect();
+                if !params_table_keys.is_empty() {
+                    self.eval_cache.invalidate_params_tables_for_item(active_idx, &params_table_keys);
+                }
+                drop(_lock);
+                self.evaluate_internal(None, token)?;
+                // After re-evaluation, we need to explicitly re-acquire the lock if we continue processing
+                // However, since `to_process` loop runs immediately after without needing the exact lock structure here,
+                // we can let the loop acquire what it needs.
+            }
+        }
+
         if !to_process.is_empty() {
             Self::process_dependents_queue(
                 &self.engine,
@@ -356,6 +423,13 @@ impl JSONEval {
             // that the subform formulas read, even if none of the subform's own dep paths bumped.
             let global_sub_re_evaluate = re_evaluate;
 
+            // Snapshot the parent's version trackers once, before iterating any riders.
+            // Using the live `parent_cache.data_versions` inside the loop would let rider N's
+            // evaluation bumps contaminate the merge_from baseline for rider M (M ≠ N),
+            // causing cache misses and wrong re-evaluations on subsequent visits to rider M.
+            let parent_data_versions_snapshot = self.eval_cache.data_versions.clone();
+            let parent_params_versions_snapshot = self.eval_cache.params_versions.clone();
+
             for idx in 0..item_count {
                 // Map absolute changed paths → subform-internal paths for this item index
                 let prefix_dot = format!("{}.{}.", subform_dot_path, idx);
@@ -442,7 +516,12 @@ impl JSONEval {
                 let mut parent_cache = std::mem::take(&mut self.eval_cache);
                 parent_cache.ensure_active_item_cache(idx);
                 if let Some(c) = parent_cache.subform_caches.get_mut(&idx) {
-                    c.data_versions.merge_from(&parent_cache.data_versions);
+                    // Merge all data versions from the parent snapshot. We must include non-$params
+                    // paths so that parent field updates (like wop_basic_benefit changing) correctly
+                    // invalidate subform per-item cache entries that depend on them.
+                    c.data_versions.merge_from(&parent_data_versions_snapshot);
+                    // Always reflect the latest $params (schema-level, index-independent).
+                    c.data_versions.merge_from_params(&parent_params_versions_snapshot);
                     crate::jsoneval::eval_cache::diff_and_update_versions(
                         &mut c.data_versions,
                         &format!("/{}", field_key),
