@@ -69,6 +69,62 @@ impl JSONEvalWasm {
         }
     }
 
+    /// Validate subform data and return as plain JavaScript object (Worker-safe)
+    ///
+    /// @param subformPath - Path to the subform
+    /// @param data - JSON data string for the subform
+    /// @param context - Optional context data JSON string
+    /// @returns Plain JavaScript object with validation result
+    #[wasm_bindgen(js_name = validateSubformJS)]
+    pub fn validate_subform_js(
+        &mut self,
+        subform_path: &str,
+        data: &str,
+        context: Option<String>,
+    ) -> Result<JsValue, JsValue> {
+        match self.validate_subform_to_value(subform_path, data, context, None) {
+            Ok(validation_result) => super::to_value(&validation_result).map_err(|e| {
+                let error_msg = format!("Failed to serialize subform validation result: {}", e);
+                console_log(&format!("[WASM ERROR] {}", error_msg));
+                JsValue::from_str(&error_msg)
+            }),
+            Err(e) => {
+                let error_msg = format!("Subform validation failed: {}", e);
+                console_log(&format!("[WASM ERROR] {}", error_msg));
+                Err(JsValue::from_str(&error_msg))
+            }
+        }
+    }
+
+    /// Validate subform with path filtering and return as plain JavaScript object (Worker-safe)
+    ///
+    /// @param subformPath - Path to the subform
+    /// @param data - JSON data string for the subform
+    /// @param context - Optional context data JSON string
+    /// @param paths - Optional array of paths to validate (null for all)
+    /// @returns Plain JavaScript object with validation result
+    #[wasm_bindgen(js_name = validateSubformPathsJS)]
+    pub fn validate_subform_paths_js(
+        &mut self,
+        subform_path: &str,
+        data: &str,
+        context: Option<String>,
+        paths: Option<Vec<String>>,
+    ) -> Result<JsValue, JsValue> {
+        match self.validate_subform_to_value(subform_path, data, context, paths) {
+            Ok(validation_result) => super::to_value(&validation_result).map_err(|e| {
+                let error_msg = format!("Failed to serialize subform validation result: {}", e);
+                console_log(&format!("[WASM ERROR] {}", error_msg));
+                JsValue::from_str(&error_msg)
+            }),
+            Err(e) => {
+                let error_msg = format!("Subform validation failed: {}", e);
+                console_log(&format!("[WASM ERROR] {}", error_msg));
+                Err(JsValue::from_str(&error_msg))
+            }
+        }
+    }
+
     /// Evaluate dependents in subform when fields change
     ///
     /// @param subformPath - Path to the subform
@@ -493,5 +549,53 @@ impl JSONEvalWasm {
     #[wasm_bindgen(js_name = hasSubform)]
     pub fn has_subform(&self, subform_path: &str) -> bool {
         self.inner.has_subform(subform_path)
+    }
+}
+
+impl JSONEvalWasm {
+    /// Internal helper to validate a subform and return a plain `serde_json::Value`.
+    ///
+    /// Not exposed to JS directly — used by `validateSubformJS`, `validateSubformPathsJS`,
+    /// and tests to produce a serialisable result without going through the WASM-bound
+    /// `ValidationResult` struct.
+    pub fn validate_subform_to_value(
+        &mut self,
+        subform_path: &str,
+        data: &str,
+        context: Option<String>,
+        paths: Option<Vec<String>>,
+    ) -> Result<serde_json::Value, String> {
+        let ctx = context.as_deref();
+        let paths_ref = paths.as_ref().map(|v| v.as_slice());
+
+        match self
+            .inner
+            .validate_subform(subform_path, data, ctx, paths_ref, None)
+        {
+            Ok(result) => {
+                let mut errors_map = serde_json::Map::new();
+
+                for (path, error) in result.errors {
+                    errors_map.insert(
+                        path.clone(),
+                        serde_json::json!({
+                            "path": path,
+                            "type": error.rule_type,
+                            "message": error.message,
+                            "code": error.code,
+                            "pattern": error.pattern,
+                            "fieldValue": error.field_value,
+                            "data": error.data,
+                        }),
+                    );
+                }
+
+                Ok(serde_json::json!({
+                    "has_error": result.has_error,
+                    "error": errors_map,
+                }))
+            }
+            Err(e) => Err(e.to_string()),
+        }
     }
 }

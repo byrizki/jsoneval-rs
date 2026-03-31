@@ -1005,7 +1005,8 @@ export class JSONEvalCore {
   }
 
   /**
-   * Validate subform data against its schema rules
+   * Validate subform data against its schema rules (returns parsed JavaScript object)
+   * Uses validateSubformJS for Worker-safe serialization
    */
   async validateSubform({
     subformPath,
@@ -1013,11 +1014,15 @@ export class JSONEvalCore {
     context,
   }: ValidateSubformOptions): Promise<ValidationResult> {
     await this.init();
-    return this._instance.validateSubform(
-      subformPath,
-      typeof data === "string" ? data : JSONStringify(data),
-      context ? typeof context === "string" ? context : JSONStringify(context) : null
-    );
+    try {
+      return this._instance.validateSubformJS(
+        subformPath,
+        typeof data === "string" ? data : JSONStringify(data),
+        context ? typeof context === "string" ? context : JSONStringify(context) : null
+      );
+    } catch (error: any) {
+      throw new Error(`Subform validation failed: ${error.message || error}`);
+    }
   }
 
   /**
