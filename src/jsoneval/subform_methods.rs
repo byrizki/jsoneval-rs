@@ -218,6 +218,16 @@ impl JSONEval {
 
         let mut parent_cache = std::mem::take(&mut self.eval_cache);
         parent_cache.ensure_active_item_cache(idx);
+
+        // Snapshot item versions BEFORE the diff so we can detect only NEW bumps below.
+        // `any_bumped_with_prefix(v > 0)` would return true for historical bumps from prior
+        // calls, causing invalidate_params_tables_for_item to fire on every evaluate_subform
+        // even when no rider data actually changed.
+        let pre_diff_item_versions = parent_cache
+            .subform_caches
+            .get(&idx)
+            .map(|c| c.data_versions.clone());
+
         if let Some(c) = parent_cache.subform_caches.get_mut(&idx) {
             // Only inherit $params-scoped versions from the parent so that data-path
             // bumps from other items or previous calls don't contaminate this item's baseline.
@@ -279,22 +289,77 @@ impl JSONEval {
         // and must produce updated rows that reflect the new sa before the subform's own
         // formula evaluation runs (otherwise cached old rows are reused).
         //
-        // Gate: only re-evaluate tables when at least one item-level path was actually bumped
-        // in the diff (to avoid unnecessary table work on pure no-op calls).
-        let item_paths_bumped = parent_cache
-            .subform_caches
-            .get(&idx)
-            .map(|c| {
-                let field_prefix = format!("/{}/", field_key);
-                c.data_versions.any_bumped_with_prefix(&field_prefix)
-            })
-            .unwrap_or(false);
+        // Gate: only re-evaluate tables when at least one item-level path was NEWLY bumped
+        // in this diff pass. Using any_bumped_with_prefix(v > 0) would return true for
+        // historical bumps from prior calls, causing spurious table invalidation every time.
+        let field_prefix = format!("/{}/", field_key);
+        let item_paths_bumped = match &pre_diff_item_versions {
+            None => {
+                // No pre-diff snapshot = cache slot was just created, treat as new
+                parent_cache
+                    .subform_caches
+                    .get(&idx)
+                    .map(|c| c.data_versions.any_bumped_with_prefix(&field_prefix))
+                    .unwrap_or(false)
+            }
+            Some(pre) => {
+                // Only count bumps that occurred during this specific diff pass
+                parent_cache
+                    .subform_caches
+                    .get(&idx)
+                    .map(|c| c.data_versions.any_newly_bumped_with_prefix(&field_prefix, pre))
+                    .unwrap_or(false)
+            }
+        };
 
         if is_new_item || item_paths_bumped {
+            // Collect which rider data paths were NEWLY bumped in this diff pass.
+            // When item_paths_bumped = true, the diff detected changes — but we only want to
+            // invalidate tables that ACTUALLY depend on those changed paths. Tables like
+            // ILST_TABLE / RIDER_ZLOB_TABLE don't depend on computed outputs (wop_rider_premi,
+            // first_prem), so bumping them forces unnecessary re-evaluation and increments
+            // eval_generation, preventing the generation-based skip in evaluate_internal_pre_diffed.
+            let newly_bumped_paths: Option<Vec<String>> = if item_paths_bumped {
+                let paths = pre_diff_item_versions.as_ref().and_then(|pre| {
+                    parent_cache.subform_caches.get(&idx).map(|c| {
+                        c.data_versions
+                            .versions()
+                            .filter(|(k, &v)| k.starts_with(&field_prefix) && v > pre.get(k))
+                            .map(|(k, _)| {
+                                // Convert data-version path (e.g. /riders/wop_rider_premi) to schema dep
+                                // format (e.g. #/riders/properties/wop_rider_premi) for dep matching.
+                                let sub = k.trim_start_matches(&field_prefix);
+                                format!("#/{}/properties/{}", field_key, sub)
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                });
+                paths
+            } else {
+                None
+            };
+
             let params_table_keys: Vec<String> = self
                 .table_metadata
                 .keys()
                 .filter(|k| k.starts_with("#/$params"))
+                .filter(|k| {
+                    if is_new_item {
+                        return true; // new rider: invalidate all tables
+                    }
+                    // Only invalidate tables whose declared deps overlap the changed paths.
+                    // If newly_bumped_paths is None (shouldn't happen when item_paths_bumped=true),
+                    // fall back to invalidating all.
+                    let Some(ref bumped) = newly_bumped_paths else {
+                        return true;
+                    };
+                    if bumped.is_empty() {
+                        return false;
+                    }
+                    self.dependencies.get(*k).map(|deps| {
+                        deps.iter().any(|dep| bumped.iter().any(|b| dep == b || dep.starts_with(b.as_str())))
+                    }).unwrap_or(false)
+                })
                 .cloned()
                 .collect();
             if !params_table_keys.is_empty() {

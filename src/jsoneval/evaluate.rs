@@ -106,6 +106,17 @@ impl JSONEval {
             // Save snapshot for the next evaluation cycle (avoids one snapshot_data_clone() call).
             self.eval_cache.main_form_snapshot = Some(new_data);
 
+            // Generation-based fast skip: diff_and_update_versions bumps data_versions.versions
+            // but does NOT increment eval_generation. Only bump_data_version / bump_params_version
+            // (called from formula stores) advance eval_generation.
+            // If eval_generation == last_evaluated_generation after the diff, no formula's cached
+            // deps are actually stale — all batches would be cache hits. Skip the full traversal.
+            // Safe only in the external evaluate() path; run_re_evaluate_pass must always evaluate.
+            if paths.is_none() && !self.eval_cache.needs_full_evaluation() {
+                self.evaluate_others(paths, token, false);
+                return Ok(());
+            }
+
             // Call internal evaluate (uses existing data if not provided)
             self.evaluate_internal(paths, token)
         })
@@ -131,6 +142,15 @@ impl JSONEval {
             "evaluate_internal_pre_diffed called without active_item_index — \
              caller must set up the cache-swap before calling this method"
         );
+
+        // Same generation-based fast skip as evaluate_internal_with_new_data:
+        // The diff_and_update_versions calls in with_item_cache_swap bump data_versions.versions
+        // but do NOT increment eval_generation. If nothing was re-stored since last evaluate, skip.
+        if paths.is_none() && !self.eval_cache.needs_full_evaluation() {
+            self.evaluate_others(paths, token, false);
+            return Ok(());
+        }
+
         self.evaluate_internal(paths, token)
     }
 
@@ -157,16 +177,12 @@ impl JSONEval {
                     .iter()
                     .flat_map(|p| {
                         let normalized = if p.starts_with("#/") {
-                            // Case 1: JSON Schema path (e.g. #/properties/foo) - keep as is
                             p.to_string()
                         } else if p.starts_with('/') {
-                            // Case 2: Rust Pointer path (e.g. /properties/foo) - ensure # prefix
                             format!("#{}", p)
                         } else {
-                            // Case 3: Dot notation (e.g. properties.foo) - replace dots with slashes and add prefix
                             format!("#/{}", p.replace('.', "/"))
                         };
-
                         vec![normalized]
                     })
                     .collect::<Vec<_>>();
@@ -391,19 +407,11 @@ impl JSONEval {
                                     result_val.clone(),
                                 );
 
-                                // Only bump version if the table result actually changed
-                                let old_table_val = self
-                                    .eval_data
-                                    .get(&pointer_data_prefix)
-                                    .cloned()
-                                    .unwrap_or(Value::Null);
-                                if result_val != old_table_val {
-                                    if pointer_data_prefix.starts_with("/$params") {
-                                        self.eval_cache.bump_params_version(&pointer_data_prefix);
-                                    } else {
-                                        self.eval_cache.bump_data_version(&pointer_data_prefix);
-                                    }
-                                }
+                                // NOTE: bump_params_version / bump_data_version for table results
+                                // is now handled inside store_cache (conditional on value change).
+                                // The separate bump here was double-counting: store_cache uses T2
+                                // comparison while this block used eval_data as reference point,
+                                // causing two version increments per changed table.
 
                                 let static_key = format!("/$table{}", pointer_path);
                                 let arc_value = std::sync::Arc::new(result_val);
@@ -449,19 +457,15 @@ impl JSONEval {
                                         cleaned_val.clone(),
                                     );
 
-                                    // Check if the value actually changed to avoid cache thrashing
-                                    // Must use data_path (without /properties/) as that's how eval_data stores values
+                                    // Bump data_versions when non-$params field value changes.
+                                    // $params bumps are handled inside store_cache (conditional).
                                     let old_val = self
                                         .eval_data
                                         .get(&data_path)
                                         .cloned()
                                         .unwrap_or(Value::Null);
-                                    if cleaned_val != old_val {
-                                        if data_path.starts_with("/$params") {
-                                            self.eval_cache.bump_params_version(&data_path);
-                                        } else {
-                                            self.eval_cache.bump_data_version(&data_path);
-                                        }
+                                    if cleaned_val != old_val && !data_path.starts_with("/$params") {
+                                        self.eval_cache.bump_data_version(&data_path);
                                     }
 
                                     self.eval_data.set(&pointer_path, cleaned_val.clone());
@@ -479,6 +483,10 @@ impl JSONEval {
 
             // Drop lock before calling evaluate_others
             drop(_lock);
+
+            // Mark generation stable so the next evaluate_internal call can detect whether
+            // any formula was actually re-stored (via bump_data/params_version) since this run.
+            self.eval_cache.mark_evaluated();
 
             self.evaluate_others(paths, token, had_cache_miss);
 

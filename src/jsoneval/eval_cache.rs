@@ -56,7 +56,22 @@ impl VersionTracker {
             .iter()
             .any(|(k, &v)| k.starts_with(prefix) && v > 0)
     }
+
+    /// Returns true if any path with the given prefix has a **higher** version than in `baseline`.
+    /// Unlike `any_bumped_with_prefix`, this detects only brand-new bumps from a specific diff
+    /// pass, ignoring historical bumps that were already present in the baseline.
+    pub fn any_newly_bumped_with_prefix(&self, prefix: &str, baseline: &VersionTracker) -> bool {
+        self.versions
+            .iter()
+            .any(|(k, &v)| k.starts_with(prefix) && v > baseline.get(k))
+    }
+
+    /// Returns an iterator over all (path, version) pairs, for targeted bump enumeration.
+    pub fn versions(&self) -> impl Iterator<Item = (&str, &u64)> {
+        self.versions.iter().map(|(k, v)| (k.as_str(), v))
+    }
 }
+
 
 /// A cached evaluation result with the specific dependency versions it was evaluated against
 #[derive(Clone)]
@@ -405,41 +420,67 @@ impl EvalCache {
 
         // Phase 2: insert into the correct tier, tagging with the current item index.
         let computed_for_item = self.active_item_index;
+
+        // For $params-scoped entries, only bump params_versions when the result value
+        // actually changed relative to the canonical cached entry.
+        //
+        // For T1 stores (active_item set), we compare against T2 (global) first.
+        // T2 is the authoritative reference: if T2 already holds the same value,
+        // params_versions was already bumped for it — bumping again per-rider causes
+        // an O(riders × $params_formulas) version explosion that makes every downstream
+        // formula (TOTAL_WOP_SA, WOP_MULTIPLIER, COMMISSION_FACTOR…) miss on each rider.
+        if eval_key.starts_with("#/$params") {
+            let existing_result: Option<&Value> = if let Some(idx) = self.active_item_index {
+                // Check T2 (global) first — if T2 has same value, no need to bump again.
+                self.entries
+                    .get(eval_key)
+                    .map(|e| &e.result)
+                    .or_else(|| {
+                        self.subform_caches
+                            .get(&idx)
+                            .and_then(|c| c.entries.get(eval_key))
+                            .map(|e| &e.result)
+                    })
+            } else {
+                self.entries.get(eval_key).map(|e| &e.result)
+            };
+
+            let value_changed = existing_result.map_or(true, |r| r != &result);
+
+            if value_changed {
+                let data_path = crate::jsoneval::path_utils::normalize_to_json_pointer(eval_key)
+                    .replace("/properties/", "/");
+                let data_path = data_path.trim_start_matches('#').to_string();
+                let data_path = if data_path.starts_with('/') {
+                    data_path
+                } else {
+                    format!("/{}", data_path)
+                };
+
+                // Bump the explicit path and its table-level parent.
+                // Stop at slash_count < 3 — never bump /$params/others or /$params itself.
+                let mut current_path = data_path.as_str();
+                let mut slash_count = current_path.matches('/').count();
+
+                while slash_count >= 3 {
+                    self.params_versions.bump(current_path);
+                    if let Some(last_slash) = current_path.rfind('/') {
+                        current_path = &current_path[..last_slash];
+                        slash_count -= 1;
+                    } else {
+                        break;
+                    }
+                }
+
+                self.eval_generation += 1;
+            }
+        }
+
         let entry = CacheEntry {
             dep_versions,
             result,
             computed_for_item,
         };
-        // For $params-scoped entries (whether T1 or T2), bump params_versions so formulas that depend
-        // on this key see the version change and re-evaluate instead of returning stale cached results.
-        if eval_key.starts_with("#/$params") {
-            let data_path = crate::jsoneval::path_utils::normalize_to_json_pointer(eval_key)
-                .replace("/properties/", "/");
-            let data_path = data_path.trim_start_matches('#').to_string();
-            let data_path = if data_path.starts_with('/') {
-                data_path
-            } else {
-                format!("/{}", data_path)
-            };
-
-            // Track explicitly requested path and iteratively bump its parents,
-            // but STOP after bumping the table-level parent (e.g. `/$params/others/MY_TABLE`).
-            // Never bump `/$params/others` or `/$params` to avoid massive cache invalidation.
-            let mut current_path = data_path.as_str();
-            let mut slash_count = current_path.matches('/').count();
-
-            while slash_count >= 3 {
-                self.params_versions.bump(current_path);
-                if let Some(last_slash) = current_path.rfind('/') {
-                    current_path = &current_path[..last_slash];
-                    slash_count -= 1;
-                } else {
-                    break;
-                }
-            }
-
-            self.eval_generation += 1;
-        }
 
         if let Some(idx) = self.active_item_index {
             // Store item-scoped: isolates per-rider entries so riders with different data don't collide
@@ -447,7 +488,16 @@ impl EvalCache {
                 .get_mut(&idx)
                 .unwrap()
                 .entries
-                .insert(eval_key.to_string(), entry);
+                .insert(eval_key.to_string(), entry.clone());
+
+            // For $params-scoped formulas, also promote to T2 (global entries).
+            // $params formulas are index-independent: all riders produce the same result.
+            // Without T2 promotion, each rider's first store compares against stale/missing T2
+            // and sees the value as "new" → bumps params_versions → O(riders) cascade.
+            // With T2 promotion, rider 1 finds rider 0's result in T2 → no bump → no cascade.
+            if eval_key.starts_with("#/$params") {
+                self.entries.insert(eval_key.to_string(), entry);
+            }
         } else {
             self.entries.insert(eval_key.to_string(), entry);
         }

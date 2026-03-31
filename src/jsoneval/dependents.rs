@@ -108,6 +108,18 @@ impl JSONEval {
             out
         };
 
+        // Refresh main_form_snapshot so the next evaluate() call computes diffs from the
+        // post-dependents state instead of the old pre-dependents snapshot.
+        // Without this, evaluate() re-diffs every field that evaluate_dependents already
+        // processed, double-bumping data_versions and causing spurious cache misses in
+        // evaluate_internal (observed as unexpected ~550ms "cache hit" full evaluates).
+        // Only update when no subform item is active — subform evaluate_dependents calls
+        // must not overwrite the parent's snapshot.
+        if self.eval_cache.active_item_index.is_none() {
+            let current_snapshot = self.eval_data.snapshot_data_clone();
+            self.eval_cache.main_form_snapshot = Some(current_snapshot);
+        }
+
         Ok(Value::Array(deduped))
     }
 
@@ -599,6 +611,21 @@ impl JSONEval {
                 // Restore parent cache
                 std::mem::swap(&mut subform.eval_cache, &mut parent_cache);
                 parent_cache.clear_active_item();
+
+                // Propagate the updated item_snapshot from the parent's T1 cache into the
+                // subform's own eval_cache. Without this, subsequent evaluate_subform() calls
+                // for this idx read the OLD snapshot (pre-run_subform_pass) and see a diff
+                // against the new data → item_paths_bumped = true → spurious table invalidation.
+                if let Some(parent_item_cache) = self.eval_cache.subform_caches.get(&idx) {
+                    let snapshot = parent_item_cache.item_snapshot.clone();
+                    subform
+                        .eval_cache
+                        .ensure_active_item_cache(idx);
+                    if let Some(sub_cache) = subform.eval_cache.subform_caches.get_mut(&idx) {
+                        sub_cache.item_snapshot = snapshot;
+                    }
+                }
+
                 self.eval_cache = parent_cache;
 
                 if let Ok(Value::Array(changes)) = subform_result {
@@ -616,6 +643,26 @@ impl JSONEval {
                                 } else {
                                     format!("{}.{}.{}", subform_dot_path, idx, ref_path)
                                 };
+
+                                // Write the computed value back to parent eval_data so subsequent
+                                // evaluate_subform calls see an up-to-date old_item_snapshot.
+                                // Without this, the diff in with_item_cache_swap sees stale parent
+                                // data vs the new call's apply_changes values → spurious item bumps
+                                // → invalidate_params_tables_for_item fires → eval_generation bumps.
+                                if let Some(val) = obj.get("value") {
+                                    let data_ptr = format!(
+                                        "/{}",
+                                        new_ref.replace('.', "/")
+                                    );
+                                    self.eval_data.set(&data_ptr, val.clone());
+                                } else if obj.get("clear").and_then(Value::as_bool) == Some(true) {
+                                    let data_ptr = format!(
+                                        "/{}",
+                                        new_ref.replace('.', "/")
+                                    );
+                                    self.eval_data.set(&data_ptr, Value::Null);
+                                }
+
                                 let mut new_obj = obj.clone();
                                 new_obj.insert("$ref".to_string(), Value::String(new_ref));
                                 result.push(Value::Object(new_obj));
