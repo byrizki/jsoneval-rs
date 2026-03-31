@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.80] - 2026-04-01
+
+### Fixed
+
+- [core] fix minValue/maxValue validation
+- [wasm] fix null/undefined data serialization
+
 ## [0.0.79] - 2026-04-01
 
 ### Fixed

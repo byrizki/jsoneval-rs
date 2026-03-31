@@ -125,7 +125,7 @@ async function runNodeBenchmark(
   const parseStart = performance.now();
   const je = new JSONEval({ schema, data, context: {} });
   await je.init();
-  je.reloadSchema({ schema, context: {}, data })
+  je.reloadSchema({ schema, context: {}, data });
   const parsingMs = performance.now() - parseStart;
   console.log(`  📝 Parse (new): ${parsingMs.toFixed(3)}ms`);
 
@@ -205,6 +205,118 @@ async function runNodeBenchmark(
   };
 }
 
+// =============================================================================
+// wop_flag → false dependents test
+//
+// Mirrors the Rust test `test_zpp_wop_flag_false_clears_rider_wop_fields`.
+// Verifies that flipping wop_flag to false at the product_benefit level causes
+// all rider wop fields (wop_flag, wop_rider_benefit, wop_rider_premi) to be
+// cleared in the evaluateDependents result for every rider item.
+//
+// Expected result shape for each rider field:
+//   { $ref: "...riders.N.wop_flag", $readonly: true, value: null }   — re-evaluate pass
+//   or: { $ref: "...riders.N.wop_flag", clear: true }                — dependents queue
+// =============================================================================
+async function runWopFlagDependentsTest(projectRoot: string): Promise<void> {
+  console.log("==================================================");
+  console.log("\x1b[36m🧪 Test: wop_flag=false clears ZLOB rider wop fields\x1b[0m");
+  console.log("==================================================");
+
+  const samplesPath = path.join(projectRoot, "samples");
+  const schemaJson = fs.readFileSync(path.join(samplesPath, "zpp.json"), "utf8");
+  const dataJson = fs.readFileSync(path.join(samplesPath, "zpp-data.json"), "utf8");
+
+  const schema = JSONParse(schemaJson);
+  const data = JSONParse(dataJson);
+
+  // Sanity check — fixture must start with wop_flag = true
+  if (data?.illustration?.product_benefit?.wop_flag !== true) {
+    throw new Error("Fixture must start with wop_flag=true");
+  }
+
+  const je = new JSONEval({ schema, data, context: {} });
+  await je.init();
+
+  // Initial evaluation
+  const evalStart = performance.now();
+  await je.evaluateOnly({ data, context: {} });
+  console.log(`  ⚡ Initial eval: ${(performance.now() - evalStart).toFixed(3)}ms`);
+
+  // Warm per-item caches for all three riders
+  const riders: any[] = data?.illustration?.product_benefit?.riders ?? [];
+  for (let idx = 0; idx < riders.length; idx++) {
+    const subformData = { riders: riders[idx] };
+    await je.evaluateSubform({
+      subformPath: `riders.${idx}`,
+      data: subformData,
+      context: {},
+    });
+    console.log(`  🔄 Warmed rider[${idx}] subform cache`);
+  }
+
+  // Flip wop_flag to false
+  const updatedData = JSONParse(dataJson);
+  updatedData.illustration.product_benefit.wop_flag = false;
+  console.log("  🔁 wop_flag set to false — calling evaluateDependents...");
+
+  const depsStart = performance.now();
+  const deps = await je.evaluateDependents({
+    changedPaths: ["illustration.product_benefit.wop_flag"],
+    data: updatedData,
+    context: {},
+    reEvaluate: true,
+    includeSubforms: true,
+  });
+  console.log(`  ⚡ evaluateDependents: ${(performance.now() - depsStart).toFixed(3)}ms`);
+  console.log(`  📦 Total dep changes: ${deps.length}`);
+  console.log();
+
+  // Validate that each rider's wop fields are cleared
+  const wopFields = ["wop_flag", "wop_rider_benefit", "wop_rider_premi"] as const;
+  let passed = 0;
+  let failed = 0;
+
+  for (let idx = 0; idx < riders.length; idx++) {
+    for (const field of wopFields) {
+      const refPath = `illustration.product_benefit.riders.${idx}.${field}`;
+      const match = deps.find((d: any) => {
+        const isRef = d["$ref"] === refPath;
+        const isCleared = d["clear"] === true || d["value"] === null;
+        return isRef && isCleared;
+      });
+
+      if (match) {
+        console.log(`  \x1b[32m✅ riders[${idx}].${field} → ${JSONStringify(match)}\x1b[0m`);
+        passed++;
+      } else {
+        const found = deps.find((d: any) => d["$ref"] === refPath);
+        console.log(
+          `  \x1b[31m❌ riders[${idx}].${field} — not cleared. Found: ${found ? JSONStringify(found) : "not in deps"}\x1b[0m`
+        );
+        failed++;
+      }
+    }
+  }
+
+  console.log();
+  if (failed === 0) {
+    console.log(`\x1b[32m✅ wop_flag test passed (${passed}/${passed + failed} assertions)\x1b[0m`);
+  } else {
+    console.log(
+      `\x1b[31m❌ wop_flag test FAILED: ${failed} assertion(s) failed, ${passed} passed\x1b[0m`
+    );
+    console.log();
+    console.log("Full dep list (riders only):");
+    console.log(
+      deps
+        .filter((d: any) => (d["$ref"] ?? "").includes("riders"))
+        .map((d: any) => `  ${JSONStringify(d)}`)
+        .join("\n")
+    );
+    throw new Error(`wop_flag dependents test failed: ${failed} assertion(s) failed`);
+  }
+}
+
 async function main(): Promise<void> {
   console.log("🚀 JSON Eval RS - Node.js WASM Benchmark");
   console.log(`📦 WASM version: ${version()}`);
@@ -244,13 +356,18 @@ async function main(): Promise<void> {
     // Memory usage
     const mem = process.memoryUsage();
     console.log("💾 Memory Usage:");
-    console.log(
-      `  Heap Used:  ${(mem.heapUsed / 1024 / 1024).toFixed(2)} MB`
-    );
-    console.log(
-      `  RSS:        ${(mem.rss / 1024 / 1024).toFixed(2)} MB`
-    );
+    console.log(`  Heap Used:  ${(mem.heapUsed / 1024 / 1024).toFixed(2)} MB`);
+    console.log(`  RSS:        ${(mem.rss / 1024 / 1024).toFixed(2)} MB`);
     console.log();
+
+    // Run wop_flag dependents test only when the zpp scenario is available
+    if (
+      fs.existsSync(path.join(projectRoot, "samples", "zpp.json")) &&
+      fs.existsSync(path.join(projectRoot, "samples", "zpp-data.json"))
+    ) {
+      await runWopFlagDependentsTest(projectRoot);
+      console.log();
+    }
 
     console.log("\x1b[32m✅ Benchmark completed successfully!\x1b[0m");
   } catch (err: any) {
