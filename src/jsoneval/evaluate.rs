@@ -197,7 +197,10 @@ impl JSONEval {
             // Track whether any entry was a cache miss (required an actual formula run).
             // When false (all hits), evaluate_others can skip resolve_layout because no
             // values changed and the layout state is guaranteed identical.
-            let mut had_cache_miss = false;
+            // On the very first evaluation (last_evaluated_generation == u64::MAX), we MUST
+            // force a cache miss so that static schemas (with no formulas) still process
+            // URL templates and layout resolution once.
+            let mut had_cache_miss = self.eval_cache.last_evaluated_generation == u64::MAX;
 
             // Process each batch - sequentially
             // Batches are processed sequentially to maintain dependency order
