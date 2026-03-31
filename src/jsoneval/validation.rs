@@ -223,26 +223,11 @@ impl JSONEval {
             }
         }
 
-        // Coerce a field value to f64 based on the schema type.
-        // The frontend often serialises number fields as JSON strings (e.g. "5000000").
-        // `as_f64()` returns None for strings, which caused minValue/maxValue to silently
-        // skip even when the value is present and below/above the threshold.
         let schema_type = schema_map
             .get("type")
             .and_then(|t| t.as_str())
             .unwrap_or("");
-        let coerce_to_f64 = |v: &Value| -> Option<f64> {
-            if let Some(n) = v.as_f64() {
-                return Some(n);
-            }
-            // For number/integer fields, try parsing string representations.
-            if matches!(schema_type, "number" | "integer") {
-                if let Some(s) = v.as_str() {
-                    return s.trim().parse::<f64>().ok();
-                }
-            }
-            None
-        };
+
 
         // Get the evaluated rule from evaluated_schema (which has $evaluation already processed)
         // Convert field_path to schema path
@@ -341,96 +326,22 @@ impl JSONEval {
                     }
                 }
             }
-            "minLength" => {
-                if !is_empty {
-                    if let Some(min) = rule_active.as_u64() {
-                        let len = match field_data {
-                            Value::String(s) => s.len(),
-                            Value::Array(a) => a.len(),
-                            _ => 0,
-                        };
-                        if len < min as usize {
-                            errors.insert(
-                                field_path.to_string(),
-                                ValidationError {
-                                    rule_type: "minLength".to_string(),
-                                    message: rule_message,
-                                    code: error_code.clone(),
-                                    pattern: None,
-                                    field_value: None,
-                                    data: None,
-                                },
-                            );
-                        }
-                    }
+            "minLength" | "maxLength" | "minValue" | "maxValue" => {
+                if rule_value_fails(rule_name, &rule_active, field_data, is_empty, schema_type) {
+                    errors.insert(
+                        field_path.to_string(),
+                        ValidationError {
+                            rule_type: rule_name.to_string(),
+                            message: rule_message,
+                            code: error_code.clone(),
+                            pattern: None,
+                            field_value: None,
+                            data: None,
+                        },
+                    );
                 }
             }
-            "maxLength" => {
-                if !is_empty {
-                    if let Some(max) = rule_active.as_u64() {
-                        let len = match field_data {
-                            Value::String(s) => s.len(),
-                            Value::Array(a) => a.len(),
-                            _ => 0,
-                        };
-                        if len > max as usize {
-                            errors.insert(
-                                field_path.to_string(),
-                                ValidationError {
-                                    rule_type: "maxLength".to_string(),
-                                    message: rule_message,
-                                    code: error_code.clone(),
-                                    pattern: None,
-                                    field_value: None,
-                                    data: None,
-                                },
-                            );
-                        }
-                    }
-                }
-            }
-            "minValue" => {
-                if !is_empty {
-                    if let Some(min) = rule_active.as_f64() {
-                        if let Some(val) = coerce_to_f64(field_data) {
-                            if val < min {
-                                errors.insert(
-                                    field_path.to_string(),
-                                    ValidationError {
-                                        rule_type: "minValue".to_string(),
-                                        message: rule_message,
-                                        code: error_code.clone(),
-                                        pattern: None,
-                                        field_value: None,
-                                        data: None,
-                                    },
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-            "maxValue" => {
-                if !is_empty {
-                    if let Some(max) = rule_active.as_f64() {
-                        if let Some(val) = coerce_to_f64(field_data) {
-                            if val > max {
-                                errors.insert(
-                                    field_path.to_string(),
-                                    ValidationError {
-                                        rule_type: "maxValue".to_string(),
-                                        message: rule_message,
-                                        code: error_code.clone(),
-                                        pattern: None,
-                                        field_value: None,
-                                        data: None,
-                                    },
-                                );
-                            }
-                        }
-                    }
-                }
-            }
+
             "pattern" => {
                 if !is_empty {
                     if let Some(pattern) = rule_active.as_str() {
@@ -511,34 +422,180 @@ impl JSONEval {
                 }
             }
             _ => {
-                // Custom evaluation rules
-                // In JS: if (!opt.rule.value) then error
-                // This handles rules with $evaluation that return false/falsy values
-                if !is_empty {
-                    // Check if rule_active is falsy (false, 0, null, empty string, empty array)
-                    let is_falsy = match &rule_active {
-                        Value::Bool(false) => true,
-                        Value::Null => true,
-                        Value::Number(n) => n.as_f64() == Some(0.0),
-                        Value::String(s) => s.is_empty(),
-                        Value::Array(a) => a.is_empty(),
-                        _ => false,
-                    };
-
-                    if is_falsy {
-                        errors.insert(
-                            field_path.to_string(),
-                            ValidationError {
-                                rule_type: "evaluation".to_string(),
-                                message: rule_message,
-                                code: error_code.clone(),
-                                pattern: None,
-                                field_value: None,
-                                data: rule_data,
-                            },
-                        );
-                    }
+                if rule_value_fails(rule_name, &rule_active, field_data, is_empty, schema_type) {
+                    errors.insert(
+                        field_path.to_string(),
+                        ValidationError {
+                            rule_type: "evaluation".to_string(),
+                            message: rule_message,
+                            code: error_code.clone(),
+                            pattern: None,
+                            field_value: None,
+                            data: rule_data,
+                        },
+                    );
                 }
+            }
+        }
+    }
+
+    /// Returns `true` if `field_data` fails any of the dep field's schema rules.
+    ///
+    /// Rules are evaluated on-demand: compiled `LogicId`s from `self.evaluations` (set at
+    /// construction time) are executed directly against `scope_data`, completely bypassing
+    /// `evaluated_schema`. This avoids stale-cache issues during table dependency checks.
+    /// Unlike `validate_field`, this also evaluates the `required` rule on-demand.
+    pub(crate) fn dep_fails_schema_rules(
+        &self,
+        field_path: &str,
+        field_data: &Value,
+        scope_data: &Value,
+    ) -> bool {
+        let schema_pointer = path_utils::dot_notation_to_schema_pointer(field_path);
+        let pointer = schema_pointer.trim_start_matches('#');
+
+        let field_schema = match self.schema.pointer(pointer) {
+            Some(s) => s,
+            None => {
+                let alt_pointer = format!("/properties{}", pointer);
+                match self.schema.pointer(&alt_pointer) {
+                    Some(s) => s,
+                    None => return false,
+                }
+            }
+        };
+
+        let schema_map = match field_schema.as_object() {
+            Some(m) => m,
+            None => return false,
+        };
+
+        let rules = match schema_map.get("rules") {
+            Some(Value::Object(r)) => r,
+            _ => return false,
+        };
+
+        let schema_type = schema_map
+            .get("type")
+            .and_then(|t| t.as_str())
+            .unwrap_or("");
+
+        let is_empty = matches!(field_data, Value::Null)
+            || field_data.as_str().map_or(false, |s| s.is_empty())
+            || field_data.as_array().map_or(false, |a| a.is_empty());
+
+        for (rule_name, rule_value) in rules {
+            // Resolve the rule's active value on-demand.
+            // If a compiled LogicId exists in self.evaluations for this rule path, run it fresh
+            // against scope_data. Otherwise fall back to the static "value" from the raw schema.
+            let rule_eval_key = format!("#{}/rules/{}", pointer, rule_name);
+            let rule_active: Value = if let Some(logic_id) = self.evaluations.get(&rule_eval_key) {
+                let empty_ctx = Value::Object(serde_json::Map::new());
+                self.engine
+                    .run_with_context(logic_id, scope_data, &empty_ctx)
+                    .unwrap_or(Value::Null)
+            } else {
+                match rule_value {
+                    Value::Object(obj) => obj.get("value").cloned().unwrap_or(Value::Null),
+                    other => other.clone(),
+                }
+            };
+
+            if rule_value_fails(rule_name, &rule_active, field_data, is_empty, schema_type) {
+                return true;
+            }
+        }
+
+        false
+    }
+}
+
+/// Pure rule-check: returns `true` if `rule_active` indicates `field_data` fails the rule.
+///
+/// This is the shared comparison kernel used by both `validate_rule` (full validation path)
+/// and `dep_fails_schema_rules` (on-demand dep checking). It is intentionally free of any
+/// schema/cache lookups — callers are responsible for resolving `rule_active` beforehand.
+///
+/// Handles: `required`, `minLength`, `maxLength`, `minValue`, `maxValue`, and custom/dynamic.
+/// Does NOT handle: `pattern` (needs regex cache), `evaluation` array format (complex structure).
+fn rule_value_fails(
+    rule_name: &str,
+    rule_active: &Value,
+    field_data: &Value,
+    is_empty: bool,
+    schema_type: &str,
+) -> bool {
+    let coerce_num = |v: &Value| -> Option<f64> {
+        if let Some(n) = v.as_f64() {
+            return Some(n);
+        }
+        if matches!(schema_type, "number" | "integer") {
+            if let Some(s) = v.as_str() {
+                return s.trim().parse::<f64>().ok();
+            }
+        }
+        None
+    };
+
+    match rule_name {
+        "required" => is_empty && matches!(rule_active, Value::Bool(true)),
+        "minLength" => {
+            if is_empty {
+                false
+            } else if let Some(min) = rule_active.as_u64() {
+                let len = match field_data {
+                    Value::String(s) => s.len(),
+                    Value::Array(a) => a.len(),
+                    _ => 0,
+                };
+                len < min as usize
+            } else {
+                false
+            }
+        }
+        "maxLength" => {
+            if is_empty {
+                false
+            } else if let Some(max) = rule_active.as_u64() {
+                let len = match field_data {
+                    Value::String(s) => s.len(),
+                    Value::Array(a) => a.len(),
+                    _ => 0,
+                };
+                len > max as usize
+            } else {
+                false
+            }
+        }
+        "minValue" => {
+            if is_empty {
+                false
+            } else if let Some(min) = rule_active.as_f64() {
+                coerce_num(field_data).map_or(false, |v| v < min)
+            } else {
+                false
+            }
+        }
+        "maxValue" => {
+            if is_empty {
+                false
+            } else if let Some(max) = rule_active.as_f64() {
+                coerce_num(field_data).map_or(false, |v| v > max)
+            } else {
+                false
+            }
+        }
+        // pattern and evaluation array are handled by their specific callers
+        "pattern" | "evaluation" => false,
+        _ => {
+            // Custom/dynamic rule: falsy rule_active = constraint not met = field invalid
+            if is_empty {
+                false
+            } else {
+                matches!(rule_active, Value::Bool(false) | Value::Null)
+                    || rule_active.as_f64() == Some(0.0)
+                    || rule_active.as_str().map_or(false, |s| s.is_empty())
+                    || rule_active.as_array().map_or(false, |a| a.is_empty())
             }
         }
     }

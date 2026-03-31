@@ -115,36 +115,25 @@ fn evaluate_table_inner(
     let mut requirement_not_filled = false;
     time_block!(&format!("[table::{}] phase2 dep-check", eval_key), {
         if let Some(deps) = lib.dependencies.get(eval_key) {
-            let mut required_cache: HashMap<&str, bool> = HashMap::new();
-
             for dep in deps.iter() {
-                if dep.contains("$params")
-                    || (!dep.contains("$context")
-                        && (dep.starts_with("/$") || dep.starts_with("$")))
-                {
+                let is_params_dep = dep.contains("$params");
+                let is_other_system_dep = !is_params_dep
+                    && !dep.contains("$context")
+                    && (dep.starts_with("/$") || dep.starts_with("$"));
+
+                if is_other_system_dep || is_params_dep {
                     continue;
                 }
 
-                let is_empty_or_missing = match scope_data.get_without_properties(dep) {
-                    Some(dep_value) => match dep_value {
-                        Value::Null => true,
-                        Value::String(s) => s.is_empty(),
-                        Value::Array(arr) => arr.is_empty(),
-                        Value::Object(obj) => obj.is_empty(),
-                        _ => false,
-                    },
-                    None => true,
-                };
+                // Validate the dep's current value (or Null if absent) against its schema rules
+                // on-demand — including required. Uses pre-compiled LogicIds; no cache involved.
+                let dep_value = scope_data
+                    .get_without_properties(dep)
+                    .unwrap_or(&Value::Null);
 
-                if is_empty_or_missing {
-                    let is_field_required = *required_cache
-                        .entry(dep.as_str())
-                        .or_insert_with(|| check_field_required(&lib.evaluated_schema, dep));
-
-                    if is_field_required {
-                        requirement_not_filled = true;
-                        break;
-                    }
+                if lib.dep_fails_schema_rules(dep, dep_value, scope_data.data()) {
+                    requirement_not_filled = true;
+                    break;
                 }
             }
         }
@@ -528,25 +517,4 @@ fn evaluate_table_inner(
     }
 
     Ok(local_rows)
-}
-
-/// Check if a field is required based on the schema rules
-fn check_field_required(schema: &Value, dep_path: &str) -> bool {
-    let rules_path = format!(
-        "{}/rules/required",
-        path_utils::dot_notation_to_schema_pointer(dep_path)
-    );
-
-    if let Some(required_rule) = path_utils::get_value_by_pointer(schema, &rules_path) {
-        if let Some(rule_obj) = required_rule.as_object() {
-            if let Some(Value::Bool(is_required)) = rule_obj.get("value") {
-                return *is_required;
-            }
-        }
-        if let Some(is_required) = required_rule.as_bool() {
-            return is_required;
-        }
-    }
-
-    false
 }
