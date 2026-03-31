@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.78] - 2026-04-01
+
+### Fixed
+
+- [core] fix parsed schema
+
 ## [0.0.77] - 2026-04-01
 
 ### Changed
