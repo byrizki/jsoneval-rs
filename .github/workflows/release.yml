@@ -1,7 +1,8 @@
 name: Release and Build
 
 permissions:
-  contents: read
+  contents: write
+  discussions: write
 
 on:
   push:
@@ -22,6 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      discussions: write
+      id-token: write
     outputs:
       tag: ${{ steps.get_version.outputs.tag }}
       version: ${{ steps.get_version.outputs.version }}
@@ -126,6 +129,8 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
+          make_latest: true
+          target_commitish: ${{ github.sha }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -946,6 +951,10 @@ jobs:
       !contains(needs.*.result, 'cancelled')
     needs: [create-release, build-native, build-android-jni, build-ios-xcframework, build-csharp, build-web, build-react-native, test, test-react-native-android, test-react-native-ios]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      discussions: write
+      id-token: write
     
     steps:
     - uses: actions/checkout@v6
@@ -1007,6 +1016,7 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ needs.create-release.outputs.tag }}
+        target_commitish: ${{ github.sha }}
         files: |
           release-artifacts/*.tar.gz
           release-artifacts/*.tgz
