@@ -218,7 +218,12 @@ impl JSONEval {
                     let dot_path = data_path.trim_end_matches("/value").replace('/', ".");
                     let mut obj = serde_json::Map::new();
                     obj.insert("$ref".to_string(), Value::String(dot_path));
-                    obj.insert("value".to_string(), new_val.clone());
+                    let is_clear = new_val == &Value::Null || new_val.as_str() == Some("");
+                    if is_clear {
+                        obj.insert("clear".to_string(), Value::Bool(true));
+                    } else {
+                        obj.insert("value".to_string(), new_val.clone());
+                    }
                     result.push(Value::Object(obj));
                 }
             }
@@ -261,7 +266,12 @@ impl JSONEval {
                 Value::String(path_utils::pointer_to_dot_notation(&data_path)),
             );
             obj.insert("$readonly".to_string(), Value::Bool(true));
-            obj.insert("value".to_string(), schema_value);
+            let is_clear = schema_value == Value::Null || schema_value.as_str() == Some("");
+            if is_clear {
+                obj.insert("clear".to_string(), Value::Bool(true));
+            } else {
+                obj.insert("value".to_string(), schema_value);
+            }
             result.push(Value::Object(obj));
         }
 
@@ -424,7 +434,12 @@ impl JSONEval {
 
             let mut change_obj = serde_json::Map::new();
             change_obj.insert("$ref".to_string(), Value::String(dot_path));
-            change_obj.insert("value".to_string(), schema_val);
+            let is_clear = schema_val == Value::Null || schema_val.as_str() == Some("");
+            if is_clear {
+                change_obj.insert("clear".to_string(), Value::Bool(true));
+            } else {
+                change_obj.insert("value".to_string(), schema_val);
+            }
             result.push(Value::Object(change_obj));
 
             let schema_ptr = format!("#/{}", data_path.replace('/', "/properties/"));
@@ -1209,8 +1224,11 @@ impl JSONEval {
                         )?;
                         let cleaned_val = clean_float_noise_scalar(computed_value);
 
-                        if cleaned_val == Value::Null && current_ref_value != Value::Null {
-                            // Schema value resolved to null — treat as explicit clear so the
+                        let is_clear = cleaned_val == Value::Null || cleaned_val.as_str() == Some("");
+                        let ref_is_clear = current_ref_value == Value::Null || current_ref_value.as_str() == Some("");
+
+                        if is_clear && !ref_is_clear {
+                            // Schema value resolved to null or empty string — treat as explicit clear so the
                             // consumer receives `null` instead of seeing `undefined`.
                             if data_path == current_data_path {
                                 current_value = Value::Null;
@@ -1220,7 +1238,7 @@ impl JSONEval {
                             change_obj.insert("clear".to_string(), Value::Bool(true));
                             add_transitive = true;
                             add_deps = true;
-                        } else if cleaned_val != current_ref_value && cleaned_val != Value::Null {
+                        } else if cleaned_val != current_ref_value && !is_clear {
                             if data_path == current_data_path {
                                 current_value = cleaned_val.clone();
                             }
