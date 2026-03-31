@@ -81,10 +81,10 @@ pub struct ParsedSchema {
     /// Map from a field path (source) to list of fields (targets) that reference it in their hidden condition
     /// Used for recursive hiding logic
     pub reffed_by: Arc<IndexMap<String, Vec<String>>>,
-    
+
     /// Cached paths of fields that have hidden conditions (wrapped in Arc for zero-copy sharing)
     pub conditional_hidden_fields: Arc<Vec<String>>,
-    
+
     /// Cached paths of fields that have disabled conditions and value property (wrapped in Arc for zero-copy sharing)
     pub conditional_readonly_fields: Arc<Vec<String>>,
 
@@ -121,7 +121,10 @@ impl ParsedSchema {
         let engine_config = RLogicConfig::default();
 
         // Pre-process: extract large static arrays from $params to prevent massive cloning
-        let static_arrays = if let Some(params) = schema_val.get_mut("$params").and_then(|v| v.as_object_mut()) {
+        let static_arrays = if let Some(params) = schema_val
+            .get_mut("$params")
+            .and_then(|v| v.as_object_mut())
+        {
             crate::jsoneval::static_arrays::extract_from_params(params)
         } else {
             IndexMap::new()

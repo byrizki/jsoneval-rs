@@ -3,7 +3,6 @@ use super::helpers;
 use super::{types::*, Evaluator};
 use serde_json::Value;
 
-
 impl Evaluator {
     /// Resolve table reference directly - ZERO-COPY with optimized lookup
     #[inline]
@@ -49,7 +48,8 @@ impl Evaluator {
             }
             CompiledLogic::Ref(path, _) => {
                 // Tables are usually in user_data, not internal_context
-                let value = self.get_var(user_data, path)
+                let value = self
+                    .get_var(user_data, path)
                     .or_else(|| self.get_var(internal_context, path));
                 value
                     .filter(|v: &&Value| !v.is_null())
@@ -135,7 +135,11 @@ impl Evaluator {
         let row_idx = match row_idx_expr {
             CompiledLogic::Number(n) => {
                 let idx = *n as i64;
-                if idx >= 0 { Some(idx as usize) } else { None }
+                if idx >= 0 {
+                    Some(idx as usize)
+                } else {
+                    None
+                }
             }
             _ => {
                 // Evaluate row index expression
@@ -356,22 +360,24 @@ impl Evaluator {
             if let Ok(indices) = self.indices.read() {
                 if let Some(index) = indices.get(name) {
                     // We have an index for this table!
-                    
+
                     // 1. Check if all columns in conditions are indexed
-                    let all_columns_indexed = evaluated_conditions.iter().all(|(_, field)| index.has_column(field));
-                    
+                    let all_columns_indexed = evaluated_conditions
+                        .iter()
+                        .all(|(_, field)| index.has_column(field));
+
                     if all_columns_indexed {
                         // 2. Perform intersection of matching row indices
                         let mut candidate_rows: Option<std::collections::HashSet<usize>> = None;
-                        
+
                         for (val, field) in &evaluated_conditions {
                             if let Some(rows) = index.lookup(field, val) {
                                 if let Some(candidates) = &mut candidate_rows {
-                                     // Intersect with existing candidates
-                                     candidates.retain(|r| rows.contains(r));
-                                     if candidates.is_empty() {
-                                         return Ok(self.f64_to_json(-1.0));
-                                     }
+                                    // Intersect with existing candidates
+                                    candidates.retain(|r| rows.contains(r));
+                                    if candidates.is_empty() {
+                                        return Ok(self.f64_to_json(-1.0));
+                                    }
                                 } else {
                                     // Initialize candidates
                                     // We clone here because we need to mutate the set for intersection
@@ -383,7 +389,7 @@ impl Evaluator {
                                 return Ok(self.f64_to_json(-1.0));
                             }
                         }
-                        
+
                         // 3. Return the first matching row index (min)
                         if let Some(candidates) = candidate_rows {
                             if let Some(min_idx) = candidates.iter().min() {
@@ -396,7 +402,7 @@ impl Evaluator {
                             // If conditions empty, existing logic returns -1 (or loops 0 times).
                             // Let's stick to existing behavior if processed conditions is empty
                             if conditions.is_empty() {
-                                 // Fall through to standard logic (which returns -1)
+                                // Fall through to standard logic (which returns -1)
                             } else if index.len() > 0 {
                                 // If we had conditions but they were all filtered out (e.g. invalid format)
                                 // fall through.
@@ -414,7 +420,6 @@ impl Evaluator {
         let table_ref = self.get_table_array(table_expr, user_data, internal_context, depth)?;
 
         if let Some(arr) = table_ref.as_array() {
-
             for (idx, row) in arr.iter().enumerate() {
                 if let Value::Object(obj) = row {
                     let all_match = evaluated_conditions.iter().all(|(value_val, field)| {
@@ -577,8 +582,12 @@ impl Evaluator {
 
         let is_provably_row_independent = |expr: &CompiledLogic| -> bool {
             match expr {
-                CompiledLogic::Null | CompiledLogic::Bool(_) | CompiledLogic::Number(_) | CompiledLogic::String(_) | CompiledLogic::Ref(..) => true,
-                _ => expr.referenced_vars().is_empty()
+                CompiledLogic::Null
+                | CompiledLogic::Bool(_)
+                | CompiledLogic::Number(_)
+                | CompiledLogic::String(_)
+                | CompiledLogic::Ref(..) => true,
+                _ => expr.referenced_vars().is_empty(),
             }
         };
 
@@ -600,12 +609,17 @@ impl Evaluator {
                     }
 
                     // Pre-evaluate the val_expr ONCE outside the row loop
-                    let evaluated_val = self.evaluate_with_context(val_expr, user_data, internal_context, depth + 1)?;
-                    
-                    // Var names are normalized to JSON Pointers (e.g. "/col"). Strip the leading '/' 
+                    let evaluated_val = self.evaluate_with_context(
+                        val_expr,
+                        user_data,
+                        internal_context,
+                        depth + 1,
+                    )?;
+
+                    // Var names are normalized to JSON Pointers (e.g. "/col"). Strip the leading '/'
                     // to match the behavior of MATCH which uses bare strings ("col") for index caching and obj.get()
                     let bare_field = var_name.strip_prefix('/').unwrap_or(&var_name).to_string();
-                    
+
                     evaluated_match_conditions.push((evaluated_val, bare_field));
                 }
                 _ => {
@@ -626,7 +640,9 @@ impl Evaluator {
             if let Some(name) = table_name {
                 if let Ok(indices) = self.indices.read() {
                     if let Some(index) = indices.get(name) {
-                        let all_columns_indexed = evaluated_match_conditions.iter().all(|(_, field)| index.has_column(field));
+                        let all_columns_indexed = evaluated_match_conditions
+                            .iter()
+                            .all(|(_, field)| index.has_column(field));
                         if all_columns_indexed {
                             let mut candidate_rows: Option<std::collections::HashSet<usize>> = None;
                             for (val, field) in &evaluated_match_conditions {
@@ -744,7 +760,8 @@ impl Evaluator {
 
             // Ref ($ref): check internal_context → user_data (NOT row, $ref is outer-scope)
             CompiledLogic::Ref(path, default) => {
-                let value = self.get_var(internal_context, path)
+                let value = self
+                    .get_var(internal_context, path)
                     .or_else(|| self.get_var(user_data, path));
                 match value {
                     Some(v) if !v.is_null() => Ok(v.clone()),
@@ -756,12 +773,14 @@ impl Evaluator {
             }
 
             // Comparisons
-            CompiledLogic::Equal(a, b) => {
-                Ok(Value::Bool(helpers::loose_equal(&recurse!(a)?, &recurse!(b)?)))
-            }
-            CompiledLogic::NotEqual(a, b) => {
-                Ok(Value::Bool(!helpers::loose_equal(&recurse!(a)?, &recurse!(b)?)))
-            }
+            CompiledLogic::Equal(a, b) => Ok(Value::Bool(helpers::loose_equal(
+                &recurse!(a)?,
+                &recurse!(b)?,
+            ))),
+            CompiledLogic::NotEqual(a, b) => Ok(Value::Bool(!helpers::loose_equal(
+                &recurse!(a)?,
+                &recurse!(b)?,
+            ))),
             CompiledLogic::StrictEqual(a, b) => Ok(Value::Bool(recurse!(a)? == recurse!(b)?)),
             CompiledLogic::StrictNotEqual(a, b) => Ok(Value::Bool(recurse!(a)? != recurse!(b)?)),
             CompiledLogic::LessThan(a, b) => Ok(Value::Bool(

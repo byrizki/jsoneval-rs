@@ -3,10 +3,12 @@ use indexmap::{IndexMap, IndexSet};
 use serde_json::{Map, Value};
 use std::sync::Arc;
 
-use crate::parse_schema::common::{compute_column_partitions, has_actionable_keys};
-use crate::jsoneval::table_metadata::{ColumnMetadata, RepeatBoundMetadata, RowMetadata, TableMetadata};
-use crate::ParsedSchema;
 use crate::jsoneval::path_utils;
+use crate::jsoneval::table_metadata::{
+    ColumnMetadata, RepeatBoundMetadata, RowMetadata, TableMetadata,
+};
+use crate::parse_schema::common::{compute_column_partitions, has_actionable_keys};
+use crate::ParsedSchema;
 use crate::{topo_sort, LogicId, RLogic};
 
 pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
@@ -128,9 +130,11 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                     if url.contains('{') && url.contains('}') {
                         // Convert to JSON pointer format for evaluated_schema access
                         let url_path =
-                            path_utils::normalize_to_json_pointer(&format!("{}/url", path)).into_owned();
+                            path_utils::normalize_to_json_pointer(&format!("{}/url", path))
+                                .into_owned();
                         let params_path =
-                            path_utils::normalize_to_json_pointer(&format!("{}/params", path)).into_owned();
+                            path_utils::normalize_to_json_pointer(&format!("{}/params", path))
+                                .into_owned();
                         options_templates.push((url_path, url.clone(), params_path));
                     }
                 }
@@ -155,7 +159,7 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
                     }
                     // Disabled (Read Only) - only relevant if it has a value enforce
                     if condition.contains_key("disabled") && map.contains_key("value") {
-                         conditional_readonly_fields.push(path.to_string());
+                        conditional_readonly_fields.push(path.to_string());
                     }
                 }
 
@@ -303,8 +307,6 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
             _ => Ok(()),
         }
     }
-
-
 
     fn collect_refs(value: &Value, refs: &mut IndexSet<String>) {
         match value {
@@ -586,7 +588,8 @@ fn process_value_fields_parsed(parsed: &mut ParsedSchema, value_fields: Vec<Stri
         }
 
         // Skip table-related paths
-        if path.contains("/$params/") || parsed.tables.iter().any(|(key, _)| path.starts_with(key)) {
+        if path.contains("/$params/") || parsed.tables.iter().any(|(key, _)| path.starts_with(key))
+        {
             continue;
         }
 

@@ -10,8 +10,6 @@ use crate::utils::clean_float_noise_scalar;
 
 use serde_json::Value;
 
-
-
 impl JSONEval {
     /// Evaluate the schema with the given data and context.
     ///
@@ -35,7 +33,7 @@ impl JSONEval {
                 return Err("Cancelled".to_string());
             }
         }
-        time_block!("evaluate() [total]", { 
+        time_block!("evaluate() [total]", {
             // Use SIMD-accelerated JSON parsing
             // Parse and update data/context
             let data_value = time_block!("  parse data", { json_parser::parse_json_str(data)? });
@@ -64,11 +62,18 @@ impl JSONEval {
             // Reuse the previously stored snapshot as `old_data` to avoid an O(n) deep clone
             // on every main-form evaluation call.
             let has_previous_eval = self.eval_cache.main_form_snapshot.is_some();
-            let old_data = self.eval_cache.main_form_snapshot
+            let old_data = self
+                .eval_cache
+                .main_form_snapshot
                 .take()
                 .unwrap_or_else(|| self.eval_data.snapshot_data_clone());
 
-            let old_context = self.eval_data.data().get("$context").cloned().unwrap_or(Value::Null);
+            let old_context = self
+                .eval_data
+                .data()
+                .get("$context")
+                .cloned()
+                .unwrap_or(Value::Null);
 
             // Store data, context and replace in eval_data (clone once instead of twice)
             self.data = data.clone();
@@ -78,16 +83,26 @@ impl JSONEval {
             });
 
             let new_data = self.eval_data.snapshot_data_clone();
-            let new_context = self.eval_data.data().get("$context").cloned().unwrap_or(Value::Null);
+            let new_context = self
+                .eval_data
+                .data()
+                .get("$context")
+                .cloned()
+                .unwrap_or(Value::Null);
 
-            if has_previous_eval && old_data == new_data && old_context == new_context && paths.is_none() {
+            if has_previous_eval
+                && old_data == new_data
+                && old_context == new_context
+                && paths.is_none()
+            {
                 // Perfect cache hit for unmodified payload: fully skip tree traversal.
                 // Restore snapshot since nothing changed.
                 self.eval_cache.main_form_snapshot = Some(new_data);
                 return Ok(());
             }
 
-            self.eval_cache.store_snapshot_and_diff_versions(&old_data, &new_data);
+            self.eval_cache
+                .store_snapshot_and_diff_versions(&old_data, &new_data);
             // Save snapshot for the next evaluation cycle (avoids one snapshot_data_clone() call).
             self.eval_cache.main_form_snapshot = Some(new_data);
 
@@ -121,7 +136,11 @@ impl JSONEval {
 
     /// Internal evaluate that can be called when data is already set
     /// This avoids double-locking and unnecessary data cloning for re-evaluation from evaluate_dependents
-    pub(crate) fn evaluate_internal(&mut self, paths: Option<&[String]>, token: Option<&CancellationToken>) -> Result<(), String> {
+    pub(crate) fn evaluate_internal(
+        &mut self,
+        paths: Option<&[String]>,
+        token: Option<&CancellationToken>,
+    ) -> Result<(), String> {
         if let Some(t) = token {
             if t.is_cancelled() {
                 return Err("Cancelled".to_string());
@@ -131,7 +150,6 @@ impl JSONEval {
             // Acquire lock for synchronous execution
             let _lock = self.eval_lock.lock().unwrap();
 
- 
             // Normalize paths to schema pointers for correct filtering
             let normalized_paths_storage; // Keep alive
             let normalized_paths = if let Some(p_list) = paths {
@@ -159,9 +177,11 @@ impl JSONEval {
 
             // Borrow sorted_evaluations via Arc (avoid deep-cloning Vec<Vec<String>>)
             let eval_batches = self.sorted_evaluations.clone();
-            
-            // Track cache misses across batches to prevent false hits from large skipped arrays
-            // Use persisted missed_keys from JSONEval
+
+            // Track whether any entry was a cache miss (required an actual formula run).
+            // When false (all hits), evaluate_others can skip resolve_layout because no
+            // values changed and the layout state is guaranteed identical.
+            let mut had_cache_miss = false;
 
             // Process each batch - sequentially
             // Batches are processed sequentially to maintain dependency order
@@ -201,17 +221,19 @@ impl JSONEval {
                         continue;
                     }
 
+                    had_cache_miss = true;
                     // Cache miss - evaluate
                     if let Some(logic_id) = self.evaluations.get(eval_key) {
                         if let Ok(val) = self.engine.run(logic_id, eval_data_values.data()) {
-                             let cleaned_val = clean_float_noise_scalar(val);
-                             self.eval_cache.store_cache(eval_key, deps, cleaned_val.clone());
+                            let cleaned_val = clean_float_noise_scalar(val);
+                            self.eval_cache
+                                .store_cache(eval_key, deps, cleaned_val.clone());
 
-                             if let Some(pointer_value) =
-                                 self.evaluated_schema.pointer_mut(&pointer_path)
-                             {
-                                 *pointer_value = cleaned_val;
-                             }
+                            if let Some(pointer_value) =
+                                self.evaluated_schema.pointer_mut(&pointer_path)
+                            {
+                                *pointer_value = cleaned_val;
+                            }
                         }
                     }
                 }
@@ -254,7 +276,8 @@ impl JSONEval {
                             let empty_deps = indexmap::IndexSet::new();
                             let deps = self.dependencies.get(eval_key).unwrap_or(&empty_deps);
                             if let Some(cached) = self.eval_cache.check_cache(eval_key, deps) {
-                                let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
+                                let pointer_path =
+                                    path_utils::normalize_to_json_pointer(eval_key).into_owned();
                                 batch_hits.push((pointer_path, cached));
                                 true
                             } else {
@@ -269,6 +292,7 @@ impl JSONEval {
                             }
                             continue;
                         }
+                        had_cache_miss = true;
                         // Partial or full miss — fall through to the normal exclusive_clone path below.
                         // batch_hits is dropped here; cache lookups will repeat but that's cheap.
                     }
@@ -297,7 +321,8 @@ impl JSONEval {
                             }
                         }
 
-                        let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
+                        let pointer_path =
+                            path_utils::normalize_to_json_pointer(eval_key).into_owned();
 
                         // Cache miss - evaluate
                         let is_table = self.table_metadata.contains_key(eval_key);
@@ -308,8 +333,12 @@ impl JSONEval {
                             let pointer_data_prefix_slash = format!("{}/", pointer_data_prefix);
                             if let Some(deps) = self.dependencies.get(eval_key) {
                                 for dep in deps {
-                                    let dep_data_path = crate::jsoneval::path_utils::normalize_to_json_pointer(dep).replace("/properties/", "/");
-                                    if dep_data_path != pointer_data_prefix && !dep_data_path.starts_with(&pointer_data_prefix_slash) {
+                                    let dep_data_path =
+                                        crate::jsoneval::path_utils::normalize_to_json_pointer(dep)
+                                            .replace("/properties/", "/");
+                                    if dep_data_path != pointer_data_prefix
+                                        && !dep_data_path.starts_with(&pointer_data_prefix_slash)
+                                    {
                                         external_deps.insert(dep.clone());
                                     }
                                 }
@@ -329,7 +358,9 @@ impl JSONEval {
                                 }
                             }
 
-                            if let Some(cached_result) = self.eval_cache.check_cache(eval_key, &external_deps) {
+                            if let Some(cached_result) =
+                                self.eval_cache.check_cache(eval_key, &external_deps)
+                            {
                                 let static_key = format!("/$table{}", pointer_path);
                                 let arc_value = std::sync::Arc::new(cached_result.clone());
 
@@ -347,14 +378,25 @@ impl JSONEval {
                                 continue;
                             }
 
-                            if let Ok(rows) =
-                                table_evaluate::evaluate_table(self, eval_key, &eval_data_snapshot, token)
-                            {
+                            if let Ok(rows) = table_evaluate::evaluate_table(
+                                self,
+                                eval_key,
+                                &eval_data_snapshot,
+                                token,
+                            ) {
                                 let result_val = Value::Array(rows);
-                                self.eval_cache.store_cache(eval_key, &external_deps, result_val.clone());
+                                self.eval_cache.store_cache(
+                                    eval_key,
+                                    &external_deps,
+                                    result_val.clone(),
+                                );
 
                                 // Only bump version if the table result actually changed
-                                let old_table_val = self.eval_data.get(&pointer_data_prefix).cloned().unwrap_or(Value::Null);
+                                let old_table_val = self
+                                    .eval_data
+                                    .get(&pointer_data_prefix)
+                                    .cloned()
+                                    .unwrap_or(Value::Null);
                                 if result_val != old_table_val {
                                     if pointer_data_prefix.starts_with("/$params") {
                                         self.eval_cache.bump_params_version(&pointer_data_prefix);
@@ -381,7 +423,9 @@ impl JSONEval {
                         } else {
                             let empty_deps = indexmap::IndexSet::new();
                             let deps = self.dependencies.get(eval_key).unwrap_or(&empty_deps);
-                            if let Some(cached_result) = self.eval_cache.check_cache(eval_key, &deps) {
+                            if let Some(cached_result) =
+                                self.eval_cache.check_cache(eval_key, &deps)
+                            {
                                 // Must still populate eval_data out of cache so subsequent formulas
                                 // referencing this path in the same iteration can read the exact value
                                 self.eval_data.set(&pointer_path, cached_result.clone());
@@ -399,11 +443,19 @@ impl JSONEval {
                                 {
                                     let cleaned_val = clean_float_noise_scalar(val);
                                     let data_path = pointer_path.replace("/properties/", "/");
-                                    self.eval_cache.store_cache(eval_key, &deps, cleaned_val.clone());
-                                    
+                                    self.eval_cache.store_cache(
+                                        eval_key,
+                                        &deps,
+                                        cleaned_val.clone(),
+                                    );
+
                                     // Check if the value actually changed to avoid cache thrashing
                                     // Must use data_path (without /properties/) as that's how eval_data stores values
-                                    let old_val = self.eval_data.get(&data_path).cloned().unwrap_or(Value::Null);
+                                    let old_val = self
+                                        .eval_data
+                                        .get(&data_path)
+                                        .cloned()
+                                        .unwrap_or(Value::Null);
                                     if cleaned_val != old_val {
                                         if data_path.starts_with("/$params") {
                                             self.eval_cache.bump_params_version(&data_path);
@@ -428,13 +480,18 @@ impl JSONEval {
             // Drop lock before calling evaluate_others
             drop(_lock);
 
-            self.evaluate_others(paths, token);
+            self.evaluate_others(paths, token, had_cache_miss);
 
             Ok(())
         })
     }
 
-    pub(crate) fn evaluate_others(&mut self, paths: Option<&[String]>, token: Option<&CancellationToken>) {
+    pub(crate) fn evaluate_others(
+        &mut self,
+        paths: Option<&[String]>,
+        token: Option<&CancellationToken>,
+        had_cache_miss: bool,
+    ) {
         if let Some(t) = token {
             if t.is_cancelled() {
                 return;
@@ -490,7 +547,8 @@ impl JSONEval {
                             }
                         }
 
-                        let pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
+                        let pointer_path =
+                            path_utils::normalize_to_json_pointer(eval_key).into_owned();
                         let empty_deps = indexmap::IndexSet::new();
                         let deps = self.dependencies.get(eval_key).unwrap_or(&empty_deps);
 
@@ -504,7 +562,8 @@ impl JSONEval {
                                 {
                                     if let Some(pointer_obj) = pointer_value.as_object_mut() {
                                         pointer_obj.remove("$evaluation");
-                                        pointer_obj.insert("value".to_string(), cached_result.clone());
+                                        pointer_obj
+                                            .insert("value".to_string(), cached_result.clone());
                                     }
                                 } else {
                                     *pointer_value = cached_result.clone();
@@ -513,11 +572,10 @@ impl JSONEval {
                             continue;
                         }
                         if let Some(logic_id) = self.evaluations.get(eval_key) {
-                            if let Ok(val) =
-                                self.engine.run(logic_id, eval_data_snapshot.data())
-                            {
+                            if let Ok(val) = self.engine.run(logic_id, eval_data_snapshot.data()) {
                                 let cleaned_val = clean_float_noise_scalar(val);
-                                self.eval_cache.store_cache(eval_key, &deps, cleaned_val.clone());
+                                self.eval_cache
+                                    .store_cache(eval_key, &deps, cleaned_val.clone());
 
                                 if let Some(pointer_value) =
                                     self.evaluated_schema.pointer_mut(&pointer_path)
@@ -546,14 +604,18 @@ impl JSONEval {
         });
 
         // Step 2: Evaluate options URL templates (handles {variable} patterns)
-        time_block!("      evaluate_options_templates", {
-            self.evaluate_options_templates(paths);
-        });
+        // Skip when all entries were cache hits — template inputs can't have changed.
+        if had_cache_miss {
+            time_block!("      evaluate_options_templates", {
+                self.evaluate_options_templates(paths);
+            });
 
-        // Step 3: Resolve layout logic (metadata injection, hidden propagation)
-        time_block!("      resolve_layout", {
-            let _ = self.resolve_layout(false);
-        });
+            // Step 3: Resolve layout logic (metadata injection, hidden propagation)
+            // Skip when no values changed — layout state is guaranteed identical.
+            time_block!("      resolve_layout", {
+                let _ = self.resolve_layout(false);
+            });
+        }
     }
 
     /// Evaluate options URL templates (handles {variable} patterns)

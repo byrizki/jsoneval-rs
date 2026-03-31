@@ -1,9 +1,9 @@
 use super::JSONEval;
 use crate::jsoneval::eval_data::EvalData;
 use crate::jsoneval::json_parser;
-use crate::parse_schema;
 use crate::jsoneval::parsed_schema::ParsedSchema;
 use crate::jsoneval::parsed_schema_cache::PARSED_SCHEMA_CACHE;
+use crate::parse_schema;
 use crate::rlogic::{RLogic, RLogicConfig};
 
 use crate::time_block;
@@ -13,7 +13,6 @@ use serde::de::Error as _;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
-
 
 impl Clone for JSONEval {
     fn clone(&self) -> Self {
@@ -39,7 +38,7 @@ impl Clone for JSONEval {
             evaluated_schema: self.evaluated_schema.clone(),
             eval_data: self.eval_data.clone(),
             eval_cache: self.eval_cache.clone(),
-            eval_lock: Mutex::new(()),    // Create fresh mutex for the clone
+            eval_lock: Mutex::new(()), // Create fresh mutex for the clone
             cached_msgpack_schema: self.cached_msgpack_schema.clone(),
             conditional_hidden_fields: self.conditional_hidden_fields.clone(),
             conditional_readonly_fields: self.conditional_readonly_fields.clone(),
@@ -67,21 +66,23 @@ impl JSONEval {
                 json_parser::parse_json_str(data.unwrap_or("{}"))
                     .map_err(serde_json::Error::custom)?
             });
-            
+
             // Extract large static arrays
-            let static_arrays = if let Some(params) = schema_val.get_mut("$params").and_then(|v| v.as_object_mut()) {
+            let static_arrays = if let Some(params) = schema_val
+                .get_mut("$params")
+                .and_then(|v| v.as_object_mut())
+            {
                 crate::jsoneval::static_arrays::extract_from_params(params)
             } else {
                 IndexMap::new()
             };
             let static_arrays = Arc::new(static_arrays);
             let evaluated_schema = schema_val.clone();
-            
+
             // Use default config: tracking enabled
             let engine_config = RLogicConfig::default();
             let mut engine = RLogic::with_config(engine_config);
             engine.set_static_arrays(Arc::clone(&static_arrays));
-
 
             let mut instance = time_block!("  create instance struct", {
                 Self {
@@ -136,7 +137,7 @@ impl JSONEval {
             // Data is empty for a subform initially
             let data = Value::Object(serde_json::Map::new());
             let evaluated_schema = schema_val.clone();
-            
+
             // Use default config: tracking enabled
             let engine_config = RLogicConfig::default();
             let mut engine = RLogic::with_config(engine_config);
@@ -212,16 +213,19 @@ impl JSONEval {
             .map_err(|e| format!("Failed to parse context: {}", e))?;
         let data: Value = json_parser::parse_json_str(data.unwrap_or("{}"))
             .map_err(|e| format!("Failed to parse data: {}", e))?;
-            
+
         // Extract large static arrays
-        let static_arrays = if let Some(params) = schema_val.get_mut("$params").and_then(|v| v.as_object_mut()) {
+        let static_arrays = if let Some(params) = schema_val
+            .get_mut("$params")
+            .and_then(|v| v.as_object_mut())
+        {
             crate::jsoneval::static_arrays::extract_from_params(params)
         } else {
             IndexMap::new()
         };
         let static_arrays = Arc::new(static_arrays);
         let evaluated_schema = schema_val.clone();
-        
+
         let engine_config = RLogicConfig::default();
         let mut engine = RLogic::with_config(engine_config);
         engine.set_static_arrays(Arc::clone(&static_arrays));
@@ -357,8 +361,11 @@ impl JSONEval {
         let data: Value = json_parser::parse_json_str(data.unwrap_or("{}"))?;
         self.context = context.clone();
         self.data = data.clone();
-        
-        let static_arrays = if let Some(params) = schema_val.get_mut("$params").and_then(|v| v.as_object_mut()) {
+
+        let static_arrays = if let Some(params) = schema_val
+            .get_mut("$params")
+            .and_then(|v| v.as_object_mut())
+        {
             crate::jsoneval::static_arrays::extract_from_params(params)
         } else {
             IndexMap::new()
@@ -367,7 +374,7 @@ impl JSONEval {
         self.static_arrays = Arc::clone(&static_arrays);
         self.schema = Arc::new(schema_val);
         self.evaluated_schema = (*self.schema).clone();
-        
+
         let mut engine = RLogic::new();
         engine.set_static_arrays(static_arrays);
         self.engine = Arc::new(engine);
@@ -467,8 +474,11 @@ impl JSONEval {
 
         self.context = context.clone();
         self.data = data.clone();
-        
-        let static_arrays = if let Some(params) = schema_val.get_mut("$params").and_then(|v| v.as_object_mut()) {
+
+        let static_arrays = if let Some(params) = schema_val
+            .get_mut("$params")
+            .and_then(|v| v.as_object_mut())
+        {
             crate::jsoneval::static_arrays::extract_from_params(params)
         } else {
             IndexMap::new()
@@ -477,7 +487,7 @@ impl JSONEval {
         self.static_arrays = Arc::clone(&static_arrays);
         self.schema = Arc::new(schema_val);
         self.evaluated_schema = (*self.schema).clone();
-        
+
         let mut engine = RLogic::new();
         engine.set_static_arrays(static_arrays);
         self.engine = Arc::new(engine);

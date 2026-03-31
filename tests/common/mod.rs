@@ -3,9 +3,11 @@ use std::fs;
 
 /// Load the minimal form schema from fixtures
 pub fn load_minimal_form_schema() -> String {
-    let schema_path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/minimal_form.json");
-    fs::read_to_string(schema_path)
-        .expect("Failed to read minimal_form.json")
+    let schema_path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/minimal_form.json"
+    );
+    fs::read_to_string(schema_path).expect("Failed to read minimal_form.json")
 }
 
 /// Get sample data for minimal form - basic insured person

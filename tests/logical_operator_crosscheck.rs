@@ -5,7 +5,6 @@
 /// - unary('!', PREC_PREFIX), operator('!', (a, b) => !b && (a = compile(a), ctx => !a(ctx)))
 /// - binary('||', PREC_LOR), operator('||', (a, b) => (a = compile(a), b = compile(b), ctx => a(ctx) || b(ctx)))
 /// - binary('&&', PREC_LAND), operator('&&', (a, b) => (a = compile(a), b = compile(b), ctx => a(ctx) && b(ctx)))
-
 use json_eval_rs::RLogic;
 use serde_json::json;
 
@@ -15,7 +14,7 @@ fn crosscheck_not_operator() {
     let data = json!({});
 
     println!("\n=== NOT (!) Operator Cross-Check ===");
-    
+
     // JS: !true => false
     let logic_id = engine.compile(&json!({"!": true})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
@@ -80,7 +79,7 @@ fn crosscheck_or_operator() {
     let data = json!({});
 
     println!("\n=== OR (||) Operator Cross-Check ===");
-    
+
     // JS: true || false => true (returns first truthy)
     let logic_id = engine.compile(&json!({"or": [true, false]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
@@ -97,7 +96,11 @@ fn crosscheck_or_operator() {
     let logic_id = engine.compile(&json!({"or": [false, false]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("false || false = {:?}", result);
-    assert_eq!(result, json!(false), "JS: false || false should return false");
+    assert_eq!(
+        result,
+        json!(false),
+        "JS: false || false should return false"
+    );
 
     // JS: 0 || 5 => 5 (returns first truthy)
     let logic_id = engine.compile(&json!({"or": [0, 5]})).unwrap();
@@ -115,13 +118,21 @@ fn crosscheck_or_operator() {
     let logic_id = engine.compile(&json!({"or": ["", "hello"]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("\"\" || \"hello\" = {:?}", result);
-    assert_eq!(result, json!("hello"), "JS: \"\" || \"hello\" should return \"hello\"");
+    assert_eq!(
+        result,
+        json!("hello"),
+        "JS: \"\" || \"hello\" should return \"hello\""
+    );
 
     // JS: "hello" || "world" => "hello" (short-circuits)
     let logic_id = engine.compile(&json!({"or": ["hello", "world"]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("\"hello\" || \"world\" = {:?}", result);
-    assert_eq!(result, json!("hello"), "JS: \"hello\" || \"world\" should return \"hello\"");
+    assert_eq!(
+        result,
+        json!("hello"),
+        "JS: \"hello\" || \"world\" should return \"hello\""
+    );
 
     // JS: null || 42 => 42
     let logic_id = engine.compile(&json!({"or": [null, 42]})).unwrap();
@@ -133,10 +144,16 @@ fn crosscheck_or_operator() {
     let logic_id = engine.compile(&json!({"or": [false, 0, null]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("false || 0 || null = {:?}", result);
-    assert_eq!(result, json!(null), "JS: false || 0 || null should return null");
+    assert_eq!(
+        result,
+        json!(null),
+        "JS: false || 0 || null should return null"
+    );
 
     // JS: false || 0 || "" || 42 || "never" => 42 (returns first truthy)
-    let logic_id = engine.compile(&json!({"or": [false, 0, "", 42, "never"]})).unwrap();
+    let logic_id = engine
+        .compile(&json!({"or": [false, 0, "", 42, "never"]}))
+        .unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("false || 0 || \"\" || 42 || \"never\" = {:?}", result);
     assert_eq!(result, json!(42), "JS: should return 42");
@@ -150,18 +167,26 @@ fn crosscheck_and_operator() {
     let data = json!({});
 
     println!("\n=== AND (&&) Operator Cross-Check ===");
-    
+
     // JS: true && false => false (returns first falsy)
     let logic_id = engine.compile(&json!({"and": [true, false]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("true && false = {:?}", result);
-    assert_eq!(result, json!(false), "JS: true && false should return false");
+    assert_eq!(
+        result,
+        json!(false),
+        "JS: true && false should return false"
+    );
 
     // JS: false && true => false (short-circuits, returns first falsy)
     let logic_id = engine.compile(&json!({"and": [false, true]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("false && true = {:?}", result);
-    assert_eq!(result, json!(false), "JS: false && true should return false");
+    assert_eq!(
+        result,
+        json!(false),
+        "JS: false && true should return false"
+    );
 
     // JS: true && true => true (all truthy, returns last)
     let logic_id = engine.compile(&json!({"and": [true, true]})).unwrap();
@@ -191,22 +216,36 @@ fn crosscheck_and_operator() {
     let logic_id = engine.compile(&json!({"and": ["hello", "world"]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("\"hello\" && \"world\" = {:?}", result);
-    assert_eq!(result, json!("world"), "JS: \"hello\" && \"world\" should return \"world\"");
+    assert_eq!(
+        result,
+        json!("world"),
+        "JS: \"hello\" && \"world\" should return \"world\""
+    );
 
     // JS: "" && "world" => "" (returns first falsy)
     let logic_id = engine.compile(&json!({"and": ["", "world"]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("\"\" && \"world\" = {:?}", result);
-    assert_eq!(result, json!(""), "JS: \"\" && \"world\" should return \"\"");
+    assert_eq!(
+        result,
+        json!(""),
+        "JS: \"\" && \"world\" should return \"\""
+    );
 
     // JS: "hello" && "" => "" (returns first falsy)
     let logic_id = engine.compile(&json!({"and": ["hello", ""]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("\"hello\" && \"\" = {:?}", result);
-    assert_eq!(result, json!(""), "JS: \"hello\" && \"\" should return \"\"");
+    assert_eq!(
+        result,
+        json!(""),
+        "JS: \"hello\" && \"\" should return \"\""
+    );
 
     // JS: 1 && "hello" && 0 && "never" => 0 (returns first falsy)
-    let logic_id = engine.compile(&json!({"and": [1, "hello", 0, "never"]})).unwrap();
+    let logic_id = engine
+        .compile(&json!({"and": [1, "hello", 0, "never"]}))
+        .unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("1 && \"hello\" && 0 && \"never\" = {:?}", result);
     assert_eq!(result, json!(0), "JS: should return 0");
@@ -226,15 +265,23 @@ fn crosscheck_short_circuit_behavior() {
     let data = json!({});
 
     println!("\n=== Short-Circuit Behavior Cross-Check ===");
-    
+
     // JS: false && (this would error) => false (short-circuits before error)
-    let logic_id = engine.compile(&json!({"and": [false, {"+": [1, "error"]}]})).unwrap();
+    let logic_id = engine
+        .compile(&json!({"and": [false, {"+": [1, "error"]}]}))
+        .unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("false && (error) = {:?}", result);
-    assert_eq!(result, json!(false), "JS: AND should short-circuit on false");
+    assert_eq!(
+        result,
+        json!(false),
+        "JS: AND should short-circuit on false"
+    );
 
     // JS: true || (this would error) => true (short-circuits before error)
-    let logic_id = engine.compile(&json!({"or": [true, {"+": [1, "error"]}]})).unwrap();
+    let logic_id = engine
+        .compile(&json!({"or": [true, {"+": [1, "error"]}]}))
+        .unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("true || (error) = {:?}", result);
     assert_eq!(result, json!(true), "JS: OR should short-circuit on true");
@@ -260,33 +307,55 @@ fn crosscheck_combined_logical_operations() {
     let data = json!({"a": 5, "b": 0, "c": 10});
 
     println!("\n=== Combined Logical Operations Cross-Check ===");
-    
+
     // JS: (5 && 10) || 0 => 10
-    let logic_id = engine.compile(&json!({"or": [{"and": [{"var": "a"}, {"var": "c"}]}, {"var": "b"}]})).unwrap();
+    let logic_id = engine
+        .compile(&json!({"or": [{"and": [{"var": "a"}, {"var": "c"}]}, {"var": "b"}]}))
+        .unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("(5 && 10) || 0 = {:?}", result);
-    assert_eq!(result.as_f64(), Some(10.0), "JS: (5 && 10) || 0 should return 10");
+    assert_eq!(
+        result.as_f64(),
+        Some(10.0),
+        "JS: (5 && 10) || 0 should return 10"
+    );
 
     // JS: (5 && 0) || 10 => 10
-    let logic_id = engine.compile(&json!({"or": [{"and": [{"var": "a"}, {"var": "b"}]}, {"var": "c"}]})).unwrap();
+    let logic_id = engine
+        .compile(&json!({"or": [{"and": [{"var": "a"}, {"var": "b"}]}, {"var": "c"}]}))
+        .unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("(5 && 0) || 10 = {:?}", result);
-    assert_eq!(result.as_f64(), Some(10.0), "JS: (5 && 0) || 10 should return 10");
+    assert_eq!(
+        result.as_f64(),
+        Some(10.0),
+        "JS: (5 && 0) || 10 should return 10"
+    );
 
     // JS: 5 && (0 || 10) => 10
-    let logic_id = engine.compile(&json!({"and": [{"var": "a"}, {"or": [{"var": "b"}, {"var": "c"}]}]})).unwrap();
+    let logic_id = engine
+        .compile(&json!({"and": [{"var": "a"}, {"or": [{"var": "b"}, {"var": "c"}]}]}))
+        .unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("5 && (0 || 10) = {:?}", result);
-    assert_eq!(result.as_f64(), Some(10.0), "JS: 5 && (0 || 10) should return 10");
+    assert_eq!(
+        result.as_f64(),
+        Some(10.0),
+        "JS: 5 && (0 || 10) should return 10"
+    );
 
     // JS: !(5 && 10) => false
-    let logic_id = engine.compile(&json!({"!": {"and": [{"var": "a"}, {"var": "c"}]}})).unwrap();
+    let logic_id = engine
+        .compile(&json!({"!": {"and": [{"var": "a"}, {"var": "c"}]}}))
+        .unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("!(5 && 10) = {:?}", result);
     assert_eq!(result, json!(false), "JS: !(5 && 10) should return false");
 
     // JS: !(0 || false) => true
-    let logic_id = engine.compile(&json!({"!": {"or": [{"var": "b"}, false]}})).unwrap();
+    let logic_id = engine
+        .compile(&json!({"!": {"or": [{"var": "b"}, false]}}))
+        .unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("!(0 || false) = {:?}", result);
     assert_eq!(result, json!(true), "JS: !(0 || false) should return true");
@@ -300,18 +369,26 @@ fn crosscheck_with_arrays_and_special_values() {
     let data = json!({});
 
     println!("\n=== Arrays and Special Values Cross-Check ===");
-    
+
     // JS: [] || [1,2,3] => [1,2,3] (empty array is falsy)
     let logic_id = engine.compile(&json!({"or": [[], [1, 2, 3]]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("[] || [1,2,3] = {:?}", result);
-    assert_eq!(result, json!([1, 2, 3]), "JS: [] || [1,2,3] should return [1,2,3]");
+    assert_eq!(
+        result,
+        json!([1, 2, 3]),
+        "JS: [] || [1,2,3] should return [1,2,3]"
+    );
 
     // JS: [1,2] && [3,4] => [3,4] (both truthy, returns last)
     let logic_id = engine.compile(&json!({"and": [[1, 2], [3, 4]]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     println!("[1,2] && [3,4] = {:?}", result);
-    assert_eq!(result, json!([3, 4]), "JS: [1,2] && [3,4] should return [3,4]");
+    assert_eq!(
+        result,
+        json!([3, 4]),
+        "JS: [1,2] && [3,4] should return [3,4]"
+    );
 
     // JS: !([]) => true (empty array is falsy)
     let logic_id = engine.compile(&json!({"!": [[]]})).unwrap();

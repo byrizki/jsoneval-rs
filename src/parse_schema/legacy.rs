@@ -3,9 +3,11 @@ use indexmap::{IndexMap, IndexSet};
 use serde_json::{Map, Value};
 use std::sync::Arc;
 
-use crate::parse_schema::common::{compute_column_partitions, has_actionable_keys};
-use crate::jsoneval::table_metadata::{ColumnMetadata, RepeatBoundMetadata, RowMetadata, TableMetadata};
 use crate::jsoneval::path_utils;
+use crate::jsoneval::table_metadata::{
+    ColumnMetadata, RepeatBoundMetadata, RowMetadata, TableMetadata,
+};
+use crate::parse_schema::common::{compute_column_partitions, has_actionable_keys};
 use crate::{topo_sort, JSONEval, LogicId, RLogic};
 
 pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
@@ -128,9 +130,11 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
                     if url.contains('{') && url.contains('}') {
                         // Convert to JSON pointer format for evaluated_schema access
                         let url_path =
-                            path_utils::normalize_to_json_pointer(&format!("{}/url", path)).into_owned();
+                            path_utils::normalize_to_json_pointer(&format!("{}/url", path))
+                                .into_owned();
                         let params_path =
-                            path_utils::normalize_to_json_pointer(&format!("{}/params", path)).into_owned();
+                            path_utils::normalize_to_json_pointer(&format!("{}/params", path))
+                                .into_owned();
                         options_templates.push((url_path, url.clone(), params_path));
                     }
                 }
@@ -155,7 +159,7 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
                     }
                     // Disabled (Read Only) - only relevant if it has a value enforce
                     if condition.contains_key("disabled") && map.contains_key("value") {
-                         conditional_readonly_fields.push(path.to_string());
+                        conditional_readonly_fields.push(path.to_string());
                     }
                 }
 
@@ -276,7 +280,7 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
                 if arr.len() > 10 && !has_actionable_keys(value) {
                     return Ok(());
                 }
-                
+
                 Ok(for (index, item) in arr.iter().enumerate() {
                     let next_path = if path == "#" {
                         format!("#/{index}")
@@ -300,12 +304,10 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
                         conditional_readonly_fields,
                     )?;
                 })
-            },
+            }
             _ => Ok(()),
         }
     }
-
-
 
     fn collect_refs(value: &Value, refs: &mut IndexSet<String>) {
         match value {

@@ -166,4 +166,3 @@ pub fn clean_float_noise_scalar(value: Value) -> Value {
         _ => value,
     }
 }
-

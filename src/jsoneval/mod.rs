@@ -5,34 +5,32 @@ use crate::jsoneval::eval_data::EvalData;
 
 use crate::jsoneval::table_metadata::TableMetadata;
 
-use crate::rlogic::{
-    LogicId, RLogic,
-};
 use crate::jsoneval::types::DependentItem;
+use crate::rlogic::{LogicId, RLogic};
 
 use indexmap::{IndexMap, IndexSet};
 
 use serde_json::Value;
 
 pub mod cancellation;
+pub mod core;
 pub mod dependents;
+pub mod eval_cache;
 pub mod eval_data;
 pub mod evaluate;
 pub mod getters;
-pub mod core;
-pub mod eval_cache;
 pub mod json_parser;
 pub mod layout;
 pub mod logic;
 pub mod parsed_schema;
 pub mod parsed_schema_cache;
 pub mod path_utils;
+pub mod static_arrays;
 pub mod subform_methods;
 pub mod table_evaluate;
 pub mod table_metadata;
 pub mod types;
 pub mod validation;
-pub mod static_arrays;
 
 pub struct JSONEval {
     pub schema: Arc<Value>,

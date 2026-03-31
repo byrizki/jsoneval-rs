@@ -1,6 +1,6 @@
-use std::collections::{HashMap, HashSet};
 use indexmap::IndexSet;
 use serde_json::Value;
+use std::collections::{HashMap, HashSet};
 
 /// Token-version tracker for json paths
 #[derive(Default, Clone)]
@@ -47,6 +47,14 @@ impl VersionTracker {
                 self.versions.insert(k.clone(), current.max(*v));
             }
         }
+    }
+
+    /// Returns true if any tracked path with the given prefix has been bumped (version > 0).
+    /// Used to gate table re-evaluation when item fields change without the item being new.
+    pub fn any_bumped_with_prefix(&self, prefix: &str) -> bool {
+        self.versions
+            .iter()
+            .any(|(k, &v)| k.starts_with(prefix) && v > 0)
     }
 }
 
@@ -180,7 +188,9 @@ impl EvalCache {
     }
 
     pub(crate) fn ensure_active_item_cache(&mut self, idx: usize) {
-        self.subform_caches.entry(idx).or_insert_with(SubformItemCache::new);
+        self.subform_caches
+            .entry(idx)
+            .or_insert_with(SubformItemCache::new);
     }
 
     pub fn set_active_item(&mut self, idx: usize) {
@@ -206,23 +216,36 @@ impl EvalCache {
 
     pub fn get_active_snapshot(&self) -> Value {
         if let Some(idx) = self.active_item_index {
-            self.subform_caches.get(&idx).map(|c| c.item_snapshot.clone()).unwrap_or(Value::Null)
+            self.subform_caches
+                .get(&idx)
+                .map(|c| c.item_snapshot.clone())
+                .unwrap_or(Value::Null)
         } else {
             Value::Null
         }
     }
 
-    pub fn diff_active_item(&mut self, field_key: &str, old_sub_data: &Value, new_sub_data: &Value) {
+    pub fn diff_active_item(
+        &mut self,
+        field_key: &str,
+        old_sub_data: &Value,
+        new_sub_data: &Value,
+    ) {
         if let Some(idx) = self.active_item_index {
             self.ensure_active_item_cache(idx);
             let sub_cache = self.subform_caches.get_mut(&idx).unwrap();
-            
+
             // Diff ONLY the localized item part, skipping the massive parent tree
             let empty = Value::Null;
             let old_item = old_sub_data.get(field_key).unwrap_or(&empty);
             let new_item = new_sub_data.get(field_key).unwrap_or(&empty);
-            
-            diff_and_update_versions(&mut sub_cache.data_versions, &format!("/{}", field_key), old_item, new_item);
+
+            diff_and_update_versions(
+                &mut sub_cache.data_versions,
+                &format!("/{}", field_key),
+                old_item,
+                new_item,
+            );
             sub_cache.item_snapshot = new_sub_data.clone();
         }
     }
@@ -254,7 +277,9 @@ impl EvalCache {
         if let Some(idx) = self.active_item_index {
             // Tier 1: item-specific entries (always safe to reuse for the same index)
             if let Some(cache) = self.subform_caches.get(&idx) {
-                if let Some(hit) = self.validate_entry(eval_key, deps, &cache.entries, &cache.data_versions) {
+                if let Some(hit) =
+                    self.validate_entry(eval_key, deps, &cache.entries, &cache.data_versions)
+                {
                     if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() {
                         println!("Cache HIT [T1 idx={}] {}", idx, eval_key);
                     }
@@ -267,7 +292,8 @@ impl EvalCache {
             //   (a) computed with no active item (main-form result), OR
             //   (b) computed for the same item index, OR
             //   (c) all deps are $params-scoped (truly index-independent)
-            let item_data_versions = self.subform_caches
+            let item_data_versions = self
+                .subform_caches
                 .get(&idx)
                 .map(|c| &c.data_versions)
                 .unwrap_or(&self.data_versions);
@@ -283,10 +309,14 @@ impl EvalCache {
                     _ => entry.dep_versions.keys().all(|p| p.starts_with("/$params")),
                 };
                 if index_safe {
-                    let result = self.validate_entry(eval_key, deps, &self.entries, item_data_versions);
+                    let result =
+                        self.validate_entry(eval_key, deps, &self.entries, item_data_versions);
                     if result.is_some() {
                         if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() {
-                            println!("Cache HIT [T2 idx={} for={:?}] {}", idx, entry.computed_for_item, eval_key);
+                            println!(
+                                "Cache HIT [T2 idx={} for={:?}] {}",
+                                idx, entry.computed_for_item, eval_key
+                            );
                         }
                     }
                     return result;
@@ -299,8 +329,6 @@ impl EvalCache {
         }
     }
 
-
-
     fn validate_entry(
         &self,
         eval_key: &str,
@@ -310,7 +338,8 @@ impl EvalCache {
     ) -> Option<Value> {
         let entry = entries.get(eval_key)?;
         for dep in deps {
-            let data_dep_path = crate::jsoneval::path_utils::normalize_to_json_pointer(dep).replace("/properties/", "/");
+            let data_dep_path = crate::jsoneval::path_utils::normalize_to_json_pointer(dep)
+                .replace("/properties/", "/");
 
             let current_ver = if data_dep_path.starts_with("/$params") {
                 self.params_versions.get(&data_dep_path)
@@ -321,13 +350,19 @@ impl EvalCache {
             if let Some(&cached_ver) = entry.dep_versions.get(&data_dep_path) {
                 if current_ver != cached_ver {
                     if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() {
-                        println!("Cache MISS {}: dep {} changed ({} -> {})", eval_key, data_dep_path, cached_ver, current_ver);
+                        println!(
+                            "Cache MISS {}: dep {} changed ({} -> {})",
+                            eval_key, data_dep_path, cached_ver, current_ver
+                        );
                     }
                     return None;
                 }
             } else {
                 if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() {
-                    println!("Cache MISS {}: dep {} missing from cache entry", eval_key, data_dep_path);
+                    println!(
+                        "Cache MISS {}: dep {} missing from cache entry",
+                        eval_key, data_dep_path
+                    );
                 }
                 return None;
             }
@@ -357,7 +392,8 @@ impl EvalCache {
             };
 
             for dep in deps {
-                let data_dep_path = crate::jsoneval::path_utils::normalize_to_json_pointer(dep).replace("/properties/", "/");
+                let data_dep_path = crate::jsoneval::path_utils::normalize_to_json_pointer(dep)
+                    .replace("/properties/", "/");
                 let ver = if data_dep_path.starts_with("/$params") {
                     self.params_versions.get(&data_dep_path)
                 } else {
@@ -369,20 +405,49 @@ impl EvalCache {
 
         // Phase 2: insert into the correct tier, tagging with the current item index.
         let computed_for_item = self.active_item_index;
-        if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() && eval_key.contains("em_dur") {
-            let dv = if let Some(idx) = self.active_item_index {
-                self.subform_caches.get(&idx).map(|c| &c.data_versions)
+        let entry = CacheEntry {
+            dep_versions,
+            result,
+            computed_for_item,
+        };
+        // For $params-scoped entries (whether T1 or T2), bump params_versions so formulas that depend
+        // on this key see the version change and re-evaluate instead of returning stale cached results.
+        if eval_key.starts_with("#/$params") {
+            let data_path = crate::jsoneval::path_utils::normalize_to_json_pointer(eval_key)
+                .replace("/properties/", "/");
+            let data_path = data_path.trim_start_matches('#').to_string();
+            let data_path = if data_path.starts_with('/') {
+                data_path
             } else {
-                None
+                format!("/{}", data_path)
             };
-            println!("Cache STORE [item={:?}] {} deps={:?} | /riders/prem_pay_period in dv={:?}",
-                computed_for_item, eval_key, dep_versions,
-                dv.map(|d| d.get("/riders/prem_pay_period")));
+
+            // Track explicitly requested path and iteratively bump its parents,
+            // but STOP after bumping the table-level parent (e.g. `/$params/others/MY_TABLE`).
+            // Never bump `/$params/others` or `/$params` to avoid massive cache invalidation.
+            let mut current_path = data_path.as_str();
+            let mut slash_count = current_path.matches('/').count();
+
+            while slash_count >= 3 {
+                self.params_versions.bump(current_path);
+                if let Some(last_slash) = current_path.rfind('/') {
+                    current_path = &current_path[..last_slash];
+                    slash_count -= 1;
+                } else {
+                    break;
+                }
+            }
+
+            self.eval_generation += 1;
         }
-        let entry = CacheEntry { dep_versions, result, computed_for_item };
+
         if let Some(idx) = self.active_item_index {
             // Store item-scoped: isolates per-rider entries so riders with different data don't collide
-            self.subform_caches.get_mut(&idx).unwrap().entries.insert(eval_key.to_string(), entry);
+            self.subform_caches
+                .get_mut(&idx)
+                .unwrap()
+                .entries
+                .insert(eval_key.to_string(), entry);
         } else {
             self.entries.insert(eval_key.to_string(), entry);
         }
@@ -390,7 +455,12 @@ impl EvalCache {
 }
 
 /// Recursive helper to walk JSON structures and bump specific leaf versions where they differ
-pub(crate) fn diff_and_update_versions(tracker: &mut VersionTracker, pointer: &str, old: &Value, new: &Value) {
+pub(crate) fn diff_and_update_versions(
+    tracker: &mut VersionTracker,
+    pointer: &str,
+    old: &Value,
+    new: &Value,
+) {
     if pointer.is_empty() {
         diff_and_update_versions_internal(tracker, "", old, new);
     } else {
@@ -398,7 +468,12 @@ pub(crate) fn diff_and_update_versions(tracker: &mut VersionTracker, pointer: &s
     }
 }
 
-fn diff_and_update_versions_internal(tracker: &mut VersionTracker, pointer: &str, old: &Value, new: &Value) {
+fn diff_and_update_versions_internal(
+    tracker: &mut VersionTracker,
+    pointer: &str,
+    old: &Value,
+    new: &Value,
+) {
     if old == new {
         return;
     }
@@ -406,8 +481,12 @@ fn diff_and_update_versions_internal(tracker: &mut VersionTracker, pointer: &str
     match (old, new) {
         (Value::Object(a), Value::Object(b)) => {
             let mut keys = HashSet::new();
-            for k in a.keys() { keys.insert(k.as_str()); }
-            for k in b.keys() { keys.insert(k.as_str()); }
+            for k in a.keys() {
+                keys.insert(k.as_str());
+            }
+            for k in b.keys() {
+                keys.insert(k.as_str());
+            }
 
             for key in keys {
                 // Do not deep-diff $params at any nesting level — it is manually tracked
@@ -416,10 +495,10 @@ fn diff_and_update_versions_internal(tracker: &mut VersionTracker, pointer: &str
                 if key == "$params" {
                     continue;
                 }
-                
+
                 let a_val = a.get(key).unwrap_or(&Value::Null);
                 let b_val = b.get(key).unwrap_or(&Value::Null);
-                
+
                 let escaped_key = key.replace('~', "~0").replace('/', "~1");
                 let next_path = format!("{}/{}", pointer, escaped_key);
                 diff_and_update_versions_internal(tracker, &next_path, a_val, b_val);
@@ -437,7 +516,7 @@ fn diff_and_update_versions_internal(tracker: &mut VersionTracker, pointer: &str
         (old_val, new_val) => {
             if old_val != new_val {
                 tracker.bump(pointer);
-                
+
                 // If either side contains nested structures (e.g. Object replaced by Null, or vice versa)
                 // we must recursively bump all paths inside them so targeted cache entries invalidate.
                 if old_val.is_object() || old_val.is_array() {
@@ -477,4 +556,3 @@ fn traverse_and_bump(tracker: &mut VersionTracker, pointer: &str, val: &Value) {
         _ => {}
     }
 }
-

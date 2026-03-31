@@ -13,42 +13,74 @@ fn test_logical_operators_return_actual_values() {
     let data = json!({});
 
     // OR operator should return the first truthy value
-    let logic_id = engine.compile(&json!({"or": [false, 0, "", 42, "never"]})).unwrap();
+    let logic_id = engine
+        .compile(&json!({"or": [false, 0, "", 42, "never"]}))
+        .unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
-    assert_eq!(result, json!(42), "OR should return first truthy value (42)");
+    assert_eq!(
+        result,
+        json!(42),
+        "OR should return first truthy value (42)"
+    );
 
     // OR with all falsy should return the last value
     let logic_id = engine.compile(&json!({"or": [false, 0, null]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
-    assert_eq!(result, json!(null), "OR with all falsy should return last value (null)");
+    assert_eq!(
+        result,
+        json!(null),
+        "OR with all falsy should return last value (null)"
+    );
 
     // AND operator should return the first falsy value
-    let logic_id = engine.compile(&json!({"and": [1, "hello", 0, "never"]})).unwrap();
+    let logic_id = engine
+        .compile(&json!({"and": [1, "hello", 0, "never"]}))
+        .unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     assert_eq!(result, json!(0), "AND should return first falsy value (0)");
 
     // AND with all truthy should return the last value
     let logic_id = engine.compile(&json!({"and": [1, "hello", 42]})).unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
-    assert_eq!(result, json!(42), "AND with all truthy should return last value (42)");
+    assert_eq!(
+        result,
+        json!(42),
+        "AND with all truthy should return last value (42)"
+    );
 
     // OR with strings
-    let logic_id = engine.compile(&json!({"or": ["", "first", "second"]})).unwrap();
+    let logic_id = engine
+        .compile(&json!({"or": ["", "first", "second"]}))
+        .unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
-    assert_eq!(result, json!("first"), "OR should return first non-empty string");
+    assert_eq!(
+        result,
+        json!("first"),
+        "OR should return first non-empty string"
+    );
 
     // AND with strings
-    let logic_id = engine.compile(&json!({"and": ["first", "second", "third"]})).unwrap();
+    let logic_id = engine
+        .compile(&json!({"and": ["first", "second", "third"]}))
+        .unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
-    assert_eq!(result, json!("third"), "AND with all truthy strings should return last");
+    assert_eq!(
+        result,
+        json!("third"),
+        "AND with all truthy strings should return last"
+    );
 
     // AND stops at first falsy
-    let logic_id = engine.compile(&json!({"and": ["first", false, "third"]})).unwrap();
+    let logic_id = engine
+        .compile(&json!({"and": ["first", false, "third"]}))
+        .unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     assert_eq!(result, json!(false), "AND should stop and return false");
 
     // OR stops at first truthy
-    let logic_id = engine.compile(&json!({"or": [false, "found", false]})).unwrap();
+    let logic_id = engine
+        .compile(&json!({"or": [false, "found", false]}))
+        .unwrap();
     let result = engine.run(&logic_id, &data).unwrap();
     assert_eq!(result, json!("found"), "OR should stop and return 'found'");
 

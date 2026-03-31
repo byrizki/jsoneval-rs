@@ -12,7 +12,9 @@ mod string_tests {
         let data = json!({"first": "Hello", "last": "World"});
 
         // Basic concatenation
-        let logic_id = engine.compile(&json!({"cat": [{"var": "first"}, " ", {"var": "last"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"cat": [{"var": "first"}, " ", {"var": "last"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("Hello World"));
 
@@ -33,17 +35,23 @@ mod string_tests {
         let data = json!({"text": "Hello World"});
 
         // Basic substring
-        let logic_id = engine.compile(&json!({"substr": [{"var": "text"}, 6, 5]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"substr": [{"var": "text"}, 6, 5]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("World"));
 
         // Substring from start
-        let logic_id = engine.compile(&json!({"substr": [{"var": "text"}, 0, 5]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"substr": [{"var": "text"}, 0, 5]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("Hello"));
 
         // Substring to end
-        let logic_id = engine.compile(&json!({"substr": [{"var": "text"}, 6]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"substr": [{"var": "text"}, 6]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("World"));
     }
@@ -67,12 +75,16 @@ mod string_tests {
         assert_eq!(result, json!(11));
 
         // Array length
-        let logic_id = engine.compile(&json!({"length": {"var": "array"}})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"length": {"var": "array"}}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(5));
 
         // Object length
-        let logic_id = engine.compile(&json!({"length": {"var": "object"}})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"length": {"var": "object"}}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(3));
     }
@@ -83,22 +95,30 @@ mod string_tests {
         let data = json!({"text": "Hello World, hello universe"});
 
         // Basic search (engine returns 1-based index)
-        let logic_id = engine.compile(&json!({"search": ["World", {"var": "text"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"search": ["World", {"var": "text"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(7));
 
         // Search with start position
-        let logic_id = engine.compile(&json!({"search": ["hello", {"var": "text"}, 8]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"search": ["hello", {"var": "text"}, 8]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(14)); // Second "hello" starts at position 14
 
         // Case insensitive search
-        let logic_id = engine.compile(&json!({"search": ["HELLO", {"var": "text"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"search": ["HELLO", {"var": "text"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(1));
 
         // Not found
-        let logic_id = engine.compile(&json!({"search": ["notfound", {"var": "text"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"search": ["notfound", {"var": "text"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(null));
     }
@@ -109,7 +129,9 @@ mod string_tests {
         let data = json!({"text": "Hello World"});
 
         // Left extraction
-        let logic_id = engine.compile(&json!({"left": [{"var": "text"}, 5]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"left": [{"var": "text"}, 5]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("Hello"));
 
@@ -119,12 +141,16 @@ mod string_tests {
         assert_eq!(result, json!("H"));
 
         // Right extraction
-        let logic_id = engine.compile(&json!({"right": [{"var": "text"}, 5]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"right": [{"var": "text"}, 5]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("World"));
 
         // Right with default length
-        let logic_id = engine.compile(&json!({"right": [{"var": "text"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"right": [{"var": "text"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("d"));
     }
@@ -135,12 +161,16 @@ mod string_tests {
         let data = json!({"text": "Hello World"});
 
         // Mid extraction
-        let logic_id = engine.compile(&json!({"mid": [{"var": "text"}, 6, 5]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"mid": [{"var": "text"}, 6, 5]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(" Worl"));
 
         // Mid from position 1 (0-indexed)
-        let logic_id = engine.compile(&json!({"mid": [{"var": "text"}, 1, 4]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"mid": [{"var": "text"}, 1, 4]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("Hell"));
     }
@@ -151,12 +181,16 @@ mod string_tests {
         let data = json!({"csv": "a,b,c,d,e"});
 
         // Split text
-        let logic_id = engine.compile(&json!({"splitvalue": [{"var": "csv"}, ","]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"splitvalue": [{"var": "csv"}, ","]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(["a", "b", "c", "d", "e"]));
 
         // Split text and get specific index
-        let logic_id = engine.compile(&json!({"splittext": [{"var": "csv"}, ",", 2]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"splittext": [{"var": "csv"}, ",", 2]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("c"));
     }
@@ -176,11 +210,15 @@ mod string_tests {
         assert_eq!(result, json!(""));
 
         // Substr edge cases
-        let logic_id = engine.compile(&json!({"substr": ["hello", 10, 5]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"substr": ["hello", 10, 5]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(""));
 
-        let logic_id = engine.compile(&json!({"substr": ["hello", -1, 5]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"substr": ["hello", -1, 5]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("o"));
 
@@ -209,17 +247,23 @@ mod string_tests {
         let data = json!({"number": 42, "bool": true, "null": null, "array": [1,2,3]});
 
         // Concat with mixed types
-        let logic_id = engine.compile(&json!({"cat": [{"var": "number"}, "-", {"var": "bool"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"cat": [{"var": "number"}, "-", {"var": "bool"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("42-true"));
 
         // Length of non-string
-        let logic_id = engine.compile(&json!({"length": {"var": "array"}})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"length": {"var": "array"}}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(3));
 
         // Search in non-string (should work for arrays via string conversion)
-        let logic_id = engine.compile(&json!({"search": ["2", {"var": "array"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"search": ["2", {"var": "array"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(null)); // Array stringifies to "[1,2,3]"
     }
@@ -256,7 +300,9 @@ mod string_tests {
         assert_eq!(result, json!(17));
 
         // Unicode concatenation
-        let logic_id = engine.compile(&json!({"cat": ["Hello ", "世界 🌍"]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"cat": ["Hello ", "世界 🌍"]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("Hello 世界 🌍"));
     }
@@ -270,25 +316,29 @@ mod string_tests {
         });
 
         // Extract word from sentence
-        let logic_id = engine.compile(&json!({
-            "mid": [
-                {"var": "sentence"},
-                {"search": ["fox", {"var": "sentence"}]},
-                3
-            ]
-        })).unwrap();
+        let logic_id = engine
+            .compile(&json!({
+                "mid": [
+                    {"var": "sentence"},
+                    {"search": ["fox", {"var": "sentence"}]},
+                    3
+                ]
+            }))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("fox"));
 
         // Build sentence from words
-        let logic_id = engine.compile(&json!({
-            "cat": [
-                {"var": "words.0"}, " ",
-                {"var": "words.1"}, " ",
-                {"var": "words.2"}, " ",
-                {"var": "words.3"}
-            ]
-        })).unwrap();
+        let logic_id = engine
+            .compile(&json!({
+                "cat": [
+                    {"var": "words.0"}, " ",
+                    {"var": "words.1"}, " ",
+                    {"var": "words.2"}, " ",
+                    {"var": "words.3"}
+                ]
+            }))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("The quick brown fox"));
     }

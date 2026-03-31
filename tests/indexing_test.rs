@@ -19,7 +19,7 @@ fn test_match_with_index() {
             "a", "val"
         ]
     });
-    
+
     let result = rlogic.evaluate(&logic_match, &data).unwrap();
     assert_eq!(result, json!(0)); // First "a" is at index 0
 

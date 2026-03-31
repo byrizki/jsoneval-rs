@@ -184,7 +184,15 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents(
         None
     };
 
-    match eval.evaluate_dependents(&paths, data_str, context_str, re_evaluate != 0, token.as_ref(), None, include_subforms != 0) {
+    match eval.evaluate_dependents(
+        &paths,
+        data_str,
+        context_str,
+        re_evaluate != 0,
+        token.as_ref(),
+        None,
+        include_subforms != 0,
+    ) {
         Ok(result) => {
             let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
             FFIResult::success(result_bytes)

@@ -45,13 +45,17 @@ mod config_tests {
 
         // Test NaN from sqrt of negative
         let logic_id = engine.compile(&json!({"pow": [-1, 0.5]})).unwrap();
-        let result = engine.run_with_config(&logic_id, &data, &config_safe).unwrap();
+        let result = engine
+            .run_with_config(&logic_id, &data, &config_safe)
+            .unwrap();
         // With safe_nan_handling, NaN becomes 0
         assert_eq!(result, json!(0));
 
         // Without safe NaN handling - NaN becomes null in JSON
         let config_unsafe = RLogicConfig::new().with_safe_nan(false);
-        let result2 = engine.run_with_config(&logic_id, &data, &config_unsafe).unwrap();
+        let result2 = engine
+            .run_with_config(&logic_id, &data, &config_unsafe)
+            .unwrap();
         // Without safe_nan_handling, NaN becomes null in JSON
         assert_eq!(result2, json!(null));
     }
@@ -103,7 +107,9 @@ mod config_tests {
         let config = RLogicConfig::performance(); // tracking disabled
         let mut engine = RLogic::with_config(config);
 
-        let logic_id = engine.compile(&json!({"+": [{"var": "a"}, {"var": "b"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"+": [{"var": "a"}, {"var": "b"}]}))
+            .unwrap();
 
         // Use evaluation with plain JSON
         let data = json!({"a": 10, "b": 20});
@@ -176,9 +182,7 @@ mod config_tests {
         let data = json!({});
 
         // Test various NaN-producing operations
-        let nan_operations = vec![
-            (json!({"pow": [-1, 0.5]}), "sqrt of negative"),
-        ];
+        let nan_operations = vec![(json!({"pow": [-1, 0.5]}), "sqrt of negative")];
 
         for (operation, description) in nan_operations {
             // With safe NaN handling
@@ -186,7 +190,7 @@ mod config_tests {
             let mut engine_safe = RLogic::with_config(config_safe);
             let logic_id = engine_safe.compile(&operation).unwrap();
             let result_safe = engine_safe.run(&logic_id, &data).unwrap();
-            
+
             // Without safe NaN handling
             let config_unsafe = RLogicConfig::new().with_safe_nan(false);
             let mut engine_unsafe = RLogic::with_config(config_unsafe);
@@ -194,16 +198,30 @@ mod config_tests {
             let result_unsafe = engine_unsafe.run(&logic_id, &data).unwrap();
 
             // NaN should be converted to 0 with safe handling, null without
-            assert_eq!(result_safe, json!(0), "Safe result for {} should be 0", description);
-            assert_eq!(result_unsafe, json!(null), "Unsafe result for {} should be null", description);
+            assert_eq!(
+                result_safe,
+                json!(0),
+                "Safe result for {} should be 0",
+                description
+            );
+            assert_eq!(
+                result_unsafe,
+                json!(null),
+                "Unsafe result for {} should be null",
+                description
+            );
         }
     }
 
     #[test]
     fn test_config_isolation() {
         // Test that different engine instances maintain separate configs
-        let config1 = RLogicConfig::new().with_recursion_limit(10).with_safe_nan(true);
-        let config2 = RLogicConfig::new().with_recursion_limit(20).with_safe_nan(false);
+        let config1 = RLogicConfig::new()
+            .with_recursion_limit(10)
+            .with_safe_nan(true);
+        let config2 = RLogicConfig::new()
+            .with_recursion_limit(20)
+            .with_safe_nan(false);
 
         let mut engine1 = RLogic::with_config(config1);
         let mut engine2 = RLogic::with_config(config2);
@@ -232,7 +250,9 @@ mod config_tests {
 
         // Test with runtime config override
         let config_unsafe = RLogicConfig::new().with_safe_nan(false);
-        let result2 = engine.run_with_config(&logic_id, &data, &config_unsafe).unwrap();
+        let result2 = engine
+            .run_with_config(&logic_id, &data, &config_unsafe)
+            .unwrap();
         assert_eq!(result2, json!(null)); // Override to unsafe NaN
     }
 
@@ -246,22 +266,28 @@ mod config_tests {
 
         // Test config with complex nested operations
         let mut engine = RLogic::new();
-        let logic_id = engine.compile(&json!({
-            "+": [
-                {"pow": [{"var": "nested.value"}, 0.5]}, // This produces NaN
-                10
-            ]
-        })).unwrap();
+        let logic_id = engine
+            .compile(&json!({
+                "+": [
+                    {"pow": [{"var": "nested.value"}, 0.5]}, // This produces NaN
+                    10
+                ]
+            }))
+            .unwrap();
 
         // With safe NaN - should work
         let config_safe = RLogicConfig::new().with_safe_nan(true);
-        let result_safe = engine.run_with_config(&logic_id, &data, &config_safe).unwrap();
+        let result_safe = engine
+            .run_with_config(&logic_id, &data, &config_safe)
+            .unwrap();
         // NaN should become 0, then 0 + 10 = 10
         assert_eq!(result_safe, json!(10));
 
         // Without safe NaN - null + 10 = 10 (null treated as 0)
         let config_unsafe = RLogicConfig::new().with_safe_nan(false);
-        let result_unsafe = engine.run_with_config(&logic_id, &data, &config_unsafe).unwrap();
+        let result_unsafe = engine
+            .run_with_config(&logic_id, &data, &config_unsafe)
+            .unwrap();
         assert_eq!(result_unsafe, json!(10)); // null + 10 = 10
     }
 }

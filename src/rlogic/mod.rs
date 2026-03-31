@@ -40,7 +40,10 @@ impl RLogic {
     }
 
     /// Set static arrays for evaluation context
-    pub fn set_static_arrays(&mut self, static_arrays: std::sync::Arc<indexmap::IndexMap<String, std::sync::Arc<Value>>>) {
+    pub fn set_static_arrays(
+        &mut self,
+        static_arrays: std::sync::Arc<indexmap::IndexMap<String, std::sync::Arc<Value>>>,
+    ) {
         self.evaluator.set_static_arrays(static_arrays);
     }
 
@@ -143,11 +146,7 @@ impl RLogic {
     /// are resolved from `rows` rather than user_data.
     ///
     /// Returns a RAII guard — scope is cleared when the guard is dropped.
-    pub fn enter_table_scope<'a>(
-        &'a self,
-        path: String,
-        rows: &Vec<Value>,
-    ) -> TableScopeGuard<'a> {
+    pub fn enter_table_scope<'a>(&'a self, path: String, rows: &Vec<Value>) -> TableScopeGuard<'a> {
         self.evaluator.enter_table_scope(path, rows)
     }
 

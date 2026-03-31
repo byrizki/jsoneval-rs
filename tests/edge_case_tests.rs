@@ -48,7 +48,9 @@ mod edge_case_tests {
 
         // Empty object operations
         let data = json!({"empty": {}});
-        let logic_id = engine.compile(&json!({"length": {"var": "empty"}})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"length": {"var": "empty"}}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(0));
     }
@@ -117,12 +119,16 @@ mod edge_case_tests {
         assert!(result.is_number());
 
         // ASCII substring to avoid UTF-8 boundary issues
-        let logic_id = engine.compile(&json!({"substr": ["Hello World", 6, 5]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"substr": ["Hello World", 6, 5]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("World"));
 
         // ASCII search
-        let logic_id = engine.compile(&json!({"search": ["World", "Hello World"]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"search": ["World", "Hello World"]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(7));
 
@@ -187,26 +193,36 @@ mod edge_case_tests {
         let data = json!({});
 
         // Map on non-array
-        let logic_id = engine.compile(&json!({"map": ["not_array", {"var": ""}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"map": ["not_array", {"var": ""}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!([]));
 
         // Filter on non-array
-        let logic_id = engine.compile(&json!({"filter": ["not_array", {"var": ""}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"filter": ["not_array", {"var": ""}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!([]));
 
         // Reduce on non-array
-        let logic_id = engine.compile(&json!({"reduce": ["not_array", {"var": ""}, 0]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"reduce": ["not_array", {"var": ""}, 0]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(0));
 
         // Quantifiers on non-array
-        let logic_id = engine.compile(&json!({"all": ["not_array", {"var": ""}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"all": ["not_array", {"var": ""}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(false)); // Engine returns false for non-arrays
 
-        let logic_id = engine.compile(&json!({"some": ["not_array", {"var": ""}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"some": ["not_array", {"var": ""}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(false));
     }
@@ -217,17 +233,23 @@ mod edge_case_tests {
         let data = json!({"table": []});
 
         // VALUEAT on empty table
-        let logic_id = engine.compile(&json!({"VALUEAT": [{"var": "table"}, 0]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"VALUEAT": [{"var": "table"}, 0]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(null));
 
         // INDEXAT on empty table
-        let logic_id = engine.compile(&json!({"INDEXAT": ["value", {"var": "table"}, "field"]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"INDEXAT": ["value", {"var": "table"}, "field"]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(-1));
 
         // MATCH on empty table
-        let logic_id = engine.compile(&json!({"MATCH": [{"var": "table"}, ["value", "field"]]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"MATCH": [{"var": "table"}, ["value", "field"]]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(-1));
     }
@@ -238,21 +260,25 @@ mod edge_case_tests {
         let data = json!({});
 
         // NaN comparisons
-        let logic_id = engine.compile(&json!({"==": [{"pow": [-1, 0.5]}, {"pow": [-1, 0.5]}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"==": [{"pow": [-1, 0.5]}, {"pow": [-1, 0.5]}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(true)); // Engine maps NaN -> null; null == null
 
         // Infinity comparisons
-        let logic_id = engine.compile(&json!({"==": [{"+": [1e308, 1e308]}, {"+": [1e308, 1e308]}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"==": [{"+": [1e308, 1e308]}, {"+": [1e308, 1e308]}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(true)); // inf == inf
 
         // Mixed type comparisons
         let test_cases = vec![
-            (json!({"==": [0, false]}), json!(true)),   // 0 == false
-            (json!({"==": [1, true]}), json!(true)),    // 1 == true
-            (json!({"==": ["", false]}), json!(true)),  // "" == false
-            (json!({"==": ["0", 0]}), json!(true)),     // "0" == 0
+            (json!({"==": [0, false]}), json!(true)),  // 0 == false
+            (json!({"==": [1, true]}), json!(true)),   // 1 == true
+            (json!({"==": ["", false]}), json!(true)), // "" == false
+            (json!({"==": ["0", 0]}), json!(true)),    // "0" == 0
         ];
 
         for (logic, expected) in test_cases {
@@ -268,14 +294,17 @@ mod edge_case_tests {
         let data = json!({});
 
         // Short-circuit evaluation
-        let logic_id = engine.compile(&json!({"and": [false, {"+": [1, "error"]}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"and": [false, {"+": [1, "error"]}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(false)); // Should not evaluate second operand
 
-        let logic_id = engine.compile(&json!({"or": [true, {"+": [1, "error"]}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"or": [true, {"+": [1, "error"]}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(true)); // Should not evaluate second operand
-
     }
 
     #[test]
@@ -315,7 +344,9 @@ mod edge_case_tests {
         assert_eq!(result, json!(499500));
 
         // Map over large array
-        let logic_id = engine.compile(&json!({"map": [{"var": "large"}, {"*": [{"var": ""}, 2]}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"map": [{"var": "large"}, {"*": [{"var": ""}, 2]}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert!(result.as_array().unwrap().len() == 1000);
         assert_eq!(result.as_array().unwrap()[0], json!(0));
@@ -337,22 +368,29 @@ mod edge_case_tests {
         // $ref with empty key
         let logic_id = engine.compile(&json!({"$ref": ""})).unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!({
-            "$params": {
-                "config": {
-                    "rate": 0.05,
-                    "": "empty_key_in_ref"
+        assert_eq!(
+            result,
+            json!({
+                "$params": {
+                    "config": {
+                        "rate": 0.05,
+                        "": "empty_key_in_ref"
+                    }
                 }
-            }
-        }));
+            })
+        );
 
         // $ref with complex paths
-        let logic_id = engine.compile(&json!({"$ref": "$params.config.rate"})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"$ref": "$params.config.rate"}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(0.05));
 
         // $ref with missing path
-        let logic_id = engine.compile(&json!({"$ref": "$params.missing.path"})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"$ref": "$params.missing.path"}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(null));
     }
@@ -364,11 +402,11 @@ mod edge_case_tests {
 
         // Operations that should return null instead of crashing
         let error_cases = vec![
-            json!({"/": [1, 0]}),                    // Division by zero
-            json!({"%": [5, 0]}),                   // Modulo by zero
-            json!({"pow": ["invalid", 2]}),         // Invalid base
-            json!({"substr": [null, 0, 5]}),        // Substr on null
-            json!({"VALUEAT": [[], -1]}),           // Negative index
+            json!({"/": [1, 0]}),            // Division by zero
+            json!({"%": [5, 0]}),            // Modulo by zero
+            json!({"pow": ["invalid", 2]}),  // Invalid base
+            json!({"substr": [null, 0, 5]}), // Substr on null
+            json!({"VALUEAT": [[], -1]}),    // Negative index
         ];
 
         for logic in error_cases {
@@ -441,12 +479,14 @@ mod edge_case_tests {
         });
 
         // Operations on mixed arrays should handle each element appropriately
-        let logic_id = engine.compile(&json!({"map": [{"var": "mixed"}, {"length": {"var": ""}}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"map": [{"var": "mixed"}, {"length": {"var": ""}}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         let lengths = result.as_array().unwrap();
         assert_eq!(lengths.len(), 6);
         // Numbers have length 0, strings their length, booleans 0, null 0, objects their size, arrays their length
-        assert_eq!(lengths[0], json!(0));  // 1
+        assert_eq!(lengths[0], json!(0)); // 1
         assert_eq!(lengths[1], json!(6)); // "string"
         assert_eq!(lengths[2], json!(0)); // true
         assert_eq!(lengths[3], json!(0)); // null

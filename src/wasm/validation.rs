@@ -29,10 +29,7 @@ impl JSONEvalWasm {
                     std::collections::HashMap::new();
 
                 for (path, error) in result.errors {
-                    errors.insert(
-                        path.clone(),
-                        create_validation_error(path.clone(), &error),
-                    );
+                    errors.insert(path.clone(), create_validation_error(path.clone(), &error));
                 }
 
                 Ok(create_validation_result(result.has_error, errors))
@@ -53,27 +50,29 @@ impl JSONEvalWasm {
     #[wasm_bindgen(js_name = validateJS)]
     pub fn validate_js(&mut self, data: &str, context: Option<String>) -> Result<JsValue, JsValue> {
         match self.validate_to_value(data, context, None) {
-             Ok(validation_result) => {
-                super::to_value(&validation_result).map_err(|e| {
-                    let error_msg = format!("Failed to serialize validation result: {}", e);
-                    console_log(&format!("[WASM ERROR] {}", error_msg));
-                    JsValue::from_str(&error_msg)
-                })
-             },
-             Err(e) => {
+            Ok(validation_result) => super::to_value(&validation_result).map_err(|e| {
+                let error_msg = format!("Failed to serialize validation result: {}", e);
+                console_log(&format!("[WASM ERROR] {}", error_msg));
+                JsValue::from_str(&error_msg)
+            }),
+            Err(e) => {
                 let error_msg = format!("Validation failed: {}", e);
                 console_log(&format!("[WASM ERROR] {}", error_msg));
                 Err(JsValue::from_str(&error_msg))
-             }
+            }
         }
     }
-
 }
 
 impl JSONEvalWasm {
     /// Internal helper to validate and return serde_json::Value (testable)
     /// This is not exposed to JS directly, but used by validate_js and tests
-    pub fn validate_to_value(&mut self, data: &str, context: Option<String>, paths: Option<Vec<String>>) -> Result<serde_json::Value, String> {
+    pub fn validate_to_value(
+        &mut self,
+        data: &str,
+        context: Option<String>,
+        paths: Option<Vec<String>>,
+    ) -> Result<serde_json::Value, String> {
         let ctx = context.as_deref();
         let paths_ref = paths.as_ref().map(|v| v.as_slice());
 
@@ -102,7 +101,7 @@ impl JSONEvalWasm {
                     "error": errors_map,
                 }))
             }
-            Err(e) => Err(e.to_string())
+            Err(e) => Err(e.to_string()),
         }
     }
 }
@@ -131,10 +130,7 @@ impl JSONEvalWasm {
                     std::collections::HashMap::new();
 
                 for (path, error) in result.errors {
-                    errors.insert(
-                        path.clone(),
-                        create_validation_error(path.clone(), &error),
-                    );
+                    errors.insert(path.clone(), create_validation_error(path.clone(), &error));
                 }
 
                 Ok(create_validation_result(result.has_error, errors))
@@ -161,18 +157,16 @@ impl JSONEvalWasm {
         paths: Option<Vec<String>>,
     ) -> Result<JsValue, JsValue> {
         match self.validate_to_value(data, context, paths) {
-             Ok(validation_result) => {
-                super::to_value(&validation_result).map_err(|e| {
-                    let error_msg = format!("Failed to serialize validation result: {}", e);
-                    console_log(&format!("[WASM ERROR] {}", error_msg));
-                    JsValue::from_str(&error_msg)
-                })
-             },
-             Err(e) => {
+            Ok(validation_result) => super::to_value(&validation_result).map_err(|e| {
+                let error_msg = format!("Failed to serialize validation result: {}", e);
+                console_log(&format!("[WASM ERROR] {}", error_msg));
+                JsValue::from_str(&error_msg)
+            }),
+            Err(e) => {
                 let error_msg = format!("Validation failed: {}", e);
                 console_log(&format!("[WASM ERROR] {}", error_msg));
                 Err(JsValue::from_str(&error_msg))
-             }
+            }
         }
     }
 }

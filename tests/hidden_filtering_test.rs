@@ -1,7 +1,6 @@
 use json_eval_rs::jsoneval::JSONEval;
 use serde_json::json;
 
-
 #[test]
 fn test_hidden_field_filtering() {
     let schema = json!({
@@ -74,51 +73,77 @@ fn test_hidden_field_filtering() {
     let schema_str = schema.to_string();
     let data_str = data.to_string();
     // Use JSONEval::new which takes &str pointers
-    let mut eval = JSONEval::new(&schema_str, Some("{}"), Some(&data_str))
-        .expect("Failed to create JSONEval");
-    
+    let mut eval =
+        JSONEval::new(&schema_str, Some("{}"), Some(&data_str)).expect("Failed to create JSONEval");
+
     // Evaluate to populate evaluations and evaluated_schema
     eval.evaluate(&data_str, None, None, None)
         .expect("Evaluation failed");
 
     // Test get_schema_value (Data View)
     let result_value = eval.get_schema_value();
-    
+
     // 1. Check visible fields exist and have values
-    assert_eq!(result_value.pointer("/visible_field"), Some(&json!("user_visible")));
-    assert_eq!(result_value.pointer("/nested_visible/child_visible"), Some(&json!("user_child_visible")));
-    
+    assert_eq!(
+        result_value.pointer("/visible_field"),
+        Some(&json!("user_visible"))
+    );
+    assert_eq!(
+        result_value.pointer("/nested_visible/child_visible"),
+        Some(&json!("user_child_visible"))
+    );
+
     // 2. Check simple hidden is gone
-    assert_eq!(result_value.pointer("/simple_hidden"), None, "Simple hidden field should be removed");
-    
+    assert_eq!(
+        result_value.pointer("/simple_hidden"),
+        None,
+        "Simple hidden field should be removed"
+    );
+
     // 3. Check parent hidden child is gone
     // 3. Check parent hidden child is gone
-    assert_eq!(result_value.pointer("/parent_hidden/child_hidden"), None, "Child of hidden parent should be removed");
-    assert_eq!(result_value.pointer("/parent_hidden"), None, "Hidden parent object should be removed");
+    assert_eq!(
+        result_value.pointer("/parent_hidden/child_hidden"),
+        None,
+        "Child of hidden parent should be removed"
+    );
+    assert_eq!(
+        result_value.pointer("/parent_hidden"),
+        None,
+        "Hidden parent object should be removed"
+    );
 
     // 4. Check layout hidden child is gone
-    assert_eq!(result_value.pointer("/layout_hidden/child_layout_hidden"), None, "Child of layout hidden parent should be removed");
-    assert_eq!(result_value.pointer("/layout_hidden"), None, "Layout hidden parent object should be removed");
-    
-    
+    assert_eq!(
+        result_value.pointer("/layout_hidden/child_layout_hidden"),
+        None,
+        "Child of layout hidden parent should be removed"
+    );
+    assert_eq!(
+        result_value.pointer("/layout_hidden"),
+        None,
+        "Layout hidden parent object should be removed"
+    );
+
     // Test get_schema_value_object (Flat View)
     let result_obj = eval.get_schema_value_object();
     let obj_map = result_obj.as_object().unwrap();
-    
+
     assert!(obj_map.contains_key("visible_field"));
     assert!(obj_map.contains_key("nested_visible.child_visible"));
     assert!(!obj_map.contains_key("simple_hidden"));
     assert!(!obj_map.contains_key("parent_hidden.child_hidden"));
     assert!(!obj_map.contains_key("layout_hidden.child_layout_hidden"));
-    
+
     // Test get_schema_value_array (Array View)
     let result_arr = eval.get_schema_value_array();
     let arr = result_arr.as_array().unwrap();
-    
-    let paths: Vec<&str> = arr.iter()
+
+    let paths: Vec<&str> = arr
+        .iter()
         .map(|item| item["path"].as_str().unwrap())
         .collect();
-        
+
     assert!(paths.contains(&"visible_field"));
     assert!(paths.contains(&"nested_visible.child_visible"));
     assert!(!paths.contains(&"simple_hidden"));
@@ -185,29 +210,46 @@ fn test_hidden_field_validation() {
     // Initialize JSONEval
     let schema_str = schema.to_string();
     let data_str = data.to_string();
-    let mut eval = JSONEval::new(&schema_str, Some("{}"), Some(&data_str))
-        .expect("Failed to create JSONEval");
-    
+    let mut eval =
+        JSONEval::new(&schema_str, Some("{}"), Some(&data_str)).expect("Failed to create JSONEval");
+
     // Evaluate first to ensure schema is processed
     eval.evaluate(&data_str, None, None, None)
         .expect("Evaluation failed");
 
     // Validate
-    let result = eval.validate(&data_str, None, None, None)
+    let result = eval
+        .validate(&data_str, None, None, None)
         .expect("Validation failed");
 
     // Check errors
     // Should have error for visible_required
-    assert!(result.errors.contains_key("visible_required"), "Should have error for visible_required");
-    
+    assert!(
+        result.errors.contains_key("visible_required"),
+        "Should have error for visible_required"
+    );
+
     // Should NOT have error for hidden_required
-    assert!(!result.errors.contains_key("hidden_required"), "Should NOT have error for hidden_required");
-    
+    assert!(
+        !result.errors.contains_key("hidden_required"),
+        "Should NOT have error for hidden_required"
+    );
+
     // Should NOT have error for parent_hidden_required.child_required
-    assert!(!result.errors.contains_key("parent_hidden_required.child_required"), "Should NOT have error for hidden parent child");
-    
+    assert!(
+        !result
+            .errors
+            .contains_key("parent_hidden_required.child_required"),
+        "Should NOT have error for hidden parent child"
+    );
+
     // Should NOT have error for layout_hidden_required.child_layout_required
-    assert!(!result.errors.contains_key("layout_hidden_required.child_layout_required"), "Should NOT have error for hidden layout parent child");
+    assert!(
+        !result
+            .errors
+            .contains_key("layout_hidden_required.child_layout_required"),
+        "Should NOT have error for hidden layout parent child"
+    );
 }
 
 #[test]
@@ -216,9 +258,9 @@ fn test_layout_structure_hiding() {
     // but "field" is placed inside "container" in the layout.
     // Therefore "field" should be effectively hidden.
 
-    // Note: JSONEval uses layout_paths to find root layouts. 
+    // Note: JSONEval uses layout_paths to find root layouts.
     // For this test, we construct a schema that includes a root layout referencing the container.
-    
+
     // Better schema structure that JSONEval parses correctly as layout:
     let schema_with_root_layout = json!({
         "type": "object",
@@ -233,7 +275,7 @@ fn test_layout_structure_hiding() {
                  }
              },
              "target_field": {
-                 "type": "string", 
+                 "type": "string",
                  "rules": { "required": true }
              }
         },
@@ -248,13 +290,17 @@ fn test_layout_structure_hiding() {
     let schema_str = schema_with_root_layout.to_string();
     let data_str = data.to_string();
 
-    let mut eval = JSONEval::new(&schema_str, Some("{}"), Some(&data_str))
-        .expect("Failed to create JSONEval");
-    
+    let mut eval =
+        JSONEval::new(&schema_str, Some("{}"), Some(&data_str)).expect("Failed to create JSONEval");
+
     // Ensure layout paths are found and processed.
-    let result = eval.validate(&data_str, None, None, None)
+    let result = eval
+        .validate(&data_str, None, None, None)
         .expect("Validation failed");
 
     // "target_field" should be hidden because it is inside "section" (hidden).
-    assert!(!result.errors.contains_key("target_field"), "Should NOT have error for target_field hidden via layout nesting");
+    assert!(
+        !result.errors.contains_key("target_field"),
+        "Should NOT have error for target_field hidden via layout nesting"
+    );
 }

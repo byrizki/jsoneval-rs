@@ -1,8 +1,8 @@
 use crate::jsoneval::eval_data::EvalData;
-use crate::jsoneval::table_metadata::RowMetadata;
 use crate::jsoneval::path_utils;
-use crate::JSONEval;
+use crate::jsoneval::table_metadata::RowMetadata;
 use crate::time_block;
+use crate::JSONEval;
 use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
 
@@ -34,10 +34,7 @@ pub fn evaluate_table(
     };
     let result = evaluate_table_inner(lib, eval_key, scope_data, token);
     if let Some(start) = _total_start {
-        crate::utils::record_timing(
-            &format!("[table::{}] total", eval_key),
-            start.elapsed(),
-        );
+        crate::utils::record_timing(&format!("[table::{}] total", eval_key), start.elapsed());
     }
     result
 }
@@ -122,7 +119,8 @@ fn evaluate_table_inner(
 
             for dep in deps.iter() {
                 if dep.contains("$params")
-                    || (!dep.contains("$context") && (dep.starts_with("/$") || dep.starts_with("$")))
+                    || (!dep.contains("$context")
+                        && (dep.starts_with("/$") || dep.starts_with("$")))
                 {
                     continue;
                 }
@@ -195,11 +193,7 @@ fn evaluate_table_inner(
                     for column in columns.iter() {
                         let value = if let Some(logic_id) = column.logic {
                             lib.engine
-                                .run_with_context(
-                                    &logic_id,
-                                    scope_data.data(),
-                                    &ctx_value,
-                                )
+                                .run_with_context(&logic_id, scope_data.data(), &ctx_value)
                                 .unwrap_or(Value::Null)
                         } else {
                             column
@@ -228,7 +222,10 @@ fn evaluate_table_inner(
                 let empty_ctx = Value::Object(data_ctx.clone());
 
                 let start_val = if let Some(logic_id) = start.logic {
-                    match lib.engine.run_with_context(&logic_id, scope_data.data(), &empty_ctx) {
+                    match lib
+                        .engine
+                        .run_with_context(&logic_id, scope_data.data(), &empty_ctx)
+                    {
                         Ok(v) => v,
                         Err(_) => {
                             // Logic failed: try to use literal as a number, else skip this row group
@@ -243,7 +240,10 @@ fn evaluate_table_inner(
                     Value::clone(&start.literal)
                 };
                 let end_val = if let Some(logic_id) = end.logic {
-                    match lib.engine.run_with_context(&logic_id, scope_data.data(), &empty_ctx) {
+                    match lib
+                        .engine
+                        .run_with_context(&logic_id, scope_data.data(), &empty_ctx)
+                    {
                         Ok(v) => v,
                         Err(_) => {
                             if let Some(n) = end.literal.as_i64() {
@@ -278,20 +278,17 @@ fn evaluate_table_inner(
                 // Pre-allocate rows with null cells
                 local_rows.reserve(total_rows);
                 for _ in 0..total_rows {
-                    let row: Map<String, Value> = col_names
-                        .iter()
-                        .map(|n| (n.clone(), Value::Null))
-                        .collect();
+                    let row: Map<String, Value> =
+                        col_names.iter().map(|n| (n.clone(), Value::Null)).collect();
                     local_rows.push(Value::Object(row));
                 }
 
                 // Register this table's scope on the evaluator so self-table
                 // Var/Ref/ValueAt lookups resolve from local_rows.
                 // The guard is dropped at end of this block, clearing the scope.
-                let _scope_guard = lib.engine.enter_table_scope(
-                    table_pointer_path.clone(),
-                    &local_rows,
-                );
+                let _scope_guard = lib
+                    .engine
+                    .enter_table_scope(table_pointer_path.clone(), &local_rows);
 
                 let key_iteration = String::from("$iteration");
                 let key_threshold = String::from("$threshold");
@@ -333,12 +330,9 @@ fn evaluate_table_inner(
                             for &col_idx in normal_cols.iter() {
                                 let column = &columns[col_idx];
                                 let value = match column.logic {
-                                    Some(logic_id) => lib.engine
-                                        .run_with_context(
-                                            &logic_id,
-                                            scope_data.data(),
-                                            &ctx_value,
-                                        )
+                                    Some(logic_id) => lib
+                                        .engine
+                                        .run_with_context(&logic_id, scope_data.data(), &ctx_value)
                                         .unwrap_or(Value::Null),
                                     None => column
                                         .literal
@@ -464,9 +458,11 @@ fn evaluate_table_inner(
                                     if unknown_deps[fwd_idx] {
                                         should_evaluate = true;
                                     } else {
-                                        should_evaluate = forward_deps[fwd_idx].iter().any(|&dep_fwd_idx| {
-                                            prev_changed[row_offset * forward_cols.len() + dep_fwd_idx]
-                                        });
+                                        should_evaluate =
+                                            forward_deps[fwd_idx].iter().any(|&dep_fwd_idx| {
+                                                prev_changed
+                                                    [row_offset * forward_cols.len() + dep_fwd_idx]
+                                            });
                                     }
                                 } else if !should_evaluate {
                                     should_evaluate = true;
@@ -474,7 +470,8 @@ fn evaluate_table_inner(
 
                                 if should_evaluate {
                                     let value = match column.logic {
-                                        Some(logic_id) => lib.engine
+                                        Some(logic_id) => lib
+                                            .engine
                                             .run_with_context(
                                                 &logic_id,
                                                 scope_data.data(),
@@ -493,18 +490,19 @@ fn evaluate_table_inner(
                                         if let Some(cell) = row.get_mut(column.name.as_ref()) {
                                             if *cell != value {
                                                 any_changed = true;
-                                                curr_changed[row_offset * forward_cols.len()
-                                                    + fwd_idx] = true;
+                                                curr_changed
+                                                    [row_offset * forward_cols.len() + fwd_idx] =
+                                                    true;
                                                 *cell = value;
                                             }
                                         }
                                     }
-                                    }
+                                }
                             }
                         }
                         // Reset cursor after backwards row evaluating loop
                         lib.engine.set_table_scope_row(None);
-                        
+
                         scan_from_down = !scan_from_down;
                         std::mem::swap(&mut prev_changed, &mut curr_changed);
 

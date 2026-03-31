@@ -178,9 +178,7 @@ impl CompiledLogic {
         match logic {
             Value::Null => Ok(CompiledLogic::Null),
             Value::Bool(b) => Ok(CompiledLogic::Bool(*b)),
-            Value::Number(n) => {
-                Ok(CompiledLogic::Number(n.as_f64().unwrap_or(0.0)))
-            }
+            Value::Number(n) => Ok(CompiledLogic::Number(n.as_f64().unwrap_or(0.0))),
             Value::String(s) => Ok(CompiledLogic::String(s.clone())),
             Value::Array(arr) => {
                 let compiled: Result<Vec<_>, _> = arr.iter().map(Self::compile).collect();
@@ -1708,12 +1706,28 @@ mod tests {
 
     #[test]
     fn test_compile_literals() {
-        assert!(matches!(CompiledLogic::compile(&json!(null)).unwrap(), CompiledLogic::Null));
-        assert!(matches!(CompiledLogic::compile(&json!(true)).unwrap(), CompiledLogic::Bool(true)));
-        assert!(matches!(CompiledLogic::compile(&json!(false)).unwrap(), CompiledLogic::Bool(false)));
-        assert!(matches!(CompiledLogic::compile(&json!(42.5)).unwrap(), CompiledLogic::Number(n) if n == 42.5));
-        assert!(matches!(CompiledLogic::compile(&json!("hello")).unwrap(), CompiledLogic::String(ref s) if s == "hello"));
-        assert!(matches!(CompiledLogic::compile(&json!([1, 2, 3])).unwrap(), CompiledLogic::Array(_)));
+        assert!(matches!(
+            CompiledLogic::compile(&json!(null)).unwrap(),
+            CompiledLogic::Null
+        ));
+        assert!(matches!(
+            CompiledLogic::compile(&json!(true)).unwrap(),
+            CompiledLogic::Bool(true)
+        ));
+        assert!(matches!(
+            CompiledLogic::compile(&json!(false)).unwrap(),
+            CompiledLogic::Bool(false)
+        ));
+        assert!(
+            matches!(CompiledLogic::compile(&json!(42.5)).unwrap(), CompiledLogic::Number(n) if n == 42.5)
+        );
+        assert!(
+            matches!(CompiledLogic::compile(&json!("hello")).unwrap(), CompiledLogic::String(ref s) if s == "hello")
+        );
+        assert!(matches!(
+            CompiledLogic::compile(&json!([1, 2, 3])).unwrap(),
+            CompiledLogic::Array(_)
+        ));
     }
 
     #[test]
@@ -1733,10 +1747,10 @@ mod tests {
         assert!(is_ok(json!({"if": [true, 1, 0]})));
         assert!(is_ok(json!({"xor": [true, false]})));
         assert!(is_ok(json!({"ifnull": [{"var": "a"}, 0]})));
-        
+
         // Errors
         assert!(!is_ok(json!({"if": []})));
-        assert!(!is_ok(json!({"and": true}))); 
+        assert!(!is_ok(json!({"and": true})));
     }
 
     #[test]
@@ -1771,7 +1785,9 @@ mod tests {
     fn test_compile_array_ops() {
         assert!(is_ok(json!({"map": [[1, 2], {"+": [{"var": ""}, 1]}]})));
         assert!(is_ok(json!({"filter": [[1, 2], {">": [{"var": ""}, 1]}]})));
-        assert!(is_ok(json!({"reduce": [[1, 2], {"+": [{"var": "current"}, {"var": "accumulator"}]}, 0]})));
+        assert!(is_ok(
+            json!({"reduce": [[1, 2], {"+": [{"var": "current"}, {"var": "accumulator"}]}, 0]})
+        ));
         assert!(is_ok(json!({"all": [[true, false], {"var": ""}]})));
         assert!(is_ok(json!({"some": [[true, false], {"var": ""}]})));
         assert!(is_ok(json!({"none": [[true, false], {"var": ""}]})));
@@ -1826,8 +1842,10 @@ mod tests {
         assert!(is_ok(json!({"CHOOSE": [{"var": "t"}, "==", 1, "a"]})));
         assert!(is_ok(json!({"FINDINDEX": [{"var": "t"}, "==", 1, "a"]})));
         assert!(is_ok(json!({"MAPOPTIONS": [{"var": "t"}, "a", "b"]})));
-        assert!(is_ok(json!({"MAPOPTIONSIF": [{"var": "t"}, "a", "b", [true, "==", "c"]]})));
-        
+        assert!(is_ok(
+            json!({"MAPOPTIONSIF": [{"var": "t"}, "a", "b", [true, "==", "c"]]})
+        ));
+
         // Error cases
         assert!(!is_ok(json!({"VALUEAT": [[{"a": 1}], 0]})));
         assert!(!is_ok(json!({"MAPOPTIONSIF": [[], "a"]})));

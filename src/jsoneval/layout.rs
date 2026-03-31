@@ -48,7 +48,7 @@ impl JSONEval {
             // Sync layout hidden state to schema definitions
             // This ensures validation (which checks schema) respects layout hiding
             time_block!("    sync_layout_hidden_to_schema", {
-                 self.sync_layout_hidden_to_schema(&layout_paths);
+                self.sync_layout_hidden_to_schema(&layout_paths);
             });
         });
     }
@@ -105,7 +105,10 @@ impl JSONEval {
 
             // Set path metadata for direct layout elements (without $ref)
             if !map.contains_key("$fullpath") {
-                map.insert("$fullpath".to_string(), Value::String(path_context.to_string()));
+                map.insert(
+                    "$fullpath".to_string(),
+                    Value::String(path_context.to_string()),
+                );
             }
 
             if !map.contains_key("$path") {
@@ -118,7 +121,9 @@ impl JSONEval {
                 let mut resolved_nested = Vec::with_capacity(elements.len());
                 for (index, nested_element) in elements.iter().enumerate() {
                     let nested_path = format!("{}.elements.{}", path_context, index);
-                    resolved_nested.push(self.resolve_element_ref_recursive(nested_element.clone(), &nested_path));
+                    resolved_nested.push(
+                        self.resolve_element_ref_recursive(nested_element.clone(), &nested_path),
+                    );
                 }
                 map.insert("elements".to_string(), Value::Array(resolved_nested));
             }
@@ -147,11 +152,13 @@ impl JSONEval {
                     map.insert("$parentHide".to_string(), Value::Bool(false));
 
                     // Normalize to JSON pointer for actual lookup
-                    let normalized_path = if ref_path.starts_with('#') || ref_path.starts_with('/') {
+                    let normalized_path = if ref_path.starts_with('#') || ref_path.starts_with('/')
+                    {
                         path_utils::normalize_to_json_pointer(&ref_path).into_owned()
                     } else {
                         let schema_pointer = path_utils::dot_notation_to_schema_pointer(&ref_path);
-                        let schema_path = path_utils::normalize_to_json_pointer(&schema_pointer).into_owned();
+                        let schema_path =
+                            path_utils::normalize_to_json_pointer(&schema_pointer).into_owned();
 
                         if self.evaluated_schema.pointer(&schema_path).is_some() {
                             schema_path
@@ -161,14 +168,16 @@ impl JSONEval {
                     };
 
                     // Get the referenced value
-                    if let Some(referenced_value) = self.evaluated_schema.pointer(&normalized_path) {
+                    if let Some(referenced_value) = self.evaluated_schema.pointer(&normalized_path)
+                    {
                         let resolved = referenced_value.clone();
 
                         if let Value::Object(mut resolved_map) = resolved {
                             map.remove("$ref");
 
                             // Special case: if resolved has $layout, flatten it
-                            if let Some(Value::Object(layout_obj)) = resolved_map.remove("$layout") {
+                            if let Some(Value::Object(layout_obj)) = resolved_map.remove("$layout")
+                            {
                                 let mut result = layout_obj.clone();
 
                                 // properties are now preserved and will be merged below
@@ -211,11 +220,12 @@ impl JSONEval {
         let normalized_path = path_utils::normalize_to_json_pointer(layout_elements_path);
 
         // Extract elements array to avoid borrow checker issues
-        let elements = if let Some(Value::Array(arr)) = self.evaluated_schema.pointer_mut(&normalized_path) {
-            mem::take(arr)
-        } else {
-            return;
-        };
+        let elements =
+            if let Some(Value::Array(arr)) = self.evaluated_schema.pointer_mut(&normalized_path) {
+                mem::take(arr)
+            } else {
+                return;
+            };
 
         // Process elements
         let mut updated_elements = Vec::with_capacity(elements.len());
@@ -230,7 +240,12 @@ impl JSONEval {
     }
 
     /// Recursively apply parent hidden/disabled conditions to an element and its children
-    fn apply_parent_conditions(&self, element: Value, parent_hidden: bool, parent_disabled: bool) -> Value {
+    fn apply_parent_conditions(
+        &self,
+        element: Value,
+        parent_hidden: bool,
+        parent_disabled: bool,
+    ) -> Value {
         if let Value::Object(mut map) = element {
             // Get current element's condition
             let mut element_hidden = parent_hidden;
@@ -303,7 +318,11 @@ impl JSONEval {
             if let Some(Value::Array(elements)) = map.get("elements") {
                 let mut updated_children = Vec::with_capacity(elements.len());
                 for child in elements {
-                    updated_children.push(self.apply_parent_conditions(child.clone(), element_hidden, element_disabled));
+                    updated_children.push(self.apply_parent_conditions(
+                        child.clone(),
+                        element_hidden,
+                        element_disabled,
+                    ));
                 }
                 map.insert("elements".to_string(), Value::Array(updated_children));
             }
@@ -320,28 +339,28 @@ impl JSONEval {
 
         // Collect all schema paths that are effectively hidden in the layout
         for layout_path in layout_paths {
-             let normalized_path = path_utils::normalize_to_json_pointer(layout_path);
-             if let Some(Value::Array(elements)) = self.evaluated_schema.pointer(&normalized_path) {
-                 for element in elements {
-                     self.collect_hidden_paths_recursive(element, &mut hidden_paths);
-                 }
-             }
+            let normalized_path = path_utils::normalize_to_json_pointer(layout_path);
+            if let Some(Value::Array(elements)) = self.evaluated_schema.pointer(&normalized_path) {
+                for element in elements {
+                    self.collect_hidden_paths_recursive(element, &mut hidden_paths);
+                }
+            }
         }
 
         // Apply hidden state to schema definitions
         for schema_path_dot in hidden_paths {
             let schema_pointer = path_utils::dot_notation_to_schema_pointer(&schema_path_dot);
             let normalized_pointer = path_utils::normalize_to_json_pointer(&schema_pointer);
-            
+
             if let Some(schema_node) = self.evaluated_schema.pointer_mut(&normalized_pointer) {
                 if let Value::Object(map) = schema_node {
                     // Update condition.hidden = true
-                     let mut condition = if let Some(Value::Object(c)) = map.get("condition") {
+                    let mut condition = if let Some(Value::Object(c)) = map.get("condition") {
                         c.clone()
                     } else {
                         serde_json::Map::new()
                     };
-                    
+
                     condition.insert("hidden".to_string(), Value::Bool(true));
                     map.insert("condition".to_string(), Value::Object(condition));
                 }
@@ -355,7 +374,7 @@ impl JSONEval {
                         } else {
                             serde_json::Map::new()
                         };
-                        
+
                         condition.insert("hidden".to_string(), Value::Bool(true));
                         map.insert("condition".to_string(), Value::Object(condition));
                     }
@@ -368,7 +387,10 @@ impl JSONEval {
         if let Value::Object(map) = element {
             // Check if this element is effectively hidden
             let is_hidden = if let Some(Value::Object(condition)) = map.get("condition") {
-                condition.get("hidden").and_then(|v| v.as_bool()).unwrap_or(false)
+                condition
+                    .get("hidden")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false)
             } else {
                 false
             };
@@ -376,9 +398,9 @@ impl JSONEval {
             if is_hidden {
                 // If hidden and has $fullpath, verify it points to a schema definition
                 if let Some(Value::String(fullpath)) = map.get("fullpath") {
-                     hidden_paths.push(fullpath.clone());
+                    hidden_paths.push(fullpath.clone());
                 } else if let Some(Value::String(fullpath)) = map.get("$fullpath") {
-                     hidden_paths.push(fullpath.clone());
+                    hidden_paths.push(fullpath.clone());
                 }
             }
 

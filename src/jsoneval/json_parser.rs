@@ -7,18 +7,15 @@ use serde_json::Value;
 #[inline]
 pub fn parse_json_str(json: &str) -> Result<Value, String> {
     let mut bytes = json.as_bytes().to_vec();
-    parse_simd_bytes(&mut bytes).or_else(|_| {
-        serde_json::from_str(json).map_err(|e| e.to_string())
-    })
+    parse_simd_bytes(&mut bytes).or_else(|_| serde_json::from_str(json).map_err(|e| e.to_string()))
 }
 
 /// Parse JSON from bytes using SIMD acceleration when possible
 /// This is the fastest path as simd-json works on mutable byte slices
 #[inline]
 pub fn parse_json_bytes(mut bytes: Vec<u8>) -> Result<Value, String> {
-    parse_simd_bytes(&mut bytes).or_else(|_| {
-        serde_json::from_slice(&bytes).map_err(|e| e.to_string())
-    })
+    parse_simd_bytes(&mut bytes)
+        .or_else(|_| serde_json::from_slice(&bytes).map_err(|e| e.to_string()))
 }
 
 /// Internal SIMD parser — deserializes directly into serde_json::Value
@@ -34,4 +31,3 @@ pub fn read_json_file(path: &str) -> Result<Value, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("Failed to read file {}: {}", path, e))?;
     parse_json_bytes(bytes)
 }
-

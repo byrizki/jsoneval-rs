@@ -109,7 +109,7 @@ impl Evaluator {
             if let Some(ts) = scope.as_ref() {
                 if let Some(row_idx) = ts.current_row {
                     let field = &name[2..]; // e.g., "POL_YEAR"
-                    // SAFETY: local_rows outlives this evaluation frame
+                                            // SAFETY: local_rows outlives this evaluation frame
                     let rows = unsafe { &*ts.rows };
                     if let Some(row) = rows.get(row_idx) {
                         if let Value::Object(obj) = row {
@@ -134,7 +134,9 @@ impl Evaluator {
                         return Some(&**arc_val);
                     } else {
                         let remainder = &name[end_idx..];
-                        return path_utils::get_value_by_pointer_without_properties(arc_val, remainder);
+                        return path_utils::get_value_by_pointer_without_properties(
+                            arc_val, remainder,
+                        );
                     }
                 }
             }
@@ -168,7 +170,9 @@ impl Evaluator {
         if pointer.is_empty() {
             return false;
         }
-        self.get_var(data, &pointer).map(|v| v.is_null()).unwrap_or(true)
+        self.get_var(data, &pointer)
+            .map(|v| v.is_null())
+            .unwrap_or(true)
     }
 }
 

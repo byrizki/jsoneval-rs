@@ -28,24 +28,28 @@ fn test_get_schema_value_params_product_name() {
             }
         }
     });
-    
+
     let data = json!({});
-    
+
     let schema_str = serde_json::to_string(&schema).unwrap();
     let data_str = serde_json::to_string(&data).unwrap();
-    
+
     let mut eval = JSONEval::new(&schema_str, None, Some(&data_str)).unwrap();
-    
+
     // Evaluate
     eval.evaluate(&data_str, None, None, None).unwrap();
-    
+
     let result = eval.get_evaluated_schema(false);
-    
+
     // Verify that $params.productName was correctly referenced
     let item_value = result.pointer("/properties/order/properties/item/value");
     assert!(item_value.is_some(), "Should find item value");
-    assert_eq!(*item_value.unwrap(), json!("Widget Pro"), "Item should reference productName from $params");
-    
+    assert_eq!(
+        *item_value.unwrap(),
+        json!("Widget Pro"),
+        "Item should reference productName from $params"
+    );
+
     // Also verify we can directly access $params
     let product_name = result.pointer("/$params/productName");
     assert!(product_name.is_some(), "Should find $params.productName");
@@ -91,32 +95,40 @@ fn test_get_schema_value_params_nested() {
             }
         }
     });
-    
+
     let data = json!({});
-    
+
     let schema_str = serde_json::to_string(&schema).unwrap();
     let data_str = serde_json::to_string(&data).unwrap();
-    
+
     let mut eval = JSONEval::new(&schema_str, None, Some(&data_str)).unwrap();
-    
+
     // Evaluate
     eval.evaluate(&data_str, None, None, None).unwrap();
-    
+
     let result = eval.get_evaluated_schema(false);
-    
+
     // Verify nested $params references
     let rate_value = result.pointer("/properties/calculation/properties/rate/value");
     assert!(rate_value.is_some(), "Should find rate value");
-    assert_eq!(*rate_value.unwrap(), json!(0.05), "Rate should reference from $params");
-    
+    assert_eq!(
+        *rate_value.unwrap(),
+        json!(0.05),
+        "Rate should reference from $params"
+    );
+
     let timeout_value = result.pointer("/properties/calculation/properties/timeout/value");
     assert!(timeout_value.is_some(), "Should find timeout value");
-    assert_eq!(*timeout_value.unwrap(), json!(30), "Timeout should reference from $params");
-    
+    assert_eq!(
+        *timeout_value.unwrap(),
+        json!(30),
+        "Timeout should reference from $params"
+    );
+
     // Verify direct access to nested $params
     let rate = result.pointer("/$params/constants/RATE");
     assert_eq!(*rate.unwrap(), json!(0.05));
-    
+
     let timeout = result.pointer("/$params/config/settings/timeout");
     assert_eq!(*timeout.unwrap(), json!(30));
 }
@@ -153,21 +165,23 @@ fn test_selective_eval_params_product_name() {
             }
         }
     });
-    
+
     let data = json!({});
-    
+
     let schema_str = serde_json::to_string(&schema).unwrap();
     let data_str = serde_json::to_string(&data).unwrap();
-    
+
     let mut eval = JSONEval::new(&schema_str, None, Some(&data_str)).unwrap();
-    
+
     // Initial evaluation
     eval.evaluate(&data_str, None, None, None).unwrap();
-    
+
     let result = eval.get_evaluated_schema(false);
-    let product_value = result.pointer("/properties/details/properties/product/value").unwrap();
+    let product_value = result
+        .pointer("/properties/details/properties/product/value")
+        .unwrap();
     assert_eq!(*product_value, json!("Initial Product v1.0"));
-    
+
     // Update schema with new $params values
     let updated_schema = json!({
         "type": "object",
@@ -198,14 +212,16 @@ fn test_selective_eval_params_product_name() {
             }
         }
     });
-    
+
     let updated_schema_str = serde_json::to_string(&updated_schema).unwrap();
     let mut eval2 = JSONEval::new(&updated_schema_str, None, Some(&data_str)).unwrap();
-    
+
     // Re-evaluate with updated schema
     eval2.evaluate(&data_str, None, None, None).unwrap();
-    
+
     let result2 = eval2.get_evaluated_schema(false);
-    let updated_product_value = result2.pointer("/properties/details/properties/product/value").unwrap();
+    let updated_product_value = result2
+        .pointer("/properties/details/properties/product/value")
+        .unwrap();
     assert_eq!(*updated_product_value, json!("Updated Product v2.0"));
 }

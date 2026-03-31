@@ -1,6 +1,6 @@
+use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::fmt;
 
 /// A thread-safe token that can be used to signal cancellation to running operations
 #[derive(Clone, Debug)]

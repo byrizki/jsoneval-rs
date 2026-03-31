@@ -68,7 +68,9 @@ mod math_tests {
         assert_eq!(result, json!(3));
 
         // Cube root
-        let logic_id = engine.compile(&json!({"pow": [8, {"+": [1, {"*": [2, {"!": true}]}]}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"pow": [8, {"+": [1, {"*": [2, {"!": true}]}]}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(8)); // Engine produces 8^(1) when exponent expression simplifies to 1
 
@@ -164,15 +166,21 @@ mod math_tests {
         let data = json!({"a": 10, "b": 3, "c": -5});
 
         // Math operations with variables
-        let logic_id = engine.compile(&json!({"max": [{"var": "a"}, {"var": "b"}, {"abs": {"var": "c"}}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"max": [{"var": "a"}, {"var": "b"}, {"abs": {"var": "c"}}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(10)); // max(10, 3, 5) = 10
 
-        let logic_id = engine.compile(&json!({"pow": [{"var": "a"}, {"var": "b"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"pow": [{"var": "a"}, {"var": "b"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(1000)); // 10^3 = 1000
 
-        let logic_id = engine.compile(&json!({"round": {"+": [{"var": "a"}, 0.7]}})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"round": {"+": [{"var": "a"}, 0.7]}}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(11)); // round(10.7) = 11
     }
@@ -183,46 +191,54 @@ mod math_tests {
         let data = json!({"values": [1, 2, 3, 4, 5]});
 
         // Sum of array via reduce
-        let logic_id = engine.compile(&json!({"reduce": [
-            {"var": "values"},
-            {"+": [{"var": "accumulator"}, {"var": "current"}]},
-            0
-        ]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"reduce": [
+                {"var": "values"},
+                {"+": [{"var": "accumulator"}, {"var": "current"}]},
+                0
+            ]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(15));
 
         // Max of array via reduce
-        let logic_id = engine.compile(&json!({"reduce": [
-            {"var": "values"},
-            {"if": [
-                {">": [{"var": "current"}, {"var": "accumulator"}]},
-                {"var": "current"},
-                {"var": "accumulator"}
-            ]},
-            {"var": "values.0"}
-        ]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"reduce": [
+                {"var": "values"},
+                {"if": [
+                    {">": [{"var": "current"}, {"var": "accumulator"}]},
+                    {"var": "current"},
+                    {"var": "accumulator"}
+                ]},
+                {"var": "values.0"}
+            ]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(5));
 
         // Min of array via reduce
-        let logic_id = engine.compile(&json!({"reduce": [
-            {"var": "values"},
-            {"if": [
-                {"<": [{"var": "current"}, {"var": "accumulator"}]},
-                {"var": "current"},
-                {"var": "accumulator"}
-            ]},
-            {"var": "values.0"}
-        ]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"reduce": [
+                {"var": "values"},
+                {"if": [
+                    {"<": [{"var": "current"}, {"var": "accumulator"}]},
+                    {"var": "current"},
+                    {"var": "accumulator"}
+                ]},
+                {"var": "values.0"}
+            ]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(1));
 
         // Product of array via reduce
-        let logic_id = engine.compile(&json!({"reduce": [
-            {"var": "values"},
-            {"*": [{"var": "accumulator"}, {"var": "current"}]},
-            1
-        ]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"reduce": [
+                {"var": "values"},
+                {"*": [{"var": "accumulator"}, {"var": "current"}]},
+                1
+            ]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(120));
     }
@@ -272,28 +288,32 @@ mod math_tests {
         let data = json!({"x": 3, "y": 4, "z": 5});
 
         // Pythagorean theorem: sqrt(x^2 + y^2) = z
-        let logic_id = engine.compile(&json!({
-            "round": {
-                "pow": [
-                    {"+": [
-                        {"pow": [{"var": "x"}, 2]},
-                        {"pow": [{"var": "y"}, 2]}
-                    ]},
-                    0.5
-                ]
-            }
-        })).unwrap();
+        let logic_id = engine
+            .compile(&json!({
+                "round": {
+                    "pow": [
+                        {"+": [
+                            {"pow": [{"var": "x"}, 2]},
+                            {"pow": [{"var": "y"}, 2]}
+                        ]},
+                        0.5
+                    ]
+                }
+            }))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(5)); // sqrt(9 + 16) = sqrt(25) = 5
 
         // Complex formula: (x + y) * z / 2
-        let logic_id = engine.compile(&json!({"/": [
-            {"*": [
-                {"+": [{"var": "x"}, {"var": "y"}]},
-                {"var": "z"}
-            ]},
-            2
-        ]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"/": [
+                {"*": [
+                    {"+": [{"var": "x"}, {"var": "y"}]},
+                    {"var": "z"}
+                ]},
+                2
+            ]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(17.5));
     }
@@ -304,7 +324,9 @@ mod math_tests {
         let data = json!({});
 
         // Invalid math operation
-        let logic_id = engine.compile(&json!({"pow": ["not_a_number", 2]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"pow": ["not_a_number", 2]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(0)); // Engine coerces invalid bases to 0
 

@@ -1,5 +1,5 @@
-use std::borrow::Cow;
 use serde_json::Value;
+use std::borrow::Cow;
 
 /// Normalize path to JSON pointer format for efficient native access
 ///
@@ -65,7 +65,6 @@ pub fn normalize_to_json_pointer(path: &str) -> Cow<'_, str> {
         Cow::Owned(normalized)
     }
 }
-
 
 /// Convert dotted path to JSON Schema pointer format
 ///

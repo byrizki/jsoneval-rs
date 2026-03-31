@@ -47,7 +47,10 @@ impl JSONEvalWasm {
         let dt = data.as_deref();
 
         match JSONEval::new(schema, ctx, dt) {
-            Ok(eval) => Ok(JSONEvalWasm { inner: eval, current_token: None }),
+            Ok(eval) => Ok(JSONEvalWasm {
+                inner: eval,
+                current_token: None,
+            }),
             Err(e) => {
                 let error_msg = format!("Failed to create JSONEval instance: {}", e);
                 log(&format!("[WASM ERROR] {}", error_msg));
@@ -73,7 +76,10 @@ impl JSONEvalWasm {
         let dt = data.as_deref();
 
         match JSONEval::new_from_msgpack(schema_msgpack, ctx, dt) {
-            Ok(eval) => Ok(JSONEvalWasm { inner: eval, current_token: None }),
+            Ok(eval) => Ok(JSONEvalWasm {
+                inner: eval,
+                current_token: None,
+            }),
             Err(e) => {
                 let error_msg =
                     format!("Failed to create JSONEval instance from MessagePack: {}", e);
@@ -108,7 +114,10 @@ impl JSONEvalWasm {
 
         // Create JSONEval from the cached ParsedSchema
         match JSONEval::with_parsed_schema(parsed, ctx, dt) {
-            Ok(eval) => Ok(JSONEvalWasm { inner: eval, current_token: None }),
+            Ok(eval) => Ok(JSONEvalWasm {
+                inner: eval,
+                current_token: None,
+            }),
             Err(e) => {
                 let error_msg = format!("Failed to create JSONEval from cache: {}", e);
                 log(&format!("[WASM ERROR] {}", error_msg));

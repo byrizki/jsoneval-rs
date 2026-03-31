@@ -1,17 +1,16 @@
 use super::JSONEval;
+use crate::jsoneval::cancellation::CancellationToken;
 use crate::jsoneval::json_parser;
 use crate::jsoneval::path_utils;
 use crate::jsoneval::path_utils::get_value_by_pointer_without_properties;
 use crate::jsoneval::path_utils::normalize_to_json_pointer;
-use crate::rlogic::{LogicId, RLogic};
 use crate::jsoneval::types::DependentItem;
-use crate::jsoneval::cancellation::CancellationToken;
+use crate::rlogic::{LogicId, RLogic};
 use crate::utils::clean_float_noise_scalar;
 use crate::EvalData;
 
 use indexmap::{IndexMap, IndexSet};
 use serde_json::Value;
-
 
 impl JSONEval {
     /// Evaluate fields that depend on a changed path.
@@ -43,9 +42,11 @@ impl JSONEval {
                 Value::Object(serde_json::Map::new())
             };
             let old_data = self.eval_data.snapshot_data_clone();
-            self.eval_data.replace_data_and_context(data_value, context_value);
+            self.eval_data
+                .replace_data_and_context(data_value, context_value);
             let new_data = self.eval_data.snapshot_data_clone();
-            self.eval_cache.store_snapshot_and_diff_versions(&old_data, &new_data);
+            self.eval_cache
+                .store_snapshot_and_diff_versions(&old_data, &new_data);
         }
 
         let mut result = Vec::new();
@@ -73,7 +74,13 @@ impl JSONEval {
         drop(_lock);
 
         if re_evaluate {
-            self.run_re_evaluate_pass(token, &mut to_process, &mut processed, &mut result, canceled_paths.as_mut().map(|v| &mut **v))?;
+            self.run_re_evaluate_pass(
+                token,
+                &mut to_process,
+                &mut processed,
+                &mut result,
+                canceled_paths.as_mut().map(|v| &mut **v),
+            )?;
         }
 
         if include_subforms {
@@ -92,7 +99,9 @@ impl JSONEval {
                 }
             }
             let last_indices: IndexSet<usize> = seen.values().copied().collect();
-            let out: Vec<Value> = result.into_iter().enumerate()
+            let out: Vec<Value> = result
+                .into_iter()
+                .enumerate()
                 .filter(|(i, _)| last_indices.contains(i))
                 .map(|(_, item)| item)
                 .collect();
@@ -113,7 +122,13 @@ impl JSONEval {
         mut canceled_paths: Option<&mut Vec<String>>,
     ) -> Result<(), String> {
         // --- Schema Default Value Pass (Before Eval) ---
-        self.run_schema_default_value_pass(token, to_process, processed, result, canceled_paths.as_mut().map(|v| &mut **v))?;
+        self.run_schema_default_value_pass(
+            token,
+            to_process,
+            processed,
+            result,
+            canceled_paths.as_mut().map(|v| &mut **v),
+        )?;
 
         // Resolve the correct data_versions tracker before snapshotting.
         // When active_item_index is Some(idx), evaluate_internal bumps
@@ -121,7 +136,8 @@ impl JSONEval {
         // Using the main tracker for both snapshot and post-eval lookup would make
         // old_ver == new_ver always, so no changed values would ever be emitted.
         let pre_eval_versions = if let Some(idx) = self.eval_cache.active_item_index {
-            self.eval_cache.subform_caches
+            self.eval_cache
+                .subform_caches
                 .get(&idx)
                 .map(|c| c.data_versions.clone())
                 .unwrap_or_else(|| self.eval_cache.data_versions.clone())
@@ -132,7 +148,13 @@ impl JSONEval {
         self.evaluate_internal(None, token)?;
 
         // --- Schema Default Value Pass (After Eval) ---
-        self.run_schema_default_value_pass(token, to_process, processed, result, canceled_paths.as_mut().map(|v| &mut **v))?;
+        self.run_schema_default_value_pass(
+            token,
+            to_process,
+            processed,
+            result,
+            canceled_paths.as_mut().map(|v| &mut **v),
+        )?;
 
         // Emit result entries for every sorted-evaluation whose version uniquely bumped.
         // Again resolve to the per-item tracker so the comparison uses the same source
@@ -153,7 +175,8 @@ impl JSONEval {
             let version_path = format!("/{}", data_path);
             let old_ver = pre_eval_versions.get(&version_path);
             let new_ver = if let Some(idx) = active_idx {
-                self.eval_cache.subform_caches
+                self.eval_cache
+                    .subform_caches
                     .get(&idx)
                     .map(|c| c.data_versions.get(&version_path))
                     .unwrap_or_else(|| self.eval_cache.data_versions.get(&version_path))
@@ -181,7 +204,12 @@ impl JSONEval {
         for path in self.conditional_readonly_fields.iter() {
             let normalized = path_utils::normalize_to_json_pointer(path);
             if let Some(schema_el) = self.evaluated_schema.pointer(&normalized) {
-                self.check_readonly_for_dependents(schema_el, path, &mut readonly_changes, &mut readonly_values);
+                self.check_readonly_for_dependents(
+                    schema_el,
+                    path,
+                    &mut readonly_changes,
+                    &mut readonly_values,
+                );
             }
         }
         for (path, schema_value) in readonly_changes {
@@ -199,7 +227,10 @@ impl JSONEval {
                 .trim_start_matches('#')
                 .to_string();
             let mut obj = serde_json::Map::new();
-            obj.insert("$ref".to_string(), Value::String(path_utils::pointer_to_dot_notation(&data_path)));
+            obj.insert(
+                "$ref".to_string(),
+                Value::String(path_utils::pointer_to_dot_notation(&data_path)),
+            );
             obj.insert("$readonly".to_string(), Value::Bool(true));
             obj.insert("value".to_string(), schema_value);
             result.push(Value::Object(obj));
@@ -221,7 +252,8 @@ impl JSONEval {
                     .cloned()
                     .collect();
                 if !params_table_keys.is_empty() {
-                    self.eval_cache.invalidate_params_tables_for_item(active_idx, &params_table_keys);
+                    self.eval_cache
+                        .invalidate_params_tables_for_item(active_idx, &params_table_keys);
                 }
                 drop(_lock);
                 self.evaluate_internal(None, token)?;
@@ -298,17 +330,24 @@ impl JSONEval {
     ) -> Result<(), String> {
         let mut default_value_changes = Vec::new();
         let schema_values = self.get_schema_value_array();
-        
+
         if let Value::Array(values) = schema_values {
             for item in values {
                 if let Value::Object(map) = item {
-                    if let (Some(Value::String(dot_path)), Some(schema_val)) = (map.get("path"), map.get("value")) {
+                    if let (Some(Value::String(dot_path)), Some(schema_val)) =
+                        (map.get("path"), map.get("value"))
+                    {
                         let schema_ptr = path_utils::dot_notation_to_schema_pointer(dot_path);
-                        if let Some(Value::Object(schema_node)) = self.evaluated_schema.pointer(schema_ptr.trim_start_matches('#')) {
+                        if let Some(Value::Object(schema_node)) = self
+                            .evaluated_schema
+                            .pointer(schema_ptr.trim_start_matches('#'))
+                        {
                             if let Some(Value::Object(condition)) = schema_node.get("condition") {
                                 if let Some(hidden_val) = condition.get("hidden") {
                                     // Skip if hidden is true OR if it's a non-primitive value (formula object)
-                                    if !hidden_val.is_boolean() || hidden_val.as_bool() == Some(true) {
+                                    if !hidden_val.is_boolean()
+                                        || hidden_val.as_bool() == Some(true)
+                                    {
                                         continue;
                                     }
                                 }
@@ -316,8 +355,12 @@ impl JSONEval {
                         }
 
                         let data_path = dot_path.replace('.', "/");
-                        let current_data = self.eval_data.data().pointer(&format!("/{}", data_path)).unwrap_or(&Value::Null);
-                        
+                        let current_data = self
+                            .eval_data
+                            .data()
+                            .pointer(&format!("/{}", data_path))
+                            .unwrap_or(&Value::Null);
+
                         let is_empty = match current_data {
                             Value::Null => true,
                             Value::String(s) if s.is_empty() => true,
@@ -330,28 +373,34 @@ impl JSONEval {
                             Value::Object(map) if map.contains_key("$evaluation") => true,
                             _ => false,
                         };
-                        
+
                         if is_empty && !is_schema_val_empty && current_data != schema_val {
-                             default_value_changes.push((data_path, schema_val.clone(), dot_path.clone()));
+                            default_value_changes.push((
+                                data_path,
+                                schema_val.clone(),
+                                dot_path.clone(),
+                            ));
                         }
                     }
                 }
             }
         }
-        
+
         let mut has_changes = false;
         for (data_path, schema_val, dot_path) in default_value_changes {
-             self.eval_data.set(&format!("/{}", data_path), schema_val.clone());
-             self.eval_cache.bump_data_version(&format!("/{}", data_path));
-             
-             let mut change_obj = serde_json::Map::new();
-             change_obj.insert("$ref".to_string(), Value::String(dot_path));
-             change_obj.insert("value".to_string(), schema_val);
-             result.push(Value::Object(change_obj));
-             
-             let schema_ptr = format!("#/{}", data_path.replace('/', "/properties/"));
-             to_process.push((schema_ptr, true));
-             has_changes = true;
+            self.eval_data
+                .set(&format!("/{}", data_path), schema_val.clone());
+            self.eval_cache
+                .bump_data_version(&format!("/{}", data_path));
+
+            let mut change_obj = serde_json::Map::new();
+            change_obj.insert("$ref".to_string(), Value::String(dot_path));
+            change_obj.insert("value".to_string(), schema_val);
+            result.push(Value::Object(change_obj));
+
+            let schema_ptr = format!("#/{}", data_path.replace('/', "/properties/"));
+            to_process.push((schema_ptr, true));
+            has_changes = true;
         }
 
         if has_changes {
@@ -395,19 +444,17 @@ impl JSONEval {
         for subform_path in subform_paths {
             let field_key = subform_field_key(&subform_path);
             // Compute dotted path and prefix strings once per subform, not per item
-            let subform_dot_path = path_utils::pointer_to_dot_notation(&subform_path)
-                .replace(".properties.", ".");
+            let subform_dot_path =
+                path_utils::pointer_to_dot_notation(&subform_path).replace(".properties.", ".");
             let field_prefix = format!("{}.", field_key);
             let subform_ptr = normalize_to_json_pointer(&subform_path);
 
             // Borrow only the item count first — avoid cloning the full array
-            let item_count = get_value_by_pointer_without_properties(
-                self.eval_data.data(),
-                &subform_ptr,
-            )
-            .and_then(|v| v.as_array())
-            .map(|a| a.len())
-            .unwrap_or(0);
+            let item_count =
+                get_value_by_pointer_without_properties(self.eval_data.data(), &subform_ptr)
+                    .and_then(|v| v.as_array())
+                    .map(|a| a.len())
+                    .unwrap_or(0);
 
             if item_count == 0 {
                 continue;
@@ -416,7 +463,6 @@ impl JSONEval {
             // Evict stale per-item caches for indices that no longer exist in the array.
             // This prevents memory leaks when riders are removed and the array shrinks.
             self.eval_cache.prune_subform_caches(item_count);
-
 
             // When the parent ran a re_evaluate pass, always pass re_evaluate:true to subforms.
             // The parent's evaluate_internal may have updated $params or other referenced values
@@ -460,14 +506,12 @@ impl JSONEval {
 
                 // Build minimal merged data: clone only item at idx, share $params shallowly.
                 // This avoids cloning the full 5MB parent payload for every item.
-                let item_val = get_value_by_pointer_without_properties(
-                    self.eval_data.data(),
-                    &subform_ptr,
-                )
-                .and_then(|v| v.as_array())
-                .and_then(|a| a.get(idx))
-                .cloned()
-                .unwrap_or(Value::Null);
+                let item_val =
+                    get_value_by_pointer_without_properties(self.eval_data.data(), &subform_ptr)
+                        .and_then(|v| v.as_array())
+                        .and_then(|a| a.get(idx))
+                        .cloned()
+                        .unwrap_or(Value::Null);
 
                 // Build a minimal parent object with only the fields the subform needs:
                 // the item under field_key, plus all non-array top-level parent fields
@@ -498,16 +542,24 @@ impl JSONEval {
 
                 // Prepare cache state for this item
                 self.eval_cache.ensure_active_item_cache(idx);
-                let old_item_val = self.eval_cache.subform_caches
+                let old_item_val = self
+                    .eval_cache
+                    .subform_caches
                     .get(&idx)
                     .map(|c| c.item_snapshot.clone())
                     .unwrap_or(Value::Null);
 
                 subform.eval_data.replace_data_and_context(
                     merged_data,
-                    self.eval_data.data().get("$context").cloned().unwrap_or(Value::Null),
+                    self.eval_data
+                        .data()
+                        .get("$context")
+                        .cloned()
+                        .unwrap_or(Value::Null),
                 );
-                let new_item_val = subform.eval_data.data()
+                let new_item_val = subform
+                    .eval_data
+                    .data()
                     .get(&field_key)
                     .cloned()
                     .unwrap_or(Value::Null);
@@ -521,7 +573,8 @@ impl JSONEval {
                     // invalidate subform per-item cache entries that depend on them.
                     c.data_versions.merge_from(&parent_data_versions_snapshot);
                     // Always reflect the latest $params (schema-level, index-independent).
-                    c.data_versions.merge_from_params(&parent_params_versions_snapshot);
+                    c.data_versions
+                        .merge_from_params(&parent_params_versions_snapshot);
                     crate::jsoneval::eval_cache::diff_and_update_versions(
                         &mut c.data_versions,
                         &format!("/{}", field_key),
@@ -554,7 +607,12 @@ impl JSONEval {
                             if let Some(Value::String(ref_path)) = obj.get("$ref") {
                                 // Remap the $ref path to include the parent path + item index
                                 let new_ref = if ref_path.starts_with(&field_prefix) {
-                                    format!("{}.{}.{}", subform_dot_path, idx, &ref_path[field_prefix.len()..])
+                                    format!(
+                                        "{}.{}.{}",
+                                        subform_dot_path,
+                                        idx,
+                                        &ref_path[field_prefix.len()..]
+                                    )
                                 } else {
                                     format!("{}.{}.{}", subform_dot_path, idx, ref_path)
                                 };
@@ -572,7 +630,6 @@ impl JSONEval {
         }
         Ok(())
     }
-
 
     /// Helper to evaluate a dependent value - uses pre-compiled eval keys for fast lookup
     pub(crate) fn evaluate_dependent_value_static(
@@ -631,38 +688,42 @@ impl JSONEval {
                 }
 
                 // Check skipReadOnlyValue config
-                 let mut skip_readonly = false;
+                let mut skip_readonly = false;
                 if let Some(Value::Object(config)) = map.get("config") {
                     if let Some(Value::Object(all)) = config.get("all") {
-                         if let Some(Value::Bool(skip)) = all.get("skipReadOnlyValue") {
-                             skip_readonly = *skip;
-                         }
+                        if let Some(Value::Bool(skip)) = all.get("skipReadOnlyValue") {
+                            skip_readonly = *skip;
+                        }
                     }
                 }
 
                 if is_disabled && !skip_readonly {
                     if let Some(schema_value) = map.get("value") {
-                         let data_path = path_utils::normalize_to_json_pointer(path)
+                        let data_path = path_utils::normalize_to_json_pointer(path)
                             .replace("/properties/", "/")
                             .trim_start_matches('#')
                             .to_string();
-                         
-                         let current_data = self.eval_data.data().pointer(&data_path).unwrap_or(&Value::Null);
-                         
-                         // Add to all_values (include in dependents result regardless of change)
-                         all_values.push((path.to_string(), schema_value.clone()));
-                         
-                         // Only add to changes if value doesn't match
-                         if current_data != schema_value {
-                             changes.push((path.to_string(), schema_value.clone()));
-                         }
+
+                        let current_data = self
+                            .eval_data
+                            .data()
+                            .pointer(&data_path)
+                            .unwrap_or(&Value::Null);
+
+                        // Add to all_values (include in dependents result regardless of change)
+                        all_values.push((path.to_string(), schema_value.clone()));
+
+                        // Only add to changes if value doesn't match
+                        if current_data != schema_value {
+                            changes.push((path.to_string(), schema_value.clone()));
+                        }
                     }
                 }
             }
             _ => {}
         }
     }
-    
+
     /// Recursively collect read-only fields that need updates (Legacy/Full-Scan)
     #[allow(dead_code)]
     pub(crate) fn collect_readonly_fixes(
@@ -682,12 +743,12 @@ impl JSONEval {
                 }
 
                 // Check skipReadOnlyValue config
-                 let mut skip_readonly = false;
+                let mut skip_readonly = false;
                 if let Some(Value::Object(config)) = map.get("config") {
                     if let Some(Value::Object(all)) = config.get("all") {
-                         if let Some(Value::Bool(skip)) = all.get("skipReadOnlyValue") {
-                             skip_readonly = *skip;
-                         }
+                        if let Some(Value::Bool(skip)) = all.get("skipReadOnlyValue") {
+                            skip_readonly = *skip;
+                        }
                     }
                 }
 
@@ -696,21 +757,25 @@ impl JSONEval {
                     // In JS: "const readOnlyValues = this.getSchemaValues();"
                     // We only care if data != schema value
                     if let Some(schema_value) = map.get("value") {
-                         let data_path = path_utils::normalize_to_json_pointer(path)
+                        let data_path = path_utils::normalize_to_json_pointer(path)
                             .replace("/properties/", "/")
                             .trim_start_matches('#')
                             .to_string();
-                         
-                         let current_data = self.eval_data.data().pointer(&data_path).unwrap_or(&Value::Null);
-                         
-                         if current_data != schema_value {
-                             changes.push((path.to_string(), schema_value.clone()));
-                         }
+
+                        let current_data = self
+                            .eval_data
+                            .data()
+                            .pointer(&data_path)
+                            .unwrap_or(&Value::Null);
+
+                        if current_data != schema_value {
+                            changes.push((path.to_string(), schema_value.clone()));
+                        }
                     }
                 }
 
                 // Recurse into properties
-                 if let Some(Value::Object(props)) = map.get("properties") {
+                if let Some(Value::Object(props)) = map.get("properties") {
                     for (key, val) in props {
                         let next_path = if path == "#" {
                             format!("#/properties/{}", key)
@@ -732,9 +797,9 @@ impl JSONEval {
         path: &str,
         hidden_fields: &mut Vec<String>,
     ) {
-         match schema_element {
+        match schema_element {
             Value::Object(map) => {
-                 // Check if field is hidden
+                // Check if field is hidden
                 let mut is_hidden = false;
                 if let Some(Value::Object(condition)) = map.get("condition") {
                     if let Some(Value::Bool(h)) = condition.get("hidden") {
@@ -742,32 +807,36 @@ impl JSONEval {
                     }
                 }
 
-                 // Check keepHiddenValue config
-                 let mut keep_hidden = false;
+                // Check keepHiddenValue config
+                let mut keep_hidden = false;
                 if let Some(Value::Object(config)) = map.get("config") {
                     if let Some(Value::Object(all)) = config.get("all") {
-                         if let Some(Value::Bool(keep)) = all.get("keepHiddenValue") {
-                             keep_hidden = *keep;
-                         }
+                        if let Some(Value::Bool(keep)) = all.get("keepHiddenValue") {
+                            keep_hidden = *keep;
+                        }
                     }
                 }
 
                 if is_hidden && !keep_hidden {
-                     let data_path = path_utils::normalize_to_json_pointer(path)
+                    let data_path = path_utils::normalize_to_json_pointer(path)
                         .replace("/properties/", "/")
                         .trim_start_matches('#')
                         .to_string();
 
-                     let current_data = self.eval_data.data().pointer(&data_path).unwrap_or(&Value::Null);
-                     
-                     // If hidden and has non-empty value, add to list
-                     if current_data != &Value::Null && current_data != "" {
-                         hidden_fields.push(path.to_string());
-                     }
+                    let current_data = self
+                        .eval_data
+                        .data()
+                        .pointer(&data_path)
+                        .unwrap_or(&Value::Null);
+
+                    // If hidden and has non-empty value, add to list
+                    if current_data != &Value::Null && current_data != "" {
+                        hidden_fields.push(path.to_string());
+                    }
                 }
             }
-             _ => {}
-         }
+            _ => {}
+        }
     }
 
     /// Recursively collect hidden fields that have values (candidates for clearing) (Legacy/Full-Scan)
@@ -778,9 +847,9 @@ impl JSONEval {
         path: &str,
         hidden_fields: &mut Vec<String>,
     ) {
-         match schema_element {
+        match schema_element {
             Value::Object(map) => {
-                 // Check if field is hidden
+                // Check if field is hidden
                 let mut is_hidden = false;
                 if let Some(Value::Object(condition)) = map.get("condition") {
                     if let Some(Value::Bool(h)) = condition.get("hidden") {
@@ -788,28 +857,32 @@ impl JSONEval {
                     }
                 }
 
-                 // Check keepHiddenValue config
-                 let mut keep_hidden = false;
+                // Check keepHiddenValue config
+                let mut keep_hidden = false;
                 if let Some(Value::Object(config)) = map.get("config") {
                     if let Some(Value::Object(all)) = config.get("all") {
-                         if let Some(Value::Bool(keep)) = all.get("keepHiddenValue") {
-                             keep_hidden = *keep;
-                         }
+                        if let Some(Value::Bool(keep)) = all.get("keepHiddenValue") {
+                            keep_hidden = *keep;
+                        }
                     }
                 }
-                
+
                 if is_hidden && !keep_hidden {
-                     let data_path = path_utils::normalize_to_json_pointer(path)
+                    let data_path = path_utils::normalize_to_json_pointer(path)
                         .replace("/properties/", "/")
                         .trim_start_matches('#')
                         .to_string();
 
-                     let current_data = self.eval_data.data().pointer(&data_path).unwrap_or(&Value::Null);
-                     
-                     // If hidden and has non-empty value, add to list
-                     if current_data != &Value::Null && current_data != "" {
-                         hidden_fields.push(path.to_string());
-                     }
+                    let current_data = self
+                        .eval_data
+                        .data()
+                        .pointer(&data_path)
+                        .unwrap_or(&Value::Null);
+
+                    // If hidden and has non-empty value, add to list
+                    if current_data != &Value::Null && current_data != "" {
+                        hidden_fields.push(path.to_string());
+                    }
                 }
 
                 // Recurse into children
@@ -827,21 +900,21 @@ impl JSONEval {
                         }
                     } else if let Value::Object(_) = val {
                         // Skip known metadata keys and explicitly handled keys
-                        if key == "condition" 
-                            || key == "config" 
-                            || key == "rules" 
-                            || key == "dependents" 
-                            || key == "hideLayout" 
-                            || key == "$layout" 
-                            || key == "$params" 
+                        if key == "condition"
+                            || key == "config"
+                            || key == "rules"
+                            || key == "dependents"
+                            || key == "hideLayout"
+                            || key == "$layout"
+                            || key == "$params"
                             || key == "definitions"
                             || key == "$defs"
-                            || key.starts_with('$') 
+                            || key.starts_with('$')
                         {
                             continue;
                         }
-                        
-                         let next_path = if path == "#" {
+
+                        let next_path = if path == "#" {
                             format!("#/{}", key)
                         } else {
                             format!("{}/{}", path, key)
@@ -863,7 +936,7 @@ impl JSONEval {
         eval_data: &mut EvalData,
         eval_cache: &mut crate::jsoneval::eval_cache::EvalCache,
         mut hidden_fields: Vec<String>,
-        queue: &mut Vec<(String, bool)>, 
+        queue: &mut Vec<(String, bool)>,
         result: &mut Vec<Value>,
     ) {
         while let Some(hf) = hidden_fields.pop() {
@@ -871,18 +944,21 @@ impl JSONEval {
                 .replace("/properties/", "/")
                 .trim_start_matches('#')
                 .to_string();
-            
+
             // clear data
             eval_data.set(&data_path, Value::Null);
             eval_cache.bump_data_version(&data_path);
-            
-             // Create dependent object for result
+
+            // Create dependent object for result
             let mut change_obj = serde_json::Map::new();
-            change_obj.insert("$ref".to_string(), Value::String(path_utils::pointer_to_dot_notation(&data_path)));
+            change_obj.insert(
+                "$ref".to_string(),
+                Value::String(path_utils::pointer_to_dot_notation(&data_path)),
+            );
             change_obj.insert("$hidden".to_string(), Value::Bool(true));
             change_obj.insert("clear".to_string(), Value::Bool(true));
             result.push(Value::Object(change_obj));
-            
+
             // Add to queue for standard dependent processing
             queue.push((hf.clone(), true));
 
@@ -893,36 +969,37 @@ impl JSONEval {
                     // We need a way to run specific evaluation?
                     // We can check if rb has a hidden evaluation in self.evaluations
                     let hidden_eval_key = format!("{}/condition/hidden", rb);
-                    
+
                     if let Some(logic_id) = evaluations.get(&hidden_eval_key) {
                         // Run evaluation
                         // Context: $value = current field (rb) value? No, $value usually refers to changed field in deps.
                         // But here we are just re-evaluating the rule.
                         // In JS logic: "const result = hiddenFn(runnerCtx);"
                         // runnerCtx has the updated data (we just set hf to null).
-                        
-                         let rb_data_path = path_utils::normalize_to_json_pointer(rb)
-                                .replace("/properties/", "/")
-                                .trim_start_matches('#')
-                                .to_string();
-                         let rb_value = eval_data.data().pointer(&rb_data_path).cloned().unwrap_or(Value::Null);
-                         
-                         // We can use engine.run w/ eval_data
-                         if let Ok(Value::Bool(is_hidden)) = engine.run(
-                             logic_id, 
-                             eval_data.data()
-                         ) {
-                             if is_hidden {
-                                 // Check if rb is not already in hidden_fields and has value
-                                 // rb is &String, hidden_fields is Vec<String>
-                                 if !hidden_fields.contains(rb) {
-                                     let has_value = rb_value != Value::Null && rb_value != "";
-                                     if has_value {
-                                          hidden_fields.push(rb.clone());
-                                     }
-                                 }
-                             }
-                         }
+
+                        let rb_data_path = path_utils::normalize_to_json_pointer(rb)
+                            .replace("/properties/", "/")
+                            .trim_start_matches('#')
+                            .to_string();
+                        let rb_value = eval_data
+                            .data()
+                            .pointer(&rb_data_path)
+                            .cloned()
+                            .unwrap_or(Value::Null);
+
+                        // We can use engine.run w/ eval_data
+                        if let Ok(Value::Bool(is_hidden)) = engine.run(logic_id, eval_data.data()) {
+                            if is_hidden {
+                                // Check if rb is not already in hidden_fields and has value
+                                // rb is &String, hidden_fields is Vec<String>
+                                if !hidden_fields.contains(rb) {
+                                    let has_value = rb_value != Value::Null && rb_value != "";
+                                    if has_value {
+                                        hidden_fields.push(rb.clone());
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -951,12 +1028,12 @@ impl JSONEval {
                     if let Some(cp) = canceled_paths {
                         cp.push(current_path.clone());
                         // Also push remaining items in queue?
-                        // The user request says "accumulate canceled path if provided", usually implies what was actively cancelled 
+                        // The user request says "accumulate canceled path if provided", usually implies what was actively cancelled
                         // or what was pending. Since we pop one by one, we can just dump the queue back or just push pending.
                         // But since we just popped `current_path`, it is the one being cancelled on.
                         // Let's also drain the queue.
                         for (path, _) in queue.iter() {
-                             cp.push(path.clone());
+                            cp.push(path.clone());
                         }
                     }
                     return Err("Cancelled".to_string());

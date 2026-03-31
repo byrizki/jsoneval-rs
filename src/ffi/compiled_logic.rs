@@ -90,9 +90,9 @@ pub unsafe extern "C" fn json_eval_run_logic(
 }
 
 /// Run logic evaluation without an instance handle (pure/static)
-/// 
+///
 /// # Safety
-/// 
+///
 /// - logic_str must be a valid null-terminated UTF-8 string (JSON Logic)
 /// - data can be NULL
 /// - context can be NULL
@@ -132,8 +132,8 @@ pub unsafe extern "C" fn json_eval_evaluate_logic_pure(
 
     match crate::jsoneval::logic::evaluate_logic_pure(logic, data_str, context_str) {
         Ok(result) => {
-             let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
-             FFIResult::success(result_bytes)
+            let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
+            FFIResult::success(result_bytes)
         }
         Err(e) => FFIResult::error(e),
     }

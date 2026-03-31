@@ -51,16 +51,16 @@ impl JSONEvalWasm {
     ) -> Result<ValidationResult, JsValue> {
         let ctx = context.as_deref();
 
-        match self.inner.validate_subform(subform_path, data, ctx, None, None) {
+        match self
+            .inner
+            .validate_subform(subform_path, data, ctx, None, None)
+        {
             Ok(result) => {
                 let mut errors: std::collections::HashMap<String, ValidationError> =
                     std::collections::HashMap::new();
 
                 for (path, error) in result.errors {
-                    errors.insert(
-                        path.clone(),
-                        create_validation_error(path.clone(), &error),
-                    );
+                    errors.insert(path.clone(), create_validation_error(path.clone(), &error));
                 }
 
                 Ok(create_validation_result(result.has_error, errors))
@@ -95,10 +95,16 @@ impl JSONEvalWasm {
             JsValue::from_str(&error_msg)
         })?;
 
-        match self
-            .inner
-            .evaluate_dependents_subform(subform_path, &paths, data_str, ctx, re_evaluate, None, None, include_subforms.unwrap_or(true))
-        {
+        match self.inner.evaluate_dependents_subform(
+            subform_path,
+            &paths,
+            data_str,
+            ctx,
+            re_evaluate,
+            None,
+            None,
+            include_subforms.unwrap_or(true),
+        ) {
             Ok(result) => {
                 serde_json::to_string(&result).map_err(|e| JsValue::from_str(&e.to_string()))
             }
@@ -133,10 +139,16 @@ impl JSONEvalWasm {
             JsValue::from_str(&error_msg)
         })?;
 
-        match self
-            .inner
-            .evaluate_dependents_subform(subform_path, &paths, data_str, ctx, re_evaluate, None, None, include_subforms.unwrap_or(true))
-        {
+        match self.inner.evaluate_dependents_subform(
+            subform_path,
+            &paths,
+            data_str,
+            ctx,
+            re_evaluate,
+            None,
+            None,
+            include_subforms.unwrap_or(true),
+        ) {
             Ok(result) => super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string())),
             Err(e) => Err(JsValue::from_str(&e)),
         }
@@ -213,7 +225,10 @@ impl JSONEvalWasm {
     /// @param subformPath - Path to the subform
     /// @returns Array of {path, value} objects
     #[wasm_bindgen(js_name = getSchemaValueArraySubform)]
-    pub fn get_schema_value_array_subform(&mut self, subform_path: &str) -> Result<JsValue, JsValue> {
+    pub fn get_schema_value_array_subform(
+        &mut self,
+        subform_path: &str,
+    ) -> Result<JsValue, JsValue> {
         let result = self.inner.get_schema_value_array_subform(subform_path);
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
@@ -224,7 +239,10 @@ impl JSONEvalWasm {
     /// @param subformPath - Path to the subform
     /// @returns Flat object with dotted paths as keys
     #[wasm_bindgen(js_name = getSchemaValueObjectSubform)]
-    pub fn get_schema_value_object_subform(&mut self, subform_path: &str) -> Result<JsValue, JsValue> {
+    pub fn get_schema_value_object_subform(
+        &mut self,
+        subform_path: &str,
+    ) -> Result<JsValue, JsValue> {
         let result = self.inner.get_schema_value_object_subform(subform_path);
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }

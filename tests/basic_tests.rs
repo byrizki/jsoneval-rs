@@ -93,7 +93,9 @@ mod basic_tests {
         assert_eq!(result, json!("John"));
 
         // Deep nesting (dotted notation internally converted to JSON pointer)
-        let logic_id = engine.compile(&json!({"var": "user.profile.city"})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"var": "user.profile.city"}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("NYC"));
 
@@ -117,7 +119,9 @@ mod basic_tests {
         assert_eq!(result, json!("John"));
 
         // $ref with default (dotted notation internally converted to JSON pointer)
-        let logic_id = engine.compile(&json!({"$ref": ["missing.field", "default"]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"$ref": ["missing.field", "default"]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("default"));
     }
@@ -138,7 +142,9 @@ mod basic_tests {
         let mut engine = RLogic::new();
         let data = json!({});
 
-        let logic_id = engine.compile(&json!([1, 2, 3, "hello", true, null])).unwrap();
+        let logic_id = engine
+            .compile(&json!([1, 2, 3, "hello", true, null]))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!([1, 2, 3, "hello", true, null]));
     }
@@ -201,17 +207,23 @@ mod basic_tests {
         });
 
         // JSON pointer style access
-        let logic_id = engine.compile(&json!({"var": "user.profile.address.city"})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"var": "user.profile.address.city"}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("NYC"));
 
         // Array access
-        let logic_id = engine.compile(&json!({"var": "user.profile.contacts.0"})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"var": "user.profile.contacts.0"}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("email@test.com"));
 
         // Multiple levels with arrays
-        let logic_id = engine.compile(&json!({"var": "user.profile.contacts.1"})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"var": "user.profile.contacts.1"}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("555-1234"));
     }
@@ -240,12 +252,16 @@ mod basic_tests {
         });
 
         // Deep nested access
-        let logic_id = engine.compile(&json!({"var": "policy.insured.dependents.0.name"})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"var": "policy.insured.dependents.0.name"}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("Jane"));
 
         // Access coverage details
-        let logic_id = engine.compile(&json!({"var": "policy.coverage.riders.1.type"})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"var": "policy.coverage.riders.1.type"}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("disability"));
     }
@@ -256,37 +272,47 @@ mod basic_tests {
         let data = json!({"existing": "value"});
 
         // Default with string
-        let logic_id = engine.compile(&json!({
-            "var": ["missing", "default_value"]
-        })).unwrap();
+        let logic_id = engine
+            .compile(&json!({
+                "var": ["missing", "default_value"]
+            }))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("default_value"));
 
         // Default with number
-        let logic_id = engine.compile(&json!({
-            "var": ["missing", 42]
-        })).unwrap();
+        let logic_id = engine
+            .compile(&json!({
+                "var": ["missing", 42]
+            }))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(42));
 
         // Default with boolean
-        let logic_id = engine.compile(&json!({
-            "var": ["missing", true]
-        })).unwrap();
+        let logic_id = engine
+            .compile(&json!({
+                "var": ["missing", true]
+            }))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(true));
 
         // Default with null
-        let logic_id = engine.compile(&json!({
-            "var": ["missing", null]
-        })).unwrap();
+        let logic_id = engine
+            .compile(&json!({
+                "var": ["missing", null]
+            }))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(null));
 
         // Existing value should override default
-        let logic_id = engine.compile(&json!({
-            "var": ["existing", "default"]
-        })).unwrap();
+        let logic_id = engine
+            .compile(&json!({
+                "var": ["existing", "default"]
+            }))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("value"));
     }
@@ -324,7 +350,7 @@ mod basic_tests {
     #[test]
     fn test_real_world_data_access() {
         let mut engine = RLogic::new();
-        
+
         // Simulate real insurance product data
         let data = json!({
             "$params": {
@@ -354,21 +380,27 @@ mod basic_tests {
         });
 
         // Access constants
-        let logic_id = engine.compile(&json!({"$ref": "$params.constants.MAX_POL_AGE"})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"$ref": "$params.constants.MAX_POL_AGE"}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(100));
 
         // Access array element in references
-        let logic_id = engine.compile(&json!({
-            "$ref": "$params.references.PRODUCT_PACKAGE.0.COMP_CODE"
-        })).unwrap();
+        let logic_id = engine
+            .compile(&json!({
+                "$ref": "$params.references.PRODUCT_PACKAGE.0.COMP_CODE"
+            }))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("ESS"));
 
         // Access illustration data
-        let logic_id = engine.compile(&json!({
-            "var": "illustration.product_benefit.benefit_type.prem_freq"
-        })).unwrap();
+        let logic_id = engine
+            .compile(&json!({
+                "var": "illustration.product_benefit.benefit_type.prem_freq"
+            }))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(12));
     }
@@ -427,23 +459,30 @@ mod basic_tests {
         });
 
         // Very deep nesting
-        let logic_id = engine.compile(&json!({
-            "var": "level1.level2.level3.level4.level5.value"
-        })).unwrap();
+        let logic_id = engine
+            .compile(&json!({
+                "var": "level1.level2.level3.level4.level5.value"
+            }))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("deep"));
 
         // Partial path
-        let logic_id = engine.compile(&json!({
-            "var": "level1.level2.level3"
-        })).unwrap();
+        let logic_id = engine
+            .compile(&json!({
+                "var": "level1.level2.level3"
+            }))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!({
-            "level4": {
-                "level5": {
-                    "value": "deep"
+        assert_eq!(
+            result,
+            json!({
+                "level4": {
+                    "level5": {
+                        "value": "deep"
+                    }
                 }
-            }
-        }));
+            })
+        );
     }
 }

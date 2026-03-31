@@ -43,18 +43,20 @@ pub mod wasm;
 // Re-export main types for convenience
 pub use jsoneval::eval_data::EvalData;
 pub use jsoneval::parsed_schema::ParsedSchema;
-pub use jsoneval::parsed_schema_cache::{ParsedSchemaCache, ParsedSchemaCacheStats, PARSED_SCHEMA_CACHE};
+pub use jsoneval::parsed_schema_cache::{
+    ParsedSchemaCache, ParsedSchemaCacheStats, PARSED_SCHEMA_CACHE,
+};
 pub use jsoneval::path_utils::ArrayMetadata;
+pub use jsoneval::table_metadata::TableMetadata;
 pub use rlogic::{
     CompiledLogic, CompiledLogicId, CompiledLogicStore, CompiledLogicStoreStats, Evaluator,
     LogicId, RLogic, RLogicConfig,
 };
-pub use jsoneval::table_metadata::TableMetadata;
 
 // Re-export from new modules
 // Re-export from new modules
-pub use jsoneval::JSONEval;
 pub use jsoneval::types::*;
+pub use jsoneval::JSONEval;
 pub use utils::*;
 
 /// Get the library version

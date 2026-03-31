@@ -308,16 +308,14 @@ impl EvalData {
                 } else {
                     let next_segment = segments[i + 1];
                     let is_array_next = next_segment.parse::<usize>().is_ok();
-                    
-                    current = map
-                        .entry(segment.to_string())
-                        .or_insert_with(|| {
-                            if is_array_next {
-                                Value::Array(Vec::new())
-                            } else {
-                                Value::Object(Map::new())
-                            }
-                        });
+
+                    current = map.entry(segment.to_string()).or_insert_with(|| {
+                        if is_array_next {
+                            Value::Array(Vec::new())
+                        } else {
+                            Value::Object(Map::new())
+                        }
+                    });
                 }
             }
         }

@@ -1,5 +1,5 @@
 use super::helpers;
-use rapidhash::{RapidHashMap, RapidHashSet, HashMapExt};
+use rapidhash::{HashMapExt, RapidHashMap, RapidHashSet};
 use serde_json::Value;
 
 /// Index for a table (array of objects)
@@ -26,7 +26,8 @@ impl TableIndex {
         }
 
         let row_count = arr.len();
-        let mut columns: RapidHashMap<String, RapidHashMap<String, RapidHashSet<usize>>> = RapidHashMap::new();
+        let mut columns: RapidHashMap<String, RapidHashMap<String, RapidHashSet<usize>>> =
+            RapidHashMap::new();
 
         for (row_idx, row) in arr.iter().enumerate() {
             if let Value::Object(obj) = row {
@@ -35,7 +36,7 @@ impl TableIndex {
                     if let Some(key) = helpers::scalar_hash_key(val) {
                         // Get or create column index
                         let col_index = columns.entry(col_name.clone()).or_default();
-                        
+
                         // Get or create value entry and add row index
                         col_index.entry(key).or_default().insert(row_idx);
                     }
@@ -62,7 +63,7 @@ impl TableIndex {
     pub fn len(&self) -> usize {
         self.row_count
     }
-    
+
     pub fn is_empty(&self) -> bool {
         self.row_count == 0
     }

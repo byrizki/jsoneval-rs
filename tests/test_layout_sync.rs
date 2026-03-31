@@ -46,25 +46,44 @@ fn test_get_evaluated_schema_layout_sync() {
 
     // EVALUATE: hide_flag = true
     // Expected: condition.hidden should be true
-    eval.evaluate(r#"{"illustration": {"hide_flag": true}}"#, None, None, None).unwrap();
+    eval.evaluate(r#"{"illustration": {"hide_flag": true}}"#, None, None, None)
+        .unwrap();
     let result_true = eval.get_evaluated_schema(false);
-    
+
     let layout_elem_true = result_true
         .pointer("/illustration/properties/container/properties/$layout/elements/0")
         .expect("Should have layout element");
-    
-    assert_field_matches(layout_elem_true, "Target Field", "string", true, "hide_flag=true");
 
-    // EVALUATE: hide_flag = false  
+    assert_field_matches(
+        layout_elem_true,
+        "Target Field",
+        "string",
+        true,
+        "hide_flag=true",
+    );
+
+    // EVALUATE: hide_flag = false
     // Expected: condition.hidden should be false (layout should re-sync from updated evaluation)
-    eval.evaluate(r#"{"illustration": {"hide_flag": false}}"#, None, None, None).unwrap();
+    eval.evaluate(
+        r#"{"illustration": {"hide_flag": false}}"#,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
     let result_false = eval.get_evaluated_schema(false);
-    
+
     let layout_elem_false = result_false
         .pointer("/illustration/properties/container/properties/$layout/elements/0")
         .expect("Should have layout element");
-    
-    assert_field_matches(layout_elem_false, "Target Field", "string", false, "hide_flag=false");
+
+    assert_field_matches(
+        layout_elem_false,
+        "Target Field",
+        "string",
+        false,
+        "hide_flag=false",
+    );
 
     println!("✓ Layout sync test passed: layout elements correctly sync with evaluation changes");
 }
@@ -111,52 +130,71 @@ fn test_get_evaluated_schema_root_layout_sync() {
 
     // EVALUATE: hide_flag = true
     // Expected: condition.hidden should be true
-    eval.evaluate(r#"{"hide_flag": true}"#, None, None, None).unwrap();
+    eval.evaluate(r#"{"hide_flag": true}"#, None, None, None)
+        .unwrap();
     let result_true = eval.get_evaluated_schema(false);
-    
+
     let layout_elem_true = result_true
         .pointer("/properties/container/properties/$layout/elements/0")
         .expect("Should have layout element");
-    
-    assert_field_matches(layout_elem_true, "Target Field", "string", true, "hide_flag=true");
 
-    // EVALUATE: hide_flag = false  
+    assert_field_matches(
+        layout_elem_true,
+        "Target Field",
+        "string",
+        true,
+        "hide_flag=true",
+    );
+
+    // EVALUATE: hide_flag = false
     // Expected: condition.hidden should be false (layout should re-sync from updated evaluation)
-    eval.evaluate(r#"{"hide_flag": false}"#, None, None, None).unwrap();
+    eval.evaluate(r#"{"hide_flag": false}"#, None, None, None)
+        .unwrap();
     let result_false = eval.get_evaluated_schema(false);
-    
+
     let layout_elem_false = result_false
         .pointer("/properties/container/properties/$layout/elements/0")
         .expect("Should have layout element");
-    
-    assert_field_matches(layout_elem_false, "Target Field", "string", false, "hide_flag=false");
+
+    assert_field_matches(
+        layout_elem_false,
+        "Target Field",
+        "string",
+        false,
+        "hide_flag=false",
+    );
 
     println!("✓ Layout sync test passed: layout elements correctly sync with evaluation changes");
 }
 
 fn assert_field_matches(
-    element: &serde_json::Value, 
+    element: &serde_json::Value,
     expected_title: &str,
     expected_type: &str,
     expected_hidden: bool,
-    case: &str
+    case: &str,
 ) {
     assert_eq!(
         element.get("title").and_then(|v| v.as_str()),
         Some(expected_title),
-        "Case {}: Title mismatch", case
+        "Case {}: Title mismatch",
+        case
     );
-    
+
     assert_eq!(
         element.get("type").and_then(|v| v.as_str()),
         Some(expected_type),
-        "Case {}: Type mismatch", case
+        "Case {}: Type mismatch",
+        case
     );
-    
+
     assert_eq!(
-        element.pointer("/condition/hidden").and_then(|v| v.as_bool()),
+        element
+            .pointer("/condition/hidden")
+            .and_then(|v| v.as_bool()),
         Some(expected_hidden),
         "Case {}: condition.hidden should be {} (layout should sync with evaluation)",
-        case, expected_hidden
+        case,
+        expected_hidden
     );
 }

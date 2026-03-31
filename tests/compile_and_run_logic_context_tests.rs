@@ -1,6 +1,6 @@
-use json_eval_rs::JSONEval;
 use json_eval_rs::jsoneval::parsed_schema::ParsedSchema;
 use json_eval_rs::jsoneval::parsed_schema_cache::ParsedSchemaCache;
+use json_eval_rs::JSONEval;
 use serde_json::json;
 use std::sync::Arc;
 
@@ -16,17 +16,19 @@ fn test_compile_and_run_logic_with_context_ref() {
                 "type": "string"
             }
         }
-    }).to_string();
+    })
+    .to_string();
 
     let data = json!({}).to_string();
     let context = json!({
         "agentProfile": {
             "sob": "AP"
         }
-    }).to_string();
-    
-    let mut eval = JSONEval::new(&schema, Some(&context), Some(&data))
-        .expect("Failed to create JSONEval");
+    })
+    .to_string();
+
+    let mut eval =
+        JSONEval::new(&schema, Some(&context), Some(&data)).expect("Failed to create JSONEval");
 
     // Evaluate first to setup eval_data properly
     eval.evaluate(&data, Some(&context), None, None)
@@ -38,9 +40,11 @@ fn test_compile_and_run_logic_with_context_ref() {
             {"$ref": "$context.agentProfile.sob"},
             {"$ref": "#/$params/accessList"}
         ]
-    }).to_string();
-    
-    let result = eval.compile_and_run_logic(&logic, None, None)
+    })
+    .to_string();
+
+    let result = eval
+        .compile_and_run_logic(&logic, None, None)
         .expect("Failed to compile and run logic with context ref");
 
     assert_eq!(result, json!(true), "Should find 'AP' in accessList");
@@ -58,26 +62,28 @@ fn test_compile_and_run_logic_with_context_ref_from_cache() {
                 "type": "string"
             }
         }
-    }).to_string();
+    })
+    .to_string();
 
     // Parse schema and add to cache
-    let parsed = ParsedSchema::parse(&schema)
-        .expect("Failed to parse schema");
-    
+    let parsed = ParsedSchema::parse(&schema).expect("Failed to parse schema");
+
     let cache = ParsedSchemaCache::new();
     cache.insert("test-context-schema".to_string(), Arc::new(parsed));
 
     // Create JSONEval from cached schema
-    let cached = cache.get("test-context-schema")
+    let cached = cache
+        .get("test-context-schema")
         .expect("Schema not found in cache");
-    
+
     let data = json!({"userId": "user123"}).to_string();
     let context = json!({
         "userProfile": {
             "role": "admin"
         }
-    }).to_string();
-    
+    })
+    .to_string();
+
     let mut eval = JSONEval::with_parsed_schema(cached, Some(&context), Some(&data))
         .expect("Failed to create JSONEval from cached schema");
 
@@ -91,9 +97,11 @@ fn test_compile_and_run_logic_with_context_ref_from_cache() {
             {"$ref": "$context.userProfile.role"},
             {"$ref": "#/$params/allowedRoles"}
         ]
-    }).to_string();
-    
-    let result = eval.compile_and_run_logic(&logic, None, None)
+    })
+    .to_string();
+
+    let result = eval
+        .compile_and_run_logic(&logic, None, None)
         .expect("Failed to compile and run logic from cached schema");
 
     assert_eq!(result, json!(true), "Should find 'admin' in allowedRoles");
@@ -109,13 +117,15 @@ fn test_compile_and_run_logic_with_custom_data_and_context() {
         "properties": {
             "score": {"type": "number"}
         }
-    }).to_string();
+    })
+    .to_string();
 
     let initial_data = json!({"score": 50}).to_string();
     let context = json!({
         "multiplier": 2
-    }).to_string();
-    
+    })
+    .to_string();
+
     let mut eval = JSONEval::new(&schema, Some(&context), Some(&initial_data))
         .expect("Failed to create JSONEval");
 
@@ -129,9 +139,11 @@ fn test_compile_and_run_logic_with_custom_data_and_context() {
             {"*": [{"$ref": "score"}, {"$ref": "$context.multiplier"}]},
             {"$ref": "#/$params/threshold"}
         ]
-    }).to_string();
-    
-    let result = eval.compile_and_run_logic(&logic, Some(&custom_data), None)
+    })
+    .to_string();
+
+    let result = eval
+        .compile_and_run_logic(&logic, Some(&custom_data), None)
         .expect("Failed to compile and run logic with custom data");
 
     // 75 * 2 = 150, which is >= 100
@@ -150,7 +162,8 @@ fn test_compile_and_run_logic_nested_context_refs() {
             "table_data": ["AP","AG"]
         },
         "properties": {}
-    }).to_string();
+    })
+    .to_string();
 
     let data = json!({}).to_string();
     let context = json!({
@@ -163,23 +176,25 @@ fn test_compile_and_run_logic_nested_context_refs() {
                 "autoRetry": true
             }
         }
-    }).to_string();
-    
-    let mut eval = JSONEval::new(&schema, Some(&context), Some(&data))
-        .expect("Failed to create JSONEval");
+    })
+    .to_string();
+
+    let mut eval =
+        JSONEval::new(&schema, Some(&context), Some(&data)).expect("Failed to create JSONEval");
 
     eval.evaluate(&data, Some(&context), None, None)
         .expect("Failed to evaluate");
-
 
     let logic = json!({
         "in": [
             {"$ref": "$context.agentProfile.sob"},
             {"$ref": "#/$params/table_data"}
         ]
-    }).to_string();
+    })
+    .to_string();
 
-    let result = eval.compile_and_run_logic(&logic, None, None)
+    let result = eval
+        .compile_and_run_logic(&logic, None, None)
         .expect("Failed to compile and run logic with nested refs");
 
     assert_eq!(result, json!(true));
@@ -196,9 +211,11 @@ fn test_compile_and_run_logic_nested_context_refs() {
                 true
             ]}
         ]
-    }).to_string();
-    
-    let result = eval.compile_and_run_logic(&logic, None, None)
+    })
+    .to_string();
+
+    let result = eval
+        .compile_and_run_logic(&logic, None, None)
         .expect("Failed to compile and run logic with nested refs");
 
     assert_eq!(result, json!(true));
@@ -209,23 +226,26 @@ fn test_compile_and_run_logic_missing_context_ref_returns_null() {
     let schema = json!({
         "type": "object",
         "properties": {}
-    }).to_string();
+    })
+    .to_string();
 
     let data = json!({}).to_string();
     let context = json!({
         "existing": "value"
-    }).to_string();
-    
-    let mut eval = JSONEval::new(&schema, Some(&context), Some(&data))
-        .expect("Failed to create JSONEval");
+    })
+    .to_string();
+
+    let mut eval =
+        JSONEval::new(&schema, Some(&context), Some(&data)).expect("Failed to create JSONEval");
 
     eval.evaluate(&data, Some(&context), None, None)
         .expect("Failed to evaluate");
 
     // Reference non-existent path in context
     let logic = json!({"$ref": "$context.nonExistent.path"}).to_string();
-    
-    let result = eval.compile_and_run_logic(&logic, None, None)
+
+    let result = eval
+        .compile_and_run_logic(&logic, None, None)
         .expect("Failed to compile and run logic");
 
     assert_eq!(result, json!(null), "Non-existent ref should return null");

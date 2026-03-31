@@ -52,7 +52,9 @@ pub struct TableScopeGuard<'a> {
 impl<'a> Drop for TableScopeGuard<'a> {
     fn drop(&mut self) {
         // SAFETY: single-threaded (eval_lock), no concurrent access
-        unsafe { *self.evaluator.table_scope.get() = None; }
+        unsafe {
+            *self.evaluator.table_scope.get() = None;
+        }
     }
 }
 
@@ -135,7 +137,10 @@ impl Evaluator {
     }
 
     /// Set static arrays for evaluation context
-    pub fn set_static_arrays(&mut self, static_arrays: std::sync::Arc<indexmap::IndexMap<String, std::sync::Arc<Value>>>) {
+    pub fn set_static_arrays(
+        &mut self,
+        static_arrays: std::sync::Arc<indexmap::IndexMap<String, std::sync::Arc<Value>>>,
+    ) {
         self.static_arrays = Some(static_arrays);
     }
 
@@ -254,9 +259,7 @@ impl Evaluator {
             // ========== Literals ==========
             CompiledLogic::Null => Ok(Value::Null),
             CompiledLogic::Bool(b) => Ok(Value::Bool(*b)),
-            CompiledLogic::Number(n) => {
-                Ok(self.f64_to_json(*n))
-            }
+            CompiledLogic::Number(n) => Ok(self.f64_to_json(*n)),
             CompiledLogic::String(s) => Ok(Value::String(s.clone())),
             CompiledLogic::Array(arr) => {
                 let results: Result<Vec<_>, _> = arr
@@ -859,7 +862,8 @@ impl Evaluator {
         let value = if name.is_empty() {
             self.get_var(user_data, name)
         } else {
-            self.get_var(internal_context, name).or_else(|| self.get_var(user_data, name))
+            self.get_var(internal_context, name)
+                .or_else(|| self.get_var(user_data, name))
         };
         match value {
             Some(v) if !v.is_null() => Ok(v.clone()), // Only clone the resolved value

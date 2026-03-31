@@ -1,14 +1,13 @@
 use super::JSONEval;
+use crate::jsoneval::cancellation::CancellationToken;
 use crate::jsoneval::json_parser;
 use crate::jsoneval::path_utils;
 use crate::jsoneval::types::{ValidationError, ValidationResult};
-use crate::jsoneval::cancellation::CancellationToken;
 
 use crate::time_block;
 
 use indexmap::IndexMap;
 use serde_json::Value;
-
 
 impl JSONEval {
     /// Validate data against schema rules
@@ -28,7 +27,7 @@ impl JSONEval {
             // Acquire lock for synchronous execution
             let _lock = self.eval_lock.lock().unwrap();
 
-             // Parse and update data
+            // Parse and update data
             let data_value = json_parser::parse_json_str(data)?;
             let context_value = if let Some(ctx) = context {
                 json_parser::parse_json_str(ctx)?
@@ -40,14 +39,16 @@ impl JSONEval {
             self.context = context_value.clone();
 
             // Update eval_data with new data/context
-            self.eval_data.replace_data_and_context(data_value.clone(), context_value);
-            
+            self.eval_data
+                .replace_data_and_context(data_value.clone(), context_value);
+
             // Drop lock before calling evaluate_others which needs mutable access
             drop(_lock);
 
             // Re-evaluate rule evaluations to ensure fresh values
             // This ensures all rule.$evaluation expressions are re-computed
-            self.evaluate_others(paths, token);
+            // Always pass had_cache_miss=true for validation: rules must always re-run.
+            self.evaluate_others(paths, token, true);
 
             // Update evaluated_schema with fresh evaluations
             self.evaluated_schema = self.get_evaluated_schema(false);
@@ -94,7 +95,7 @@ impl JSONEval {
         token: Option<&CancellationToken>,
     ) -> Result<crate::ValidationResult, String> {
         // Re-evaluate rule evaluations with the current (already-set) data.
-        self.evaluate_others(paths, token);
+        self.evaluate_others(paths, token, true);
         self.evaluated_schema = self.get_evaluated_schema(false);
 
         let mut errors: IndexMap<String, ValidationError> = IndexMap::new();
@@ -156,7 +157,6 @@ impl JSONEval {
         }
 
         if let Value::Object(schema_map) = field_schema {
-
             // Get rules object
             let rules = match schema_map.get("rules") {
                 Some(Value::Object(r)) => r,
@@ -241,7 +241,7 @@ impl JSONEval {
 
         // Extract rule active status, message, etc
         // Logic depends on rule structure (object with value/message or direct value)
-        
+
         let (rule_active, rule_message, rule_code, rule_data) = match &evaluated_rule {
             Value::Object(rule_obj) => {
                 let active = rule_obj.get("value").unwrap_or(&Value::Bool(false));
@@ -416,7 +416,8 @@ impl JSONEval {
                         if let Some(text) = field_data.as_str() {
                             let mut cache = self.regex_cache.write().unwrap();
                             let regex = cache.entry(pattern.to_string()).or_insert_with(|| {
-                                regex::Regex::new(pattern).unwrap_or_else(|_| regex::Regex::new("(?:)").unwrap())
+                                regex::Regex::new(pattern)
+                                    .unwrap_or_else(|_| regex::Regex::new("(?:)").unwrap())
                             });
                             if !regex.is_match(text) {
                                 errors.insert(

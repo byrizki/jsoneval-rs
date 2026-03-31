@@ -1,7 +1,7 @@
 //! WASM type definitions
 
-use crate::JSONEval;
 use crate::jsoneval::cancellation::CancellationToken;
+use crate::JSONEval;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 

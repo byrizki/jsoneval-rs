@@ -1,6 +1,6 @@
+use chrono::NaiveDate;
 use json_eval_rs::*;
 use serde_json::json;
-use chrono::NaiveDate;
 
 /// Date operation tests - date parsing, components, arithmetic, etc.
 #[cfg(test)]
@@ -46,30 +46,42 @@ mod date_tests {
         let data = json!({"birthdate": "1990-05-15T10:30:00Z"});
 
         // Extract year
-        let logic_id = engine.compile(&json!({"year": {"var": "birthdate"}})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"year": {"var": "birthdate"}}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(1990));
 
         // Extract month
-        let logic_id = engine.compile(&json!({"month": {"var": "birthdate"}})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"month": {"var": "birthdate"}}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(5));
 
         // Extract day
-        let logic_id = engine.compile(&json!({"day": {"var": "birthdate"}})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"day": {"var": "birthdate"}}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(15));
 
         // Array-wrapped arguments (consistency check)
-        let logic_id = engine.compile(&json!({"year": [{"var": "birthdate"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"year": [{"var": "birthdate"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(1990));
 
-        let logic_id = engine.compile(&json!({"month": [{"var": "birthdate"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"month": [{"var": "birthdate"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(5));
 
-        let logic_id = engine.compile(&json!({"day": [{"var": "birthdate"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"day": [{"var": "birthdate"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(15));
     }
@@ -91,12 +103,16 @@ mod date_tests {
         let data = json!({"start": "2023-01-15T00:00:00Z", "end": "2023-01-20T00:00:00Z"});
 
         // Days between dates
-        let logic_id = engine.compile(&json!({"days": [{"var": "end"}, {"var": "start"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"days": [{"var": "end"}, {"var": "start"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(5)); // 20 - 15 = 5 days
 
         // Reverse order (negative result)
-        let logic_id = engine.compile(&json!({"days": [{"var": "start"}, {"var": "end"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"days": [{"var": "start"}, {"var": "end"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(-5));
     }
@@ -109,21 +125,29 @@ mod date_tests {
             "today": "2023-07-10T00:00:00Z"
         });
 
-        let logic_id = engine.compile(&json!({"YEARFRAC": [{"var": "birth"}, {"var": "today"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"YEARFRAC": [{"var": "birth"}, {"var": "today"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         // Engine returns fractional years difference (~33.8056)
         let years = result.as_f64().unwrap();
         assert!((years - 33.8056).abs() < 0.001);
 
-        let logic_id = engine.compile(&json!({"DATEDIF": [{"var": "birth"}, {"var": "today"}, "Y"]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"DATEDIF": [{"var": "birth"}, {"var": "today"}, "Y"]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(33));
 
-        let logic_id = engine.compile(&json!({"DATEDIF": [{"var": "birth"}, {"var": "today"}, "M"]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"DATEDIF": [{"var": "birth"}, {"var": "today"}, "M"]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(399));
 
-        let logic_id = engine.compile(&json!({"DAYS": [{"var": "today"}, {"var": "birth"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"DAYS": [{"var": "today"}, {"var": "birth"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert!(result.as_f64().unwrap() > 10000.0);
     }
@@ -196,19 +220,23 @@ mod date_tests {
         });
 
         // Construct birth date from variables
-        let logic_id = engine.compile(&json!({"date": [
-            {"var": "birth_year"},
-            {"var": "birth_month"},
-            {"var": "birth_day"}
-        ]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"date": [
+                {"var": "birth_year"},
+                {"var": "birth_month"},
+                {"var": "birth_day"}
+            ]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("1990-05-15T00:00:00.000Z"));
 
         // Calculate age in days (simplified - not using DATEDIF)
-        let logic_id = engine.compile(&json!({"days": [
-            {"today": null},
-            {"date": [{"var": "birth_year"}, {"var": "birth_month"}, {"var": "birth_day"}]}
-        ]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"days": [
+                {"today": null},
+                {"date": [{"var": "birth_year"}, {"var": "birth_month"}, {"var": "birth_day"}]}
+            ]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         let days = result.as_f64().unwrap();
         // Should be a positive number of days
@@ -224,10 +252,12 @@ mod date_tests {
         });
 
         // Calculate tenure in days (simplified)
-        let logic_id = engine.compile(&json!({"days": [
-            {"var": "current_date"},
-            {"var": "hire_date"}
-        ]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"days": [
+                {"var": "current_date"},
+                {"var": "hire_date"}
+            ]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         let days = result.as_f64().unwrap();
         // Should be approximately 3 years * 365 days = ~1095 days
@@ -246,10 +276,12 @@ mod date_tests {
         });
 
         // Extract years from array of dates
-        let logic_id = engine.compile(&json!({"map": [
-            {"var": "dates"},
-            {"year": {"var": ""}}
-        ]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"map": [
+                {"var": "dates"},
+                {"year": {"var": ""}}
+            ]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!([2023, 2023, 2023]));
 
@@ -322,7 +354,9 @@ mod date_tests {
         assert!(result.as_str().unwrap().ends_with("T00:00:00.000Z"));
 
         // Test that parsed dates maintain their time component
-        let logic_id = engine.compile(&json!({"year": "2023-06-15T14:30:45Z"})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"year": "2023-06-15T14:30:45Z"}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(2023));
     }
@@ -345,15 +379,17 @@ mod date_tests {
         assert!(result.as_str().unwrap().contains("2024"));
 
         // Calculate compound interest periods
-        let logic_id = engine.compile(&json!({
-            "*": [
-                {"pow": [
-                    {"+": [1, {"var": "rate"}]},
-                    {"/": [{"var": "periods"}, 12]} // Monthly compounding
-                ]},
-                1000 // Principal
-            ]
-        })).unwrap();
+        let logic_id = engine
+            .compile(&json!({
+                "*": [
+                    {"pow": [
+                        {"+": [1, {"var": "rate"}]},
+                        {"/": [{"var": "periods"}, 12]} // Monthly compounding
+                    ]},
+                    1000 // Principal
+                ]
+            }))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         let final_amount = result.as_f64().unwrap();
         // Should be approximately 1000 * (1.05)^1 = 1050

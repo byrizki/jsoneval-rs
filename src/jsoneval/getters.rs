@@ -2,11 +2,8 @@ use super::JSONEval;
 use crate::jsoneval::path_utils;
 use crate::jsoneval::types::ReturnFormat;
 
-
-
-use serde_json::Value;
 use crate::time_block;
-
+use serde_json::Value;
 
 impl JSONEval {
     /// Check if a field is effectively hidden by checking its condition and all parents
@@ -58,19 +55,19 @@ impl JSONEval {
 
         false
     }
-    
+
     /// Prune hidden values from data object recursively
     fn prune_hidden_values(&self, data: &mut Value, current_path: &str) {
         if let Value::Object(map) = data {
             // Collect keys to remove to avoid borrow checker issues
             let mut keys_to_remove = Vec::new();
-            
+
             for (key, value) in map.iter_mut() {
                 // Skip special keys
                 if key == "$params" || key == "$context" {
                     continue;
                 }
-                
+
                 // Construct schema path for this key
                 // For root fields: /properties/key
                 // For nested fields: current_path/properties/key
@@ -79,7 +76,7 @@ impl JSONEval {
                 } else {
                     format!("{}/properties/{}", current_path, key)
                 };
-                
+
                 // Check if hidden
                 if self.is_effective_hidden(&schema_path) {
                     keys_to_remove.push(key.clone());
@@ -90,7 +87,7 @@ impl JSONEval {
                     }
                 }
             }
-            
+
             // Remove hidden keys
             for key in keys_to_remove {
                 map.remove(&key);
@@ -101,7 +98,7 @@ impl JSONEval {
     /// Replace any `{"$static_array": "/$table/..."}` and `{"$static_array": "/$params/..."}` markers in `schema_output`
     /// with the actual evaluated array data from `eval_data`.
     ///
-    /// By iterating only over tracked `static_arrays`, we replace markers in O(markers) time 
+    /// By iterating only over tracked `static_arrays`, we replace markers in O(markers) time
     /// instead of requiring an expensive O(schema_nodes) recursive tree walk.
     fn resolve_static_markers_in_value(&self, schema_output: &mut Value) {
         for (static_key, array_arc) in self.static_arrays.iter() {
@@ -131,11 +128,13 @@ impl JSONEval {
     /// The evaluated schema as a JSON value, with all `$static_array` markers resolved
     /// to their actual evaluated data.
     pub fn get_evaluated_schema(&mut self, skip_layout: bool) -> Value {
-
         time_block!("get_evaluated_schema()", {
             if !skip_layout {
                 if let Err(e) = self.resolve_layout(false) {
-                    eprintln!("Warning: Layout resolution failed in get_evaluated_schema: {}", e);
+                    eprintln!(
+                        "Warning: Layout resolution failed in get_evaluated_schema: {}",
+                        e
+                    );
                 }
             }
             let mut schema = self.evaluated_schema.clone();
@@ -144,13 +143,13 @@ impl JSONEval {
         })
     }
 
-
-
     /// Get specific schema value by path, resolving any `$static_array` markers back to
     /// the actual evaluated data (stored in `eval_data`).
     pub fn get_schema_value_by_path(&self, path: &str) -> Option<Value> {
         let pointer_path = path_utils::dot_notation_to_schema_pointer(path);
-        let val = self.evaluated_schema.pointer(pointer_path.trim_start_matches('#'))?;
+        let val = self
+            .evaluated_schema
+            .pointer(pointer_path.trim_start_matches('#'))?;
 
         // Resolve $static_array markers: the table evaluator stores a marker object in
         // evaluated_schema and the real array in eval_data at the equivalent data path.
@@ -182,7 +181,7 @@ impl JSONEval {
             obj.remove("$params");
             obj.remove("$context");
         }
-        
+
         // Prune hidden values from current_data (to remove user input in hidden fields)
         self.prune_hidden_values(&mut current_data, "");
 
@@ -200,7 +199,7 @@ impl JSONEval {
             }
 
             let path = clean_key.replace("/properties", "").replace("/value", "");
-            
+
             // Check if field is effectively hidden
             // Schema path is clean_key without /value
             let schema_path = clean_key.strip_suffix("/value").unwrap_or(&clean_key);
@@ -233,9 +232,12 @@ impl JSONEval {
                             Some(v) => v.is_null(),
                             None => true,
                         };
-                        
+
                         if should_update {
-                            obj.insert((*part).to_string(), crate::utils::clean_float_noise(value.clone()));
+                            obj.insert(
+                                (*part).to_string(),
+                                crate::utils::clean_float_noise(value.clone()),
+                            );
                         }
                     }
                 } else {
@@ -244,12 +246,12 @@ impl JSONEval {
                         // Use raw entry API or standard entry if possible, but borrowing is tricky
                         // We need to re-borrow `current` for the next iteration
                         // Since `entry` API consumes check, we might need a different approach or careful usage
-                        
+
                         // Check presence first to avoid borrow issues if simpler
                         if !obj.contains_key(*part) {
                             obj.insert((*part).to_string(), Value::Object(serde_json::Map::new()));
                         }
-                        
+
                         current = obj.get_mut(*part).unwrap();
                     } else {
                         // Skip this path if current is not an object and can't be made into one
@@ -258,10 +260,10 @@ impl JSONEval {
                 }
             }
         }
-        
+
         // Update self.data to persist the view changes (matching backup behavior)
         self.data = current_data.clone();
-        
+
         crate::utils::clean_float_noise(current_data)
     }
 
@@ -273,7 +275,7 @@ impl JSONEval {
     /// Array of objects containing path (dotted notation) and value pairs from value evaluations
     pub fn get_schema_value_array(&self) -> Value {
         let mut result = Vec::new();
-        
+
         for eval_key in self.value_evaluations.iter() {
             let clean_key = eval_key.strip_prefix('#').unwrap_or(eval_key);
 
@@ -284,7 +286,7 @@ impl JSONEval {
             {
                 continue;
             }
-            
+
             // Check if field is effectively hidden
             let schema_path = clean_key.strip_suffix("/value").unwrap_or(&clean_key);
             if self.is_effective_hidden(schema_path) {
@@ -314,7 +316,7 @@ impl JSONEval {
             item.insert("value".to_string(), value);
             result.push(Value::Object(item));
         }
-        
+
         Value::Array(result)
     }
 
@@ -326,7 +328,7 @@ impl JSONEval {
     /// Flat object with dotted notation paths as keys and evaluated values
     pub fn get_schema_value_object(&self) -> Value {
         let mut result = serde_json::Map::new();
-        
+
         for eval_key in self.value_evaluations.iter() {
             let clean_key = eval_key.strip_prefix('#').unwrap_or(eval_key);
 
@@ -337,7 +339,7 @@ impl JSONEval {
             {
                 continue;
             }
-            
+
             // Check if field is effectively hidden
             let schema_path = clean_key.strip_suffix("/value").unwrap_or(&clean_key);
             if self.is_effective_hidden(schema_path) {
@@ -363,7 +365,7 @@ impl JSONEval {
 
             result.insert(dotted_path, value);
         }
-        
+
         Value::Object(result)
     }
 
@@ -386,7 +388,10 @@ impl JSONEval {
     pub fn get_evaluated_schema_by_path(&mut self, path: &str, skip_layout: bool) -> Option<Value> {
         if !skip_layout {
             if let Err(e) = self.resolve_layout(false) {
-                eprintln!("Warning: Layout resolution failed in get_evaluated_schema_by_path: {}", e);
+                eprintln!(
+                    "Warning: Layout resolution failed in get_evaluated_schema_by_path: {}",
+                    e
+                );
             }
         }
         self.get_schema_value_by_path(path)
@@ -401,7 +406,10 @@ impl JSONEval {
     ) -> Value {
         if !skip_layout {
             if let Err(e) = self.resolve_layout(false) {
-                eprintln!("Warning: Layout resolution failed in get_evaluated_schema_by_paths: {}", e);
+                eprintln!(
+                    "Warning: Layout resolution failed in get_evaluated_schema_by_paths: {}",
+                    e
+                );
             }
         }
 
@@ -410,15 +418,15 @@ impl JSONEval {
                 let mut result = Value::Object(serde_json::Map::new());
                 for path in paths {
                     if let Some(val) = self.get_schema_value_by_path(path) {
-                         // Insert into result object at proper path nesting
-                         Self::insert_at_path(&mut result, path, val);
+                        // Insert into result object at proper path nesting
+                        Self::insert_at_path(&mut result, path, val);
                     }
                 }
                 result
             }
             ReturnFormat::Flat => {
-                 let mut result = serde_json::Map::new();
-                 for path in paths {
+                let mut result = serde_json::Map::new();
+                for path in paths {
                     if let Some(val) = self.get_schema_value_by_path(path) {
                         result.insert(path.clone(), val);
                     }
@@ -426,8 +434,8 @@ impl JSONEval {
                 Value::Object(result)
             }
             ReturnFormat::Array => {
-                 let mut result = Vec::new();
-                 for path in paths {
+                let mut result = Vec::new();
+                for path in paths {
                     if let Some(val) = self.get_schema_value_by_path(path) {
                         result.push(val);
                     } else {
@@ -442,28 +450,26 @@ impl JSONEval {
     /// Get original (unevaluated) schema by path
     pub fn get_schema_by_path(&self, path: &str) -> Option<Value> {
         let pointer_path = path_utils::dot_notation_to_schema_pointer(path);
-        self.schema.pointer(&pointer_path.trim_start_matches('#')).cloned()
+        self.schema
+            .pointer(&pointer_path.trim_start_matches('#'))
+            .cloned()
     }
 
     /// Get original schema by multiple paths
-    pub fn get_schema_by_paths(
-        &self,
-        paths: &[String],
-        format: Option<ReturnFormat>,
-    ) -> Value {
+    pub fn get_schema_by_paths(&self, paths: &[String], format: Option<ReturnFormat>) -> Value {
         match format.unwrap_or(ReturnFormat::Nested) {
             ReturnFormat::Nested => {
                 let mut result = Value::Object(serde_json::Map::new());
                 for path in paths {
                     if let Some(val) = self.get_schema_by_path(path) {
-                         Self::insert_at_path(&mut result, path, val);
+                        Self::insert_at_path(&mut result, path, val);
                     }
                 }
                 result
             }
             ReturnFormat::Flat => {
-                 let mut result = serde_json::Map::new();
-                 for path in paths {
+                let mut result = serde_json::Map::new();
+                for path in paths {
                     if let Some(val) = self.get_schema_by_path(path) {
                         result.insert(path.clone(), val);
                     }
@@ -471,8 +477,8 @@ impl JSONEval {
                 Value::Object(result)
             }
             ReturnFormat::Array => {
-                 let mut result = Vec::new();
-                 for path in paths {
+                let mut result = Vec::new();
+                for path in paths {
                     if let Some(val) = self.get_schema_by_path(path) {
                         result.push(val);
                     } else {
@@ -488,7 +494,7 @@ impl JSONEval {
     pub(crate) fn insert_at_path(root: &mut Value, path: &str, value: Value) {
         let parts: Vec<&str> = path.split('.').collect();
         let mut current = root;
-        
+
         for (i, part) in parts.iter().enumerate() {
             if i == parts.len() - 1 {
                 // Last part - set value
@@ -500,32 +506,36 @@ impl JSONEval {
                 // Intermediate part - traverse or create
                 // We need to temporarily take the value or use raw pointer manipulation?
                 // serde_json pointer is read-only or requires mutable reference
-                
-                 if !current.is_object() {
-                     *current = Value::Object(serde_json::Map::new());
-                 }
-                 
-                 if let Value::Object(map) = current {
-                     if !map.contains_key(*part) {
-                         map.insert(part.to_string(), Value::Object(serde_json::Map::new()));
-                     }
-                     current = map.get_mut(*part).unwrap();
-                 }
+
+                if !current.is_object() {
+                    *current = Value::Object(serde_json::Map::new());
+                }
+
+                if let Value::Object(map) = current {
+                    if !map.contains_key(*part) {
+                        map.insert(part.to_string(), Value::Object(serde_json::Map::new()));
+                    }
+                    current = map.get_mut(*part).unwrap();
+                }
             }
         }
     }
-    
+
     /// Flatten a nested object key-value pair to dotted keys
-    pub fn flatten_object(prefix: &str, value: &Value, result: &mut serde_json::Map<String, Value>) {
+    pub fn flatten_object(
+        prefix: &str,
+        value: &Value,
+        result: &mut serde_json::Map<String, Value>,
+    ) {
         match value {
             Value::Object(map) => {
                 for (k, v) in map {
-                     let new_key = if prefix.is_empty() {
-                         k.clone()
-                     } else {
-                         format!("{}.{}", prefix, k)
-                     };
-                     Self::flatten_object(&new_key, v, result);
+                    let new_key = if prefix.is_empty() {
+                        k.clone()
+                    } else {
+                        format!("{}.{}", prefix, k)
+                    };
+                    Self::flatten_object(&new_key, v, result);
                 }
             }
             _ => {
@@ -535,25 +545,25 @@ impl JSONEval {
     }
 
     pub fn convert_to_format(value: Value, format: ReturnFormat) -> Value {
-         match format {
-             ReturnFormat::Nested => value,
-             ReturnFormat::Flat => {
-                 let mut result = serde_json::Map::new();
-                 Self::flatten_object("", &value, &mut result);
-                 Value::Object(result)
-             }
-             ReturnFormat::Array => {
-                 // Convert object values to array? Only if source was object?
-                 // Or flattened values?
-                 // Usually converting to array disregards keys.
-                 if let Value::Object(map) = value {
-                     Value::Array(map.values().cloned().collect())
-                 } else if let Value::Array(arr) = value {
-                     Value::Array(arr)
-                 } else {
-                     Value::Array(vec![value])
-                 }
-             }
-         }
+        match format {
+            ReturnFormat::Nested => value,
+            ReturnFormat::Flat => {
+                let mut result = serde_json::Map::new();
+                Self::flatten_object("", &value, &mut result);
+                Value::Object(result)
+            }
+            ReturnFormat::Array => {
+                // Convert object values to array? Only if source was object?
+                // Or flattened values?
+                // Usually converting to array disregards keys.
+                if let Value::Object(map) = value {
+                    Value::Array(map.values().cloned().collect())
+                } else if let Value::Array(arr) = value {
+                    Value::Array(arr)
+                } else {
+                    Value::Array(vec![value])
+                }
+            }
+        }
     }
 }

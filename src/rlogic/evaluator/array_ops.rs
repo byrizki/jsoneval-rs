@@ -3,7 +3,6 @@ use super::helpers;
 use super::{types::*, Evaluator};
 use serde_json::{Map as JsonMap, Value};
 
-
 impl Evaluator {
     /// Execute array quantifier (all/some/none) - ZERO-COPY
     pub(super) fn eval_quantifier(
@@ -153,7 +152,7 @@ impl Evaluator {
         internal_context: &Value,
         depth: usize,
     ) -> Result<Value, String> {
-        use rapidhash::{RapidHashSet, HashSetExt};
+        use rapidhash::{HashSetExt, RapidHashSet};
 
         const HASH_SET_THRESHOLD: usize = 32;
 

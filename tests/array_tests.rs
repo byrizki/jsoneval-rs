@@ -12,12 +12,16 @@ mod array_tests {
         let data = json!({"numbers": [1, 2, 3, 4, 5]});
 
         // Double each number
-        let logic_id = engine.compile(&json!({"map": [{"var": "numbers"}, {"*": [{"var": ""}, 2]}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"map": [{"var": "numbers"}, {"*": [{"var": ""}, 2]}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!([2, 4, 6, 8, 10]));
 
         // Convert to strings
-        let logic_id = engine.compile(&json!({"map": [{"var": "numbers"}, {"cat": [{"var": ""}, "x"]} ]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"map": [{"var": "numbers"}, {"cat": [{"var": ""}, "x"]} ]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(["1x", "2x", "3x", "4x", "5x"]));
     }
@@ -28,12 +32,16 @@ mod array_tests {
         let data = json!({"numbers": [1, 2, 3, 4, 5, 6]});
 
         // Filter even numbers
-        let logic_id = engine.compile(&json!({"filter": [{"var": "numbers"}, {"==": [{"%": [{"var": ""}, 2]}, 0]}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"filter": [{"var": "numbers"}, {"==": [{"%": [{"var": ""}, 2]}, 0]}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!([2, 4, 6]));
 
         // Filter numbers greater than 3
-        let logic_id = engine.compile(&json!({"filter": [{"var": "numbers"}, {">": [{"var": ""}, 3]}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"filter": [{"var": "numbers"}, {">": [{"var": ""}, 3]}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!([4, 5, 6]));
     }
@@ -60,17 +68,23 @@ mod array_tests {
         let data = json!({"numbers": [1, 2, 3, 4, 5]});
 
         // All even numbers? (should be false)
-        let logic_id = engine.compile(&json!({"all": [{"var": "numbers"}, {"==": [{"%": [{"var": ""}, 2]}, 0]}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"all": [{"var": "numbers"}, {"==": [{"%": [{"var": ""}, 2]}, 0]}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(false));
 
         // Some even numbers? (should be true)
-        let logic_id = engine.compile(&json!({"some": [{"var": "numbers"}, {"==": [{"%": [{"var": ""}, 2]}, 0]}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"some": [{"var": "numbers"}, {"==": [{"%": [{"var": ""}, 2]}, 0]}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(true));
 
         // None are negative? (should be true)
-        let logic_id = engine.compile(&json!({"none": [{"var": "numbers"}, {"<": [{"var": ""}, 0]}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"none": [{"var": "numbers"}, {"<": [{"var": ""}, 0]}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(true));
     }
@@ -81,12 +95,16 @@ mod array_tests {
         let data = json!({});
 
         // Merge arrays
-        let logic_id = engine.compile(&json!({"merge": [[1, 2], [3, 4], [5]]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"merge": [[1, 2], [3, 4], [5]]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!([1, 2, 3, 4, 5]));
 
         // Merge with mixed types
-        let logic_id = engine.compile(&json!({"merge": [["a", "b"], [1, 2], [true, null]]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"merge": [["a", "b"], [1, 2], [true, null]]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(["a", "b", 1, 2, true, null]));
     }
@@ -97,20 +115,28 @@ mod array_tests {
         let data = json!({});
 
         // Value in array
-        let logic_id = engine.compile(&json!({"in": [3, [1, 2, 3, 4, 5]]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"in": [3, [1, 2, 3, 4, 5]]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(true));
 
-        let logic_id = engine.compile(&json!({"in": [6, [1, 2, 3, 4, 5]]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"in": [6, [1, 2, 3, 4, 5]]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(false));
 
         // Substring in string
-        let logic_id = engine.compile(&json!({"in": ["world", "hello world"]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"in": ["world", "hello world"]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(true));
 
-        let logic_id = engine.compile(&json!({"in": ["foo", "hello world"]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"in": ["foo", "hello world"]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(false));
     }
@@ -121,30 +147,44 @@ mod array_tests {
         let data = json!({});
 
         // Empty array map
-        let logic_id = engine.compile(&json!({"map": [[], {"*": [{"var": ""}, 2]}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"map": [[], {"*": [{"var": ""}, 2]}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!([]));
 
         // Filter on empty array
-        let logic_id = engine.compile(&json!({"filter": [[], {">": [{"var": ""}, 0]}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"filter": [[], {">": [{"var": ""}, 0]}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!([]));
 
         // Reduce on empty array
-        let logic_id = engine.compile(&json!({"reduce": [[], {"+": [{"var": "accumulator"}, {"var": "current"}]}, 0]})).unwrap();
+        let logic_id = engine
+            .compile(
+                &json!({"reduce": [[], {"+": [{"var": "accumulator"}, {"var": "current"}]}, 0]}),
+            )
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(0));
 
         // Quantifiers on empty array
-        let logic_id = engine.compile(&json!({"all": [[], {">": [{"var": ""}, 0]}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"all": [[], {">": [{"var": ""}, 0]}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(true)); // vacuously true
 
-        let logic_id = engine.compile(&json!({"some": [[], {">": [{"var": ""}, 0]}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"some": [[], {">": [{"var": ""}, 0]}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(false));
 
-        let logic_id = engine.compile(&json!({"none": [[], {">": [{"var": ""}, 0]}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"none": [[], {">": [{"var": ""}, 0]}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(true));
     }
@@ -159,24 +199,33 @@ mod array_tests {
         ]});
 
         // Map to get names
-        let logic_id = engine.compile(&json!({"map": [{"var": "users"}, {"var": "name"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"map": [{"var": "users"}, {"var": "name"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(["Alice", "Bob", "Charlie"]));
 
         // Filter active users
-        let logic_id = engine.compile(&json!({"filter": [{"var": "users"}, {"var": "active"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"filter": [{"var": "users"}, {"var": "active"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!([
-            {"name": "Alice", "age": 30, "active": true},
-            {"name": "Charlie", "age": 35, "active": true}
-        ]));
+        assert_eq!(
+            result,
+            json!([
+                {"name": "Alice", "age": 30, "active": true},
+                {"name": "Charlie", "age": 35, "active": true}
+            ])
+        );
 
         // Map ages and sum them
-        let logic_id = engine.compile(&json!({"reduce": [
-            {"map": [{"var": "users"}, {"var": "age"}]},
-            {"+": [{"var": "accumulator"}, {"var": "current"}]},
-            0
-        ]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"reduce": [
+                {"map": [{"var": "users"}, {"var": "age"}]},
+                {"+": [{"var": "accumulator"}, {"var": "current"}]},
+                0
+            ]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(90)); // 30 + 25 + 35
     }
@@ -187,17 +236,23 @@ mod array_tests {
         let data = json!({});
 
         // Map with non-array
-        let logic_id = engine.compile(&json!({"map": ["not_array", {"var": ""}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"map": ["not_array", {"var": ""}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!([]));
 
         // Filter with non-array
-        let logic_id = engine.compile(&json!({"filter": ["not_array", {"var": ""}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"filter": ["not_array", {"var": ""}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!([]));
 
         // Reduce with non-array
-        let logic_id = engine.compile(&json!({"reduce": ["not_array", {"var": ""}, 0]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"reduce": ["not_array", {"var": ""}, 0]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(0));
     }
@@ -208,7 +263,9 @@ mod array_tests {
         let data = json!({"values": [1, 2, 3, 4, 5]});
 
         // Sum array values
-        let logic_id = engine.compile(&json!({"sum": [{"var": "values"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"sum": [{"var": "values"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(15));
 
@@ -218,7 +275,9 @@ mod array_tests {
             {"value": 20},
             {"value": 30}
         ]});
-        let logic_id = engine.compile(&json!({"sum": [{"var": "items"}, "value"]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"sum": [{"var": "items"}, "value"]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(60));
     }
@@ -229,12 +288,16 @@ mod array_tests {
         let data = json!({});
 
         // Simple for loop
-        let logic_id = engine.compile(&json!({"FOR": [0, 3, {"+": [{"var": "$loopIteration"}, 1]}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"FOR": [0, 3, {"+": [{"var": "$loopIteration"}, 1]}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!([1, 2, 3]));
 
         // For loop with complex logic
-        let logic_id = engine.compile(&json!({"FOR": [1, 4, {"*": [{"var": "$loopIteration"}, 2]}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"FOR": [1, 4, {"*": [{"var": "$loopIteration"}, 2]}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!([2, 4, 6]));
     }
@@ -242,7 +305,7 @@ mod array_tests {
     #[test]
     fn test_real_world_table_processing() {
         let mut engine = RLogic::new();
-        
+
         // Real-world scenario: Process insurance rider premium table
         let data = json!({
             "riders": [
@@ -255,20 +318,22 @@ mod array_tests {
         });
 
         // Calculate total annual premium with loading and discount
-        let logic_id = engine.compile(&json!({
-            "*": [
-                {"sum": [
-                    {"map": [
-                        {"var": "riders"},
-                        {"*": [{"var": "premium"}, {"var": "loading"}]}
-                    ]}
-                ]},
-                {"var": "frequency"},
-                {"var": "discount_rate"}
-            ]
-        })).unwrap();
+        let logic_id = engine
+            .compile(&json!({
+                "*": [
+                    {"sum": [
+                        {"map": [
+                            {"var": "riders"},
+                            {"*": [{"var": "premium"}, {"var": "loading"}]}
+                        ]}
+                    ]},
+                    {"var": "frequency"},
+                    {"var": "discount_rate"}
+                ]
+            }))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        
+
         // (100000*1.05 + 200000*1.10 + 150000*1.08) * 12 * 0.95
         let expected = (105000.0 + 220000.0 + 162000.0) * 12.0 * 0.95;
         assert!((result.as_f64().unwrap() - expected).abs() < 0.01);
@@ -292,12 +357,14 @@ mod array_tests {
 
         // Get all prices from all products
         // Note: merge flattens one level, so nested maps create nested arrays
-        let logic_id = engine.compile(&json!({
-            "map": [
-                {"var": "products"},
-                {"map": [{"var": "variants"}, {"var": "price"}]}
-            ]
-        })).unwrap();
+        let logic_id = engine
+            .compile(&json!({
+                "map": [
+                    {"var": "products"},
+                    {"map": [{"var": "variants"}, {"var": "price"}]}
+                ]
+            }))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         // Result is array of arrays: [[100, 150], [200, 250, 300]]
         assert!(result.is_array());
@@ -315,27 +382,33 @@ mod array_tests {
         });
 
         // Sum should skip nulls
-        let logic_id = engine.compile(&json!({"sum": [{"var": "values"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"sum": [{"var": "values"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(60));
 
         // Filter out nulls
-        let logic_id = engine.compile(&json!({
-            "filter": [
-                {"var": "values"},
-                {"!=": [{"var": ""}, null]}
-            ]
-        })).unwrap();
+        let logic_id = engine
+            .compile(&json!({
+                "filter": [
+                    {"var": "values"},
+                    {"!=": [{"var": ""}, null]}
+                ]
+            }))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!([10, 20, 30]));
 
         // Map preserves nulls
-        let logic_id = engine.compile(&json!({
-            "map": [
-                {"var": "values"},
-                {"*": [{"var": ""}, 2]}
-            ]
-        })).unwrap();
+        let logic_id = engine
+            .compile(&json!({
+                "map": [
+                    {"var": "values"},
+                    {"*": [{"var": ""}, 2]}
+                ]
+            }))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!([20, 0, 40, 0, 60]));
     }
@@ -353,20 +426,22 @@ mod array_tests {
         });
 
         // Calculate net balance (credits positive, debits negative)
-        let logic_id = engine.compile(&json!({
-            "reduce": [
-                {"map": [
-                    {"var": "transactions"},
-                    {"if": [
-                        {"==": [{"var": "type"}, "credit"]},
-                        {"var": "amount"},
-                        {"-": [0, {"var": "amount"}]}
-                    ]}
-                ]},
-                {"+": [{"var": "accumulator"}, {"var": "current"}]},
-                0
-            ]
-        })).unwrap();
+        let logic_id = engine
+            .compile(&json!({
+                "reduce": [
+                    {"map": [
+                        {"var": "transactions"},
+                        {"if": [
+                            {"==": [{"var": "type"}, "credit"]},
+                            {"var": "amount"},
+                            {"-": [0, {"var": "amount"}]}
+                        ]}
+                    ]},
+                    {"+": [{"var": "accumulator"}, {"var": "current"}]},
+                    0
+                ]
+            }))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(2200)); // 1000 + 2000 - 500 - 300
     }
@@ -374,7 +449,7 @@ mod array_tests {
     #[test]
     fn test_array_with_large_dataset() {
         let mut engine = RLogic::new();
-        
+
         // Simulate large dataset processing
         let mut items = Vec::new();
         for i in 0..1000 {
@@ -387,19 +462,21 @@ mod array_tests {
         let data = json!({"items": items});
 
         // Filter even category and sum values
-        let logic_id = engine.compile(&json!({
-            "sum": [
-                {"map": [
-                    {"filter": [
-                        {"var": "items"},
-                        {"==": [{"var": "category"}, "even"]}
-                    ]},
-                    {"var": "value"}
-                ]}
-            ]
-        })).unwrap();
+        let logic_id = engine
+            .compile(&json!({
+                "sum": [
+                    {"map": [
+                        {"filter": [
+                            {"var": "items"},
+                            {"==": [{"var": "category"}, "even"]}
+                        ]},
+                        {"var": "value"}
+                    ]}
+                ]
+            }))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        
+
         // Sum of even indices: 0*10 + 2*10 + 4*10 + ... + 998*10
         // = 10 * (0 + 2 + 4 + ... + 998) = 10 * (2 * (0+1+...+499)) = 10 * 2 * (499*500/2)
         let expected = 10.0 * (0..500).sum::<i32>() as f64 * 2.0;
@@ -419,27 +496,31 @@ mod array_tests {
         });
 
         // Sum sales for product A
-        let logic_id = engine.compile(&json!({
-            "sum": [
-                {"map": [
-                    {"filter": [
-                        {"var": "sales"},
-                        {"==": [{"var": "product"}, "A"]}
-                    ]},
-                    {"var": "amount"}
-                ]}
-            ]
-        })).unwrap();
+        let logic_id = engine
+            .compile(&json!({
+                "sum": [
+                    {"map": [
+                        {"filter": [
+                            {"var": "sales"},
+                            {"==": [{"var": "product"}, "A"]}
+                        ]},
+                        {"var": "amount"}
+                    ]}
+                ]
+            }))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(250));
 
         // Count product B entries
-        let logic_id = engine.compile(&json!({
-            "length": {"filter": [
-                {"var": "sales"},
-                {"==": [{"var": "product"}, "B"]}
-            ]}
-        })).unwrap();
+        let logic_id = engine
+            .compile(&json!({
+                "length": {"filter": [
+                    {"var": "sales"},
+                    {"==": [{"var": "product"}, "B"]}
+                ]}
+            }))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(2));
     }
@@ -457,7 +538,10 @@ mod array_tests {
         let test_cases = vec![
             (json!({"sum": [{"var": "empty"}]}), json!(0)),
             (json!({"length": {"var": "empty"}}), json!(0)),
-            (json!({"merge": [{"var": "empty"}, {"var": "empty"}]}), json!([])),
+            (
+                json!({"merge": [{"var": "empty"}, {"var": "empty"}]}),
+                json!([]),
+            ),
         ];
 
         for (logic, expected) in test_cases {
@@ -467,7 +551,9 @@ mod array_tests {
         }
 
         // Single element operations
-        let logic_id = engine.compile(&json!({"sum": [{"var": "single"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"sum": [{"var": "single"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(42));
     }

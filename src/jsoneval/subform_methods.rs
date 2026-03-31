@@ -1,8 +1,8 @@
 // Subform methods for isolated array field evaluation
 
+use crate::jsoneval::cancellation::CancellationToken;
 use crate::JSONEval;
 use crate::ReturnFormat;
-use crate::jsoneval::cancellation::CancellationToken;
 use serde_json::Value;
 
 /// Decomposes a subform path that may optionally include a trailing item index,
@@ -102,14 +102,14 @@ impl JSONEval {
     /// This ensures alias paths and full paths share the same underlying subform store and cache.
     pub(crate) fn resolve_subform_path_alias(&self, path: &str) -> (String, Option<usize>) {
         let (mut canonical, idx) = resolve_subform_path(path);
-        
+
         if !self.subforms.contains_key(&canonical) {
             let search_suffix = if canonical.starts_with("#/") {
                 format!("/properties/{}", &canonical[2..])
             } else {
                 format!("/properties/{}", canonical)
             };
-            
+
             for k in self.subforms.keys() {
                 if k.ends_with(&search_suffix) || k == &canonical {
                     canonical = k.to_string();
@@ -117,7 +117,7 @@ impl JSONEval {
                 }
             }
         }
-        
+
         (canonical, idx)
     }
 
@@ -143,7 +143,11 @@ impl JSONEval {
     where
         F: FnOnce(&mut JSONEval) -> Result<T, String>,
     {
-        let field_key = base_path.split('/').next_back().unwrap_or(base_path).to_string();
+        let field_key = base_path
+            .split('/')
+            .next_back()
+            .unwrap_or(base_path)
+            .to_string();
 
         // Step 1: update subform data and extract item snapshot for targeted diff.
         // Scoped block releases the mutable borrow on `self.subforms` before we touch
@@ -161,7 +165,9 @@ impl JSONEval {
                 .map(|c| c.item_snapshot.clone())
                 .unwrap_or(Value::Null);
 
-            subform.eval_data.replace_data_and_context(data_value, context_value);
+            subform
+                .eval_data
+                .replace_data_and_context(data_value, context_value);
             let new_item_val = subform
                 .eval_data
                 .data()
@@ -173,7 +179,8 @@ impl JSONEval {
             // The frontend sometimes only provides the active item root but leaves the
             // corresponding slot empty or stale in the parent array tree of the wrapper.
             // Formulas that aggregate over the parent array must see the active item.
-            let data_pointer = crate::jsoneval::path_utils::normalize_to_json_pointer(base_path).replace("/properties/", "/");
+            let data_pointer = crate::jsoneval::path_utils::normalize_to_json_pointer(base_path)
+                .replace("/properties/", "/");
             let array_path = data_pointer.to_string();
             let item_path = format!("{}/{}", array_path, idx);
             subform.eval_data.set(&item_path, new_item_val.clone());
@@ -181,18 +188,41 @@ impl JSONEval {
             // Pull out any existing item-scoped entries from the subform's own cache
             // so they can be merged into the parent cache below.
             let existing = subform.eval_cache.subform_caches.remove(&idx);
-            (old_item_snapshot, new_item_val, existing, array_path, item_path)
+            (
+                old_item_snapshot,
+                new_item_val,
+                existing,
+                array_path,
+                item_path,
+            )
         }; // subform borrow released here
 
-        // Step 2: build parent cache with item-scoped diff applied.
-        let is_new_item = old_item_snapshot == Value::Null;
+        // Unified store fallback: if the subform's own per-item cache has no snapshot for this
+        // index (e.g. this is the first evaluate_subform call after a full evaluate()), treat the
+        // parent's eval_data slot as the canonical baseline. The parent always holds the most
+        // recent array data written by evaluate() or evaluate_dependents(), so using it avoids
+        // treating an already-evaluated item as brand-new and forcing full table re-evaluation.
+        let parent_item = self.eval_data.get(&item_path).cloned();
+        let old_item_snapshot = if old_item_snapshot == Value::Null {
+            parent_item.clone().unwrap_or(Value::Null)
+        } else {
+            old_item_snapshot
+        };
+
+        // An item is "new" only when the parent's eval_data has no entry at the item path.
+        // Using the subform's own snapshot cache as the authority (old_item_snapshot == Null)
+        // is not correct after Step 6 persistence re-seeds the cache: a rider that was
+        // previously evaluate_subform'd would have a snapshot but may still be absent from
+        // the parent array (e.g. new rider scenario after evaluate_dependents_subform).
+        let is_new_item = parent_item.is_none();
 
         let mut parent_cache = std::mem::take(&mut self.eval_cache);
         parent_cache.ensure_active_item_cache(idx);
         if let Some(c) = parent_cache.subform_caches.get_mut(&idx) {
             // Only inherit $params-scoped versions from the parent so that data-path
             // bumps from other items or previous calls don't contaminate this item's baseline.
-            c.data_versions.merge_from_params(&parent_cache.params_versions);
+            c.data_versions
+                .merge_from_params(&parent_cache.params_versions);
             // Diff only the item field to find what changed (skips the 5 MB parent tree).
             crate::jsoneval::eval_cache::diff_and_update_versions(
                 &mut c.data_versions,
@@ -205,27 +235,62 @@ impl JSONEval {
         parent_cache.active_item_index = Some(idx);
 
         // Restore cached entries that lived in the subform's own per-item cache.
+        // Only restore entries whose dependency versions still match the current item
+        // data_versions: if a field changed (e.g. sa bumped), entries that depended on
+        // that field are stale and must not be re-inserted (they would cause false T1 hits).
         if let Some(subform_item_cache) = subform_item_cache_opt {
             if let Some(c) = parent_cache.subform_caches.get_mut(&idx) {
+                let current_dv = c.data_versions.clone();
                 for (k, v) in subform_item_cache.entries {
-                    c.entries.entry(k).or_insert(v);
+                    // Skip if entry already exists (parent-form run may have added a fresher result).
+                    if c.entries.contains_key(&k) {
+                        continue;
+                    }
+                    // Validate all dep versions against the current item data_versions.
+                    let still_valid = v.dep_versions.iter().all(|(dep_path, &cached_ver)| {
+                        let current_ver = if dep_path.starts_with("/$params") {
+                            parent_cache.params_versions.get(dep_path)
+                        } else {
+                            current_dv.get(dep_path)
+                        };
+                        current_ver == cached_ver
+                    });
+                    if still_valid {
+                        c.entries.insert(k, v);
+                    }
                 }
             }
         }
 
-        // Insert into the parent eval_data as well (to make the item visible to global formulas on main evaluate)
-        // If the item is new, bump the array version so that T2 global cache entries validating
-        // against the item's inherited parent versions know the array has expanded.
-        self.eval_data.set(&item_path, new_item_val.clone());
-        if is_new_item {
-            parent_cache.bump_data_version(&array_path);
+        // Insert into the parent eval_data as well (to make the item visible to global formulas on main evaluate).
+        // Only write (and bump version) when the value actually changed: prevents spurious riders-array
+        // version increments on repeated evaluate_subform calls where the rider data is unchanged.
+        let current_at_item_path = self.eval_data.get(&item_path).cloned();
+        if current_at_item_path.as_ref() != Some(&new_item_val) {
+            self.eval_data.set(&item_path, new_item_val.clone());
+            if is_new_item {
+                parent_cache.bump_data_version(&array_path);
+            }
         }
 
-        // When a brand-new item is introduced or when readonly fields change, `$params` tables that
-        // aggregate array data (e.g. WOP_RIDERS) must be re-evaluated.
-        // We MUST evaluate them on the PARENT engine because they require the full parent array
-        // (which now includes `new_item_val`) to compute sums correctly.
-        if is_new_item {
+        // Re-evaluate `$params` tables that depend on subform item paths that changed.
+        // This is required not just for brand-new items, but also whenever a tracked field
+        // (like `riders.sa`) changes value: tables like RIDER_ZLOB_TABLE depend on rider.sa
+        // and must produce updated rows that reflect the new sa before the subform's own
+        // formula evaluation runs (otherwise cached old rows are reused).
+        //
+        // Gate: only re-evaluate tables when at least one item-level path was actually bumped
+        // in the diff (to avoid unnecessary table work on pure no-op calls).
+        let item_paths_bumped = parent_cache
+            .subform_caches
+            .get(&idx)
+            .map(|c| {
+                let field_prefix = format!("/{}/", field_key);
+                c.data_versions.any_bumped_with_prefix(&field_prefix)
+            })
+            .unwrap_or(false);
+
+        if is_new_item || item_paths_bumped {
             let params_table_keys: Vec<String> = self
                 .table_metadata
                 .keys()
@@ -234,7 +299,7 @@ impl JSONEval {
                 .collect();
             if !params_table_keys.is_empty() {
                 parent_cache.invalidate_params_tables_for_item(idx, &params_table_keys);
-                
+
                 let eval_data_snapshot = self.eval_data.exclusive_clone();
                 for key in &params_table_keys {
                     // CRITICAL FIX: Only evaluate global tables on the parent if they do NOT
@@ -246,7 +311,10 @@ impl JSONEval {
                     let depends_on_subform_item = if let Some(deps) = self.dependencies.get(key) {
                         let subform_dep_prefix = format!("#/{}/properties/", field_key);
                         let subform_dep_prefix_short = format!("#/{}/", field_key);
-                        deps.iter().any(|dep| dep.starts_with(&subform_dep_prefix) || dep.starts_with(&subform_dep_prefix_short))
+                        deps.iter().any(|dep| {
+                            dep.starts_with(&subform_dep_prefix)
+                                || dep.starts_with(&subform_dep_prefix_short)
+                        })
                     } else {
                         false
                     };
@@ -256,25 +324,36 @@ impl JSONEval {
                     }
 
                     // Evaluate the table using parent's updated data
-                    if let Ok(rows) = crate::jsoneval::table_evaluate::evaluate_table(self, key, &eval_data_snapshot, None) {
+                    if let Ok(rows) = crate::jsoneval::table_evaluate::evaluate_table(
+                        self,
+                        key,
+                        &eval_data_snapshot,
+                        None,
+                    ) {
                         if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() {
                             println!("PARENT EVALUATED TABLE {} -> {} rows", key, rows.len());
                         }
                         let result_val = serde_json::Value::Array(rows);
-                        
+
                         // Collect external dependencies for this cache entry
                         let mut external_deps = indexmap::IndexSet::new();
-                        let pointer_data_prefix = crate::jsoneval::path_utils::normalize_to_json_pointer(key).replace("/properties/", "/");
+                        let pointer_data_prefix =
+                            crate::jsoneval::path_utils::normalize_to_json_pointer(key)
+                                .replace("/properties/", "/");
                         let pointer_data_prefix_slash = format!("{}/", pointer_data_prefix);
                         if let Some(deps) = self.dependencies.get(key) {
                             for dep in deps {
-                                let dep_data_path = crate::jsoneval::path_utils::normalize_to_json_pointer(dep).replace("/properties/", "/");
-                                if dep_data_path != pointer_data_prefix && !dep_data_path.starts_with(&pointer_data_prefix_slash) {
+                                let dep_data_path =
+                                    crate::jsoneval::path_utils::normalize_to_json_pointer(dep)
+                                        .replace("/properties/", "/");
+                                if dep_data_path != pointer_data_prefix
+                                    && !dep_data_path.starts_with(&pointer_data_prefix_slash)
+                                {
                                     external_deps.insert(dep.clone());
                                 }
                             }
                         }
-                        
+
                         // We must temporarily clear active_item_index so store_cache puts this in T2 (global)
                         // Then the subform can hit it via T2 fallback check.
                         parent_cache.active_item_index = None;
@@ -308,6 +387,20 @@ impl JSONEval {
         }
         parent_cache.active_item_index = None;
         self.eval_cache = parent_cache;
+
+        // Step 6: persist the updated T1 item cache (snapshot + entries) back into the subform's
+        // own per-item cache. Without this, the next evaluate_subform call for the same idx reads
+        // old_item_snapshot = Null from the subform cache (it was removed at line 183) and treats
+        // the rider as brand-new, forcing a full re-diff and invalidating all T1 entries.
+        {
+            let subform = self.subforms.get_mut(base_path).unwrap();
+            if let Some(item_cache) = self.eval_cache.subform_caches.get(&idx) {
+                subform
+                    .eval_cache
+                    .subform_caches
+                    .insert(idx, item_cache.clone());
+            }
+        }
 
         result
     }
@@ -391,11 +484,17 @@ impl JSONEval {
                 Value::Object(serde_json::Map::new())
             };
             let data_for_validation = data_value.clone();
-            self.with_item_cache_swap(base_path.as_ref(), idx, data_value, context_value, move |sf| {
-                // Warm the evaluation cache before running rule checks.
-                sf.evaluate_internal_pre_diffed(paths, token)?;
-                sf.validate_pre_set(data_for_validation, paths, token)
-            })
+            self.with_item_cache_swap(
+                base_path.as_ref(),
+                idx,
+                data_value,
+                context_value,
+                move |sf| {
+                    // Warm the evaluation cache before running rule checks.
+                    sf.evaluate_internal_pre_diffed(paths, token)?;
+                    sf.validate_pre_set(data_for_validation, paths, token)
+                },
+            )
         } else {
             let subform = self
                 .subforms
@@ -445,14 +544,30 @@ impl JSONEval {
             };
             self.with_item_cache_swap(base_path.as_ref(), idx, data_value, context_value, |sf| {
                 // Data is already set by with_item_cache_swap; pass None to avoid re-parsing.
-                sf.evaluate_dependents(changed_paths, None, None, re_evaluate, token, None, include_subforms)
+                sf.evaluate_dependents(
+                    changed_paths,
+                    None,
+                    None,
+                    re_evaluate,
+                    token,
+                    None,
+                    include_subforms,
+                )
             })
         } else {
             let subform = self
                 .subforms
                 .get_mut(base_path.as_ref() as &str)
                 .ok_or_else(|| format!("Subform not found: {}", base_path))?;
-            subform.evaluate_dependents(changed_paths, data, context, re_evaluate, token, canceled_paths, include_subforms)
+            subform.evaluate_dependents(
+                changed_paths,
+                data,
+                context,
+                re_evaluate,
+                token,
+                canceled_paths,
+                include_subforms,
+            )
         }
     }
 
@@ -538,7 +653,11 @@ impl JSONEval {
     ) -> Option<Value> {
         let (base_path, _) = self.resolve_subform_path_alias(subform_path);
         self.subforms.get_mut(base_path.as_ref() as &str).map(|sf| {
-            sf.get_evaluated_schema_by_paths(&[schema_path.to_string()], skip_layout, Some(ReturnFormat::Nested))
+            sf.get_evaluated_schema_by_paths(
+                &[schema_path.to_string()],
+                skip_layout,
+                Some(ReturnFormat::Nested),
+            )
         })
     }
 
@@ -552,7 +671,11 @@ impl JSONEval {
     ) -> Value {
         let (base_path, _) = self.resolve_subform_path_alias(subform_path);
         if let Some(subform) = self.subforms.get_mut(base_path.as_ref() as &str) {
-            subform.get_evaluated_schema_by_paths(schema_paths, skip_layout, Some(format.unwrap_or(ReturnFormat::Flat)))
+            subform.get_evaluated_schema_by_paths(
+                schema_paths,
+                skip_layout,
+                Some(format.unwrap_or(ReturnFormat::Flat)),
+            )
         } else {
             match format.unwrap_or_default() {
                 crate::ReturnFormat::Array => Value::Array(vec![]),
@@ -568,7 +691,9 @@ impl JSONEval {
         schema_path: &str,
     ) -> Option<Value> {
         let (base_path, _) = self.resolve_subform_path_alias(subform_path);
-        self.subforms.get(base_path.as_ref() as &str).and_then(|sf| sf.get_schema_by_path(schema_path))
+        self.subforms
+            .get(base_path.as_ref() as &str)
+            .and_then(|sf| sf.get_schema_by_path(schema_path))
     }
 
     /// Get schema by multiple paths from subform.

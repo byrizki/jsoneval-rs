@@ -46,11 +46,15 @@ mod operator_tests {
         let mut engine = RLogic::new();
         let data = json!({"a": 10, "b": 5, "c": 2});
 
-        let logic_id = engine.compile(&json!({"+": [{"var": "a"}, {"var": "b"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"+": [{"var": "a"}, {"var": "b"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(15));
 
-        let logic_id = engine.compile(&json!({"*": [{"var": "a"}, {"var": "b"}, {"var": "c"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"*": [{"var": "a"}, {"var": "b"}, {"var": "c"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(100));
     }
@@ -151,16 +155,22 @@ mod operator_tests {
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(true));
 
-        let logic_id = engine.compile(&json!({"and": [true, false, true]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"and": [true, false, true]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(false));
 
         // Or
-        let logic_id = engine.compile(&json!({"or": [false, false, true]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"or": [false, false, true]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(true));
 
-        let logic_id = engine.compile(&json!({"or": [false, false, false]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"or": [false, false, false]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(false));
 
@@ -193,7 +203,9 @@ mod operator_tests {
         assert_eq!(result, json!(true));
 
         // ISEMPTY with missing var wrapped in array
-        let logic_id = engine.compile(&json!({"ISEMPTY": [{"var": "missing_var"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"ISEMPTY": [{"var": "missing_var"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(true));
     }
@@ -204,12 +216,16 @@ mod operator_tests {
         let data = json!({});
 
         // And short-circuits on false
-        let logic_id = engine.compile(&json!({"and": [false, {"+": [1, "error"]}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"and": [false, {"+": [1, "error"]}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(false));
 
         // Or short-circuits on true
-        let logic_id = engine.compile(&json!({"or": [true, {"+": [1, "error"]}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"or": [true, {"+": [1, "error"]}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(true));
     }
@@ -220,7 +236,9 @@ mod operator_tests {
         let data = json!({"value": 10});
 
         // True condition
-        let logic_id = engine.compile(&json!({"if": [{"var": "value"}, "yes", "no"]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"if": [{"var": "value"}, "yes", "no"]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("yes"));
 
@@ -250,15 +268,23 @@ mod operator_tests {
             (json!("hello"), true),
             (json!(""), false),
             (json!([]), false),
-            (json!([1,2,3]), true),
+            (json!([1, 2, 3]), true),
             (json!({}), false),
             (json!(null), false),
         ];
 
         for (value, expected_truthy) in test_cases {
-            let logic_id = engine.compile(&json!({"if": [value, true, false]})).unwrap();
+            let logic_id = engine
+                .compile(&json!({"if": [value, true, false]}))
+                .unwrap();
             let result = engine.run(&logic_id, &data).unwrap();
-            assert_eq!(result, json!(expected_truthy), "Value {:?} should be truthy: {}", value, expected_truthy);
+            assert_eq!(
+                result,
+                json!(expected_truthy),
+                "Value {:?} should be truthy: {}",
+                value,
+                expected_truthy
+            );
         }
     }
 
@@ -268,7 +294,9 @@ mod operator_tests {
         let data = json!({"a": 2, "b": 3, "c": 4});
 
         // Nested arithmetic
-        let logic_id = engine.compile(&json!({"+": [{"*": [{"var": "a"}, {"var": "b"}]}, {"var": "c"}]})).unwrap();
+        let logic_id = engine
+            .compile(&json!({"+": [{"*": [{"var": "a"}, {"var": "b"}]}, {"var": "c"}]}))
+            .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(10)); // (2*3) + 4 = 10
 

@@ -28,7 +28,8 @@ impl Evaluator {
                 CompiledLogic::Number(n) => *n,
                 CompiledLogic::Var(name, _) => {
                     // Try internal context first, then user data
-                    let v = self.get_var(internal_context, name)
+                    let v = self
+                        .get_var(internal_context, name)
                         .or_else(|| self.get_var(user_data, name));
                     if let Some(value) = v {
                         helpers::to_f64(value)

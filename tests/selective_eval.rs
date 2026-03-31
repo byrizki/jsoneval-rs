@@ -95,12 +95,15 @@ fn test_selective_evaluation_basic() {
     let mut eval = JSONEval::new(&schema_str, Some(&ctx_str), Some(&data_str)).unwrap();
 
     // 1. Full evaluation
-    eval.evaluate(&data_str, Some(&ctx_str), None, None).unwrap();
-    
+    eval.evaluate(&data_str, Some(&ctx_str), None, None)
+        .unwrap();
+
     // Check results
     let evaluated = eval.get_evaluated_schema(false);
-    assert_eq!(*evaluated.pointer("/$params/accessList").unwrap(), json!(["AG", "AP"]));
-
+    assert_eq!(
+        *evaluated.pointer("/$params/accessList").unwrap(),
+        json!(["AG", "AP"])
+    );
 
     // 2. Selective evaluation, not target the value must be persists
     let nctx = json!({
@@ -110,11 +113,20 @@ fn test_selective_evaluation_basic() {
         }
     });
     let nctx_str = serde_json::to_string(&nctx).unwrap();
-    eval.evaluate(&data_str, Some(&nctx_str), Some(&["$params.others.MIN_SA".to_string()]), None).unwrap();
-    
+    eval.evaluate(
+        &data_str,
+        Some(&nctx_str),
+        Some(&["$params.others.MIN_SA".to_string()]),
+        None,
+    )
+    .unwrap();
+
     // Check results
     let evaluated = eval.get_evaluated_schema(false);
-    assert_eq!(*evaluated.pointer("/$params/accessList").unwrap(), json!(["AG", "AP"]));
+    assert_eq!(
+        *evaluated.pointer("/$params/accessList").unwrap(),
+        json!(["AG", "AP"])
+    );
 
     // 3. Selective evaluation, target the value must be re-evaluated
     let nctx = json!({
@@ -124,9 +136,18 @@ fn test_selective_evaluation_basic() {
         }
     });
     let nctx_str = serde_json::to_string(&nctx).unwrap();
-    eval.evaluate(&data_str, Some(&nctx_str), Some(&["$params.accessList".to_string()]), None).unwrap();
-    
+    eval.evaluate(
+        &data_str,
+        Some(&nctx_str),
+        Some(&["$params.accessList".to_string()]),
+        None,
+    )
+    .unwrap();
+
     // Check results
     let evaluated = eval.get_evaluated_schema(false);
-    assert_eq!(*evaluated.pointer("/$params/accessList").unwrap(), json!([]));
+    assert_eq!(
+        *evaluated.pointer("/$params/accessList").unwrap(),
+        json!([])
+    );
 }

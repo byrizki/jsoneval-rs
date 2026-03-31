@@ -60,7 +60,13 @@ pub unsafe extern "C" fn json_eval_evaluate_subform(
         None
     };
 
-    match eval.evaluate_subform(path_str, data_str, context_str, paths.as_deref(), token.as_ref()) {
+    match eval.evaluate_subform(
+        path_str,
+        data_str,
+        context_str,
+        paths.as_deref(),
+        token.as_ref(),
+    ) {
         Ok(_) => FFIResult::success(Vec::new()),
         Err(e) => FFIResult::error(e),
     }
@@ -185,7 +191,16 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents_subform(
     // Wrap single path in a Vec for the new API
     let paths = vec![path_str.to_string()];
 
-    match eval.evaluate_dependents_subform(subform_str, &paths, data_str, context_str, re_evaluate != 0, token.as_ref(), None, include_subforms != 0) {
+    match eval.evaluate_dependents_subform(
+        subform_str,
+        &paths,
+        data_str,
+        context_str,
+        re_evaluate != 0,
+        token.as_ref(),
+        None,
+        include_subforms != 0,
+    ) {
         Ok(result) => {
             let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
             FFIResult::success(result_bytes)
@@ -335,7 +350,6 @@ pub unsafe extern "C" fn json_eval_get_schema_value_object_subform(
     let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
     FFIResult::success(result_bytes)
 }
-
 
 /// Get evaluated schema without $params from subform
 ///
