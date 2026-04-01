@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.81] - 2026-04-01
+
+### Fixed
+
+- [core] fix evaluate dependents with transitive depends
+
 ## [0.0.80] - 2026-04-01
 
 ### Fixed
