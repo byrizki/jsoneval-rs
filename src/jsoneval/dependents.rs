@@ -654,9 +654,7 @@ impl JSONEval {
                 // against the new data → item_paths_bumped = true → spurious table invalidation.
                 if let Some(parent_item_cache) = self.eval_cache.subform_caches.get(&idx) {
                     let snapshot = parent_item_cache.item_snapshot.clone();
-                    subform
-                        .eval_cache
-                        .ensure_active_item_cache(idx);
+                    subform.eval_cache.ensure_active_item_cache(idx);
                     if let Some(sub_cache) = subform.eval_cache.subform_caches.get_mut(&idx) {
                         sub_cache.item_snapshot = snapshot;
                     }
@@ -686,16 +684,10 @@ impl JSONEval {
                                 // data vs the new call's apply_changes values → spurious item bumps
                                 // → invalidate_params_tables_for_item fires → eval_generation bumps.
                                 if let Some(val) = obj.get("value") {
-                                    let data_ptr = format!(
-                                        "/{}",
-                                        new_ref.replace('.', "/")
-                                    );
+                                    let data_ptr = format!("/{}", new_ref.replace('.', "/"));
                                     self.eval_data.set(&data_ptr, val.clone());
                                 } else if obj.get("clear").and_then(Value::as_bool) == Some(true) {
-                                    let data_ptr = format!(
-                                        "/{}",
-                                        new_ref.replace('.', "/")
-                                    );
+                                    let data_ptr = format!("/{}", new_ref.replace('.', "/"));
                                     self.eval_data.set(&data_ptr, Value::Null);
                                 }
 
@@ -1249,8 +1241,10 @@ impl JSONEval {
                         )?;
                         let cleaned_val = clean_float_noise_scalar(computed_value);
 
-                        let is_clear = cleaned_val == Value::Null || cleaned_val.as_str() == Some("");
-                        let ref_is_clear = current_ref_value == Value::Null || current_ref_value.as_str() == Some("");
+                        let is_clear =
+                            cleaned_val == Value::Null || cleaned_val.as_str() == Some("");
+                        let ref_is_clear = current_ref_value == Value::Null
+                            || current_ref_value.as_str() == Some("");
 
                         if is_clear && !ref_is_clear {
                             // Schema value resolved to null or empty string — treat as explicit clear so the
@@ -1309,4 +1303,3 @@ fn subform_field_key(subform_path: &str) -> String {
         .unwrap_or(stripped)
         .to_string()
 }
-

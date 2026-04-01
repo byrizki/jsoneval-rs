@@ -822,8 +822,16 @@ fn build_dep_formula_triggers(lib: &mut JSONEval) {
         for dep_item in dep_items.iter() {
             // Collect compiled formula evaluation keys from value and clear fields
             let formula_keys: Vec<String> = [
-                dep_item.value.as_ref().and_then(|v| v.as_str()).map(|s| s.to_string()),
-                dep_item.clear.as_ref().and_then(|v| v.as_str()).map(|s| s.to_string()),
+                dep_item
+                    .value
+                    .as_ref()
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+                dep_item
+                    .clear
+                    .as_ref()
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
             ]
             .into_iter()
             .flatten()
@@ -910,4 +918,3 @@ fn build_dep_formula_triggers(lib: &mut JSONEval) {
 
     lib.dep_formula_triggers = Arc::new(triggers);
 }
-

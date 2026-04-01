@@ -837,8 +837,16 @@ fn build_dep_formula_triggers_parsed(parsed: &mut ParsedSchema) {
     for (source_path, dep_items) in parsed.dependents_evaluations.iter() {
         for dep_item in dep_items.iter() {
             let formula_keys: Vec<String> = [
-                dep_item.value.as_ref().and_then(|v| v.as_str()).map(|s| s.to_string()),
-                dep_item.clear.as_ref().and_then(|v| v.as_str()).map(|s| s.to_string()),
+                dep_item
+                    .value
+                    .as_ref()
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+                dep_item
+                    .clear
+                    .as_ref()
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
             ]
             .into_iter()
             .flatten()
@@ -916,4 +924,3 @@ fn build_dep_formula_triggers_parsed(parsed: &mut ParsedSchema) {
 
     parsed.dep_formula_triggers = Arc::new(triggers);
 }
-

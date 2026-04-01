@@ -1,7 +1,7 @@
+use serde_json::Value;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use serde_json::Value;
 
 #[derive(Debug, Clone)]
 pub struct Scenario {
@@ -18,7 +18,11 @@ pub fn discover_scenarios(dir: &Path) -> Vec<Scenario> {
     let entries = match fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(err) => {
-            eprintln!("⚠️  Unable to read scenario directory `{}`: {}", dir.display(), err);
+            eprintln!(
+                "⚠️  Unable to read scenario directory `{}`: {}",
+                dir.display(),
+                err
+            );
             return scenarios;
         }
     };
@@ -36,10 +40,10 @@ pub fn discover_scenarios(dir: &Path) -> Vec<Scenario> {
         if let Some(base) = file_name.strip_suffix("-data.json") {
             let json_path = dir.join(format!("{}.json", base));
             let msgpack_path = dir.join(format!("{}.bform", base));
-            
+
             let has_json = json_path.exists();
             let has_msgpack = msgpack_path.exists();
-            
+
             if !has_json && !has_msgpack {
                 eprintln!(
                     "⚠️  Skipping scenario `{}`: schema file `{}.json` or `{}.bform` missing",
@@ -74,7 +78,7 @@ pub fn discover_scenarios(dir: &Path) -> Vec<Scenario> {
                 } else {
                     base.to_string()
                 };
-                
+
                 scenarios.push(Scenario {
                     name,
                     schema_path: msgpack_path,
@@ -126,12 +130,10 @@ fn summarize_value(value: &Value) -> String {
 fn numbers_equal(a: &Value, b: &Value) -> bool {
     const EPSILON: f64 = 1e-6;
     match (a, b) {
-        (Value::Number(num_a), Value::Number(num_b)) => {
-            match (num_a.as_f64(), num_b.as_f64()) {
-                (Some(a_f64), Some(b_f64)) => (a_f64 - b_f64).abs() <= EPSILON,
-                _ => false,
-            }
-        }
+        (Value::Number(num_a), Value::Number(num_b)) => match (num_a.as_f64(), num_b.as_f64()) {
+            (Some(a_f64), Some(b_f64)) => (a_f64 - b_f64).abs() <= EPSILON,
+            _ => false,
+        },
         _ => false,
     }
 }
@@ -158,8 +160,14 @@ fn collect_value_diffs(actual: &Value, expected: &Value, path: &str, diffs: &mut
                     (Some(value_a), Some(value_b)) => {
                         collect_value_diffs(value_a, value_b, &next_path, diffs);
                     }
-                    (Some(_), None) => diffs.push(format!("{} present in actual but missing in expected", next_path)),
-                    (None, Some(_)) => diffs.push(format!("{} missing in actual but present in expected", next_path)),
+                    (Some(_), None) => diffs.push(format!(
+                        "{} present in actual but missing in expected",
+                        next_path
+                    )),
+                    (None, Some(_)) => diffs.push(format!(
+                        "{} missing in actual but present in expected",
+                        next_path
+                    )),
                     (None, None) => {}
                 }
             }
@@ -178,8 +186,14 @@ fn collect_value_diffs(actual: &Value, expected: &Value, path: &str, diffs: &mut
                     (Some(value_a), Some(value_b)) => {
                         collect_value_diffs(value_a, value_b, &next_path, diffs);
                     }
-                    (Some(_), None) => diffs.push(format!("{} present in actual but missing in expected", next_path)),
-                    (None, Some(_)) => diffs.push(format!("{} missing in actual but present in expected", next_path)),
+                    (Some(_), None) => diffs.push(format!(
+                        "{} present in actual but missing in expected",
+                        next_path
+                    )),
+                    (None, Some(_)) => diffs.push(format!(
+                        "{} missing in actual but present in expected",
+                        next_path
+                    )),
                     (None, None) => {}
                 }
             }
@@ -190,7 +204,11 @@ fn collect_value_diffs(actual: &Value, expected: &Value, path: &str, diffs: &mut
             }
             diffs.push(format!(
                 "{} differs: actual={} expected={}",
-                if path.is_empty() { "/".to_string() } else { path.to_string() },
+                if path.is_empty() {
+                    "/".to_string()
+                } else {
+                    path.to_string()
+                },
                 summarize_value(actual),
                 summarize_value(expected)
             ));
@@ -204,13 +222,13 @@ pub fn compare_with_expected(
 ) -> Result<(), String> {
     let comp_str = fs::read_to_string(comparison_path)
         .map_err(|e| format!("Failed to read comparison file: {}", e))?;
-    
+
     let expected_value: Value = serde_json::from_str(&comp_str)
         .map_err(|e| format!("Failed to parse comparison file: {}", e))?;
-    
+
     let actual_others = evaluated_schema.pointer("/$params/others");
     let expected_others = expected_value.get("others");
-    
+
     match (actual_others, expected_others) {
         (Some(actual), Some(expected)) => {
             if actual == expected {
@@ -241,9 +259,7 @@ pub fn compare_with_expected(
             Err("Expected file missing $.others section".to_string())
         }
         (None, Some(_)) => {
-            println!(
-                "⚠️  Comparison: evaluated schema missing `$.others` section"
-            );
+            println!("⚠️  Comparison: evaluated schema missing `$.others` section");
             Err("Evaluated schema missing $.others section".to_string())
         }
         (None, None) => {
@@ -265,13 +281,13 @@ pub fn print_cpu_info() {
         println!("  SSE4.2:  {}", is_x86_feature_detected!("sse4.2"));
         println!("  AVX:     {}", is_x86_feature_detected!("avx"));
         println!("  AVX2:    {}", is_x86_feature_detected!("avx2"));
-        
+
         #[cfg(windows)]
         println!("  Allocator: mimalloc");
-        
+
         #[cfg(not(windows))]
         println!("  Allocator: system default");
-        
+
         println!();
     }
 }

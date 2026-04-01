@@ -176,9 +176,7 @@ fn test_main_form_dependent_cascades_into_subform_item_dependents() {
     // riders.0.benefit must be cleared by the main-form dependent
     let benefit_change = changes
         .iter()
-        .find(|c| {
-            c.get("$ref").and_then(|v| v.as_str()) == Some("riders.0.benefit")
-        })
+        .find(|c| c.get("$ref").and_then(|v| v.as_str()) == Some("riders.0.benefit"))
         .expect("riders.0.benefit must be cleared by main-form plan dependent");
 
     assert_eq!(

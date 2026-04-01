@@ -1,10 +1,10 @@
 mod common;
 
+use json_eval_rs::JSONEval;
+use serde_json::{Map, Value};
 use std::fs;
 use std::path::Path;
 use std::time::Instant;
-use json_eval_rs::JSONEval;
-use serde_json::{Map, Value};
 
 fn print_help(program_name: &str) {
     println!("\n🚀 JSON Evaluation - Basic Example (JSON/MsgPack Schema)\n");
@@ -20,24 +20,33 @@ fn print_help(program_name: &str) {
     println!("    Evaluates schemas using JSONEval::new() or JSONEval::new_from_msgpack().\n");
     println!("EXAMPLES:");
     println!("    {}                 # Run all scenarios", program_name);
-    println!("    {} zcc             # Run scenarios matching 'zcc'", program_name);
-    println!("    {} --compare       # Run with comparison enabled", program_name);
-    println!("    {} zcc --timing    # Run with detailed timing breakdown", program_name);
+    println!(
+        "    {} zcc             # Run scenarios matching 'zcc'",
+        program_name
+    );
+    println!(
+        "    {} --compare       # Run with comparison enabled",
+        program_name
+    );
+    println!(
+        "    {} zcc --timing    # Run with detailed timing breakdown",
+        program_name
+    );
 }
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let program_name = args.get(0).map(|s| s.as_str()).unwrap_or("basic");
-    
+
     let mut scenario_filter: Option<String> = None;
     let mut enable_comparison = false;
     let mut show_timing = false;
     let mut i = 1;
-    
+
     // Parse arguments
     while i < args.len() {
         let arg = &args[i];
-        
+
         if arg == "-h" || arg == "--help" {
             print_help(program_name);
             return;
@@ -52,12 +61,12 @@ fn main() {
             print_help(program_name);
             return;
         }
-        
+
         i += 1;
     }
-    
+
     println!("\n🚀 JSON Evaluation - Basic Example (JSON/MsgPack Schema)\n");
-    
+
     if enable_comparison {
         println!("🔍 Comparison: enabled");
     }
@@ -67,10 +76,10 @@ fn main() {
     if enable_comparison || show_timing {
         println!();
     }
-    
+
     let samples_dir = Path::new("samples");
     let mut scenarios = common::discover_scenarios(samples_dir);
-    
+
     // Filter scenarios if a filter is provided
     if let Some(ref filter) = scenario_filter {
         scenarios.retain(|s| s.name.contains(filter));
@@ -92,7 +101,7 @@ fn main() {
         }
         return;
     }
-    
+
     println!("📊 Found {} scenario(s)\n", scenarios.len());
 
     let mut total_parse_time = std::time::Duration::ZERO;
@@ -103,9 +112,14 @@ fn main() {
     for scenario in &scenarios {
         println!("==============================");
         println!("Scenario: {}", scenario.name);
-        println!("Schema: {} ({})", 
+        println!(
+            "Schema: {} ({})",
             scenario.schema_path.display(),
-            if scenario.is_msgpack { "MessagePack" } else { "JSON" }
+            if scenario.is_msgpack {
+                "MessagePack"
+            } else {
+                "JSON"
+            }
         );
         println!("Data: {}\n", scenario.data_path.display());
 
@@ -120,50 +134,56 @@ fn main() {
 
         // Step 1: Parse schema
         let parse_start = Instant::now();
-        
+
         let mut eval = if scenario.is_msgpack {
-            let schema_msgpack = fs::read(&scenario.schema_path)
-                .unwrap_or_else(|e| panic!("failed to read {}: {}", scenario.schema_path.display(), e));
-            println!("  📦 MessagePack schema size: {} bytes", schema_msgpack.len());
+            let schema_msgpack = fs::read(&scenario.schema_path).unwrap_or_else(|e| {
+                panic!("failed to read {}: {}", scenario.schema_path.display(), e)
+            });
+            println!(
+                "  📦 MessagePack schema size: {} bytes",
+                schema_msgpack.len()
+            );
             JSONEval::new_from_msgpack(&schema_msgpack, None, Some(&data_str))
                 .unwrap_or_else(|e| panic!("failed to create JSONEval from MessagePack: {}", e))
         } else {
-            let schema_str = fs::read_to_string(&scenario.schema_path)
-                .unwrap_or_else(|e| panic!("failed to read {}: {}", scenario.schema_path.display(), e));
+            let schema_str = fs::read_to_string(&scenario.schema_path).unwrap_or_else(|e| {
+                panic!("failed to read {}: {}", scenario.schema_path.display(), e)
+            });
             JSONEval::new(&schema_str, None, Some(&data_str))
                 .unwrap_or_else(|e| panic!("failed to create JSONEval: {}", e))
         };
-        
+
         let parse_time = parse_start.elapsed();
         println!("  📝 Parse (new): {:?}", parse_time);
-        
+
         // Step 2: Evaluate
         let eval_start = Instant::now();
-        
+
         eval.evaluate(&data_str, Some("{}"), None, None)
             .unwrap_or_else(|e| panic!("evaluation failed: {}", e));
 
         // Step 3: Validate
         let validation_start = Instant::now();
-        let validation_result = eval.validate(&data_str, None, None, None)
+        let validation_result = eval
+            .validate(&data_str, None, None, None)
             .unwrap_or_else(|e| panic!("validation failed: {}", e));
         let validation_time = validation_start.elapsed();
         println!("  🛡️ Validate: {:?}", validation_time);
-        
+
         // Legacy behavior: get_evaluated_schema takes skip_layout: bool
         // We pass false to ensure layout IS resolved
         let evaluated_schema = eval.get_evaluated_schema(false);
         let schema_value = eval.get_schema_value();
         let eval_time = eval_start.elapsed();
-        
+
         println!("  ⚡ Eval: {:?}", eval_time);
         println!("  ⏱️  Total: {:?}\n", parse_time + eval_time);
-        
+
         // Print detailed timing breakdown if --timing flag is set
         if show_timing {
             json_eval_rs::print_timing_summary();
         }
-        
+
         total_parse_time += parse_time;
         total_eval_time += eval_time;
         successful_scenarios += 1;
@@ -178,12 +198,24 @@ fn main() {
             .unwrap_or_else(|e| panic!("failed to write {}: {}", evaluated_path.display(), e));
 
         let mut metadata_obj = Map::new();
-        metadata_obj.insert("dependencies".to_string(), serde_json::to_value(&*eval.dependencies).unwrap());
-        metadata_obj.insert("evaluations".to_string(), serde_json::to_value(&*eval.evaluations).unwrap());
-        metadata_obj.insert("sorted_evaluations".to_string(), serde_json::to_value(&*eval.sorted_evaluations).unwrap());
+        metadata_obj.insert(
+            "dependencies".to_string(),
+            serde_json::to_value(&*eval.dependencies).unwrap(),
+        );
+        metadata_obj.insert(
+            "evaluations".to_string(),
+            serde_json::to_value(&*eval.evaluations).unwrap(),
+        );
+        metadata_obj.insert(
+            "sorted_evaluations".to_string(),
+            serde_json::to_value(&*eval.sorted_evaluations).unwrap(),
+        );
 
-        fs::write(&parsed_path, common::pretty_json(&Value::Object(metadata_obj)))
-            .unwrap_or_else(|e| panic!("failed to write {}: {}", parsed_path.display(), e));
+        fs::write(
+            &parsed_path,
+            common::pretty_json(&Value::Object(metadata_obj)),
+        )
+        .unwrap_or_else(|e| panic!("failed to write {}: {}", parsed_path.display(), e));
 
         fs::write(&value_path, common::pretty_json(&schema_value))
             .unwrap_or_else(|e| panic!("failed to write {}: {}", value_path.display(), e));
@@ -209,7 +241,7 @@ fn main() {
             }
         }
     }
-    
+
     // Print summary
     println!("{}", "=".repeat(50));
     println!("📊 Summary");
@@ -218,17 +250,22 @@ fn main() {
     println!("Total parse time: {:?}", total_parse_time);
     println!("Total eval time: {:?}", total_eval_time);
     println!("Total time: {:?}", total_parse_time + total_eval_time);
-    
+
     if successful_scenarios > 1 {
         println!("\nAverage per scenario:");
-        println!("  Parse: {:?}", total_parse_time / successful_scenarios as u32);
-        println!("  Eval: {:?}", total_eval_time / successful_scenarios as u32);
+        println!(
+            "  Parse: {:?}",
+            total_parse_time / successful_scenarios as u32
+        );
+        println!(
+            "  Eval: {:?}",
+            total_eval_time / successful_scenarios as u32
+        );
     }
-    
+
     if enable_comparison {
         println!("Comparison failures: {}", comparison_failures);
     }
-    
+
     println!("\n✅ All scenarios completed!\n");
 }
-

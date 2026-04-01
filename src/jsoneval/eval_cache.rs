@@ -72,7 +72,6 @@ impl VersionTracker {
     }
 }
 
-
 /// A cached evaluation result with the specific dependency versions it was evaluated against
 #[derive(Clone)]
 pub struct CacheEntry {
@@ -432,15 +431,12 @@ impl EvalCache {
         if eval_key.starts_with("#/$params") {
             let existing_result: Option<&Value> = if let Some(idx) = self.active_item_index {
                 // Check T2 (global) first — if T2 has same value, no need to bump again.
-                self.entries
-                    .get(eval_key)
-                    .map(|e| &e.result)
-                    .or_else(|| {
-                        self.subform_caches
-                            .get(&idx)
-                            .and_then(|c| c.entries.get(eval_key))
-                            .map(|e| &e.result)
-                    })
+                self.entries.get(eval_key).map(|e| &e.result).or_else(|| {
+                    self.subform_caches
+                        .get(&idx)
+                        .and_then(|c| c.entries.get(eval_key))
+                        .map(|e| &e.result)
+                })
             } else {
                 self.entries.get(eval_key).map(|e| &e.result)
             };

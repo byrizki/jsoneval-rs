@@ -467,7 +467,8 @@ impl JSONEval {
                                         .get(&data_path)
                                         .cloned()
                                         .unwrap_or(Value::Null);
-                                    if cleaned_val != old_val && !data_path.starts_with("/$params") {
+                                    if cleaned_val != old_val && !data_path.starts_with("/$params")
+                                    {
                                         self.eval_cache.bump_data_version(&data_path);
                                     }
 
