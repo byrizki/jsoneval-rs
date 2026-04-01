@@ -307,7 +307,10 @@ impl JSONEval {
                 parent_cache
                     .subform_caches
                     .get(&idx)
-                    .map(|c| c.data_versions.any_newly_bumped_with_prefix(&field_prefix, pre))
+                    .map(|c| {
+                        c.data_versions
+                            .any_newly_bumped_with_prefix(&field_prefix, pre)
+                    })
                     .unwrap_or(false)
             }
         };
@@ -356,9 +359,16 @@ impl JSONEval {
                     if bumped.is_empty() {
                         return false;
                     }
-                    self.dependencies.get(*k).map(|deps| {
-                        deps.iter().any(|dep| bumped.iter().any(|b| dep == b || dep.starts_with(b.as_str())))
-                    }).unwrap_or(false)
+                    self.dependencies
+                        .get(*k)
+                        .map(|deps| {
+                            deps.iter().any(|dep| {
+                                bumped
+                                    .iter()
+                                    .any(|b| dep == b || dep.starts_with(b.as_str()))
+                            })
+                        })
+                        .unwrap_or(false)
                 })
                 .cloned()
                 .collect();

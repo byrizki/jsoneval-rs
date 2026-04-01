@@ -228,7 +228,6 @@ impl JSONEval {
             .and_then(|t| t.as_str())
             .unwrap_or("");
 
-
         // Get the evaluated rule from evaluated_schema (which has $evaluation already processed)
         // Convert field_path to schema path
         let schema_path = path_utils::dot_notation_to_schema_pointer(field_path);
