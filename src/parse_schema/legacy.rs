@@ -418,6 +418,9 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
     // Build reffed_by graph (reverse dependencies for hidden conditions)
     build_reffed_by(lib);
 
+    // Build dep_formula_triggers graph (formula context dependency reverse map)
+    build_dep_formula_triggers(lib);
+
     // Pre-compile all table metadata for zero-copy evaluation
     build_table_metadata(lib)?;
 
@@ -802,3 +805,109 @@ fn build_reffed_by(lib: &mut JSONEval) {
 
     lib.reffed_by = Arc::new(reffed_by);
 }
+
+/// Build dep_formula_triggers graph for JSONEval (Legacy)
+///
+/// Maps each external data path that appears inside a dependent item's value/clear formula
+/// to the list of source field schema paths whose downstream cascade should be re-triggered
+/// when that external path changes.
+///
+/// Example: `ins_occ` has a dependent on `ph_occupation` whose formula checks `phins_relation`.
+/// → `dep_formula_triggers["/illustration/insured/phins_relation"] = ["#/illustration/properties/insured/properties/ins_occ"]`
+/// → When `phins_relation` changes, `ins_occ` is re-enqueued so `ph_occupation` is re-evaluated.
+fn build_dep_formula_triggers(lib: &mut JSONEval) {
+    let mut triggers: IndexMap<String, Vec<String>> = IndexMap::new();
+
+    for (source_path, dep_items) in lib.dependents_evaluations.iter() {
+        for dep_item in dep_items.iter() {
+            // Collect compiled formula evaluation keys from value and clear fields
+            let formula_keys: Vec<String> = [
+                dep_item.value.as_ref().and_then(|v| v.as_str()).map(|s| s.to_string()),
+                dep_item.clear.as_ref().and_then(|v| v.as_str()).map(|s| s.to_string()),
+            ]
+            .into_iter()
+            .flatten()
+            // Only process paths that were compiled (contain /dependents/ — stored as eval key)
+            .filter(|k| k.contains("/dependents/"))
+            .collect();
+
+            for formula_key in formula_keys {
+                // Look up compiled logic ID to extract referenced vars from the engine
+                let Some(logic_id) = lib.evaluations.get(&formula_key).copied() else {
+                    continue;
+                };
+
+                let refs = lib
+                    .engine
+                    .get_referenced_vars(&logic_id)
+                    .unwrap_or_default();
+
+                for dep_ref in refs {
+                    // Normalize to data path (strip #, replace /properties/ with /)
+                    let normalized = path_utils::normalize_to_json_pointer(&dep_ref)
+                        .replace("/properties/", "/")
+                        .trim_start_matches('#')
+                        .to_string();
+                    let dep_key = if normalized.starts_with('/') {
+                        normalized
+                    } else {
+                        format!("/{}", normalized)
+                    };
+
+                    // Skip context-only variables ($value, $refValue) and $params paths
+                    if dep_key.starts_with("/$") {
+                        continue;
+                    }
+
+                    // Skip simple single-segment paths (table column refs like /INSAGE_YEAR)
+                    if dep_key.matches('/').count() <= 1 {
+                        continue;
+                    }
+
+                    // Skip if the referenced path is the source field itself (self-dependency)
+                    let source_data = path_utils::normalize_to_json_pointer(source_path)
+                        .replace("/properties/", "/")
+                        .trim_start_matches('#')
+                        .to_string();
+                    let source_data_key = if source_data.starts_with('/') {
+                        source_data
+                    } else {
+                        format!("/{}", source_data)
+                    };
+                    if dep_key == source_data_key {
+                        continue;
+                    }
+
+                    // Skip if the dep is the direct target of this dependent item
+                    // (that's the trigger field — direct dependency, not context)
+                    let target_data = path_utils::normalize_to_json_pointer(&dep_item.ref_path)
+                        .replace("/properties/", "/")
+                        .trim_start_matches('#')
+                        .to_string();
+                    let target_data_key = if target_data.starts_with('/') {
+                        target_data
+                    } else {
+                        format!("/{}", target_data)
+                    };
+                    if dep_key == target_data_key {
+                        continue;
+                    }
+
+                    triggers
+                        .entry(dep_key)
+                        .or_insert_with(Vec::new)
+                        .push(source_path.clone());
+                }
+            }
+        }
+    }
+
+    // Deduplicate source paths per trigger key
+    for sources in triggers.values_mut() {
+        sources.sort();
+        sources.dedup();
+    }
+
+    lib.dep_formula_triggers = Arc::new(triggers);
+}
+

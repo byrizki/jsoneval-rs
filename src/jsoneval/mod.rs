@@ -51,6 +51,12 @@ pub struct JSONEval {
 
     pub reffed_by: Arc<IndexMap<String, Vec<String>>>,
 
+    /// Reverse map: data path → list of source field schema paths whose dependent
+    /// value/clear formulas reference that path (excluding $value/$refValue context vars).
+    /// When field X changes, source fields in dep_formula_triggers[X] are re-queued so
+    /// their downstream dependents are re-evaluated with the new context.
+    pub dep_formula_triggers: Arc<IndexMap<String, Vec<String>>>,
+
     pub conditional_hidden_fields: Arc<Vec<String>>,
     pub conditional_readonly_fields: Arc<Vec<String>>,
     pub static_arrays: Arc<IndexMap<String, Arc<Value>>>,

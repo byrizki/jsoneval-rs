@@ -414,6 +414,9 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
     // Build reffed_by graph (reverse dependencies for hidden conditions)
     build_reffed_by_parsed(parsed);
 
+    // Build dep_formula_triggers graph (formula context dependency reverse map)
+    build_dep_formula_triggers_parsed(parsed);
+
     // Pre-compile all table metadata for zero-copy evaluation
     build_table_metadata_parsed(parsed)?;
 
@@ -822,3 +825,95 @@ fn build_reffed_by_parsed(parsed: &mut ParsedSchema) {
 
     parsed.reffed_by = Arc::new(reffed_by);
 }
+
+/// Build dep_formula_triggers graph for ParsedSchema
+///
+/// Maps each external data path that appears inside a dependent item's value/clear formula
+/// to the list of source field schema paths whose downstream cascade should be re-triggered
+/// when that external path changes.
+fn build_dep_formula_triggers_parsed(parsed: &mut ParsedSchema) {
+    let mut triggers: IndexMap<String, Vec<String>> = IndexMap::new();
+
+    for (source_path, dep_items) in parsed.dependents_evaluations.iter() {
+        for dep_item in dep_items.iter() {
+            let formula_keys: Vec<String> = [
+                dep_item.value.as_ref().and_then(|v| v.as_str()).map(|s| s.to_string()),
+                dep_item.clear.as_ref().and_then(|v| v.as_str()).map(|s| s.to_string()),
+            ]
+            .into_iter()
+            .flatten()
+            .filter(|k| k.contains("/dependents/"))
+            .collect();
+
+            for formula_key in formula_keys {
+                let Some(logic_id) = parsed.evaluations.get(&formula_key).copied() else {
+                    continue;
+                };
+
+                let refs = parsed
+                    .engine
+                    .get_referenced_vars(&logic_id)
+                    .unwrap_or_default();
+
+                for dep_ref in refs {
+                    let normalized = path_utils::normalize_to_json_pointer(&dep_ref)
+                        .replace("/properties/", "/")
+                        .trim_start_matches('#')
+                        .to_string();
+                    let dep_key = if normalized.starts_with('/') {
+                        normalized
+                    } else {
+                        format!("/{}", normalized)
+                    };
+
+                    if dep_key.starts_with("/$") {
+                        continue;
+                    }
+
+                    if dep_key.matches('/').count() <= 1 {
+                        continue;
+                    }
+
+                    let source_data = path_utils::normalize_to_json_pointer(source_path)
+                        .replace("/properties/", "/")
+                        .trim_start_matches('#')
+                        .to_string();
+                    let source_data_key = if source_data.starts_with('/') {
+                        source_data
+                    } else {
+                        format!("/{}", source_data)
+                    };
+                    if dep_key == source_data_key {
+                        continue;
+                    }
+
+                    let target_data = path_utils::normalize_to_json_pointer(&dep_item.ref_path)
+                        .replace("/properties/", "/")
+                        .trim_start_matches('#')
+                        .to_string();
+                    let target_data_key = if target_data.starts_with('/') {
+                        target_data
+                    } else {
+                        format!("/{}", target_data)
+                    };
+                    if dep_key == target_data_key {
+                        continue;
+                    }
+
+                    triggers
+                        .entry(dep_key)
+                        .or_insert_with(Vec::new)
+                        .push(source_path.clone());
+                }
+            }
+        }
+    }
+
+    for sources in triggers.values_mut() {
+        sources.sort();
+        sources.dedup();
+    }
+
+    parsed.dep_formula_triggers = Arc::new(triggers);
+}
+

@@ -82,6 +82,12 @@ pub struct ParsedSchema {
     /// Used for recursive hiding logic
     pub reffed_by: Arc<IndexMap<String, Vec<String>>>,
 
+    /// Reverse map: data path → list of source field schema paths whose dependent
+    /// value/clear formulas reference that path (excluding $value/$refValue context vars).
+    /// When field X changes, source fields in dep_formula_triggers[X] are re-queued so
+    /// their downstream dependents are re-evaluated with the new context.
+    pub dep_formula_triggers: Arc<IndexMap<String, Vec<String>>>,
+
     /// Cached paths of fields that have hidden conditions (wrapped in Arc for zero-copy sharing)
     pub conditional_hidden_fields: Arc<Vec<String>>,
 
@@ -152,6 +158,7 @@ impl ParsedSchema {
             options_templates: Arc::new(Vec::new()),
             subforms: IndexMap::new(),
             reffed_by: Arc::new(IndexMap::new()),
+            dep_formula_triggers: Arc::new(IndexMap::new()),
             conditional_hidden_fields: Arc::new(Vec::new()),
             conditional_readonly_fields: Arc::new(Vec::new()),
             static_arrays,

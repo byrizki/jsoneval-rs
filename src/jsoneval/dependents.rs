@@ -62,6 +62,7 @@ impl JSONEval {
             &mut self.eval_data,
             &mut self.eval_cache,
             &self.dependents_evaluations,
+            &self.dep_formula_triggers,
             &self.evaluated_schema,
             &mut to_process,
             &mut processed,
@@ -309,6 +310,7 @@ impl JSONEval {
                 &mut self.eval_data,
                 &mut self.eval_cache,
                 &self.dependents_evaluations,
+                &self.dep_formula_triggers,
                 &self.evaluated_schema,
                 to_process,
                 processed,
@@ -345,6 +347,7 @@ impl JSONEval {
                 &mut self.eval_data,
                 &mut self.eval_cache,
                 &self.dependents_evaluations,
+                &self.dep_formula_triggers,
                 &self.evaluated_schema,
                 to_process,
                 processed,
@@ -454,6 +457,7 @@ impl JSONEval {
                 &mut self.eval_data,
                 &mut self.eval_cache,
                 &self.dependents_evaluations,
+                &self.dep_formula_triggers,
                 &self.evaluated_schema,
                 to_process,
                 processed,
@@ -1093,6 +1097,7 @@ impl JSONEval {
         eval_data: &mut EvalData,
         eval_cache: &mut crate::jsoneval::eval_cache::EvalCache,
         dependents_evaluations: &IndexMap<String, Vec<DependentItem>>,
+        dep_formula_triggers: &IndexMap<String, Vec<String>>,
         evaluated_schema: &Value,
         queue: &mut Vec<(String, bool)>,
         processed: &mut IndexSet<String>,
@@ -1133,6 +1138,18 @@ impl JSONEval {
                 .pointer(&current_data_path)
                 .cloned()
                 .unwrap_or(Value::Null);
+
+            // Re-enqueue source fields whose dependent formulas reference this changed field.
+            // These are fields that have a dependent formula that checks `current_path` as a
+            // contextual condition (e.g., ins_occ's formula for ph_occupation checks phins_relation).
+            // When `current_path` changes, we need to re-evaluate those source fields' dependents.
+            if let Some(formula_sources) = dep_formula_triggers.get(&current_data_path) {
+                for source_schema_path in formula_sources {
+                    if !processed.contains(source_schema_path) {
+                        queue.push((source_schema_path.clone(), true));
+                    }
+                }
+            }
 
             // Find dependents for this path
             if let Some(dependent_items) = dependents_evaluations.get(&current_path) {
@@ -1182,6 +1199,14 @@ impl JSONEval {
                     }
                     change_obj.insert("$parentField".to_string(), parent_field);
                     change_obj.insert("transitive".to_string(), Value::Bool(is_transitive));
+
+                    // Skip writing back to a field that has already been processed.
+                    // This prevents formula-triggered re-enqueues from creating circular writes:
+                    // e.g., ins_gender → triggers phins_relation (via dep_formula_triggers) →
+                    // phins_relation has a dep that writes back to ins_gender → we must not let that happen.
+                    if processed.contains(ref_path) {
+                        continue;
+                    }
 
                     let mut add_transitive = false;
                     let mut add_deps = false;
@@ -1284,3 +1309,4 @@ fn subform_field_key(subform_path: &str) -> String {
         .unwrap_or(stripped)
         .to_string()
 }
+

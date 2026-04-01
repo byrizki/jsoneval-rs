@@ -33,6 +33,7 @@ impl Clone for JSONEval {
             options_templates: self.options_templates.clone(),
             subforms: self.subforms.clone(),
             reffed_by: self.reffed_by.clone(),
+            dep_formula_triggers: self.dep_formula_triggers.clone(),
             context: self.context.clone(),
             data: self.data.clone(),
             evaluated_schema: self.evaluated_schema.clone(),
@@ -102,6 +103,7 @@ impl JSONEval {
                     subforms: IndexMap::new(),
                     engine: Arc::new(engine),
                     reffed_by: Arc::new(IndexMap::new()),
+                    dep_formula_triggers: Arc::new(IndexMap::new()),
                     context: context.clone(),
                     data: data.clone(),
                     evaluated_schema: evaluated_schema.clone(),
@@ -161,6 +163,7 @@ impl JSONEval {
                     subforms: IndexMap::new(),
                     engine: Arc::new(engine),
                     reffed_by: Arc::new(IndexMap::new()),
+                    dep_formula_triggers: Arc::new(IndexMap::new()),
                     context: context.clone(),
                     data: data.clone(),
                     evaluated_schema: evaluated_schema.clone(),
@@ -247,6 +250,7 @@ impl JSONEval {
             subforms: IndexMap::new(),
             engine: Arc::new(engine),
             reffed_by: Arc::new(IndexMap::new()),
+            dep_formula_triggers: Arc::new(IndexMap::new()),
             context: context.clone(),
             data: data.clone(),
             evaluated_schema: evaluated_schema.clone(),
@@ -333,6 +337,7 @@ impl JSONEval {
             subforms,
             engine,
             reffed_by: Arc::clone(&parsed.reffed_by),
+            dep_formula_triggers: Arc::clone(&parsed.dep_formula_triggers),
             context: context.clone(),
             data: data.clone(),
             evaluated_schema: (*evaluated_schema).clone(),
@@ -392,6 +397,7 @@ impl JSONEval {
         self.layout_paths = Arc::new(Vec::new());
         self.options_templates = Arc::new(Vec::new());
         self.reffed_by = Arc::new(IndexMap::new());
+        self.dep_formula_triggers = Arc::new(IndexMap::new());
         self.conditional_hidden_fields = Arc::new(Vec::new());
         self.conditional_readonly_fields = Arc::new(Vec::new());
         self.subforms.clear();
@@ -504,6 +510,7 @@ impl JSONEval {
         self.layout_paths = Arc::new(Vec::new());
         self.options_templates = Arc::new(Vec::new());
         self.reffed_by = Arc::new(IndexMap::new());
+        self.dep_formula_triggers = Arc::new(IndexMap::new());
         self.conditional_hidden_fields = Arc::new(Vec::new());
         self.conditional_readonly_fields = Arc::new(Vec::new());
         self.subforms.clear();
@@ -560,6 +567,7 @@ impl JSONEval {
         self.layout_paths = parsed.layout_paths.clone();
         self.options_templates = parsed.options_templates.clone();
         self.static_arrays = parsed.static_arrays.clone();
+        self.dep_formula_triggers = parsed.dep_formula_triggers.clone();
 
         // Share the engine Arc (cheap pointer clone, not data clone)
         self.engine = parsed.engine.clone();
