@@ -90,6 +90,10 @@ pub struct SubformItemCache {
     pub data_versions: VersionTracker,
     pub entries: HashMap<String, CacheEntry>,
     pub item_snapshot: Value,
+    /// Per-item snapshot of the evaluated schema captured after each evaluate_subform_item.
+    /// Allows get_evaluated_schema_subform to return the correct per-item values without
+    /// re-running the full evaluation pipeline in a shared subform context.
+    pub evaluated_schema: Option<Value>,
 }
 
 impl SubformItemCache {
@@ -98,6 +102,7 @@ impl SubformItemCache {
             data_versions: VersionTracker::new(),
             entries: HashMap::new(),
             item_snapshot: Value::Null,
+            evaluated_schema: None,
         }
     }
 }
@@ -294,7 +299,7 @@ impl EvalCache {
                 if let Some(hit) =
                     self.validate_entry(eval_key, deps, &cache.entries, &cache.data_versions)
                 {
-                    if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() {
+                    if crate::utils::is_debug_cache_enabled() {
                         println!("Cache HIT [T1 idx={}] {}", idx, eval_key);
                     }
                     return Some(hit);
@@ -326,7 +331,7 @@ impl EvalCache {
                     let result =
                         self.validate_entry(eval_key, deps, &self.entries, item_data_versions);
                     if result.is_some() {
-                        if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() {
+                        if crate::utils::is_debug_cache_enabled() {
                             println!(
                                 "Cache HIT [T2 idx={} for={:?}] {}",
                                 idx, entry.computed_for_item, eval_key
@@ -361,7 +366,7 @@ impl EvalCache {
                 if let Some(hit) =
                     self.validate_entry(eval_key, deps, &cache.entries, &cache.data_versions)
                 {
-                    if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() {
+                    if crate::utils::is_debug_cache_enabled() {
                         println!("Cache HIT [T1 table idx={}] {}", idx, eval_key);
                     }
                     return Some(hit);
@@ -378,7 +383,7 @@ impl EvalCache {
             // would pick up historical per-rider bumps and cause false misses.
             let result = self.validate_entry(eval_key, deps, &self.entries, &self.data_versions);
             if result.is_some() {
-                if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() {
+                if crate::utils::is_debug_cache_enabled() {
                     println!("Cache HIT [T2 table idx={}] {}", idx, eval_key);
                 }
             }
@@ -408,7 +413,7 @@ impl EvalCache {
 
             if let Some(&cached_ver) = entry.dep_versions.get(&data_dep_path) {
                 if current_ver != cached_ver {
-                    if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() {
+                    if crate::utils::is_debug_cache_enabled() {
                         println!(
                             "Cache MISS {}: dep {} changed ({} -> {})",
                             eval_key, data_dep_path, cached_ver, current_ver
@@ -417,7 +422,7 @@ impl EvalCache {
                     return None;
                 }
             } else {
-                if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() {
+                if crate::utils::is_debug_cache_enabled() {
                     println!(
                         "Cache MISS {}: dep {} missing from cache entry",
                         eval_key, data_dep_path
@@ -426,7 +431,7 @@ impl EvalCache {
                 return None;
             }
         }
-        if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() {
+        if crate::utils::is_debug_cache_enabled() {
             println!("Cache HIT {}", eval_key);
         }
         Some(entry.result.clone())

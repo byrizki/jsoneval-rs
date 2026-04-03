@@ -116,8 +116,7 @@ fn evaluate_table_inner(
         }
     }
 
-    #[cfg(debug_assertions)]
-    if external_deps.is_empty() {
+    if crate::utils::is_debug_cache_enabled() && external_deps.is_empty() {
         if !metadata.data_plans.is_empty() {
             eprintln!(
                 "[jsoneval DEBUG] table {} has zero external_deps but \
@@ -174,8 +173,9 @@ fn evaluate_table_inner(
                 };
 
                 if lib.dep_fails_schema_rules(dep, dep_value, scope_data.data()) {
-                    #[cfg(debug_assertions)]
-                    println!("Table Cache MISS [table::{}] dep {} fails schema rules", eval_key, dep);
+                    if crate::utils::is_debug_cache_enabled() {
+                        println!("Table Cache MISS [table::{}] dep {} fails schema rules", eval_key, dep);
+                    }
                     requirement_not_filled = true;
                     break;
                 }
@@ -198,8 +198,9 @@ fn evaluate_table_inner(
     }
 
     if should_clear || should_skip || requirement_not_filled {
-        #[cfg(debug_assertions)]
-        println!("Table Cache MISS [table::{}] should_clear={}, should_skip={}, requirement_not_filled={} (external_deps={:?})", eval_key, should_clear, should_skip, requirement_not_filled, external_deps);
+        if crate::utils::is_debug_cache_enabled() {
+            println!("Table Cache MISS [table::{}] should_clear={}, should_skip={}, requirement_not_filled={} (external_deps={:?})", eval_key, should_clear, should_skip, requirement_not_filled, external_deps);
+        }
         return Ok((Vec::new(), Some(external_deps)));
     }
 

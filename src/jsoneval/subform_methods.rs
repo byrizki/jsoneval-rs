@@ -450,7 +450,7 @@ impl JSONEval {
                         &eval_data_snapshot,
                         None,
                     ) {
-                        if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() {
+                        if crate::utils::is_debug_cache_enabled() {
                             println!("PARENT EVALUATED TABLE {} -> {} rows", key, rows.len());
                         }
                         let result_val = serde_json::Value::Array(rows);
@@ -463,7 +463,7 @@ impl JSONEval {
                             parent_cache.active_item_index = Some(idx);
                         }
                     } else {
-                        if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() {
+                        if crate::utils::is_debug_cache_enabled() {
                             println!("PARENT EVALUATED TABLE {} -> ERROR", key);
                         }
                     }
@@ -495,9 +495,12 @@ impl JSONEval {
         // own per-item cache. Without this, the next evaluate_subform call for the same idx reads
         // old_item_snapshot = Null from the subform cache (it was removed at line 183) and treats
         // the rider as brand-new, forcing a full re-diff and invalidating all T1 entries.
+        // Also store the subform's evaluated_schema snapshot (written by evaluate_internal above)
+        // so get_evaluated_schema_subform can return per-item values with an O(1) cache read.
         {
             let subform = self.subforms.get_mut(base_path).unwrap();
-            if let Some(item_cache) = self.eval_cache.subform_caches.get(&idx) {
+            if let Some(item_cache) = self.eval_cache.subform_caches.get_mut(&idx) {
+                item_cache.evaluated_schema = Some(subform.evaluated_schema.clone());
                 subform
                     .eval_cache
                     .subform_caches
@@ -507,6 +510,7 @@ impl JSONEval {
 
         result
     }
+
 
     /// Evaluate a subform identified by `subform_path`.
     ///
@@ -562,6 +566,7 @@ impl JSONEval {
             sf.evaluate_internal_pre_diffed(paths, token)
         })
     }
+
 
     /// Validate subform data against its schema rules.
     ///
@@ -695,13 +700,39 @@ impl JSONEval {
         subform_path: &str,
         resolve_layout: bool,
     ) -> Value {
-        let (base_path, _) = self.resolve_subform_path_alias(subform_path);
-        if let Some(subform) = self.subforms.get_mut(base_path.as_ref() as &str) {
+        let (base_path, idx_opt) = self.resolve_subform_path_alias(subform_path);
+
+        if let Some(idx) = idx_opt {
+            // Read the per-item evaluated_schema snapshot stored by the most recent
+            // evaluate_subform_item call for this index (Step 6 in with_item_cache_swap).
+            //
+            // This is the correct approach: the subform's evaluated_schema is a single
+            // shared object that is overwritten by every evaluate_subform call. Trying to
+            // re-run evaluate_internal in a shared context is fragile and ordering-dependent.
+            // Instead, we capture the schema snapshot immediately after each item evaluates
+            // and store it in SubformItemCache.evaluated_schema for O(1) retrieval here.
+            if let Some(schema) = self
+                .eval_cache
+                .subform_caches
+                .get(&idx)
+                .and_then(|c| c.evaluated_schema.clone())
+            {
+                return schema;
+            }
+            // Fallback: no snapshot yet — run the evaluation now.
+            if let Some(subform) = self.subforms.get_mut(base_path.as_ref() as &str) {
+                subform.get_evaluated_schema(resolve_layout)
+            } else {
+                Value::Null
+            }
+        } else if let Some(subform) = self.subforms.get_mut(base_path.as_ref() as &str) {
             subform.get_evaluated_schema(resolve_layout)
         } else {
             Value::Null
         }
     }
+
+
 
     /// Get schema value from subform in nested object format (all .value fields).
     pub fn get_schema_value_subform(&mut self, subform_path: &str) -> Value {

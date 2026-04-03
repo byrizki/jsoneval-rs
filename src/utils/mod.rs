@@ -28,9 +28,10 @@ macro_rules! debug_log {
     }
 }
 
-// Timing infrastructure
+// Timing and Debug infrastructure
 thread_local! {
     static TIMING_ENABLED: RefCell<bool> = RefCell::new(std::env::var("JSONEVAL_TIMING").is_ok());
+    static DEBUG_CACHE_ENABLED: RefCell<bool> = RefCell::new(std::env::var("JSONEVAL_DEBUG_CACHE").is_ok());
     static TIMING_DATA: RefCell<Vec<(String, std::time::Duration)>> = RefCell::new(Vec::new());
 }
 
@@ -38,6 +39,12 @@ thread_local! {
 #[inline]
 pub fn is_timing_enabled() -> bool {
     TIMING_ENABLED.with(|enabled| *enabled.borrow())
+}
+
+/// Check if cache debugging is enabled
+#[inline]
+pub fn is_debug_cache_enabled() -> bool {
+    DEBUG_CACHE_ENABLED.with(|enabled| *enabled.borrow())
 }
 
 /// Enable timing programmatically (in addition to JSONEVAL_TIMING environment variable)

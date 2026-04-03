@@ -165,14 +165,14 @@ impl JSONEval {
              caller must set up the cache-swap before calling this method"
         );
 
-        // Same generation-based fast skip as evaluate_internal_with_new_data:
-        // The diff_and_update_versions calls in with_item_cache_swap bump data_versions.versions
-        // but do NOT increment eval_generation. If nothing was re-stored since last evaluate, skip.
-        if paths.is_none() && !self.eval_cache.needs_full_evaluation() {
-            self.evaluate_others(paths, token, false);
-            return Ok(());
-        }
-
+        // Always delegate to evaluate_internal so that evaluated_schema is populated correctly
+        // for every item. The previous generation-based skip here left evaluated_schema stale
+        // (with the prior rider's values) when no deps changed — causing get_evaluated_schema_subform
+        // to return wrong values for all but the last-evaluated rider.
+        //
+        // evaluate_internal's all-hit fast path (lines ~314–338) handles the no-change case
+        // efficiently: it writes eval_data + evaluated_schema per formula from T1 cache and
+        // skips the expensive formula engine entirely.
         self.evaluate_internal(paths, token)
     }
 
@@ -327,9 +327,18 @@ impl JSONEval {
                         });
 
                         if all_hit {
-                            // Populate eval_data so downstream batches see these values
+                            // Populate eval_data AND evaluated_schema so both downstream batches
+                            // and get_evaluated_schema callers see the correct per-item values.
+                            // Previously only eval_data was written here, leaving evaluated_schema
+                            // with stale values from the last full-miss evaluation (e.g. the first
+                            // rider), causing all riders to report the same schema outputs.
                             for (ptr, val) in batch_hits {
-                                self.eval_data.set(&ptr, val);
+                                self.eval_data.set(&ptr, val.clone());
+                                if let Some(schema_value) =
+                                    self.evaluated_schema.pointer_mut(&ptr)
+                                {
+                                    *schema_value = val;
+                                }
                             }
                             continue;
                         }
@@ -369,7 +378,6 @@ impl JSONEval {
                         let is_table = self.table_metadata.contains_key(eval_key);
 
                         if is_table {
-                            let t = std::time::Instant::now();
                             if let Ok((rows, external_deps_opt)) = table_evaluate::evaluate_table(
                                 self,
                                 eval_key,
@@ -406,7 +414,6 @@ impl JSONEval {
                                     *schema_value = marker;
                                 }
                             }
-                            println!("    table_evaluate::evaluate_table: {:?} {:?}", eval_key, t.elapsed());
                         } else {
                             let empty_deps = indexmap::IndexSet::new();
                             let deps = self.dependencies.get(eval_key).unwrap_or(&empty_deps);
