@@ -105,9 +105,8 @@ fn evaluate_table_inner(
                 continue;
             }
 
-            let dep_data_path =
-                crate::jsoneval::path_utils::normalize_to_json_pointer(dep)
-                    .replace("/properties/", "/");
+            let dep_data_path = crate::jsoneval::path_utils::normalize_to_json_pointer(dep)
+                .replace("/properties/", "/");
             if dep_data_path != pointer_data_prefix
                 && !dep_data_path.starts_with(&pointer_data_prefix_slash)
             {
@@ -174,7 +173,10 @@ fn evaluate_table_inner(
 
                 if lib.dep_fails_schema_rules(dep, dep_value, scope_data.data()) {
                     if crate::utils::is_debug_cache_enabled() {
-                        println!("Table Cache MISS [table::{}] dep {} fails schema rules", eval_key, dep);
+                        println!(
+                            "Table Cache MISS [table::{}] dep {} fails schema rules",
+                            eval_key, dep
+                        );
                     }
                     requirement_not_filled = true;
                     break;

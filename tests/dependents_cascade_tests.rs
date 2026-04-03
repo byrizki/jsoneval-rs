@@ -65,9 +65,9 @@ fn test_cascade_dependents_via_formula_reference() {
     let deps_array = deps_result.as_array().expect("deps should be array");
 
     // We expect target_field to be updated to "COPY_ME"
-    let matched_target = deps_array.iter().find(|item| {
-        item.get("$ref").and_then(|r| r.as_str()) == Some("form.target_field")
-    });
+    let matched_target = deps_array
+        .iter()
+        .find(|item| item.get("$ref").and_then(|r| r.as_str()) == Some("form.target_field"));
 
     assert!(
         matched_target.is_some(),
@@ -145,9 +145,9 @@ fn test_self_cycle_dependents() {
 
     // We expect trigger_field NOT to be in the deps_array, as it's the original trigger field
     // It should be skipped due to the processed set.
-    let self_reference = deps_array.iter().find(|item| {
-        item.get("$ref").and_then(|r| r.as_str()) == Some("form.trigger_field")
-    });
+    let self_reference = deps_array
+        .iter()
+        .find(|item| item.get("$ref").and_then(|r| r.as_str()) == Some("form.trigger_field"));
 
     assert!(
         self_reference.is_none(),

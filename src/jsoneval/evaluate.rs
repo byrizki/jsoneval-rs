@@ -108,7 +108,8 @@ impl JSONEval {
             // The diff between Null and the full rider data will then mark EVERY field (sa, code, etc.)
             // as "changed", spuriously bumping secondary trackers and causing false T2 table misses.
             for (subform_path, subform) in &mut self.subforms {
-                let subform_ptr = crate::jsoneval::path_utils::normalize_to_json_pointer(subform_path);
+                let subform_ptr =
+                    crate::jsoneval::path_utils::normalize_to_json_pointer(subform_path);
                 if let Some(items) = new_data.pointer(&subform_ptr).and_then(|v| v.as_array()) {
                     for (idx, item_val) in items.iter().enumerate() {
                         self.eval_cache.ensure_active_item_cache(idx);
@@ -334,8 +335,7 @@ impl JSONEval {
                             // rider), causing all riders to report the same schema outputs.
                             for (ptr, val) in batch_hits {
                                 self.eval_data.set(&ptr, val.clone());
-                                if let Some(schema_value) =
-                                    self.evaluated_schema.pointer_mut(&ptr)
+                                if let Some(schema_value) = self.evaluated_schema.pointer_mut(&ptr)
                                 {
                                     *schema_value = val;
                                 }

@@ -558,7 +558,6 @@ fn collect_table_dependencies(lib: &mut JSONEval) {
         }
     }
 
-
     // Wrap the updated dependencies in Arc
     lib.dependencies = Arc::new(dependencies);
 }

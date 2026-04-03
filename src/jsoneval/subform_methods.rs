@@ -257,9 +257,10 @@ impl JSONEval {
         // and erroneously re-evaluates expensive tables (RIDER_ZLOB_TABLE etc.) for every rider.
         {
             let item_field_prefix = format!("/{}/", field_key);
-            if let (Some(ref pre), Some(c)) =
-                (&pre_diff_item_versions, parent_cache.subform_caches.get(&idx))
-            {
+            if let (Some(ref pre), Some(c)) = (
+                &pre_diff_item_versions,
+                parent_cache.subform_caches.get(&idx),
+            ) {
                 let newly_bumped: Vec<String> = c
                     .data_versions
                     .versions()
@@ -292,7 +293,8 @@ impl JSONEval {
                 // After the merge, current_dv reflects the full accumulated state; the diff
                 // above already bumped any newly-changed fields further, so stale entries that
                 // depended on those fields are still correctly evicted.
-                c.data_versions.merge_from(&subform_item_cache.data_versions);
+                c.data_versions
+                    .merge_from(&subform_item_cache.data_versions);
 
                 let current_dv = c.data_versions.clone();
                 for (k, v) in subform_item_cache.entries {
@@ -315,7 +317,6 @@ impl JSONEval {
                 }
             }
         }
-
 
         // Insert into the parent eval_data as well (to make the item visible to global formulas on main evaluate).
         // Only write (and bump version) when the value actually changed: prevents spurious riders-array
@@ -444,12 +445,14 @@ impl JSONEval {
                     }
 
                     // Evaluate the table using parent's updated data
-                    if let Ok((rows, external_deps_opt)) = crate::jsoneval::table_evaluate::evaluate_table(
-                        self,
-                        key,
-                        &eval_data_snapshot,
-                        None,
-                    ) {
+                    if let Ok((rows, external_deps_opt)) =
+                        crate::jsoneval::table_evaluate::evaluate_table(
+                            self,
+                            key,
+                            &eval_data_snapshot,
+                            None,
+                        )
+                    {
                         if crate::utils::is_debug_cache_enabled() {
                             println!("PARENT EVALUATED TABLE {} -> {} rows", key, rows.len());
                         }
@@ -511,7 +514,6 @@ impl JSONEval {
         result
     }
 
-
     /// Evaluate a subform identified by `subform_path`.
     ///
     /// The path may include a trailing item index to bind the evaluation to a specific
@@ -566,7 +568,6 @@ impl JSONEval {
             sf.evaluate_internal_pre_diffed(paths, token)
         })
     }
-
 
     /// Validate subform data against its schema rules.
     ///
@@ -731,8 +732,6 @@ impl JSONEval {
             Value::Null
         }
     }
-
-
 
     /// Get schema value from subform in nested object format (all .value fields).
     pub fn get_schema_value_subform(&mut self, subform_path: &str) -> Value {
