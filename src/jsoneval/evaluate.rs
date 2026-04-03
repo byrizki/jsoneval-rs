@@ -101,6 +101,28 @@ impl JSONEval {
                 return Ok(());
             }
 
+            // Proactively populate per-item caches for all existing subform items from the loaded data.
+            // When a user opens an existing form (e.g. reload from DB), the main `evaluate(data)`
+            // establishes the baseline state. If we don't populate subform caches here, the first
+            // time the user opens a rider (`evaluate_subform`), the cache is empty (item_snapshot=Null).
+            // The diff between Null and the full rider data will then mark EVERY field (sa, code, etc.)
+            // as "changed", spuriously bumping secondary trackers and causing false T2 table misses.
+            for (subform_path, subform) in &mut self.subforms {
+                let subform_ptr = crate::jsoneval::path_utils::normalize_to_json_pointer(subform_path);
+                if let Some(items) = new_data.pointer(&subform_ptr).and_then(|v| v.as_array()) {
+                    for (idx, item_val) in items.iter().enumerate() {
+                        self.eval_cache.ensure_active_item_cache(idx);
+                        if let Some(c) = self.eval_cache.subform_caches.get_mut(&idx) {
+                            c.item_snapshot = item_val.clone();
+                        }
+                        subform.eval_cache.ensure_active_item_cache(idx);
+                        if let Some(c) = subform.eval_cache.subform_caches.get_mut(&idx) {
+                            c.item_snapshot = item_val.clone();
+                        }
+                    }
+                }
+            }
+
             self.eval_cache
                 .store_snapshot_and_diff_versions(&old_data, &new_data);
             // Save snapshot for the next evaluation cycle (avoids one snapshot_data_clone() call).
@@ -347,68 +369,21 @@ impl JSONEval {
                         let is_table = self.table_metadata.contains_key(eval_key);
 
                         if is_table {
-                            let mut external_deps = indexmap::IndexSet::new();
-                            let pointer_data_prefix = pointer_path.replace("/properties/", "/");
-                            let pointer_data_prefix_slash = format!("{}/", pointer_data_prefix);
-                            if let Some(deps) = self.dependencies.get(eval_key) {
-                                for dep in deps {
-                                    let dep_data_path =
-                                        crate::jsoneval::path_utils::normalize_to_json_pointer(dep)
-                                            .replace("/properties/", "/");
-                                    if dep_data_path != pointer_data_prefix
-                                        && !dep_data_path.starts_with(&pointer_data_prefix_slash)
-                                    {
-                                        external_deps.insert(dep.clone());
-                                    }
-                                }
-                            }
-
-                            #[cfg(debug_assertions)]
-                            if external_deps.is_empty() {
-                                if let Some(meta) = self.table_metadata.get(eval_key) {
-                                    if !meta.data_plans.is_empty() {
-                                        eprintln!(
-                                            "[jsoneval DEBUG] table {} has zero external_deps but \
-                                             non-empty data_plans — $params changes may not \
-                                             invalidate its cache",
-                                            eval_key
-                                        );
-                                    }
-                                }
-                            }
-
-                            if let Some(cached_result) =
-                                self.eval_cache.check_cache(eval_key, &external_deps)
-                            {
-                                let static_key = format!("/$table{}", pointer_path);
-                                let arc_value = std::sync::Arc::new(cached_result.clone());
-
-                                Arc::make_mut(&mut self.static_arrays)
-                                    .insert(static_key.clone(), std::sync::Arc::clone(&arc_value));
-
-                                self.eval_data.set(&pointer_path, Value::clone(&arc_value));
-
-                                let marker = serde_json::json!({ "$static_array": static_key });
-                                if let Some(schema_value) =
-                                    self.evaluated_schema.pointer_mut(&pointer_path)
-                                {
-                                    *schema_value = marker;
-                                }
-                                continue;
-                            }
-
-                            if let Ok(rows) = table_evaluate::evaluate_table(
+                            let t = std::time::Instant::now();
+                            if let Ok((rows, external_deps_opt)) = table_evaluate::evaluate_table(
                                 self,
                                 eval_key,
                                 &eval_data_snapshot,
                                 token,
                             ) {
                                 let result_val = Value::Array(rows);
-                                self.eval_cache.store_cache(
-                                    eval_key,
-                                    &external_deps,
-                                    result_val.clone(),
-                                );
+                                if let Some(external_deps) = external_deps_opt {
+                                    self.eval_cache.store_cache(
+                                        eval_key,
+                                        &external_deps,
+                                        result_val.clone(),
+                                    );
+                                }
 
                                 // NOTE: bump_params_version / bump_data_version for table results
                                 // is now handled inside store_cache (conditional on value change).
@@ -431,6 +406,7 @@ impl JSONEval {
                                     *schema_value = marker;
                                 }
                             }
+                            println!("    table_evaluate::evaluate_table: {:?} {:?}", eval_key, t.elapsed());
                         } else {
                             let empty_deps = indexmap::IndexSet::new();
                             let deps = self.dependencies.get(eval_key).unwrap_or(&empty_deps);

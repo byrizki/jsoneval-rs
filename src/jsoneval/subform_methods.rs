@@ -242,6 +242,39 @@ impl JSONEval {
             );
             c.item_snapshot = new_item_val.clone();
         }
+
+        // Propagate paths NEWLY bumped by this diff into parent_cache.data_versions so that
+        // check_table_cache (which validates T2 global entries against self.data_versions only)
+        // correctly detects changes to rider fields like `sa`, `code`, etc.
+        //
+        // Without this, a field changed via evaluate_dependents_subform (e.g. sa: 0 → 200M)
+        // only bumps the per-item tracker. The T2 entry for RIDER_ZLOB_TABLE (cached with sa=0)
+        // still looks valid when validated against self.data_versions → stale rows → first_prem=0.
+        //
+        // We use pre_diff_item_versions as the baseline so only NEW bumps from THIS diff pass
+        // are propagated, NOT historical bumps accumulated by prior evaluate_subform calls.
+        // This prevents the regression where run_subform_pass sees stale per-rider bumps
+        // and erroneously re-evaluates expensive tables (RIDER_ZLOB_TABLE etc.) for every rider.
+        {
+            let item_field_prefix = format!("/{}/", field_key);
+            if let (Some(ref pre), Some(c)) =
+                (&pre_diff_item_versions, parent_cache.subform_caches.get(&idx))
+            {
+                let newly_bumped: Vec<String> = c
+                    .data_versions
+                    .versions()
+                    .filter(|(k, &v)| k.starts_with(&item_field_prefix) && v > pre.get(k))
+                    .map(|(k, _)| k.to_string())
+                    .collect();
+                if !newly_bumped.is_empty() {
+                    for k in newly_bumped {
+                        parent_cache.data_versions.bump(&k);
+                    }
+                    parent_cache.eval_generation += 1;
+                }
+            }
+        }
+
         parent_cache.active_item_index = Some(idx);
 
         // Restore cached entries that lived in the subform's own per-item cache.
@@ -250,6 +283,17 @@ impl JSONEval {
         // that field are stale and must not be re-inserted (they would cause false T1 hits).
         if let Some(subform_item_cache) = subform_item_cache_opt {
             if let Some(c) = parent_cache.subform_caches.get_mut(&idx) {
+                // Merge historical data_versions from the prior subform item cache BEFORE
+                // computing current_dv. The fresh item cache (ensure_active_item_cache) only
+                // has paths bumped by the current diff. Historical bumps (e.g. /riders/sa=1
+                // from prior calls) live in subform_item_cache.data_versions. Without this
+                // merge, current_dv["/riders/sa"]=0 while T1 entries store dep_ver=1, so all
+                // T1 entries are evicted and every table falls through to the T2 path.
+                // After the merge, current_dv reflects the full accumulated state; the diff
+                // above already bumped any newly-changed fields further, so stale entries that
+                // depended on those fields are still correctly evicted.
+                c.data_versions.merge_from(&subform_item_cache.data_versions);
+
                 let current_dv = c.data_versions.clone();
                 for (k, v) in subform_item_cache.entries {
                     // Skip if entry already exists (parent-form run may have added a fresher result).
@@ -271,6 +315,7 @@ impl JSONEval {
                 }
             }
         }
+
 
         // Insert into the parent eval_data as well (to make the item visible to global formulas on main evaluate).
         // Only write (and bump version) when the value actually changed: prevents spurious riders-array
@@ -399,7 +444,7 @@ impl JSONEval {
                     }
 
                     // Evaluate the table using parent's updated data
-                    if let Ok(rows) = crate::jsoneval::table_evaluate::evaluate_table(
+                    if let Ok((rows, external_deps_opt)) = crate::jsoneval::table_evaluate::evaluate_table(
                         self,
                         key,
                         &eval_data_snapshot,
@@ -410,30 +455,13 @@ impl JSONEval {
                         }
                         let result_val = serde_json::Value::Array(rows);
 
-                        // Collect external dependencies for this cache entry
-                        let mut external_deps = indexmap::IndexSet::new();
-                        let pointer_data_prefix =
-                            crate::jsoneval::path_utils::normalize_to_json_pointer(key)
-                                .replace("/properties/", "/");
-                        let pointer_data_prefix_slash = format!("{}/", pointer_data_prefix);
-                        if let Some(deps) = self.dependencies.get(key) {
-                            for dep in deps {
-                                let dep_data_path =
-                                    crate::jsoneval::path_utils::normalize_to_json_pointer(dep)
-                                        .replace("/properties/", "/");
-                                if dep_data_path != pointer_data_prefix
-                                    && !dep_data_path.starts_with(&pointer_data_prefix_slash)
-                                {
-                                    external_deps.insert(dep.clone());
-                                }
-                            }
+                        if let Some(external_deps) = external_deps_opt {
+                            // We must temporarily clear active_item_index so store_cache puts this in T2 (global)
+                            // Then the subform can hit it via T2 fallback check.
+                            parent_cache.active_item_index = None;
+                            parent_cache.store_cache(key, &external_deps, result_val);
+                            parent_cache.active_item_index = Some(idx);
                         }
-
-                        // We must temporarily clear active_item_index so store_cache puts this in T2 (global)
-                        // Then the subform can hit it via T2 fallback check.
-                        parent_cache.active_item_index = None;
-                        parent_cache.store_cache(key, &external_deps, result_val);
-                        parent_cache.active_item_index = Some(idx);
                     } else {
                         if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() {
                             println!("PARENT EVALUATED TABLE {} -> ERROR", key);

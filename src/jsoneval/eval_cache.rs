@@ -343,6 +343,51 @@ impl EvalCache {
         }
     }
 
+    /// Specialized cache check for `$params`-scoped table evaluations.
+    ///
+    /// Tables in `$params/references/` aggregate cross-item data and produce a single result
+    /// that is independent of which subform item is currently active. The standard `check_cache`
+    /// blocks T2 reuse for entries whose deps include non-`$params` paths (e.g. `/riders/...`),
+    /// because scalar formula results are item-specific. But table results are global: the same
+    /// 734-row array is correct for rider 0, rider 1, and rider 2 alike.
+    ///
+    /// This method validates the global entry directly — using `item_data_versions` for
+    /// non-`$params` deps — without the `index_safe` gate, allowing the expensive table forward/
+    /// backward pass to be skipped when inputs have not changed.
+    pub fn check_table_cache(&self, eval_key: &str, deps: &IndexSet<String>) -> Option<Value> {
+        if let Some(idx) = self.active_item_index {
+            // Tier 1: item-scoped entries first (unlikely for $params tables but check anyway)
+            if let Some(cache) = self.subform_caches.get(&idx) {
+                if let Some(hit) =
+                    self.validate_entry(eval_key, deps, &cache.entries, &cache.data_versions)
+                {
+                    if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() {
+                        println!("Cache HIT [T1 table idx={}] {}", idx, eval_key);
+                    }
+                    return Some(hit);
+                }
+            }
+
+            // Tier 2: validate the global entry against the parent main-form tracker.
+            //
+            // Global $params table entries are stored using `self.data_versions` (store_cache
+            // with no active item). When a rider field (e.g. `riders.sa`) changes via
+            // `with_item_cache_swap`, the newly-bumped paths are propagated into
+            // `parent_cache.data_versions` before the swap. This ensures the T2 check
+            // here correctly sees the change without needing MaxVersionTracker, which
+            // would pick up historical per-rider bumps and cause false misses.
+            let result = self.validate_entry(eval_key, deps, &self.entries, &self.data_versions);
+            if result.is_some() {
+                if std::env::var("JSONEVAL_DEBUG_CACHE").is_ok() {
+                    println!("Cache HIT [T2 table idx={}] {}", idx, eval_key);
+                }
+            }
+            result
+        } else {
+            self.validate_entry(eval_key, deps, &self.entries, &self.data_versions)
+        }
+    }
+
     fn validate_entry(
         &self,
         eval_key: &str,
@@ -499,6 +544,9 @@ impl EvalCache {
         }
     }
 }
+
+
+
 
 /// Recursive helper to walk JSON structures and bump specific leaf versions where they differ
 pub(crate) fn diff_and_update_versions(

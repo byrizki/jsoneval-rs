@@ -504,6 +504,14 @@ fn collect_table_dependencies_parsed(parsed: &mut ParsedSchema) {
     for table_key in table_keys {
         let mut table_deps = IndexSet::new();
 
+        // Pre-compute the normalized data pointer form of the table key for self-ref filtering
+        // e.g. "#/$params/references/ZLOB_RATE" → "/$params/references/ZLOB_RATE"
+        let table_data_prefix = path_utils::normalize_to_json_pointer(&table_key)
+            .replace("/properties/", "/")
+            .trim_start_matches('#')
+            .to_string();
+        let table_data_prefix_slash = format!("{}/", table_data_prefix);
+
         // Collect dependencies from all evaluations that belong to this table
         for (eval_key, deps) in &dependencies {
             // Check if this evaluation is within the table (must be a proper child, not a prefix match)
@@ -513,12 +521,36 @@ fn collect_table_dependencies_parsed(parsed: &mut ParsedSchema) {
                 && eval_key.starts_with(table_key.as_str())
                 && eval_key.as_bytes().get(table_key.len()) == Some(&b'/');
             if is_child {
+                // Ignore dependencies injected by $datas evaluations to prevent
+                // table caches from repeatedly missing on irrelevant array payload changes
+                if eval_key.contains("/$datas/") {
+                    continue;
+                }
+
                 // Add all dependencies from table cells/columns
                 for dep in deps {
-                    // Filter out self-references and internal table paths
-                    if !dep.starts_with(&table_key) {
-                        table_deps.insert(dep.clone());
+                    let dep_data_path = path_utils::normalize_to_json_pointer(dep)
+                        .replace("/properties/", "/")
+                        .trim_start_matches('#')
+                        .to_string();
+
+                    // Filter out self-references (the table depending on itself)
+                    if dep_data_path == table_data_prefix
+                        || dep_data_path.starts_with(&table_data_prefix_slash)
+                    {
+                        continue;
                     }
+                    // Filter out table-internal runtime variables (e.g. /$iteration, /$threshold)
+                    // that are injected by the evaluator itself and are never tracked as data
+                    // versions. Including them causes spurious cache misses every evaluation.
+                    let is_params_dep = dep.contains("$params");
+                    let is_inline_system = !is_params_dep
+                        && !dep.contains("$context")
+                        && (dep.starts_with("/$") || dep.starts_with('$'));
+                    if is_inline_system {
+                        continue;
+                    }
+                    table_deps.insert(dep.clone());
                 }
             }
         }

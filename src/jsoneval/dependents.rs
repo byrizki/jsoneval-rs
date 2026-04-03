@@ -663,6 +663,7 @@ impl JSONEval {
                 self.eval_cache = parent_cache;
 
                 if let Ok(Value::Array(changes)) = subform_result {
+                    let mut had_any_change = false;
                     for change in changes {
                         if let Some(obj) = change.as_object() {
                             if let Some(Value::String(ref_path)) = obj.get("$ref") {
@@ -686,9 +687,11 @@ impl JSONEval {
                                 if let Some(val) = obj.get("value") {
                                     let data_ptr = format!("/{}", new_ref.replace('.', "/"));
                                     self.eval_data.set(&data_ptr, val.clone());
+                                    had_any_change = true;
                                 } else if obj.get("clear").and_then(Value::as_bool) == Some(true) {
                                     let data_ptr = format!("/{}", new_ref.replace('.', "/"));
                                     self.eval_data.set(&data_ptr, Value::Null);
+                                    had_any_change = true;
                                 }
 
                                 let mut new_obj = obj.clone();
@@ -698,6 +701,32 @@ impl JSONEval {
                                 // No $ref rewrite needed — push as-is without cloning the map
                                 result.push(change);
                             }
+                        }
+                    }
+
+                    // After writing computed outputs (first_prem, wop_rider_premi, etc.) back to
+                    // parent eval_data, refresh the item_snapshot so that subsequent evaluate_subform
+                    // calls see the post-computation state as their baseline. Without this, the
+                    // snapshot only contains the raw input (before apply_changes), so the next
+                    // with_item_cache_swap diff detects ALL computed fields (first_prem, code, sa ...)
+                    // as "changed" even when only genuinely-new data arrived, causing spurious
+                    // secondary version bumps → false T2 table misses for RIDER_ZLOB_TABLE etc.
+                    if had_any_change {
+                        let item_path = format!("{}/{}", subform_ptr, idx);
+                        let updated_item = self
+                            .eval_data
+                            .get(&item_path)
+                            .cloned()
+                            .unwrap_or(Value::Null);
+                        // Update parent T1 cache snapshot
+                        if let Some(c) = self.eval_cache.subform_caches.get_mut(&idx) {
+                            c.item_snapshot = updated_item.clone();
+                        }
+                        // Update subform's own per-item snapshot used as old_item_snapshot
+                        // on the next evaluate_subform call.
+                        subform.eval_cache.ensure_active_item_cache(idx);
+                        if let Some(sub_cache) = subform.eval_cache.subform_caches.get_mut(&idx) {
+                            sub_cache.item_snapshot = updated_item;
                         }
                     }
                 }

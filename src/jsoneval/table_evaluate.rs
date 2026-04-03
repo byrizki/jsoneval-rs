@@ -26,7 +26,7 @@ pub fn evaluate_table(
     eval_key: &str,
     scope_data: &EvalData,
     token: Option<&CancellationToken>,
-) -> Result<Vec<Value>, String> {
+) -> Result<(Vec<Value>, Option<indexmap::IndexSet<String>>), String> {
     let _total_start: Option<std::time::Instant> = if crate::utils::is_timing_enabled() {
         Some(std::time::Instant::now())
     } else {
@@ -44,7 +44,7 @@ fn evaluate_table_inner(
     eval_key: &str,
     scope_data: &EvalData,
     token: Option<&CancellationToken>,
-) -> Result<Vec<Value>, String> {
+) -> Result<(Vec<Value>, Option<indexmap::IndexSet<String>>), String> {
     let metadata = lib
         .table_metadata
         .get(eval_key)
@@ -67,11 +67,6 @@ fn evaluate_table_inner(
     time_block!(&format!("[table::{}] phase0 $datas", eval_key), {
         let empty_ctx = Value::Object(Map::new());
         for (name, logic, literal) in metadata.data_plans.iter() {
-            // Skip if already present in scope_data
-            if scope_data.get(name.as_ref()).is_some() {
-                continue;
-            }
-
             let value = match logic {
                 Some(logic_id) => {
                     match lib
@@ -91,11 +86,53 @@ fn evaluate_table_inner(
                     .unwrap_or(Value::Null),
             };
 
-            // Normalize: strip leading '/' so it becomes a top-level key
             let key = name.as_ref().trim_start_matches('/').to_string();
             data_ctx.insert(key, value);
         }
     });
+
+    let mut external_deps = indexmap::IndexSet::new();
+    let pointer_data_prefix = table_pointer_path.replace("/properties/", "/");
+    let pointer_data_prefix_slash = format!("{}/", pointer_data_prefix);
+    if let Some(deps) = lib.dependencies.get(eval_key) {
+        for dep in deps {
+            let is_params_dep = dep.contains("$params");
+            let is_other_system_dep = !is_params_dep
+                && !dep.contains("$context")
+                && (dep.starts_with("/$") || dep.starts_with("$"));
+
+            if is_other_system_dep {
+                continue;
+            }
+
+            let dep_data_path =
+                crate::jsoneval::path_utils::normalize_to_json_pointer(dep)
+                    .replace("/properties/", "/");
+            if dep_data_path != pointer_data_prefix
+                && !dep_data_path.starts_with(&pointer_data_prefix_slash)
+            {
+                external_deps.insert(dep.clone());
+            }
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    if external_deps.is_empty() {
+        if !metadata.data_plans.is_empty() {
+            eprintln!(
+                "[jsoneval DEBUG] table {} has zero external_deps but \
+                 non-empty data_plans — $params changes may not \
+                 invalidate its cache",
+                eval_key
+            );
+        }
+    }
+
+    if let Some(cached_result) = lib.eval_cache.check_table_cache(eval_key, &external_deps) {
+        if let Value::Array(rows) = cached_result {
+            return Ok((rows, None)); // Signal that we had a cache hit
+        }
+    }
 
     // PHASE 1: Evaluate $skip
     let mut should_skip = metadata.skip_literal;
@@ -125,13 +162,20 @@ fn evaluate_table_inner(
                     continue;
                 }
 
-                // Validate the dep's current value (or Null if absent) against its schema rules
-                // on-demand — including required. Uses pre-compiled LogicIds; no cache involved.
-                let dep_value = scope_data
-                    .get_without_properties(dep)
-                    .unwrap_or(&Value::Null);
+                // Validate the dep's current value against its schema rules on-demand.
+                // If the value is absent from scope_data (Null), skip validation entirely —
+                // the dep belongs to a different evaluation context (e.g., a subform path
+                // like /riders/prem_pay_period evaluated during main-form context). Treating
+                // an absent dep as a required-rule failure causes spurious cache misses.
+                let dep_value = scope_data.get_without_properties(dep);
+                let dep_value = match dep_value {
+                    Some(v) if *v != Value::Null => v,
+                    _ => continue,
+                };
 
                 if lib.dep_fails_schema_rules(dep, dep_value, scope_data.data()) {
+                    #[cfg(debug_assertions)]
+                    println!("Table Cache MISS [table::{}] dep {} fails schema rules", eval_key, dep);
                     requirement_not_filled = true;
                     break;
                 }
@@ -154,7 +198,9 @@ fn evaluate_table_inner(
     }
 
     if should_clear || should_skip || requirement_not_filled {
-        return Ok(Vec::new());
+        #[cfg(debug_assertions)]
+        println!("Table Cache MISS [table::{}] should_clear={}, should_skip={}, requirement_not_filled={} (external_deps={:?})", eval_key, should_clear, should_skip, requirement_not_filled, external_deps);
+        return Ok((Vec::new(), Some(external_deps)));
     }
 
     let number_from_value = |value: &Value| -> i64 {
@@ -516,5 +562,5 @@ fn evaluate_table_inner(
         }
     }
 
-    Ok(local_rows)
+    Ok((local_rows, Some(external_deps)))
 }
