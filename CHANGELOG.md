@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.82] - 2026-04-05
+
+### Changed
+
+- [core] boost evaluation speed
+
 ## [0.0.81] - 2026-04-01
 
 ### Fixed
