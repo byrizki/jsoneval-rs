@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use super::JSONEval;
 use crate::jsoneval::cancellation::CancellationToken;
+use crate::jsoneval::eval_data::EvalData;
 use crate::jsoneval::json_parser;
 use crate::jsoneval::path_utils;
 use crate::jsoneval::table_evaluate;
@@ -294,25 +295,32 @@ impl JSONEval {
                     }
 
                     // Check if we can skip this entire batch optimization
-                    if let Some(filter_paths) = normalized_paths {
-                        if !filter_paths.is_empty() {
-                            let batch_has_match = batch.iter().any(|eval_key| {
-                                filter_paths.iter().any(|p| {
-                                    eval_key.starts_with(p.as_str())
-                                        || (p.starts_with(eval_key.as_str())
-                                            && !eval_key.contains("/$params/"))
-                                })
-                            });
-                            if !batch_has_match {
-                                continue;
+                    let batch_skipped = time_block!("      batch filter check", {
+                        if let Some(filter_paths) = normalized_paths {
+                            if !filter_paths.is_empty() {
+                                let batch_has_match = batch.iter().any(|eval_key| {
+                                    filter_paths.iter().any(|p| {
+                                        eval_key.starts_with(p.as_str())
+                                            || (p.starts_with(eval_key.as_str())
+                                                && !eval_key.contains("/$params/"))
+                                    })
+                                });
+                                !batch_has_match
+                            } else {
+                                false
                             }
+                        } else {
+                            false
                         }
+                    });
+                    if batch_skipped {
+                        continue;
                     }
 
                     // Fast path: try to resolve every eval_key in this batch from cache.
                     // If all hit, skip the expensive exclusive_clone() of the full eval_data tree.
                     // This is critical for subforms where eval_data contains the full parent payload.
-                    {
+                    let all_cache_hit = time_block!("      batch cache fast path", {
                         let mut batch_hits: Vec<(String, Value)> = Vec::with_capacity(batch.len());
                         let all_hit = batch.iter().all(|eval_key| {
                             let empty_deps = indexmap::IndexSet::new();
@@ -340,131 +348,172 @@ impl JSONEval {
                                     *schema_value = val;
                                 }
                             }
-                            continue;
                         }
-                        had_cache_miss = true;
                         // Partial or full miss — fall through to the normal exclusive_clone path below.
                         // batch_hits is dropped here; cache lookups will repeat but that's cheap.
+                        all_hit
+                    });
+                    if all_cache_hit {
+                        continue;
                     }
+                    had_cache_miss = true;
 
-                    // Sequential execution
-                    // Use exclusive_clone() so self.eval_data.set() within this batch
-                    // is always zero-cost (Arc rc stays 1 on self.eval_data).
-                    let eval_data_snapshot = self.eval_data.exclusive_clone();
+                    // Sequential execution.
+                    // Use a lazy snapshot: only deep-clone eval_data the first time a formula
+                    // actually needs a frozen read view for engine.run(). Batches where every
+                    // non-table eval hits the cache skip the expensive clone entirely.
+                    // Table evals get a zero-cost Arc::clone via snapshot_data().
+                    time_block!("      batch sequential eval", {
+                        let mut eval_data_snapshot: Option<EvalData> = None;
 
-                    for eval_key in batch {
-                        if let Some(t) = token {
-                            if t.is_cancelled() {
-                                return Err("Cancelled".to_string());
-                            }
-                        }
-                        // Filter individual items if paths are provided
-                        if let Some(filter_paths) = normalized_paths {
-                            if !filter_paths.is_empty()
-                                && !filter_paths.iter().any(|p| {
-                                    eval_key.starts_with(p.as_str())
-                                        || (p.starts_with(eval_key.as_str())
-                                            && !eval_key.contains("/$params/"))
-                                })
-                            {
-                                continue;
-                            }
-                        }
-
-                        let pointer_path =
-                            path_utils::normalize_to_json_pointer(eval_key).into_owned();
-
-                        // Cache miss - evaluate
-                        let is_table = self.table_metadata.contains_key(eval_key);
-
-                        if is_table {
-                            if let Ok((rows, external_deps_opt)) = table_evaluate::evaluate_table(
-                                self,
-                                eval_key,
-                                &eval_data_snapshot,
-                                token,
-                            ) {
-                                let result_val = Value::Array(rows);
-                                if let Some(external_deps) = external_deps_opt {
-                                    self.eval_cache.store_cache(
-                                        eval_key,
-                                        &external_deps,
-                                        result_val.clone(),
-                                    );
-                                }
-
-                                // NOTE: bump_params_version / bump_data_version for table results
-                                // is now handled inside store_cache (conditional on value change).
-                                // The separate bump here was double-counting: store_cache uses T2
-                                // comparison while this block used eval_data as reference point,
-                                // causing two version increments per changed table.
-
-                                let static_key = format!("/$table{}", pointer_path);
-                                let arc_value = std::sync::Arc::new(result_val);
-
-                                Arc::make_mut(&mut self.static_arrays)
-                                    .insert(static_key.clone(), std::sync::Arc::clone(&arc_value));
-
-                                self.eval_data.set(&pointer_path, Value::clone(&arc_value));
-
-                                let marker = serde_json::json!({ "$static_array": static_key });
-                                if let Some(schema_value) =
-                                    self.evaluated_schema.pointer_mut(&pointer_path)
-                                {
-                                    *schema_value = marker;
+                        for eval_key in batch {
+                            if let Some(t) = token {
+                                if t.is_cancelled() {
+                                    return Err("Cancelled".to_string());
                                 }
                             }
-                        } else {
-                            let empty_deps = indexmap::IndexSet::new();
-                            let deps = self.dependencies.get(eval_key).unwrap_or(&empty_deps);
-                            if let Some(cached_result) =
-                                self.eval_cache.check_cache(eval_key, &deps)
-                            {
-                                // Must still populate eval_data out of cache so subsequent formulas
-                                // referencing this path in the same iteration can read the exact value
-                                self.eval_data.set(&pointer_path, cached_result.clone());
-                                if let Some(schema_value) =
-                                    self.evaluated_schema.pointer_mut(&pointer_path)
+                            // Filter individual items if paths are provided
+                            if let Some(filter_paths) = normalized_paths {
+                                if !filter_paths.is_empty()
+                                    && !filter_paths.iter().any(|p| {
+                                        eval_key.starts_with(p.as_str())
+                                            || (p.starts_with(eval_key.as_str())
+                                                && !eval_key.contains("/$params/"))
+                                    })
                                 {
-                                    *schema_value = cached_result;
+                                    continue;
                                 }
-                                continue;
                             }
 
-                            if let Some(logic_id) = self.evaluations.get(eval_key) {
-                                if let Ok(val) =
-                                    self.engine.run(logic_id, eval_data_snapshot.data())
-                                {
-                                    let cleaned_val = clean_float_noise_scalar(val);
-                                    let data_path = pointer_path.replace("/properties/", "/");
-                                    self.eval_cache.store_cache(
-                                        eval_key,
-                                        &deps,
-                                        cleaned_val.clone(),
-                                    );
+                            let pointer_path =
+                                path_utils::normalize_to_json_pointer(eval_key).into_owned();
 
-                                    // Bump data_versions when non-$params field value changes.
-                                    // $params bumps are handled inside store_cache (conditional).
-                                    let old_val = self
-                                        .eval_data
-                                        .get(&data_path)
-                                        .cloned()
-                                        .unwrap_or(Value::Null);
-                                    if cleaned_val != old_val && !data_path.starts_with("/$params")
-                                    {
-                                        self.eval_cache.bump_data_version(&data_path);
+                            // Cache miss - evaluate
+                            let is_table = self.table_metadata.contains_key(eval_key);
+
+                            if is_table {
+                                time_block!("        table eval", {
+                                    // Snapshot for table read access: Arc::clone is O(1).
+                                    // Scoped so it's dropped before self.eval_data.set() below,
+                                    // keeping self.eval_data.data at rc=1 so Arc::make_mut is free.
+                                    let table_result = {
+                                        let table_scope =
+                                            EvalData::from_arc(self.eval_data.snapshot_data());
+                                        table_evaluate::evaluate_table(
+                                            self,
+                                            eval_key,
+                                            &table_scope,
+                                            token,
+                                        )
+                                        // table_scope dropped here → rc back to 1
+                                    };
+                                    if let Ok((rows, external_deps_opt)) = table_result {
+                                        let result_val = Value::Array(rows);
+                                        if let Some(external_deps) = external_deps_opt {
+                                            self.eval_cache.store_cache(
+                                                eval_key,
+                                                &external_deps,
+                                                result_val.clone(),
+                                            );
+                                        }
+
+                                        // NOTE: bump_params_version / bump_data_version for table results
+                                        // is now handled inside store_cache (conditional on value change).
+                                        // The separate bump here was double-counting: store_cache uses T2
+                                        // comparison while this block used eval_data as reference point,
+                                        // causing two version increments per changed table.
+
+                                        let static_key = format!("/$table{}", pointer_path);
+                                        let arc_value = std::sync::Arc::new(result_val);
+
+                                        Arc::make_mut(&mut self.static_arrays).insert(
+                                            static_key.clone(),
+                                            std::sync::Arc::clone(&arc_value),
+                                        );
+
+                                        self.eval_data
+                                            .set(&pointer_path, Value::clone(&arc_value));
+
+                                        let marker =
+                                            serde_json::json!({ "$static_array": static_key });
+                                        if let Some(schema_value) =
+                                            self.evaluated_schema.pointer_mut(&pointer_path)
+                                        {
+                                            *schema_value = marker;
+                                        }
                                     }
+                                });
 
-                                    self.eval_data.set(&pointer_path, cleaned_val.clone());
-                                    if let Some(schema_value) =
-                                        self.evaluated_schema.pointer_mut(&pointer_path)
-                                    {
-                                        *schema_value = cleaned_val;
+                            } else {
+                                let empty_deps = indexmap::IndexSet::new();
+                                let deps =
+                                    self.dependencies.get(eval_key).unwrap_or(&empty_deps);
+                                let cached_result =
+                                    self.eval_cache.check_cache(eval_key, &deps);
+
+                                if cached_result.is_none() && self.evaluations.contains_key(eval_key) {
+                                    // Lazy-init the snapshot before entering the timed block.
+                                    // exclusive_clone() is O(n) deep copy — deferred so
+                                    // cache-hit-only batches pay nothing.
+                                    if eval_data_snapshot.is_none() {
+                                        eval_data_snapshot =
+                                            Some(self.eval_data.exclusive_clone());
                                     }
                                 }
+
+                                time_block!("        formula eval", {
+                                    if let Some(cached_result) = cached_result {
+                                        // Must still populate eval_data out of cache so subsequent formulas
+                                        // referencing this path in the same iteration can read the exact value
+                                        self.eval_data.set(&pointer_path, cached_result.clone());
+                                        if let Some(schema_value) =
+                                            self.evaluated_schema.pointer_mut(&pointer_path)
+                                        {
+                                            *schema_value = cached_result;
+                                        }
+                                    } else if let Some(logic_id) =
+                                        self.evaluations.get(eval_key)
+                                    {
+                                        let snapshot = eval_data_snapshot.as_ref().unwrap();
+                                        if let Ok(val) =
+                                            self.engine.run(logic_id, snapshot.data())
+                                        {
+                                            let cleaned_val = clean_float_noise_scalar(val);
+                                            let data_path =
+                                                pointer_path.replace("/properties/", "/");
+                                            self.eval_cache.store_cache(
+                                                eval_key,
+                                                &deps,
+                                                cleaned_val.clone(),
+                                            );
+
+                                            // Bump data_versions when non-$params field value changes.
+                                            // $params bumps are handled inside store_cache (conditional).
+                                            let old_val = self
+                                                .eval_data
+                                                .get(&data_path)
+                                                .cloned()
+                                                .unwrap_or(Value::Null);
+                                            if cleaned_val != old_val
+                                                && !data_path.starts_with("/$params")
+                                            {
+                                                self.eval_cache.bump_data_version(&data_path);
+                                            }
+
+                                            self.eval_data
+                                                .set(&pointer_path, cleaned_val.clone());
+                                            if let Some(schema_value) =
+                                                self.evaluated_schema.pointer_mut(&pointer_path)
+                                            {
+                                                *schema_value = cleaned_val;
+                                            }
+                                        }
+                                    }
+                                });
                             }
                         }
-                    }
+                    });
+
                 }
             });
 

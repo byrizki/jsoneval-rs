@@ -47,6 +47,19 @@ impl EvalData {
         }
     }
 
+    /// Wrap an existing `Arc<Value>` without any allocation or deep clone.
+    ///
+    /// Use this when a read-only view of already-Arc'd data is needed (e.g. a
+    /// batch snapshot in `evaluate_internal`). Mutations on the returned instance
+    /// will trigger `Arc::make_mut` copy-on-write only on the first write.
+    #[inline]
+    pub fn from_arc(data: Arc<Value>) -> Self {
+        Self {
+            instance_id: NEXT_INSTANCE_ID.fetch_add(1, Ordering::Relaxed),
+            data,
+        }
+    }
+
     /// Initialize eval data with zero-copy references to evaluated_schema, input_data, and context_data
     /// This avoids cloning by directly constructing the data structure with borrowed references
     pub fn with_schema_data_context(

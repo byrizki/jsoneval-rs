@@ -1,6 +1,7 @@
 // Subform methods for isolated array field evaluation
 
 use crate::jsoneval::cancellation::CancellationToken;
+use crate::jsoneval::eval_data::EvalData;
 use crate::JSONEval;
 use crate::ReturnFormat;
 use serde_json::Value;
@@ -421,7 +422,7 @@ impl JSONEval {
             if !params_table_keys.is_empty() {
                 parent_cache.invalidate_params_tables_for_item(idx, &params_table_keys);
 
-                let eval_data_snapshot = self.eval_data.exclusive_clone();
+                let eval_data_snapshot = self.eval_data.snapshot_data();
                 for key in &params_table_keys {
                     // CRITICAL FIX: Only evaluate global tables on the parent if they do NOT
                     // depend on subform-specific item paths (like `#/riders/...`).
@@ -449,7 +450,7 @@ impl JSONEval {
                         crate::jsoneval::table_evaluate::evaluate_table(
                             self,
                             key,
-                            &eval_data_snapshot,
+                            &EvalData::from_arc(std::sync::Arc::clone(&eval_data_snapshot)),
                             None,
                         )
                     {
