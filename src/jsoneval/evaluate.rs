@@ -359,12 +359,10 @@ impl JSONEval {
                     had_cache_miss = true;
 
                     // Sequential execution.
-                    // Use a lazy snapshot: only deep-clone eval_data the first time a formula
-                    // actually needs a frozen read view for engine.run(). Batches where every
-                    // non-table eval hits the cache skip the expensive clone entirely.
-                    // Table evals get a zero-cost Arc::clone via snapshot_data().
+                    // For each formula miss, snapshot_data() gives an O(1) Arc::clone
+                    // as a stable read view. The Arc is dropped before self.eval_data.set()
+                    // so Arc::make_mut always finds rc=1 — zero deep copy, zero latency.
                     time_block!("      batch sequential eval", {
-                        let mut eval_data_snapshot: Option<EvalData> = None;
 
                         for eval_key in batch {
                             if let Some(t) = token {
@@ -451,16 +449,6 @@ impl JSONEval {
                                 let cached_result =
                                     self.eval_cache.check_cache(eval_key, &deps);
 
-                                if cached_result.is_none() && self.evaluations.contains_key(eval_key) {
-                                    // Lazy-init the snapshot before entering the timed block.
-                                    // exclusive_clone() is O(n) deep copy — deferred so
-                                    // cache-hit-only batches pay nothing.
-                                    if eval_data_snapshot.is_none() {
-                                        eval_data_snapshot =
-                                            Some(self.eval_data.exclusive_clone());
-                                    }
-                                }
-
                                 time_block!("        formula eval", {
                                     if let Some(cached_result) = cached_result {
                                         // Must still populate eval_data out of cache so subsequent formulas
@@ -474,10 +462,17 @@ impl JSONEval {
                                     } else if let Some(logic_id) =
                                         self.evaluations.get(eval_key)
                                     {
-                                        let snapshot = eval_data_snapshot.as_ref().unwrap();
-                                        if let Ok(val) =
-                                            self.engine.run(logic_id, snapshot.data())
-                                        {
+                                        // snapshot_data() is O(1) Arc::clone — no deep copy.
+                                        // Arc is moved into `snap` and lives only for the
+                                        // engine.run() call, then dropped before set() below.
+                                        // This keeps self.eval_data.data at rc=1 when set()
+                                        // calls Arc::make_mut, so no deep clone ever occurs.
+                                        let val = {
+                                            let snap = self.eval_data.snapshot_data();
+                                            self.engine.run(logic_id, &*snap)
+                                            // snap dropped here → rc back to 1
+                                        };
+                                        if let Ok(val) = val {
                                             let cleaned_val = clean_float_noise_scalar(val);
                                             let data_path =
                                                 pointer_path.replace("/properties/", "/");
