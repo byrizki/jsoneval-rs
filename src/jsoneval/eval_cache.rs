@@ -445,7 +445,9 @@ impl EvalCache {
     /// - The global `self.entries` is written only from the main form (no active item).
     ///   Subforms can reuse these via the Tier 2 fallback in `check_cache`.
     pub fn store_cache(&mut self, eval_key: &str, deps: &IndexSet<String>, result: Value) {
-        // Phase 1: snapshot dep versions using the correct data_versions tracker
+        // Phase 1: snapshot dep versions using the correct data_versions tracker.
+        // Always use item data_versions for T1; for T2 promotion of $params tables we
+        // build a separate snapshot using PARENT data_versions (see Phase 2 note below).
         let mut dep_versions = HashMap::with_capacity(deps.len());
         {
             let data_versions = if let Some(idx) = self.active_item_index {
@@ -536,13 +538,35 @@ impl EvalCache {
                 .entries
                 .insert(eval_key.to_string(), entry.clone());
 
-            // For $params-scoped formulas, also promote to T2 (global entries).
-            // $params formulas are index-independent: all riders produce the same result.
-            // Without T2 promotion, each rider's first store compares against stale/missing T2
-            // and sees the value as "new" → bumps params_versions → O(riders) cascade.
-            // With T2 promotion, rider 1 finds rider 0's result in T2 → no bump → no cascade.
+            // For $params-scoped tables, also promote to T2 (global entries).
+            // CRITICAL: T2 must be validated by check_table_cache using PARENT data_versions,
+            // not item data_versions. If we promoted the item-dep snapshot directly:
+            //   - T2 dep[/riders/code] = item_data_versions[/riders/code] = 1 (bumped for this rider)
+            //   - check_table_cache validates with parent data_versions[/riders/code] = 0
+            //   - 1 ≠ 0 → guaranteed miss for every other rider
+            // Fix: rebuild dep_versions using PARENT data_versions for non-$params paths.
+            // T1 retains item data_versions (correct for per-item scoping).
             if eval_key.starts_with("#/$params") {
-                self.entries.insert(eval_key.to_string(), entry);
+                let t2_dep_versions: HashMap<String, u64> = entry
+                    .dep_versions
+                    .iter()
+                    .map(|(path, &item_ver)| {
+                        let parent_ver = if path.starts_with("/$params") {
+                            item_ver // params_versions are global — same for both
+                        } else {
+                            // Use parent data_versions, which is what check_table_cache reads
+                            self.data_versions.get(path)
+                        };
+                        (path.clone(), parent_ver)
+                    })
+                    .collect();
+
+                let t2_entry = CacheEntry {
+                    dep_versions: t2_dep_versions,
+                    result: entry.result.clone(),
+                    computed_for_item,
+                };
+                self.entries.insert(eval_key.to_string(), t2_entry);
             }
         } else {
             self.entries.insert(eval_key.to_string(), entry);
