@@ -6,6 +6,7 @@ use crate::jsoneval::path_utils::get_value_by_pointer_without_properties;
 use crate::jsoneval::path_utils::normalize_to_json_pointer;
 use crate::jsoneval::types::DependentItem;
 use crate::rlogic::{LogicId, RLogic};
+use crate::time_block;
 use crate::utils::clean_float_noise_scalar;
 use crate::EvalData;
 
@@ -35,18 +36,20 @@ impl JSONEval {
 
         // Update data if provided, diff versions
         if let Some(data_str) = data {
-            let data_value = json_parser::parse_json_str(data_str)?;
-            let context_value = if let Some(ctx) = context {
-                json_parser::parse_json_str(ctx)?
-            } else {
-                Value::Object(serde_json::Map::new())
-            };
-            let old_data = self.eval_data.snapshot_data_clone();
-            self.eval_data
-                .replace_data_and_context(data_value, context_value);
-            let new_data = self.eval_data.snapshot_data_clone();
-            self.eval_cache
-                .store_snapshot_and_diff_versions(&old_data, &new_data);
+            time_block!("  [dep] data_parse_and_diff", {
+                let data_value = json_parser::parse_json_str(data_str)?;
+                let context_value = if let Some(ctx) = context {
+                    json_parser::parse_json_str(ctx)?
+                } else {
+                    Value::Object(serde_json::Map::new())
+                };
+                let old_data = self.eval_data.snapshot_data_clone();
+                self.eval_data
+                    .replace_data_and_context(data_value, context_value);
+                let new_data = self.eval_data.snapshot_data_clone();
+                self.eval_cache
+                    .store_snapshot_and_diff_versions(&old_data, &new_data);
+            });
         }
 
         let mut result = Vec::new();
@@ -56,32 +59,36 @@ impl JSONEval {
             .map(|path| (path_utils::dot_notation_to_schema_pointer(path), false))
             .collect();
 
-        Self::process_dependents_queue(
-            &self.engine,
-            &self.evaluations,
-            &mut self.eval_data,
-            &mut self.eval_cache,
-            &self.dependents_evaluations,
-            &self.dep_formula_triggers,
-            &self.evaluated_schema,
-            &mut to_process,
-            &mut processed,
-            &mut result,
-            token,
-            canceled_paths.as_mut().map(|v| &mut **v),
-        )?;
+        time_block!("  [dep] process_dependents_queue", {
+            Self::process_dependents_queue(
+                &self.engine,
+                &self.evaluations,
+                &mut self.eval_data,
+                &mut self.eval_cache,
+                &self.dependents_evaluations,
+                &self.dep_formula_triggers,
+                &self.evaluated_schema,
+                &mut to_process,
+                &mut processed,
+                &mut result,
+                token,
+                canceled_paths.as_mut().map(|v| &mut **v),
+            )?;
+        });
 
         // Drop the lock before calling sub-methods that may re-acquire it
         drop(_lock);
 
         if re_evaluate {
-            self.run_re_evaluate_pass(
-                token,
-                &mut to_process,
-                &mut processed,
-                &mut result,
-                canceled_paths.as_mut().map(|v| &mut **v),
-            )?;
+            time_block!("  [dep] run_re_evaluate_pass", {
+                self.run_re_evaluate_pass(
+                    token,
+                    &mut to_process,
+                    &mut processed,
+                    &mut result,
+                    canceled_paths.as_mut().map(|v| &mut **v),
+                )?;
+            });
         }
 
         if include_subforms {
@@ -102,7 +109,9 @@ impl JSONEval {
                 }
                 paths
             };
-            self.run_subform_pass(&extended_paths, re_evaluate, token, &mut result)?;
+            time_block!("  [dep] run_subform_pass", {
+                self.run_subform_pass(&extended_paths, re_evaluate, token, &mut result)?;
+            });
         }
 
         // Deduplicate by $ref — keep the last entry for each path.
@@ -187,8 +196,6 @@ impl JSONEval {
         )?;
 
         // Emit result entries for every sorted-evaluation whose version uniquely bumped.
-        // Again resolve to the per-item tracker so the comparison uses the same source
-        // that evaluate_internal wrote into.
         let active_idx = self.eval_cache.active_item_index;
         for eval_key in self.sorted_evaluations.iter().flatten() {
             if eval_key.contains("/$params/") || eval_key.contains("/$") {
@@ -247,6 +254,9 @@ impl JSONEval {
                 );
             }
         }
+        // Capture count before drain so had_actual_readonly_changes is not confused by
+        // pre-existing to_process entries from schema_default_before or process_dependents_queue.
+        let had_actual_readonly_changes = !readonly_changes.is_empty();
         for (path, schema_value) in readonly_changes {
             let data_path = path_utils::normalize_to_json_pointer(&path)
                 .replace("/properties/", "/")
@@ -276,30 +286,47 @@ impl JSONEval {
             result.push(Value::Object(obj));
         }
 
-        // When readonly fields were updated during a subform item evaluation, `$params`
-        // tables that aggregate rider data (e.g. WOP_RIDERS) may still hold stale cached
-        // results — their static external_deps do not include individual rider paths like
-        // /riders/loading_benefit/first_prem, so a version bump on first_prem alone is
-        // not enough to bust their T1 cache entry. Re-running evaluate_internal (after
-        // invalidating their T1 entries) forces a fresh recomputation with the updated data.
-        let had_readonly_changes = !to_process.is_empty();
-        if had_readonly_changes {
+        // When readonly fields were updated, re-run evaluate_internal only for the subset of
+        // $params tables that actually depend on the changed readonly fields.
+        // Use had_actual_readonly_changes (captured before draining into to_process) — NOT
+        // `!to_process.is_empty()`, which would fire whenever any dependents were queued,
+        // triggering a spurious second evaluate_internal per rider costing ~240ms each.
+        if had_actual_readonly_changes {
             if let Some(active_idx) = self.eval_cache.active_item_index {
+                // Collect the schema-dep paths for the readonly-changed fields so we can
+                // filter tables to only those that actually depend on these fields.
+                // Bumping ALL $params tables unconditionally forces a full re-evaluate of
+                // every WOP/RIDER table even when they don't read wop_rider_premi etc.
+                let readonly_dep_prefixes: Vec<String> =
+                    to_process.iter().map(|(path, _)| path.clone()).collect();
+
                 let params_table_keys: Vec<String> = self
                     .table_metadata
                     .keys()
-                    .filter(|k| k.starts_with("#/$params"))
+                    .filter(|k| {
+                        if !k.starts_with("#/$params") {
+                            return false;
+                        }
+                        // Only invalidate tables that depend on one of the readonly fields
+                        if let Some(deps) = self.dependencies.get(*k) {
+                            deps.iter().any(|dep| {
+                                readonly_dep_prefixes
+                                    .iter()
+                                    .any(|ro| dep == ro || dep.starts_with(ro.as_str()))
+                            })
+                        } else {
+                            false
+                        }
+                    })
                     .cloned()
                     .collect();
+
                 if !params_table_keys.is_empty() {
                     self.eval_cache
                         .invalidate_params_tables_for_item(active_idx, &params_table_keys);
+                    drop(_lock);
+                    self.evaluate_internal(None, token)?;
                 }
-                drop(_lock);
-                self.evaluate_internal(None, token)?;
-                // After re-evaluation, we need to explicitly re-acquire the lock if we continue processing
-                // However, since `to_process` loop runs immediately after without needing the exact lock structure here,
-                // we can let the loop acquire what it needs.
             }
         }
 
@@ -634,15 +661,17 @@ impl JSONEval {
                 parent_cache.set_active_item(idx);
                 std::mem::swap(&mut subform.eval_cache, &mut parent_cache);
 
-                let subform_result = subform.evaluate_dependents(
-                    &item_changed_paths,
-                    None,
-                    None,
-                    sub_re_evaluate,
-                    token,
-                    None,
-                    false,
-                );
+                let subform_result = time_block!("    [subform_pass] rider evaluate_dependents", {
+                    subform.evaluate_dependents(
+                        &item_changed_paths,
+                        None,
+                        None,
+                        sub_re_evaluate,
+                        token,
+                        None,
+                        false,
+                    )
+                });
 
                 // Restore parent cache
                 std::mem::swap(&mut subform.eval_cache, &mut parent_cache);

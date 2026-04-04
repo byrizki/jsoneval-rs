@@ -363,7 +363,6 @@ impl JSONEval {
                     // as a stable read view. The Arc is dropped before self.eval_data.set()
                     // so Arc::make_mut always finds rc=1 — zero deep copy, zero latency.
                     time_block!("      batch sequential eval", {
-
                         for eval_key in batch {
                             if let Some(t) = token {
                                 if t.is_cancelled() {
@@ -429,8 +428,7 @@ impl JSONEval {
                                             std::sync::Arc::clone(&arc_value),
                                         );
 
-                                        self.eval_data
-                                            .set(&pointer_path, Value::clone(&arc_value));
+                                        self.eval_data.set(&pointer_path, Value::clone(&arc_value));
 
                                         let marker =
                                             serde_json::json!({ "$static_array": static_key });
@@ -441,13 +439,10 @@ impl JSONEval {
                                         }
                                     }
                                 });
-
                             } else {
                                 let empty_deps = indexmap::IndexSet::new();
-                                let deps =
-                                    self.dependencies.get(eval_key).unwrap_or(&empty_deps);
-                                let cached_result =
-                                    self.eval_cache.check_cache(eval_key, &deps);
+                                let deps = self.dependencies.get(eval_key).unwrap_or(&empty_deps);
+                                let cached_result = self.eval_cache.check_cache(eval_key, &deps);
 
                                 time_block!("        formula eval", {
                                     if let Some(cached_result) = cached_result {
@@ -459,9 +454,7 @@ impl JSONEval {
                                         {
                                             *schema_value = cached_result;
                                         }
-                                    } else if let Some(logic_id) =
-                                        self.evaluations.get(eval_key)
-                                    {
+                                    } else if let Some(logic_id) = self.evaluations.get(eval_key) {
                                         // snapshot_data() is O(1) Arc::clone — no deep copy.
                                         // Arc is moved into `snap` and lives only for the
                                         // engine.run() call, then dropped before set() below.
@@ -495,8 +488,7 @@ impl JSONEval {
                                                 self.eval_cache.bump_data_version(&data_path);
                                             }
 
-                                            self.eval_data
-                                                .set(&pointer_path, cleaned_val.clone());
+                                            self.eval_data.set(&pointer_path, cleaned_val.clone());
                                             if let Some(schema_value) =
                                                 self.evaluated_schema.pointer_mut(&pointer_path)
                                             {
@@ -508,7 +500,6 @@ impl JSONEval {
                             }
                         }
                     });
-
                 }
             });
 
