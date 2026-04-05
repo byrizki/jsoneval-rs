@@ -25,11 +25,9 @@ use serde_json::Value;
 /// shifts without false positives from computed formula output fields in the snapshot.
 fn items_same_input_identity(old: Option<&Value>, new: Option<&Value>) -> bool {
     match (old, new) {
-        (Some(Value::Object(old_map)), Some(Value::Object(new_map))) => {
-            new_map.iter().all(|(k, new_val)| {
-                old_map.get(k).map_or(false, |old_val| old_val == new_val)
-            })
-        }
+        (Some(Value::Object(old_map)), Some(Value::Object(new_map))) => new_map
+            .iter()
+            .all(|(k, new_val)| old_map.get(k).map_or(false, |old_val| old_val == new_val)),
         (old, new) => old == new,
     }
 }
@@ -188,8 +186,7 @@ impl JSONEval {
         for (subform_path, _) in &self.subforms {
             // Resolve the data pointer for this subform
             // (e.g., `/illustration/product_benefit/riders`)
-            let subform_ptr = normalize_to_json_pointer(subform_path)
-                .replace("/properties/", "/");
+            let subform_ptr = normalize_to_json_pointer(subform_path).replace("/properties/", "/");
 
             let old_items = old_data.pointer(&subform_ptr).and_then(Value::as_array);
             let new_items = new_data.pointer(&subform_ptr).and_then(Value::as_array);

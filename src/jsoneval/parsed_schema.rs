@@ -86,7 +86,7 @@ pub struct ParsedSchema {
     /// value/clear formulas reference that path (excluding $value/$refValue context vars).
     /// When field X changes, source fields in dep_formula_triggers[X] are re-queued so
     /// their downstream dependents are re-evaluated with the new context.
-    pub dep_formula_triggers: Arc<IndexMap<String, Vec<String>>>,
+    pub dep_formula_triggers: Arc<IndexMap<String, Vec<(String, usize)>>>,
 
     /// Cached paths of fields that have hidden conditions (wrapped in Arc for zero-copy sharing)
     pub conditional_hidden_fields: Arc<Vec<String>>,

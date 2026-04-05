@@ -69,10 +69,16 @@ impl JSONEval {
         }
 
         let mut result = Vec::new();
-        let mut processed = IndexSet::new();
-        let mut to_process: Vec<(String, bool)> = changed_paths
+        let mut processed = std::collections::HashMap::new();
+        let mut to_process: Vec<(String, bool, Option<Vec<usize>>)> = changed_paths
             .iter()
-            .map(|path| (path_utils::dot_notation_to_schema_pointer(path), false))
+            .map(|path| {
+                (
+                    path_utils::dot_notation_to_schema_pointer(path),
+                    false,
+                    None,
+                )
+            })
             .collect();
 
         time_block!("  [dep] process_dependents_queue", {
@@ -168,8 +174,8 @@ impl JSONEval {
     fn run_re_evaluate_pass(
         &mut self,
         token: Option<&CancellationToken>,
-        to_process: &mut Vec<(String, bool)>,
-        processed: &mut IndexSet<String>,
+        to_process: &mut Vec<(String, bool, Option<Vec<usize>>)>,
+        processed: &mut std::collections::HashMap<String, Option<std::collections::HashSet<usize>>>,
         result: &mut Vec<Value>,
         mut canceled_paths: Option<&mut Vec<String>>,
     ) -> Result<(), String> {
@@ -277,7 +283,7 @@ impl JSONEval {
                 .to_string();
             self.eval_data.set(&data_path, schema_value.clone());
             self.eval_cache.bump_data_version(&data_path);
-            to_process.push((path, true));
+            to_process.push((path, true, None));
         }
         for (path, schema_value) in readonly_values {
             let data_path = path_utils::normalize_to_json_pointer(&path)
@@ -311,7 +317,7 @@ impl JSONEval {
                 // Bumping ALL $params tables unconditionally forces a full re-evaluate of
                 // every WOP/RIDER table even when they don't read wop_rider_premi etc.
                 let readonly_dep_prefixes: Vec<String> =
-                    to_process.iter().map(|(path, _)| path.clone()).collect();
+                    to_process.iter().map(|(path, _, _)| path.clone()).collect();
 
                 let params_table_keys: Vec<String> = self
                     .table_metadata
@@ -405,8 +411,8 @@ impl JSONEval {
     fn run_schema_default_value_pass(
         &mut self,
         token: Option<&CancellationToken>,
-        to_process: &mut Vec<(String, bool)>,
-        processed: &mut IndexSet<String>,
+        to_process: &mut Vec<(String, bool, Option<Vec<usize>>)>,
+        processed: &mut std::collections::HashMap<String, Option<std::collections::HashSet<usize>>>,
         result: &mut Vec<Value>,
         mut canceled_paths: Option<&mut Vec<String>>,
     ) -> Result<(), String> {
@@ -486,7 +492,7 @@ impl JSONEval {
             result.push(Value::Object(change_obj));
 
             let schema_ptr = format!("#/{}", data_path.replace('/', "/properties/"));
-            to_process.push((schema_ptr, true));
+            to_process.push((schema_ptr, true, None));
             has_changes = true;
         }
 
@@ -1082,7 +1088,7 @@ impl JSONEval {
         eval_data: &mut EvalData,
         eval_cache: &mut crate::jsoneval::eval_cache::EvalCache,
         mut hidden_fields: Vec<String>,
-        queue: &mut Vec<(String, bool)>,
+        queue: &mut Vec<(String, bool, Option<Vec<usize>>)>,
         result: &mut Vec<Value>,
     ) {
         while let Some(hf) = hidden_fields.pop() {
@@ -1106,7 +1112,7 @@ impl JSONEval {
             result.push(Value::Object(change_obj));
 
             // Add to queue for standard dependent processing
-            queue.push((hf.clone(), true));
+            queue.push((hf.clone(), true, None));
 
             // Check reffed_by to find other fields that might become hidden
             if let Some(referencing_fields) = reffed_by.get(&data_path) {
@@ -1160,36 +1166,72 @@ impl JSONEval {
         eval_data: &mut EvalData,
         eval_cache: &mut crate::jsoneval::eval_cache::EvalCache,
         dependents_evaluations: &IndexMap<String, Vec<DependentItem>>,
-        dep_formula_triggers: &IndexMap<String, Vec<String>>,
+        dep_formula_triggers: &IndexMap<String, Vec<(String, usize)>>,
         evaluated_schema: &Value,
-        queue: &mut Vec<(String, bool)>,
-        processed: &mut IndexSet<String>,
+        queue: &mut Vec<(String, bool, Option<Vec<usize>>)>,
+        processed: &mut std::collections::HashMap<String, Option<std::collections::HashSet<usize>>>,
         result: &mut Vec<Value>,
         token: Option<&CancellationToken>,
         canceled_paths: Option<&mut Vec<String>>,
     ) -> Result<(), String> {
-        while let Some((current_path, is_transitive)) = queue.pop() {
+        while let Some((current_path, is_transitive, target_indices)) = queue.pop() {
             if let Some(t) = token {
                 if t.is_cancelled() {
-                    // Accumulate canceled paths if buffer provided
                     if let Some(cp) = canceled_paths {
                         cp.push(current_path.clone());
-                        // Also push remaining items in queue?
-                        // The user request says "accumulate canceled path if provided", usually implies what was actively cancelled
-                        // or what was pending. Since we pop one by one, we can just dump the queue back or just push pending.
-                        // But since we just popped `current_path`, it is the one being cancelled on.
-                        // Let's also drain the queue.
-                        for (path, _) in queue.iter() {
+                        for (path, _, _) in queue.iter() {
                             cp.push(path.clone());
                         }
                     }
                     return Err("Cancelled".to_string());
                 }
             }
-            if processed.contains(&current_path) {
+
+            let (should_run, indices_to_run) = match processed.get(&current_path) {
+                Some(None) => {
+                    // Already fully processed, skip
+                    continue;
+                }
+                Some(Some(already_processed_indices)) => {
+                    if let Some(targets) = &target_indices {
+                        let new_targets: std::collections::HashSet<usize> = targets
+                            .iter()
+                            .copied()
+                            .filter(|i| !already_processed_indices.contains(i))
+                            .collect();
+                        if new_targets.is_empty() {
+                            continue;
+                        }
+                        (true, Some(new_targets))
+                    } else {
+                        (true, None)
+                    }
+                }
+                None => (
+                    true,
+                    target_indices.clone().map(|t| t.into_iter().collect()),
+                ),
+            };
+
+            if !should_run {
                 continue;
             }
-            processed.insert(current_path.clone());
+
+            let new_processed_state = if let Some(targets_to_run) = &indices_to_run {
+                match processed.get(&current_path) {
+                    Some(Some(existing_targets)) => {
+                        let mut copy = existing_targets.clone();
+                        for t in targets_to_run {
+                            copy.insert(*t);
+                        }
+                        Some(copy)
+                    }
+                    _ => Some(targets_to_run.clone()),
+                }
+            } else {
+                None
+            };
+            processed.insert(current_path.clone(), new_processed_state);
 
             // Get the value of the changed field for $value context
             let current_data_path = path_utils::normalize_to_json_pointer(&current_path)
@@ -1207,16 +1249,32 @@ impl JSONEval {
             // contextual condition (e.g., ins_occ's formula for ph_occupation checks phins_relation).
             // When `current_path` changes, we need to re-evaluate those source fields' dependents.
             if let Some(formula_sources) = dep_formula_triggers.get(&current_data_path) {
-                for source_schema_path in formula_sources {
-                    if !processed.contains(source_schema_path) {
-                        queue.push((source_schema_path.clone(), true));
+                let mut targets_by_source: std::collections::HashMap<String, Vec<usize>> =
+                    std::collections::HashMap::new();
+                for (source_schema_path, dep_idx) in formula_sources {
+                    let source_ptr = path_utils::dot_notation_to_schema_pointer(source_schema_path);
+                    targets_by_source
+                        .entry(source_ptr)
+                        .or_default()
+                        .push(*dep_idx);
+                }
+                for (source_ptr, targets) in targets_by_source {
+                    // Check if it's already entirely processed
+                    if let Some(None) = processed.get(&source_ptr) {
+                        continue;
                     }
+                    queue.push((source_ptr, true, Some(targets)));
                 }
             }
 
             // Find dependents for this path
             if let Some(dependent_items) = dependents_evaluations.get(&current_path) {
-                for dep_item in dependent_items {
+                for (dep_idx, dep_item) in dependent_items.iter().enumerate() {
+                    if let Some(targets) = &indices_to_run {
+                        if !targets.contains(&dep_idx) {
+                            continue;
+                        }
+                    }
                     let ref_path = &dep_item.ref_path;
                     let pointer_path = path_utils::normalize_to_json_pointer(ref_path);
                     // Data paths don't include /properties/, strip it for data access
@@ -1267,7 +1325,7 @@ impl JSONEval {
                     // This prevents formula-triggered re-enqueues from creating circular writes:
                     // e.g., ins_gender → triggers phins_relation (via dep_formula_triggers) →
                     // phins_relation has a dep that writes back to ins_gender → we must not let that happen.
-                    if processed.contains(ref_path) {
+                    if processed.contains_key(ref_path) {
                         continue;
                     }
 
@@ -1334,7 +1392,7 @@ impl JSONEval {
 
                     // Add this dependent to queue for transitive processing
                     if add_transitive {
-                        queue.push((ref_path.clone(), true));
+                        queue.push((ref_path.clone(), true, None));
                     }
                 }
             }

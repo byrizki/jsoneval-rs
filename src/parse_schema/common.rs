@@ -747,11 +747,11 @@ pub fn build_dep_formula_triggers(
     dependents_evaluations: &IndexMap<String, Vec<crate::DependentItem>>,
     evaluations: &IndexMap<String, crate::LogicId>,
     engine: &crate::RLogic,
-) -> IndexMap<String, Vec<String>> {
-    let mut triggers: IndexMap<String, Vec<String>> = IndexMap::new();
+) -> IndexMap<String, Vec<(String, usize)>> {
+    let mut triggers: IndexMap<String, Vec<(String, usize)>> = IndexMap::new();
 
     for (source_path, dep_items) in dependents_evaluations.iter() {
-        for dep_item in dep_items.iter() {
+        for (dep_idx, dep_item) in dep_items.iter().enumerate() {
             let formula_keys: Vec<String> = [
                 dep_item
                     .value
@@ -822,10 +822,11 @@ pub fn build_dep_formula_triggers(
                         continue;
                     }
 
-                    triggers
-                        .entry(dep_key)
-                        .or_insert_with(Vec::new)
-                        .push(source_path.clone());
+                    let pair = (source_path.clone(), dep_idx);
+                    let entry = triggers.entry(dep_key).or_insert_with(Vec::new);
+                    if !entry.contains(&pair) {
+                        entry.push(pair);
+                    }
                 }
             }
         }
@@ -833,7 +834,7 @@ pub fn build_dep_formula_triggers(
 
     for sources in triggers.values_mut() {
         sources.sort();
-        sources.dedup();
+        // Since we check contains above and we sort, it's pretty clean.
     }
 
     triggers

@@ -55,7 +55,7 @@ pub struct JSONEval {
     /// value/clear formulas reference that path (excluding $value/$refValue context vars).
     /// When field X changes, source fields in dep_formula_triggers[X] are re-queued so
     /// their downstream dependents are re-evaluated with the new context.
-    pub dep_formula_triggers: Arc<IndexMap<String, Vec<String>>>,
+    pub dep_formula_triggers: Arc<IndexMap<String, Vec<(String, usize)>>>,
 
     pub conditional_hidden_fields: Arc<Vec<String>>,
     pub conditional_readonly_fields: Arc<Vec<String>>,
