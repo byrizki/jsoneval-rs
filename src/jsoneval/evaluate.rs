@@ -11,6 +11,29 @@ use crate::utils::clean_float_noise_scalar;
 
 use serde_json::Value;
 
+/// Returns `true` if `new_item` (raw user input) is identity-compatible with `old_item`
+/// (snapshot that may contain computed formula outputs alongside raw input fields).
+///
+/// A full `==` comparison fails when `old_item` has extra keys written by formula evaluation
+/// (e.g., `wop_rider_premi`, `first_prem`) that are absent from the raw `new_item`. This helper
+/// compares only the fields present in `new_item`, ignoring extra keys in `old_item`:
+///
+/// - If both are objects: every key in `new` must match the same key in `old`.
+/// - Otherwise: standard equality (covers Null, scalar, array cases).
+///
+/// Used by `invalidate_subform_caches_on_structural_change` to detect genuine order/identity
+/// shifts without false positives from computed formula output fields in the snapshot.
+fn items_same_input_identity(old: Option<&Value>, new: Option<&Value>) -> bool {
+    match (old, new) {
+        (Some(Value::Object(old_map)), Some(Value::Object(new_map))) => {
+            new_map.iter().all(|(k, new_val)| {
+                old_map.get(k).map_or(false, |old_val| old_val == new_val)
+            })
+        }
+        (old, new) => old == new,
+    }
+}
+
 impl JSONEval {
     /// Evaluate the schema with the given data and context.
     ///
@@ -127,8 +150,15 @@ impl JSONEval {
 
             self.eval_cache
                 .store_snapshot_and_diff_versions(&old_data, &new_data);
-            // Save snapshot for the next evaluation cycle (avoids one snapshot_data_clone() call).
-            self.eval_cache.main_form_snapshot = Some(new_data);
+            // Save snapshot for the next evaluation cycle (avoids one snapshot_data_clone() call)
+            self.eval_cache.main_form_snapshot = Some(new_data.clone());
+
+            // Detect subform array structural changes: length differences OR item identity shifts
+            // (e.g., rider reorder). When items move indices their per-index T1 caches are misaligned,
+            // and T2 global entries keyed on subform-local dep paths (e.g., `/riders/code`) must be
+            // evicted — the parent diff only bumps indexed full paths like
+            // `/illustration/product_benefit/riders/2/code`, which never match the stored dep key.
+            self.invalidate_subform_caches_on_structural_change(&old_data, &new_data);
 
             // Generation-based fast skip: diff_and_update_versions bumps data_versions.versions
             // but does NOT increment eval_generation. Only bump_data_version / bump_params_version
@@ -144,6 +174,103 @@ impl JSONEval {
             // Call internal evaluate (uses existing data if not provided)
             self.evaluate_internal(paths, token)
         })
+    }
+
+    /// Detect structural changes in subform arrays between `old_data` and `new_data`
+    /// and evict stale caches accordingly.
+    pub(crate) fn invalidate_subform_caches_on_structural_change(
+        &mut self,
+        old_data: &Value,
+        new_data: &Value,
+    ) {
+        use crate::jsoneval::path_utils::normalize_to_json_pointer;
+
+        for (subform_path, _) in &self.subforms {
+            // Resolve the data pointer for this subform
+            // (e.g., `/illustration/product_benefit/riders`)
+            let subform_ptr = normalize_to_json_pointer(subform_path)
+                .replace("/properties/", "/");
+
+            let old_items = old_data.pointer(&subform_ptr).and_then(Value::as_array);
+            let new_items = new_data.pointer(&subform_ptr).and_then(Value::as_array);
+
+            let old_len = old_items.map(Vec::len).unwrap_or(0);
+            let new_len = new_items.map(Vec::len).unwrap_or(0);
+            let min_len = old_len.min(new_len);
+
+            // Detect identity shift in the overlapping index range using subset comparison.
+            // We check whether the raw input fields of new_items[i] all match old_items[i],
+            // ignoring extra computed keys that only exist in the old snapshot.
+            let identities_shifted = (0..min_len).any(|i| {
+                let old_item = old_items.and_then(|a| a.get(i));
+                let new_item = new_items.and_then(|a| a.get(i));
+                !items_same_input_identity(old_item, new_item)
+            });
+
+            if old_len == new_len && !identities_shifted {
+                continue; // No structural change for this subform
+            }
+
+            // Build the subform-local dep-path prefix stored in T2 dep_versions
+            // (e.g., `/riders/` for a riders subform). T2 dep keys are normalized data
+            // paths — never schema paths — so only one prefix is needed.
+            let field_key = subform_ptr
+                .split('/')
+                .next_back()
+                .unwrap_or(subform_ptr.as_str());
+            let subform_dep_prefix = format!("/{}/", field_key);
+
+            // Evict T2 global entries whose deps include any subform-local path.
+            // `retain` evicts inline (no intermediate Vec allocation).
+            // Collect the normalized path of each evicted key for the params_versions bump.
+            let mut evicted_paths: Vec<String> = Vec::new();
+            self.eval_cache.entries.retain(|eval_key, entry| {
+                let has_subform_dep = entry
+                    .dep_versions
+                    .keys()
+                    .any(|dep| dep.starts_with(&subform_dep_prefix));
+
+                if has_subform_dep {
+                    // Normalize eval_key → params data path once, at eviction time
+                    let raw = normalize_to_json_pointer(eval_key).replace("/properties/", "/");
+                    let normalized = raw.trim_start_matches('#');
+                    evicted_paths.push(if normalized.starts_with('/') {
+                        normalized.to_string()
+                    } else {
+                        format!("/{}", normalized)
+                    });
+                    false // remove entry
+                } else {
+                    true // keep
+                }
+            });
+
+            // Bump params_versions for every evicted T2 entry so downstream $params formulas
+            // (SA_WOP_RIDER, TOTAL_WOP_SA, etc.) correctly miss their caches.
+            for path in &evicted_paths {
+                self.eval_cache.params_versions.bump(path);
+            }
+
+            // Clear T1 per-item caches for indices where item identity has shifted.
+            // This prevents stale per-rider results being reused for a different rider
+            // occupying the same array slot after a reorder.
+            for idx in 0..min_len {
+                let old_item = old_items.and_then(|a| a.get(idx));
+                let new_item = new_items.and_then(|a| a.get(idx));
+                if !items_same_input_identity(old_item, new_item) {
+                    if let Some(c) = self.eval_cache.subform_caches.get_mut(&idx) {
+                        c.entries.clear();
+                        c.data_versions = crate::jsoneval::eval_cache::VersionTracker::new();
+                    }
+                }
+            }
+            // Prune T1 caches for indices that no longer exist (removed items)
+            self.eval_cache.prune_subform_caches(new_len);
+
+            if !evicted_paths.is_empty() || old_len != new_len {
+                self.eval_cache.eval_generation += 1;
+            }
+        }
     }
 
     /// Fast variant of `evaluate_internal_with_new_data` for the cache-swap path.

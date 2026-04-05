@@ -33,22 +33,38 @@ impl JSONEval {
             }
         }
         let _lock = self.eval_lock.lock().unwrap();
+        let mut structural_change_data = None;
 
         // Update data if provided, diff versions
         if let Some(data_str) = data {
-            time_block!("  [dep] data_parse_and_diff", {
-                let data_value = json_parser::parse_json_str(data_str)?;
-                let context_value = if let Some(ctx) = context {
-                    json_parser::parse_json_str(ctx)?
-                } else {
-                    Value::Object(serde_json::Map::new())
-                };
-                let old_data = self.eval_data.snapshot_data_clone();
+            let data_value = json_parser::parse_json_str(data_str)?;
+            let context_value = if let Some(ctx) = context {
+                json_parser::parse_json_str(ctx)?
+            } else {
+                Value::Object(serde_json::Map::new())
+            };
+            let old_data = self.eval_data.snapshot_data_clone();
+            time_block!("  [dep] data_replace_and_context", {
                 self.eval_data
                     .replace_data_and_context(data_value, context_value);
-                let new_data = self.eval_data.snapshot_data_clone();
+            });
+            let new_data = self.eval_data.snapshot_data_clone();
+            time_block!("  [dep] data_diff_versions", {
                 self.eval_cache
                     .store_snapshot_and_diff_versions(&old_data, &new_data);
+            });
+            structural_change_data = Some((old_data, new_data));
+        }
+
+        // Drop the lock before calling sub-methods that need &mut self
+        drop(_lock);
+
+        // When a subform array changes structurally (riders added/removed/reordered),
+        // evict stale T2 global cache entries whose dep paths use the subform-local key
+        // format that is never bumped by the parent-level diff.
+        if let Some((old_data, new_data)) = structural_change_data {
+            time_block!("  [dep] invalidate_subform_structural", {
+                self.invalidate_subform_caches_on_structural_change(&old_data, &new_data);
             });
         }
 
@@ -75,9 +91,6 @@ impl JSONEval {
                 canceled_paths.as_mut().map(|v| &mut **v),
             )?;
         });
-
-        // Drop the lock before calling sub-methods that may re-acquire it
-        drop(_lock);
 
         if re_evaluate {
             time_block!("  [dep] run_re_evaluate_pass", {
