@@ -67,28 +67,14 @@ fn test_dependent_value_null_emits_clear() {
 
     let changes = result.as_array().expect("result must be an array");
 
-    // Must emit a change for `label`
+    // Must NOT emit a change for `label` when value is null/empty from dependents array
     let label_change = changes
         .iter()
-        .find(|c| c.get("$ref").and_then(|v| v.as_str()) == Some("label"))
-        .expect("dependent for `label` must be emitted when formula returns null");
+        .find(|c| c.get("$ref").and_then(|v| v.as_str()) == Some("label"));
 
-    // Must be a clear, not a phantom value
-    assert_eq!(
-        label_change.get("clear"),
-        Some(&json!(true)),
-        "null formula result must emit clear:true"
-    );
     assert!(
-        label_change.get("value").is_none(),
-        "clear entry must not carry a value key"
-    );
-
-    // eval_data must reflect null
-    assert_eq!(
-        eval.eval_data.data().get("label"),
-        None.or(Some(&json!(null))),
-        "label must be null in eval_data after clear"
+        label_change.is_none(),
+        "dependent clear must NOT be emitted for null/empty value from dependents array"
     );
 }
 

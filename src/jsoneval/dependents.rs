@@ -1314,21 +1314,8 @@ impl JSONEval {
 
                         let is_clear =
                             cleaned_val == Value::Null || cleaned_val.as_str() == Some("");
-                        let ref_is_clear = current_ref_value == Value::Null
-                            || current_ref_value.as_str() == Some("");
 
-                        if is_clear && !ref_is_clear {
-                            // Schema value resolved to null or empty string — treat as explicit clear so the
-                            // consumer receives `null` instead of seeing `undefined`.
-                            if data_path == current_data_path {
-                                current_value = Value::Null;
-                            }
-                            eval_data.set(&data_path, Value::Null);
-                            eval_cache.bump_data_version(&data_path);
-                            change_obj.insert("clear".to_string(), Value::Bool(true));
-                            add_transitive = true;
-                            add_deps = true;
-                        } else if cleaned_val != current_ref_value && !is_clear {
+                        if cleaned_val != current_ref_value && !is_clear {
                             if data_path == current_data_path {
                                 current_value = cleaned_val.clone();
                             }
