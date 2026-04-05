@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.84] - 2026-04-06
+
+### Fixed
+
+- [core] fix formula error causing residual unevaluated values
+
 ## [0.0.83] - 2026-04-06
 
 ### Fixed
