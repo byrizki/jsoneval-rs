@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.83] - 2026-04-06
+
+### Fixed
+
+- [core] fix chaotic evaluate dependents
+
 ## [0.0.82] - 2026-04-05
 
 ### Changed
