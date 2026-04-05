@@ -391,15 +391,30 @@ impl JSONEval {
                     had_cache_miss = true;
                     // Cache miss - evaluate
                     if let Some(logic_id) = self.evaluations.get(eval_key) {
-                        if let Ok(val) = self.engine.run(logic_id, eval_data_values.data()) {
-                            let cleaned_val = clean_float_noise_scalar(val);
-                            self.eval_cache
-                                .store_cache(eval_key, deps, cleaned_val.clone());
+                        match self.engine.run(logic_id, eval_data_values.data()) {
+                            Ok(val) => {
+                                let cleaned_val = clean_float_noise_scalar(val);
+                                self.eval_cache
+                                    .store_cache(eval_key, deps, cleaned_val.clone());
 
-                            if let Some(pointer_value) =
-                                self.evaluated_schema.pointer_mut(&pointer_path)
-                            {
-                                *pointer_value = cleaned_val;
+                                if let Some(pointer_value) =
+                                    self.evaluated_schema.pointer_mut(&pointer_path)
+                                {
+                                    *pointer_value = cleaned_val;
+                                }
+                            }
+                            Err(_) => {
+                                // Formula failed — ensure no raw $evaluation object leaks.
+                                // Write null only if the node still holds the unevaluated formula.
+                                if let Some(node) =
+                                    self.evaluated_schema.pointer_mut(&pointer_path)
+                                {
+                                    if node.is_object()
+                                        && node.get("$evaluation").is_some()
+                                    {
+                                        *node = Value::Null;
+                                    }
+                                }
                             }
                         }
                     }
@@ -589,34 +604,49 @@ impl JSONEval {
                                             self.engine.run(logic_id, &*snap)
                                             // snap dropped here → rc back to 1
                                         };
-                                        if let Ok(val) = val {
-                                            let cleaned_val = clean_float_noise_scalar(val);
-                                            let data_path =
-                                                pointer_path.replace("/properties/", "/");
-                                            self.eval_cache.store_cache(
-                                                eval_key,
-                                                &deps,
-                                                cleaned_val.clone(),
-                                            );
+                                        match val {
+                                            Ok(val) => {
+                                                let cleaned_val = clean_float_noise_scalar(val);
+                                                let data_path =
+                                                    pointer_path.replace("/properties/", "/");
+                                                self.eval_cache.store_cache(
+                                                    eval_key,
+                                                    &deps,
+                                                    cleaned_val.clone(),
+                                                );
 
-                                            // Bump data_versions when non-$params field value changes.
-                                            // $params bumps are handled inside store_cache (conditional).
-                                            let old_val = self
-                                                .eval_data
-                                                .get(&data_path)
-                                                .cloned()
-                                                .unwrap_or(Value::Null);
-                                            if cleaned_val != old_val
-                                                && !data_path.starts_with("/$params")
-                                            {
-                                                self.eval_cache.bump_data_version(&data_path);
+                                                // Bump data_versions when non-$params field value changes.
+                                                // $params bumps are handled inside store_cache (conditional).
+                                                let old_val = self
+                                                    .eval_data
+                                                    .get(&data_path)
+                                                    .cloned()
+                                                    .unwrap_or(Value::Null);
+                                                if cleaned_val != old_val
+                                                    && !data_path.starts_with("/$params")
+                                                {
+                                                    self.eval_cache.bump_data_version(&data_path);
+                                                }
+
+                                                self.eval_data.set(&pointer_path, cleaned_val.clone());
+                                                if let Some(schema_value) =
+                                                    self.evaluated_schema.pointer_mut(&pointer_path)
+                                                {
+                                                    *schema_value = cleaned_val;
+                                                }
                                             }
-
-                                            self.eval_data.set(&pointer_path, cleaned_val.clone());
-                                            if let Some(schema_value) =
-                                                self.evaluated_schema.pointer_mut(&pointer_path)
-                                            {
-                                                *schema_value = cleaned_val;
+                                            Err(_) => {
+                                                // Formula failed — ensure no raw $evaluation object leaks.
+                                                // Write null only if the node still holds the unevaluated formula.
+                                                if let Some(node) =
+                                                    self.evaluated_schema.pointer_mut(&pointer_path)
+                                                {
+                                                    if node.is_object()
+                                                        && node.get("$evaluation").is_some()
+                                                    {
+                                                        *node = Value::Null;
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -726,28 +756,41 @@ impl JSONEval {
                             continue;
                         }
                         if let Some(logic_id) = self.evaluations.get(eval_key) {
-                            if let Ok(val) = self.engine.run(logic_id, eval_data_snapshot.data()) {
-                                let cleaned_val = clean_float_noise_scalar(val);
-                                self.eval_cache
-                                    .store_cache(eval_key, &deps, cleaned_val.clone());
+                            match self.engine.run(logic_id, eval_data_snapshot.data()) {
+                                Ok(val) => {
+                                    let cleaned_val = clean_float_noise_scalar(val);
+                                    self.eval_cache
+                                        .store_cache(eval_key, &deps, cleaned_val.clone());
 
-                                if let Some(pointer_value) =
-                                    self.evaluated_schema.pointer_mut(&pointer_path)
-                                {
-                                    if !pointer_path.starts_with("$")
-                                        && pointer_path.contains("/rules/")
-                                        && !pointer_path.ends_with("/value")
+                                    if let Some(pointer_value) =
+                                        self.evaluated_schema.pointer_mut(&pointer_path)
                                     {
-                                        match pointer_value.as_object_mut() {
-                                            Some(pointer_obj) => {
-                                                pointer_obj.remove("$evaluation");
-                                                pointer_obj
-                                                    .insert("value".to_string(), cleaned_val);
+                                        if !pointer_path.starts_with("$")
+                                            && pointer_path.contains("/rules/")
+                                            && !pointer_path.ends_with("/value")
+                                        {
+                                            match pointer_value.as_object_mut() {
+                                                Some(pointer_obj) => {
+                                                    pointer_obj.remove("$evaluation");
+                                                    pointer_obj
+                                                        .insert("value".to_string(), cleaned_val);
+                                                }
+                                                None => continue,
                                             }
-                                            None => continue,
+                                        } else {
+                                            *pointer_value = cleaned_val;
                                         }
-                                    } else {
-                                        *pointer_value = cleaned_val;
+                                    }
+                                }
+                                Err(_) => {
+                                    // Formula failed — ensure no raw $evaluation object leaks.
+                                    // Write null only if the node still holds the unevaluated formula.
+                                    if let Some(node) =
+                                        self.evaluated_schema.pointer_mut(&pointer_path)
+                                    {
+                                        if node.is_object() && node.get("$evaluation").is_some() {
+                                            *node = Value::Null;
+                                        }
                                     }
                                 }
                             }
