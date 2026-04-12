@@ -128,10 +128,64 @@ impl JSONEval {
                 }
                 paths
             };
-            time_block!("  [dep] run_subform_pass", {
-                self.run_subform_pass(&extended_paths, re_evaluate, token, &mut result)?;
-            });
+            let subform_invalidated_tables = time_block!("  [dep] run_subform_pass", {
+                self.run_subform_pass(&extended_paths, re_evaluate, token, &mut result)
+            })?;
+
+            // If the subform pass invalidated and re-evaluated any T2 $params tables that
+            // depend on subform-item fields (e.g. RIDER_ZLOS_TABLE), those tables now have fresh
+            // rows in the T2 cache, but the parent's evaluated_schema still contains the stale
+            // pre-dependents values written by the initial run_re_evaluate_pass. Run a second
+            // evaluate_internal on the parent so that downstream $params tables like
+            // RIDER_FIRST_PREM_PER_PAY_TABLE are re-evaluated against the new T2 rows and the
+            // parent's evaluated_schema reflects the correct post-dependents state.
+            if subform_invalidated_tables {
+                let _lock2 = self.eval_lock.lock().unwrap();
+                drop(_lock2);
+                self.evaluate_internal(None, token)?;
+
+                // Run a second subform pass so each item re-evaluates computed readonly fields
+                // (e.g. first_prem) against the now-fresh T2 tables. The first subform pass ran
+                // before evaluate_internal refreshed those tables. Deduplication (last-writer-wins)
+                // ensures these up-to-date entries overwrite any stale entries from pass 1.
+                self.run_subform_pass(&[], true, token, &mut result)?;
+
+                // Patch the whole-array entry in result with the post-pass eval_data snapshot.
+                for (subform_path, _) in &self.subforms {
+                    let data_ptr =
+                        crate::jsoneval::path_utils::normalize_to_json_pointer(subform_path)
+                            .replace("/properties/", "/");
+                    let data_ptr_str = data_ptr.trim_start_matches('#').to_string();
+                    let dot_path = data_ptr_str.trim_start_matches('/').replace('/', ".");
+
+                    if let Some(fresh_val) = self.eval_data.get(&data_ptr_str) {
+                        let mut patched = false;
+                        for item in result.iter_mut() {
+                            if item
+                                .get("$ref")
+                                .and_then(|r| r.as_str())
+                                .map(|r| r == dot_path)
+                                .unwrap_or(false)
+                            {
+                                if let Some(map) = item.as_object_mut() {
+                                    map.remove("clear");
+                                    map.insert("value".to_string(), fresh_val.clone());
+                                }
+                                patched = true;
+                                break;
+                            }
+                        }
+                        if !patched {
+                            let mut obj = serde_json::Map::new();
+                            obj.insert("$ref".to_string(), serde_json::Value::String(dot_path));
+                            obj.insert("value".to_string(), fresh_val.clone());
+                            result.push(serde_json::Value::Object(obj));
+                        }
+                    }
+                }
+            }
         }
+
 
         // Deduplicate by $ref — keep the last entry for each path.
         // Multiple passes (dependents queue, re-evaluate, subform) may independently emit
@@ -205,15 +259,6 @@ impl JSONEval {
 
         self.evaluate_internal(None, token)?;
 
-        // --- Schema Default Value Pass (After Eval) ---
-        self.run_schema_default_value_pass(
-            token,
-            to_process,
-            processed,
-            result,
-            canceled_paths.as_mut().map(|v| &mut **v),
-        )?;
-
         // Emit result entries for every sorted-evaluation whose version uniquely bumped.
         let active_idx = self.eval_cache.active_item_index;
         for eval_key in self.sorted_evaluations.iter().flatten() {
@@ -273,14 +318,66 @@ impl JSONEval {
                 );
             }
         }
-        // Capture count before drain so had_actual_readonly_changes is not confused by
-        // pre-existing to_process entries from schema_default_before or process_dependents_queue.
+        // Captured before draining into to_process — !to_process.is_empty() would also
+        // fire for entries from earlier passes, triggering a spurious second evaluate_internal.
         let had_actual_readonly_changes = !readonly_changes.is_empty();
+
+        // Subform root arrays need special treatment: writing the full schema array into
+        // eval_data would overwrite computed nested fields (e.g. loading_benefit.first_prem)
+        // with the stale snapshot from evaluated_schema (computed before the T2 table refresh).
+        // Instead, merge only primitive/scalar item fields (sa, code, prem_pay_period, etc.),
+        // leaving nested objects intact so run_subform_pass sees the correct old/new diff.
+        let subform_data_paths: std::collections::HashSet<String> = self
+            .subforms
+            .keys()
+            .map(|p| {
+                path_utils::normalize_to_json_pointer(p)
+                    .replace("/properties/", "/")
+                    .replace("/value/", "/")
+                    .trim_start_matches('#')
+                    .to_string()
+            })
+            .collect();
+
         for (path, schema_value) in readonly_changes {
             let data_path = path_utils::normalize_to_json_pointer(&path)
                 .replace("/properties/", "/")
+                // Strip /value/ schema wrappers: #/riders/value/0/sa → /riders/0/sa
+                .replace("/value/", "/")
                 .trim_start_matches('#')
                 .to_string();
+
+            if subform_data_paths.contains(&data_path) {
+                // Per-item scalar merge: propagate input fields without touching computed objects.
+                if let (Value::Array(schema_items), Some(Value::Array(existing_items))) = (
+                    &schema_value,
+                    self.eval_data.data().pointer(&data_path).cloned().as_ref(),
+                ) {
+                    let mut merged_items = existing_items.clone();
+                    for (i, schema_item) in schema_items.iter().enumerate() {
+                        if let (Some(existing), Value::Object(schema_map)) =
+                            (merged_items.get_mut(i), schema_item)
+                        {
+                            if let Some(existing_map) = existing.as_object_mut() {
+                                for (k, v) in schema_map {
+                                    if !v.is_object() {
+                                        existing_map.insert(k.clone(), v.clone());
+                                    }
+                                }
+                            }
+                        } else if i >= merged_items.len() {
+                            merged_items.push(schema_item.clone());
+                        }
+                    }
+                    self.eval_data.set(&data_path, Value::Array(merged_items));
+                } else {
+                    self.eval_data.set(&data_path, schema_value.clone());
+                }
+                self.eval_cache.bump_data_version(&data_path);
+                to_process.push((path, true, None));
+                continue;
+            }
+
             self.eval_data.set(&data_path, schema_value.clone());
             self.eval_cache.bump_data_version(&data_path);
             to_process.push((path, true, None));
@@ -288,6 +385,8 @@ impl JSONEval {
         for (path, schema_value) in readonly_values {
             let data_path = path_utils::normalize_to_json_pointer(&path)
                 .replace("/properties/", "/")
+                // Strip /value/ schema wrappers: #/riders/value/0/sa → /riders/0/sa
+                .replace("/value/", "/")
                 .trim_start_matches('#')
                 .to_string();
             let mut obj = serde_json::Map::new();
@@ -531,7 +630,8 @@ impl JSONEval {
         re_evaluate: bool,
         token: Option<&CancellationToken>,
         result: &mut Vec<Value>,
-    ) -> Result<(), String> {
+    ) -> Result<bool, String> {
+        let mut any_table_invalidated = false;
         // Collect subform paths once (avoids holding borrow on self.subforms during mutation)
         let subform_paths: Vec<String> = self.subforms.keys().cloned().collect();
 
@@ -661,6 +761,14 @@ impl JSONEval {
                 // Cache-swap: lend parent cache to subform
                 let mut parent_cache = std::mem::take(&mut self.eval_cache);
                 parent_cache.ensure_active_item_cache(idx);
+
+                // Snapshot item data_versions BEFORE the diff so we can detect which paths
+                // are newly bumped by this specific diff pass (vs historical bumps from prior calls).
+                let pre_diff_item_versions = parent_cache
+                    .subform_caches
+                    .get(&idx)
+                    .map(|c| c.data_versions.clone());
+
                 if let Some(c) = parent_cache.subform_caches.get_mut(&idx) {
                     // Merge all data versions from the parent snapshot. We must include non-$params
                     // paths so that parent field updates (like wop_basic_benefit changing) correctly
@@ -677,6 +785,77 @@ impl JSONEval {
                     );
                     c.item_snapshot = new_item_val;
                 }
+
+                // Invalidate stale T2 $params table entries whose deps overlap any path newly
+                // bumped by the item diff above. This mirrors the invalidation done in
+                // with_item_cache_swap (evaluate_subform_item path) and is required so that
+                // tables like RIDER_ZLOS_TABLE (which depend on /riders/properties/sa) are
+                // evicted from the T2 global cache before subform.evaluate_dependents runs.
+                //
+                // Without this, the T2 entry stored during the initial evaluate() has
+                // dep[/riders/sa]=0 and parent data_versions[/riders/sa]=0 (never directly
+                // bumped — only the indexed /illustration/.../riders/0/sa is bumped). The
+                // check_table_cache sees 0==0 → Cache HIT → stale rows → wrong first_prem.
+                //
+                // These tables MUST be re-evaluated by the subform engine (not here) because
+                // their formulas read subform-local paths like #/riders/properties/sa which
+                // only resolve correctly when the active item is injected under the riders key.
+                {
+                    let field_prefix_slash = format!("/{}/", field_key);
+                    let newly_bumped_schema_paths: Vec<String> =
+                        if let (Some(ref pre), Some(c)) = (
+                            &pre_diff_item_versions,
+                            parent_cache.subform_caches.get(&idx),
+                        ) {
+                            c.data_versions
+                                .versions()
+                                .filter(|(k, &v)| {
+                                    k.starts_with(&field_prefix_slash) && v > pre.get(k)
+                                })
+                                .map(|(k, _)| {
+                                    // Convert data-version path (e.g. /riders/sa) to schema dep
+                                    // format (e.g. /riders/properties/sa) for dep matching against
+                                    // self.dependencies, which stores paths WITHOUT the '#' prefix.
+                                    let sub = k.trim_start_matches(&field_prefix_slash);
+                                    format!(
+                                        "/{}/properties/{}",
+                                        field_key,
+                                        sub.replace('/', "/properties/")
+                                    )
+                                })
+                                .collect()
+                        } else {
+                            Vec::new()
+                        };
+
+                    if !newly_bumped_schema_paths.is_empty() {
+                        let params_table_keys: Vec<String> = self
+                            .table_metadata
+                            .keys()
+                            .filter(|k| k.starts_with("#/$params"))
+                            .filter(|k| {
+                                self.dependencies
+                                    .get(*k)
+                                    .map(|deps| {
+                                        deps.iter().any(|dep| {
+                                            newly_bumped_schema_paths
+                                                .iter()
+                                                .any(|b| dep == b || dep.starts_with(b.as_str()))
+                                        })
+                                    })
+                                    .unwrap_or(false)
+                            })
+                            .cloned()
+                            .collect();
+
+                        if !params_table_keys.is_empty() {
+                            parent_cache
+                                .invalidate_params_tables_for_item(idx, &params_table_keys);
+                            any_table_invalidated = true;
+                        }
+                    }
+                }
+
                 parent_cache.set_active_item(idx);
                 std::mem::swap(&mut subform.eval_cache, &mut parent_cache);
 
@@ -780,7 +959,7 @@ impl JSONEval {
                 }
             }
         }
-        Ok(())
+        Ok(any_table_invalidated)
     }
 
     /// Helper to evaluate a dependent value - uses pre-compiled eval keys for fast lookup
@@ -853,6 +1032,9 @@ impl JSONEval {
                     if let Some(schema_value) = map.get("value") {
                         let data_path = path_utils::normalize_to_json_pointer(path)
                             .replace("/properties/", "/")
+                            // Strip the schema /value/ wrapper that appears in subform array item
+                            // paths, e.g. #/riders/value/0/sa → /riders/0/sa (correct data pointer).
+                            .replace("/value/", "/")
                             .trim_start_matches('#')
                             .to_string();
 
@@ -862,10 +1044,9 @@ impl JSONEval {
                             .pointer(&data_path)
                             .unwrap_or(&Value::Null);
 
-                        // Add to all_values (include in dependents result regardless of change)
+                        // Emit to all_values regardless of change (frontend needs $readonly value);
+                        // add to changes only when eval_data differs from the schema value.
                         all_values.push((path.to_string(), schema_value.clone()));
-
-                        // Only add to changes if value doesn't match
                         if current_data != schema_value {
                             changes.push((path.to_string(), schema_value.clone()));
                         }

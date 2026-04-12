@@ -276,8 +276,6 @@ pub fn walk_schema(
                     if let Some(items) = map.get("items") {
                         // Store subform info for later creation (after walk completes)
                         subforms.push((path.to_string(), map.clone(), items.clone()));
-                        // Don't recurse into items - it will be processed as a separate subform
-                        return Ok(());
                     }
                 }
             }
@@ -372,7 +370,7 @@ pub fn walk_schema(
             // Recurse into children
             Ok(for (key, val) in map {
                 // Skip special evaluation and dependents keys from recursion (already processed above)
-                if key == "$evaluation" || key == "dependents" {
+                if key == "$evaluation" || key == "dependents" || key == "items" {
                     continue;
                 }
 

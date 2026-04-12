@@ -153,7 +153,7 @@ fn create_subform_parsed(
 
     // Copy field-level properties (title, etc.) but exclude items and type="array"
     for (key, value) in field_map {
-        if key != "items" && key != "type" {
+        if key != "items" && key != "type" && key != "value" {
             field_obj.insert(key.clone(), value.clone());
         }
     }
