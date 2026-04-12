@@ -117,26 +117,6 @@ impl JSONEval {
         }
     }
 
-    /// Resolve a single value that may be a `{"$static_array": "..."}` marker.
-    ///
-    /// Looks up the real array from `static_arrays` first (O(1)), then falls back
-    /// to following the marker's data path in `eval_data`.
-    fn resolve_static_marker<'a>(&'a self, val: &'a Value) -> &'a Value {
-        if let Value::Object(map) = val {
-            if let Some(Value::String(static_key)) = map.get("$static_array") {
-                // Fast path: look up directly in the static_arrays index
-                if let Some(arc_val) = self.static_arrays.get(static_key.as_str()) {
-                    return arc_val.as_ref();
-                }
-                // Fallback: resolve the data path embedded in the marker value
-                let data_path = static_key.trim_start_matches("/$table");
-                if let Some(v) = self.eval_data.data().pointer(data_path) {
-                    return v;
-                }
-            }
-        }
-        val
-    }
 
     /// Get the evaluated schema with optional layout resolution.
     ///
@@ -164,15 +144,56 @@ impl JSONEval {
         })
     }
 
-    /// Get specific schema value by path, resolving any `$static_array` markers back to
-    /// the actual evaluated data (stored in `eval_data`).
+    /// Resolve `$static_array` markers within the subtree rooted at `schema_prefix`.
+    ///
+    /// Clones only the node at `schema_prefix` from `evaluated_schema`, then iterates
+    /// the tracked `static_arrays` list filtering to entries whose schema path is at or
+    /// under `schema_prefix`. Only those markers are replaced inside the cloned subtree;
+    /// unrelated entries are skipped entirely.
+    ///
+    /// # Examples
+    /// - `schema_prefix = "/$params/references"` → resolves only arrays nested under that key
+    /// - `schema_prefix = "/properties/foo/value"` → resolves a single marker if the field itself is one
+    fn resolve_static_markers_at_path(&self, schema_prefix: &str) -> Option<Value> {
+        let mut subtree = self.evaluated_schema.pointer(schema_prefix)?.clone();
+
+        // Pre-build "prefix/" once for the starts_with check in the loop
+        let prefix_slash = format!("{}/", schema_prefix);
+
+        for (static_key, array_arc) in self.static_arrays.iter() {
+            // Derive the absolute schema path the same way resolve_static_markers_in_value does
+            let schema_path: &str = if static_key.starts_with("/$table") {
+                &static_key["/$table".len()..]
+            } else {
+                static_key.as_str()
+            };
+
+            // Compute the path relative to the subtree root
+            let relative: &str = if schema_path == schema_prefix {
+                // The subtree root itself is the marker — replace the whole subtree
+                ""
+            } else if schema_path.starts_with(&prefix_slash) {
+                // Strip the prefix: remainder is the sub-path within the cloned subtree
+                &schema_path[schema_prefix.len()..]
+            } else {
+                continue; // Not under the requested path — skip
+            };
+
+            if relative.is_empty() {
+                subtree = (**array_arc).clone();
+            } else if let Some(target) = subtree.pointer_mut(relative) {
+                *target = (**array_arc).clone();
+            }
+        }
+
+        Some(subtree)
+    }
+
+    /// Get specific schema value by path, resolving any `$static_array` markers at or
+    /// under that path.
     pub fn get_schema_value_by_path(&self, path: &str) -> Option<Value> {
         let pointer_path = path_utils::dot_notation_to_schema_pointer(path);
-        let val = self
-            .evaluated_schema
-            .pointer(pointer_path.trim_start_matches('#'))?;
-
-        Some(self.resolve_static_marker(val).clone())
+        self.resolve_static_markers_at_path(pointer_path.trim_start_matches('#'))
     }
 
     /// Get all schema values (data view)
@@ -218,9 +239,9 @@ impl JSONEval {
                 continue;
             }
 
-            // Get the value from evaluated_schema, resolving any $static_array markers
-            let value = match self.evaluated_schema.pointer(&clean_key) {
-                Some(v) => self.resolve_static_marker(v).clone(),
+            // Resolve static markers at this specific pointer (handles markers at or under this path)
+            let value = match self.resolve_static_markers_at_path(clean_key) {
+                Some(v) => v,
                 None => continue,
             };
 
@@ -254,11 +275,6 @@ impl JSONEval {
                 } else {
                     // Ensure current is an object, then navigate/create intermediate objects
                     if let Some(obj) = current.as_object_mut() {
-                        // Use raw entry API or standard entry if possible, but borrowing is tricky
-                        // We need to re-borrow `current` for the next iteration
-                        // Since `entry` API consumes check, we might need a different approach or careful usage
-
-                        // Check presence first to avoid borrow issues if simpler
                         if !obj.contains_key(*part) {
                             obj.insert((*part).to_string(), Value::Object(serde_json::Map::new()));
                         }
@@ -315,9 +331,9 @@ impl JSONEval {
                 continue;
             }
 
-            // Get the value from evaluated_schema, resolving any $static_array markers
-            let value = match self.evaluated_schema.pointer(&clean_key) {
-                Some(v) => crate::utils::clean_float_noise(self.resolve_static_marker(v).clone()),
+            // Resolve static markers at this specific pointer (handles markers at or under this path)
+            let value = match self.resolve_static_markers_at_path(clean_key) {
+                Some(v) => crate::utils::clean_float_noise(v),
                 None => continue,
             };
 
@@ -368,9 +384,9 @@ impl JSONEval {
                 continue;
             }
 
-            // Get the value from evaluated_schema, resolving any $static_array markers
-            let value = match self.evaluated_schema.pointer(&clean_key) {
-                Some(v) => crate::utils::clean_float_noise(self.resolve_static_marker(v).clone()),
+            // Resolve static markers at this specific pointer (handles markers at or under this path)
+            let value = match self.resolve_static_markers_at_path(clean_key) {
+                Some(v) => crate::utils::clean_float_noise(v),
                 None => continue,
             };
 

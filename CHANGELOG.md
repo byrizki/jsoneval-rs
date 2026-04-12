@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.85] - 2026-04-13
+
+### Fixed
+
+- [core] fix eval dependents for populated array field
+- [core] fix get evaluated schema value with static array marker
+
 ## [0.0.84] - 2026-04-06
 
 ### Fixed
