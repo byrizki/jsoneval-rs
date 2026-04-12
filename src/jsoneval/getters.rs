@@ -117,6 +117,27 @@ impl JSONEval {
         }
     }
 
+    /// Resolve a single value that may be a `{"$static_array": "..."}` marker.
+    ///
+    /// Looks up the real array from `static_arrays` first (O(1)), then falls back
+    /// to following the marker's data path in `eval_data`.
+    fn resolve_static_marker<'a>(&'a self, val: &'a Value) -> &'a Value {
+        if let Value::Object(map) = val {
+            if let Some(Value::String(static_key)) = map.get("$static_array") {
+                // Fast path: look up directly in the static_arrays index
+                if let Some(arc_val) = self.static_arrays.get(static_key.as_str()) {
+                    return arc_val.as_ref();
+                }
+                // Fallback: resolve the data path embedded in the marker value
+                let data_path = static_key.trim_start_matches("/$table");
+                if let Some(v) = self.eval_data.data().pointer(data_path) {
+                    return v;
+                }
+            }
+        }
+        val
+    }
+
     /// Get the evaluated schema with optional layout resolution.
     ///
     /// # Arguments
@@ -151,17 +172,7 @@ impl JSONEval {
             .evaluated_schema
             .pointer(pointer_path.trim_start_matches('#'))?;
 
-        // Resolve $static_array markers: the table evaluator stores a marker object in
-        // evaluated_schema and the real array in eval_data at the equivalent data path.
-        if let Value::Object(map) = val {
-            if let Some(Value::String(static_key)) = map.get("$static_array") {
-                // The data path mirrors the static_key stripped of the "/$table" prefix
-                let data_path = static_key.trim_start_matches("/$table");
-                return self.eval_data.data().pointer(data_path).cloned();
-            }
-        }
-
-        Some(val.clone())
+        Some(self.resolve_static_marker(val).clone())
     }
 
     /// Get all schema values (data view)
@@ -207,9 +218,9 @@ impl JSONEval {
                 continue;
             }
 
-            // Get the value from evaluated_schema
+            // Get the value from evaluated_schema, resolving any $static_array markers
             let value = match self.evaluated_schema.pointer(&clean_key) {
-                Some(v) => v.clone(),
+                Some(v) => self.resolve_static_marker(v).clone(),
                 None => continue,
             };
 
@@ -304,9 +315,9 @@ impl JSONEval {
                 continue;
             }
 
-            // Get the value from evaluated_schema
+            // Get the value from evaluated_schema, resolving any $static_array markers
             let value = match self.evaluated_schema.pointer(&clean_key) {
-                Some(v) => crate::utils::clean_float_noise(v.clone()),
+                Some(v) => crate::utils::clean_float_noise(self.resolve_static_marker(v).clone()),
                 None => continue,
             };
 
@@ -357,9 +368,9 @@ impl JSONEval {
                 continue;
             }
 
-            // Get the value from evaluated_schema
+            // Get the value from evaluated_schema, resolving any $static_array markers
             let value = match self.evaluated_schema.pointer(&clean_key) {
-                Some(v) => crate::utils::clean_float_noise(v.clone()),
+                Some(v) => crate::utils::clean_float_noise(self.resolve_static_marker(v).clone()),
                 None => continue,
             };
 
