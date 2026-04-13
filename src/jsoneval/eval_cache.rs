@@ -21,8 +21,11 @@ impl VersionTracker {
     }
 
     #[inline]
-    pub fn bump(&mut self, path: &str) {
+    pub fn bump(&mut self, path: &str, source: &str) {
         let current = self.get(path);
+        if crate::utils::is_debug_cache_enabled() {
+            println!("[store_cache] BUMPING for {} -> {} ({})", path, current + 1, source);
+        }
         // We use actual data pointers here
         self.versions.insert(path.to_string(), current + 1);
     }
@@ -176,15 +179,8 @@ impl EvalCache {
     pub fn invalidate_params_tables_for_item(&mut self, idx: usize, table_keys: &[String]) {
         // Bump params_versions so T2 global entries for these tables are stale.
         for key in table_keys {
-            let data_path = crate::jsoneval::path_utils::normalize_to_json_pointer(key)
-                .replace("/properties/", "/");
-            let data_path = data_path.trim_start_matches('#');
-            let data_path = if data_path.starts_with('/') {
-                data_path.to_string()
-            } else {
-                format!("/{}", data_path)
-            };
-            self.params_versions.bump(&data_path);
+            let data_path = crate::jsoneval::path_utils::schema_path_to_data_pointer(key);
+            self.params_versions.bump(&data_path, "invalidate_params_tables_for_item");
             self.eval_generation += 1;
         }
 
@@ -226,10 +222,10 @@ impl EvalCache {
         if let Some(idx) = self.active_item_index {
             self.ensure_active_item_cache(idx);
             let sub_cache = self.subform_caches.get_mut(&idx).unwrap();
-            diff_and_update_versions(&mut sub_cache.data_versions, "", old, new);
+            diff_and_update_versions(&mut sub_cache.data_versions, "", old, new, "subform store_snapshot_and_diff_versions");
             sub_cache.item_snapshot = new.clone();
         } else {
-            diff_and_update_versions(&mut self.data_versions, "", old, new);
+            diff_and_update_versions(&mut self.data_versions, "", old, new, "store_snapshot_and_diff_versions");
         }
     }
 
@@ -264,6 +260,7 @@ impl EvalCache {
                 &format!("/{}", field_key),
                 old_item,
                 new_item,
+                format!("diff_active_item {}", field_key).as_str(),
             );
             sub_cache.item_snapshot = new_sub_data.clone();
         }
@@ -275,15 +272,15 @@ impl EvalCache {
         self.eval_generation += 1;
         if let Some(idx) = self.active_item_index {
             if let Some(cache) = self.subform_caches.get_mut(&idx) {
-                cache.data_versions.bump(data_path);
+                cache.data_versions.bump(data_path, "bump_data_version1");
             }
         } else {
-            self.data_versions.bump(data_path);
+            self.data_versions.bump(data_path, "bump_data_version2");
         }
     }
 
     pub fn bump_params_version(&mut self, data_path: &str) {
-        self.params_versions.bump(data_path);
+        self.params_versions.bump(data_path, "bump_params_version");
         self.eval_generation += 1;
     }
 
@@ -402,8 +399,7 @@ impl EvalCache {
     ) -> Option<Value> {
         let entry = entries.get(eval_key)?;
         for dep in deps {
-            let data_dep_path = crate::jsoneval::path_utils::normalize_to_json_pointer(dep)
-                .replace("/properties/", "/");
+            let data_dep_path = crate::jsoneval::path_utils::schema_path_to_data_pointer(dep);
 
             let current_ver = if data_dep_path.starts_with("/$params") {
                 self.params_versions.get(&data_dep_path)
@@ -411,7 +407,7 @@ impl EvalCache {
                 data_versions.get(&data_dep_path)
             };
 
-            if let Some(&cached_ver) = entry.dep_versions.get(&data_dep_path) {
+            if let Some(&cached_ver) = entry.dep_versions.get(data_dep_path.as_ref()) {
                 if current_ver != cached_ver {
                     if crate::utils::is_debug_cache_enabled() {
                         println!(
@@ -458,14 +454,13 @@ impl EvalCache {
             };
 
             for dep in deps {
-                let data_dep_path = crate::jsoneval::path_utils::normalize_to_json_pointer(dep)
-                    .replace("/properties/", "/");
+                let data_dep_path = crate::jsoneval::path_utils::schema_path_to_data_pointer(dep);
                 let ver = if data_dep_path.starts_with("/$params") {
                     self.params_versions.get(&data_dep_path)
                 } else {
                     data_versions.get(&data_dep_path)
                 };
-                dep_versions.insert(data_dep_path, ver);
+                dep_versions.insert(data_dep_path.into_owned(), ver);
             }
         }
 
@@ -496,22 +491,15 @@ impl EvalCache {
             let value_changed = existing_result.map_or(true, |r| r != &result);
 
             if value_changed {
-                let data_path = crate::jsoneval::path_utils::normalize_to_json_pointer(eval_key)
-                    .replace("/properties/", "/");
-                let data_path = data_path.trim_start_matches('#').to_string();
-                let data_path = if data_path.starts_with('/') {
-                    data_path
-                } else {
-                    format!("/{}", data_path)
-                };
+                let data_path = crate::jsoneval::path_utils::schema_path_to_data_pointer(eval_key);
 
                 // Bump the explicit path and its table-level parent.
                 // Stop at slash_count < 3 — never bump /$params/others or /$params itself.
-                let mut current_path = data_path.as_str();
+                let mut current_path = data_path.as_ref();
                 let mut slash_count = current_path.matches('/').count();
 
                 while slash_count >= 3 {
-                    self.params_versions.bump(current_path);
+                    self.params_versions.bump(current_path, "store_cache");
                     if let Some(last_slash) = current_path.rfind('/') {
                         current_path = &current_path[..last_slash];
                         slash_count -= 1;
@@ -580,22 +568,26 @@ pub(crate) fn diff_and_update_versions(
     pointer: &str,
     old: &Value,
     new: &Value,
+    source: &str,
 ) {
-    if pointer.is_empty() {
-        diff_and_update_versions_internal(tracker, "", old, new);
-    } else {
-        diff_and_update_versions_internal(tracker, pointer, old, new);
-    }
+    let mut pointer_buf = String::with_capacity(128);
+    pointer_buf.push_str(pointer);
+    diff_and_update_versions_internal(tracker, &mut pointer_buf, old, new, source);
 }
 
 fn diff_and_update_versions_internal(
     tracker: &mut VersionTracker,
-    pointer: &str,
+    pointer: &mut String,
     old: &Value,
     new: &Value,
+    source: &str,
 ) {
     if old == new {
         return;
+    }
+
+    if crate::utils::is_debug_cache_enabled() {
+        println!("[diff_and_update_versions_internal] {} pointer={}, old={:?}, new={:?}", source, pointer, old, new);
     }
 
     match (old, new) {
@@ -620,8 +612,11 @@ fn diff_and_update_versions_internal(
                 let b_val = b.get(key).unwrap_or(&Value::Null);
 
                 let escaped_key = key.replace('~', "~0").replace('/', "~1");
-                let next_path = format!("{}/{}", pointer, escaped_key);
-                diff_and_update_versions_internal(tracker, &next_path, a_val, b_val);
+                let old_len = pointer.len();
+                pointer.push('/');
+                pointer.push_str(&escaped_key);
+                diff_and_update_versions_internal(tracker, pointer, a_val, b_val, source);
+                pointer.truncate(old_len);
             }
         }
         (Value::Array(a), Value::Array(b)) => {
@@ -629,13 +624,16 @@ fn diff_and_update_versions_internal(
             for i in 0..max_len {
                 let a_val = a.get(i).unwrap_or(&Value::Null);
                 let b_val = b.get(i).unwrap_or(&Value::Null);
-                let next_path = format!("{}/{}", pointer, i);
-                diff_and_update_versions_internal(tracker, &next_path, a_val, b_val);
+                let old_len = pointer.len();
+                use std::fmt::Write;
+                write!(pointer, "/{}", i).unwrap();
+                diff_and_update_versions_internal(tracker, pointer, a_val, b_val, source);
+                pointer.truncate(old_len);
             }
         }
         (old_val, new_val) => {
             if old_val != new_val {
-                tracker.bump(pointer);
+                if crate::utils::is_debug_cache_enabled() { println!("[store_cache] Catch-all for {}: old={}, new={}", pointer, match old_val { Value::Null => "Null", Value::Bool(_) => "Bool", Value::Number(_) => "Number", Value::String(_) => "String", Value::Array(_) => "Array", Value::Object(_) => "Object" }, match new_val { Value::Null => "Null", Value::Bool(_) => "Bool", Value::Number(_) => "Number", Value::String(_) => "String", Value::Array(_) => "Array", Value::Object(_) => "Object" }); } tracker.bump(pointer, "diff_and_update_versions_internal");
 
                 // If either side contains nested structures (e.g. Object replaced by Null, or vice versa)
                 // we must recursively bump all paths inside them so targeted cache entries invalidate.
@@ -653,7 +651,7 @@ fn diff_and_update_versions_internal(
 /// Recursively traverses a value and bumps the version for every nested path.
 /// Used when a structural type mismatch occurs (e.g., Object -> Null) so that
 /// cache entries depending on nested fields are correctly invalidated.
-fn traverse_and_bump(tracker: &mut VersionTracker, pointer: &str, val: &Value) {
+fn traverse_and_bump(tracker: &mut VersionTracker, pointer: &mut String, val: &Value) {
     match val {
         Value::Object(map) => {
             for (key, v) in map {
@@ -661,16 +659,22 @@ fn traverse_and_bump(tracker: &mut VersionTracker, pointer: &str, val: &Value) {
                     continue; // Skip the special top-level params branch if it leaked here
                 }
                 let escaped_key = key.replace('~', "~0").replace('/', "~1");
-                let next_path = format!("{}/{}", pointer, escaped_key);
-                tracker.bump(&next_path);
-                traverse_and_bump(tracker, &next_path, v);
+                let old_len = pointer.len();
+                pointer.push('/');
+                pointer.push_str(&escaped_key);
+                tracker.bump(pointer, "traverse_and_bump1");
+                traverse_and_bump(tracker, pointer, v);
+                pointer.truncate(old_len);
             }
         }
         Value::Array(arr) => {
             for (i, v) in arr.iter().enumerate() {
-                let next_path = format!("{}/{}", pointer, i);
-                tracker.bump(&next_path);
-                traverse_and_bump(tracker, &next_path, v);
+                let old_len = pointer.len();
+                use std::fmt::Write;
+                write!(pointer, "/{}", i).unwrap();
+                tracker.bump(pointer, "traverse_and_bump2");
+                traverse_and_bump(tracker, pointer, v);
+                pointer.truncate(old_len);
             }
         }
         _ => {}

@@ -180,9 +180,7 @@ impl JSONEval {
             // The frontend sometimes only provides the active item root but leaves the
             // corresponding slot empty or stale in the parent array tree of the wrapper.
             // Formulas that aggregate over the parent array must see the active item.
-            let data_pointer = crate::jsoneval::path_utils::normalize_to_json_pointer(base_path)
-                .replace("/properties/", "/");
-            let array_path = data_pointer.to_string();
+            let array_path = crate::jsoneval::path_utils::schema_path_to_data_pointer(base_path).into_owned();
             let item_path = format!("{}/{}", array_path, idx);
             subform.eval_data.set(&item_path, new_item_val.clone());
 
@@ -240,6 +238,7 @@ impl JSONEval {
                 &format!("/{}", field_key),
                 &old_item_snapshot,
                 &new_item_val,
+                "with_item_cache_swap_diff_and_update_versions"
             );
             c.item_snapshot = new_item_val.clone();
         }
@@ -270,7 +269,7 @@ impl JSONEval {
                     .collect();
                 if !newly_bumped.is_empty() {
                     for k in newly_bumped {
-                        parent_cache.data_versions.bump(&k);
+                        parent_cache.data_versions.bump(&k, "propagate_newly_bumped");
                     }
                     parent_cache.eval_generation += 1;
                 }

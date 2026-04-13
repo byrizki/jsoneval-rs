@@ -181,12 +181,12 @@ impl JSONEval {
         old_data: &Value,
         new_data: &Value,
     ) {
-        use crate::jsoneval::path_utils::normalize_to_json_pointer;
+
 
         for (subform_path, _) in &self.subforms {
             // Resolve the data pointer for this subform
             // (e.g., `/illustration/product_benefit/riders`)
-            let subform_ptr = normalize_to_json_pointer(subform_path).replace("/properties/", "/");
+            let subform_ptr = crate::jsoneval::path_utils::schema_path_to_data_pointer(subform_path).to_string();
 
             let old_items = old_data.pointer(&subform_ptr).and_then(Value::as_array);
             let new_items = new_data.pointer(&subform_ptr).and_then(Value::as_array);
@@ -228,14 +228,8 @@ impl JSONEval {
                     .any(|dep| dep.starts_with(&subform_dep_prefix));
 
                 if has_subform_dep {
-                    // Normalize eval_key → params data path once, at eviction time
-                    let raw = normalize_to_json_pointer(eval_key).replace("/properties/", "/");
-                    let normalized = raw.trim_start_matches('#');
-                    evicted_paths.push(if normalized.starts_with('/') {
-                        normalized.to_string()
-                    } else {
-                        format!("/{}", normalized)
-                    });
+                    let normalized = crate::jsoneval::path_utils::schema_path_to_data_pointer(eval_key);
+                    evicted_paths.push(normalized.into_owned());
                     false // remove entry
                 } else {
                     true // keep
@@ -245,7 +239,7 @@ impl JSONEval {
             // Bump params_versions for every evicted T2 entry so downstream $params formulas
             // (SA_WOP_RIDER, TOTAL_WOP_SA, etc.) correctly miss their caches.
             for path in &evicted_paths {
-                self.eval_cache.params_versions.bump(path);
+                self.eval_cache.params_versions.bump(path, "invalidate_subform_caches_on_structural_change");
             }
 
             // Clear T1 per-item caches for indices where item identity has shifted.
@@ -607,8 +601,7 @@ impl JSONEval {
                                         match val {
                                             Ok(val) => {
                                                 let cleaned_val = clean_float_noise_scalar(val);
-                                                let data_path =
-                                                    pointer_path.replace("/properties/", "/");
+                                                let data_path = crate::jsoneval::path_utils::schema_path_to_data_pointer(&pointer_path).into_owned();
                                                 self.eval_cache.store_cache(
                                                     eval_key,
                                                     &deps,

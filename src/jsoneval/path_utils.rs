@@ -66,6 +66,54 @@ pub fn normalize_to_json_pointer(path: &str) -> Cow<'_, str> {
     }
 }
 
+/// Fast conversion from schema path (e.g. `#/foo/properties/bar`)
+/// to data JSON pointer (e.g. `/foo/bar`).
+/// Strips leading `#`, removes `properties` segments, and ensures a leading `/`.
+#[inline]
+pub fn schema_path_to_data_pointer(path: &str) -> Cow<'_, str> {
+    if path.is_empty() {
+        return Cow::Borrowed("");
+    }
+
+    let no_hash = if path.starts_with('#') {
+        &path[1..]
+    } else {
+        path
+    };
+
+    let clean_path = if no_hash.starts_with('/') {
+        &no_hash[1..]
+    } else {
+        no_hash
+    };
+
+    if !clean_path.contains("properties/") && clean_path != "properties" {
+        if path.starts_with('/') && path.len() == clean_path.len() + 1 {
+            return Cow::Borrowed(path);
+        }
+        let mut s = String::with_capacity(clean_path.len() + 1);
+        s.push('/');
+        s.push_str(clean_path);
+        return Cow::Owned(s);
+    }
+
+    let parts = clean_path.split('/');
+    let mut s = String::with_capacity(clean_path.len() + 1);
+    for part in parts {
+        if part.is_empty() || part == "properties" {
+            continue;
+        }
+        s.push('/');
+        s.push_str(part);
+    }
+    
+    if s.is_empty() {
+        Cow::Borrowed("")
+    } else {
+        Cow::Owned(s)
+    }
+}
+
 /// Convert dotted path to JSON Schema pointer format
 ///
 /// This is used for schema paths where properties are nested under `/properties/`

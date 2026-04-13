@@ -152,10 +152,8 @@ impl JSONEval {
 
                 // Patch the whole-array entry in result with the post-pass eval_data snapshot.
                 for (subform_path, _) in &self.subforms {
-                    let data_ptr =
-                        crate::jsoneval::path_utils::normalize_to_json_pointer(subform_path)
-                            .replace("/properties/", "/");
-                    let data_ptr_str = data_ptr.trim_start_matches('#').to_string();
+                    let data_ptr = path_utils::schema_path_to_data_pointer(subform_path);
+                    let data_ptr_str = data_ptr.to_string();
                     let dot_path = data_ptr_str.trim_start_matches('/').replace('/', ".");
 
                     if let Some(fresh_val) = self.eval_data.get(&data_ptr_str) {
@@ -266,12 +264,8 @@ impl JSONEval {
                 continue;
             }
 
-            let schema_ptr = path_utils::normalize_to_json_pointer(eval_key);
-            let data_path = schema_ptr
-                .replace("/properties/", "/")
-                .trim_start_matches('#')
-                .trim_start_matches('/')
-                .to_string();
+            let schema_ptr = path_utils::schema_path_to_data_pointer(eval_key);
+            let data_path = schema_ptr.trim_start_matches('/').to_string();
 
             let version_path = format!("/{}", data_path);
             let old_ver = pre_eval_versions.get(&version_path);
@@ -331,21 +325,15 @@ impl JSONEval {
             .subforms
             .keys()
             .map(|p| {
-                path_utils::normalize_to_json_pointer(p)
-                    .replace("/properties/", "/")
+                path_utils::schema_path_to_data_pointer(p)
                     .replace("/value/", "/")
-                    .trim_start_matches('#')
                     .to_string()
             })
             .collect();
 
         for (path, schema_value) in readonly_changes {
-            let data_path = path_utils::normalize_to_json_pointer(&path)
-                .replace("/properties/", "/")
-                // Strip /value/ schema wrappers: #/riders/value/0/sa → /riders/0/sa
-                .replace("/value/", "/")
-                .trim_start_matches('#')
-                .to_string();
+            let data_path = path_utils::schema_path_to_data_pointer(&path)
+                .replace("/value/", "/");
 
             if subform_data_paths.contains(&data_path) {
                 // Per-item scalar merge: propagate input fields without touching computed objects.
@@ -383,12 +371,8 @@ impl JSONEval {
             to_process.push((path, true, None));
         }
         for (path, schema_value) in readonly_values {
-            let data_path = path_utils::normalize_to_json_pointer(&path)
-                .replace("/properties/", "/")
-                // Strip /value/ schema wrappers: #/riders/value/0/sa → /riders/0/sa
-                .replace("/value/", "/")
-                .trim_start_matches('#')
-                .to_string();
+            let data_path = path_utils::schema_path_to_data_pointer(&path)
+                .replace("/value/", "/");
             let mut obj = serde_json::Map::new();
             obj.insert(
                 "$ref".to_string(),
@@ -736,12 +720,29 @@ impl JSONEval {
 
                 // Prepare cache state for this item
                 self.eval_cache.ensure_active_item_cache(idx);
-                let old_item_val = self
-                    .eval_cache
-                    .subform_caches
-                    .get(&idx)
-                    .map(|c| c.item_snapshot.clone())
-                    .unwrap_or(Value::Null);
+                let old_item_val = {
+                    let snapshot = self
+                        .eval_cache
+                        .subform_caches
+                        .get(&idx)
+                        .map(|c| c.item_snapshot.clone())
+                        .unwrap_or(Value::Null);
+                    
+                    if snapshot == Value::Null {
+                        if let Some(main_snap) = &self.eval_cache.main_form_snapshot {
+                            get_value_by_pointer_without_properties(main_snap, &subform_ptr)
+                                .and_then(|v| v.as_array())
+                                .and_then(|a| a.get(idx))
+                                .cloned()
+                                .unwrap_or(Value::Null)
+                        } else {
+                            Value::Null
+                        }
+                    } else {
+                        snapshot
+                    }
+                };
+
 
                 subform.eval_data.replace_data_and_context(
                     merged_data,
@@ -782,20 +783,34 @@ impl JSONEval {
                         &format!("/{}", field_key),
                         &old_item_val,
                         &new_item_val,
+                        "run_subform_pass_diff_and_update_versions"
                     );
                     c.item_snapshot = new_item_val;
                 }
 
+                // Propagate paths NEWLY bumped by this diff into parent_cache.data_versions so that
+                // check_table_cache (which validates T2 global entries against self.data_versions)
+                // correctly detects changes to rider fields like `sa` and returns Cache MISS.
+                if let (Some(ref pre), Some(c)) = (
+                    &pre_diff_item_versions,
+                    parent_cache.subform_caches.get(&idx),
+                ) {
+                    let field_prefix_slash = format!("/{}/", field_key);
+                    let newly_bumped: Vec<String> = c
+                        .data_versions
+                        .versions()
+                        .filter(|(k, &v)| k.starts_with(&field_prefix_slash) && v > pre.get(k))
+                        .map(|(k, _)| k.to_string())
+                        .collect();
+                    if !newly_bumped.is_empty() {
+                        for k in newly_bumped {
+                            parent_cache.data_versions.bump(&k, "propagate_newly_bumped");
+                        }
+                        parent_cache.eval_generation += 1;
+                    }
+                }
+
                 // Invalidate stale T2 $params table entries whose deps overlap any path newly
-                // bumped by the item diff above. This mirrors the invalidation done in
-                // with_item_cache_swap (evaluate_subform_item path) and is required so that
-                // tables like RIDER_ZLOS_TABLE (which depend on /riders/properties/sa) are
-                // evicted from the T2 global cache before subform.evaluate_dependents runs.
-                //
-                // Without this, the T2 entry stored during the initial evaluate() has
-                // dep[/riders/sa]=0 and parent data_versions[/riders/sa]=0 (never directly
-                // bumped — only the indexed /illustration/.../riders/0/sa is bumped). The
-                // check_table_cache sees 0==0 → Cache HIT → stale rows → wrong first_prem.
                 //
                 // These tables MUST be re-evaluated by the subform engine (not here) because
                 // their formulas read subform-local paths like #/riders/properties/sa which
@@ -1030,13 +1045,10 @@ impl JSONEval {
 
                 if is_disabled && !skip_readonly {
                     if let Some(schema_value) = map.get("value") {
-                        let data_path = path_utils::normalize_to_json_pointer(path)
-                            .replace("/properties/", "/")
+                        let data_path = path_utils::schema_path_to_data_pointer(path)
                             // Strip the schema /value/ wrapper that appears in subform array item
                             // paths, e.g. #/riders/value/0/sa → /riders/0/sa (correct data pointer).
-                            .replace("/value/", "/")
-                            .trim_start_matches('#')
-                            .to_string();
+                            .replace("/value/", "/");
 
                         let current_data = self
                             .eval_data
@@ -1090,10 +1102,7 @@ impl JSONEval {
                     // In JS: "const readOnlyValues = this.getSchemaValues();"
                     // We only care if data != schema value
                     if let Some(schema_value) = map.get("value") {
-                        let data_path = path_utils::normalize_to_json_pointer(path)
-                            .replace("/properties/", "/")
-                            .trim_start_matches('#')
-                            .to_string();
+                        let data_path = path_utils::schema_path_to_data_pointer(path).into_owned();
 
                         let current_data = self
                             .eval_data
@@ -1151,10 +1160,7 @@ impl JSONEval {
                 }
 
                 if is_hidden && !keep_hidden {
-                    let data_path = path_utils::normalize_to_json_pointer(path)
-                        .replace("/properties/", "/")
-                        .trim_start_matches('#')
-                        .to_string();
+                    let data_path = path_utils::schema_path_to_data_pointer(path).into_owned();
 
                     let current_data = self
                         .eval_data
@@ -1201,10 +1207,7 @@ impl JSONEval {
                 }
 
                 if is_hidden && !keep_hidden {
-                    let data_path = path_utils::normalize_to_json_pointer(path)
-                        .replace("/properties/", "/")
-                        .trim_start_matches('#')
-                        .to_string();
+                    let data_path = path_utils::schema_path_to_data_pointer(path).into_owned();
 
                     let current_data = self
                         .eval_data
@@ -1273,10 +1276,7 @@ impl JSONEval {
         result: &mut Vec<Value>,
     ) {
         while let Some(hf) = hidden_fields.pop() {
-            let data_path = path_utils::normalize_to_json_pointer(&hf)
-                .replace("/properties/", "/")
-                .trim_start_matches('#')
-                .to_string();
+            let data_path = path_utils::schema_path_to_data_pointer(&hf).into_owned();
 
             // clear data
             eval_data.set(&data_path, Value::Null);
@@ -1310,10 +1310,7 @@ impl JSONEval {
                         // In JS logic: "const result = hiddenFn(runnerCtx);"
                         // runnerCtx has the updated data (we just set hf to null).
 
-                        let rb_data_path = path_utils::normalize_to_json_pointer(rb)
-                            .replace("/properties/", "/")
-                            .trim_start_matches('#')
-                            .to_string();
+                        let rb_data_path = path_utils::schema_path_to_data_pointer(rb).into_owned();
                         let rb_value = eval_data
                             .data()
                             .pointer(&rb_data_path)
@@ -1415,10 +1412,7 @@ impl JSONEval {
             processed.insert(current_path.clone(), new_processed_state);
 
             // Get the value of the changed field for $value context
-            let current_data_path = path_utils::normalize_to_json_pointer(&current_path)
-                .replace("/properties/", "/")
-                .trim_start_matches('#')
-                .to_string();
+            let current_data_path = path_utils::schema_path_to_data_pointer(&current_path).into_owned();
             let mut current_value = eval_data
                 .data()
                 .pointer(&current_data_path)
@@ -1459,7 +1453,7 @@ impl JSONEval {
                     let ref_path = &dep_item.ref_path;
                     let pointer_path = path_utils::normalize_to_json_pointer(ref_path);
                     // Data paths don't include /properties/, strip it for data access
-                    let data_path = pointer_path.replace("/properties/", "/");
+                    let data_path = crate::jsoneval::path_utils::schema_path_to_data_pointer(&pointer_path).into_owned();
 
                     let current_ref_value = eval_data
                         .data()

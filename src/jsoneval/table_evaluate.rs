@@ -92,7 +92,7 @@ fn evaluate_table_inner(
     });
 
     let mut external_deps = indexmap::IndexSet::new();
-    let pointer_data_prefix = table_pointer_path.replace("/properties/", "/");
+    let pointer_data_prefix = crate::jsoneval::path_utils::schema_path_to_data_pointer(&table_pointer_path).into_owned();
     let pointer_data_prefix_slash = format!("{}/", pointer_data_prefix);
     if let Some(deps) = lib.dependencies.get(eval_key) {
         for dep in deps {
@@ -105,8 +105,7 @@ fn evaluate_table_inner(
                 continue;
             }
 
-            let dep_data_path = crate::jsoneval::path_utils::normalize_to_json_pointer(dep)
-                .replace("/properties/", "/");
+            let dep_data_path = crate::jsoneval::path_utils::schema_path_to_data_pointer(dep);
             if dep_data_path != pointer_data_prefix
                 && !dep_data_path.starts_with(&pointer_data_prefix_slash)
             {

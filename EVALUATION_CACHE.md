@@ -633,16 +633,16 @@ goes through the two-tier lookup described in §4.
 The item diff uses `diff_and_update_versions` with the `/{field_key}` prefix, comparing
 `old_item_snapshot` (from prior evaluation) against `new_item_val` (incoming data).
 
-After the diff, **newly-bumped** item paths are also propagated to `parent_cache.data_versions`:
+After the diff in both `with_item_cache_swap` and `run_subform_pass`, **newly-bumped** item paths are also propagated to `parent_cache.data_versions`:
 
 ```rust
 for k in newly_bumped {  // e.g. /riders/sa
-    parent_cache.data_versions.bump(&k);
+    parent_cache.data_versions.bump(&k, "propagate_newly_bumped");
 }
 ```
 
-This allows `check_table_cache` (which validates T2 against `self.data_versions`) to
-detect that `/riders/sa` changed, causing a T2 miss for tables with that dependency.
+This ensures that `check_table_cache` (which validates T2 entries against `self.data_versions` representing the parent during the subform pass)
+detects that a field like `/riders/sa` changed. Without this, a T2 check for `RIDER_ZLOS_TABLE` would falsely hit because the parent's `data_versions` would wrongly reflect the unbumped value `0`.
 
 **Only newly-bumped paths** (v > pre) are propagated — historical bumps from prior calls
 are excluded via the `pre_diff_item_versions` baseline. This prevents spurious T2
