@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.86] - 2026-04-13
+
+### Fixed
+
+- [core] fix evaluation caches
+- [core] improve string allocation
+
 ## [0.0.85] - 2026-04-13
 
 ### Fixed
