@@ -1,0 +1,126 @@
+{
+  "version": "0.5.0",
+  "generated_at": 1776127480,
+  "modules": {
+    "root": {
+      "latest_mtime": 1776062828,
+      "file_count": 68,
+      "files_hash": 4240747035382665259
+    },
+    "bindings-react-native-examples-rncli": {
+      "latest_mtime": 1775409971,
+      "file_count": 11,
+      "files_hash": 8145121999122261801
+    },
+    "bindings-react-native-packages-react-native-lib-commonjs": {
+      "latest_mtime": 1774527777,
+      "file_count": 1,
+      "files_hash": 1312894779638601113
+    },
+    "bindings-web-examples-nodejs-benchmark": {
+      "latest_mtime": 1774975784,
+      "file_count": 2,
+      "files_hash": 7244927968881740081
+    },
+    "bindings-web-packages-node-src": {
+      "latest_mtime": 1769417447,
+      "file_count": 1,
+      "files_hash": 13317446103037631091
+    },
+    "src-wasm": {
+      "latest_mtime": 1775167141,
+      "file_count": 8,
+      "files_hash": 3287349433347181637
+    },
+    "bindings-web-examples-nodejs": {
+      "latest_mtime": 1769417447,
+      "file_count": 1,
+      "files_hash": 16579799573729956030
+    },
+    "bindings-web-packages-core-src": {
+      "latest_mtime": 1775418523,
+      "file_count": 1,
+      "files_hash": 8324553670879509491
+    },
+    "src-jsoneval": {
+      "latest_mtime": 1776058756,
+      "file_count": 20,
+      "files_hash": 18058609079654175153
+    },
+    "bindings-web-examples-nextjs-pages": {
+      "latest_mtime": 1775409971,
+      "file_count": 2,
+      "files_hash": 6934088985736438088
+    },
+    "examples-common": {
+      "latest_mtime": 1775025544,
+      "file_count": 1,
+      "files_hash": 17423874879234535065
+    },
+    "bindings-csharp": {
+      "latest_mtime": 1775409971,
+      "file_count": 10,
+      "files_hash": 3028059149524672251
+    },
+    "bindings-web-packages-bundler-src": {
+      "latest_mtime": 1769417447,
+      "file_count": 1,
+      "files_hash": 11550306894925594796
+    },
+    "bindings-web-packages-vanilla-src": {
+      "latest_mtime": 1769417447,
+      "file_count": 1,
+      "files_hash": 8056042733386186522
+    },
+    "src-topo_sort": {
+      "latest_mtime": 1775223790,
+      "file_count": 4,
+      "files_hash": 12305497300795284071
+    },
+    "tests-common": {
+      "latest_mtime": 1775409971,
+      "file_count": 1,
+      "files_hash": 4431507794852092071
+    },
+    "src": {
+      "latest_mtime": 1775223790,
+      "file_count": 2,
+      "files_hash": 5294800909685159197
+    },
+    "src-rlogic-evaluator": {
+      "latest_mtime": 1775223790,
+      "file_count": 13,
+      "files_hash": 706243815353694871
+    },
+    "src-utils": {
+      "latest_mtime": 1775251753,
+      "file_count": 1,
+      "files_hash": 8830816496864080650
+    },
+    "src-ffi": {
+      "latest_mtime": 1774938160,
+      "file_count": 9,
+      "files_hash": 10783725520069287871
+    },
+    "src-rlogic": {
+      "latest_mtime": 1775223790,
+      "file_count": 4,
+      "files_hash": 5306754453922014418
+    },
+    "bindings-react-native-packages-react-native-lib-module": {
+      "latest_mtime": 1774527777,
+      "file_count": 1,
+      "files_hash": 8956028951929218539
+    },
+    "src-parse_schema": {
+      "latest_mtime": 1776032183,
+      "file_count": 4,
+      "files_hash": 13068140133366841900
+    },
+    "bindings-react-native-packages-react-native-src": {
+      "latest_mtime": 1774527712,
+      "file_count": 1,
+      "files_hash": 7133261916860591510
+    }
+  }
+}
