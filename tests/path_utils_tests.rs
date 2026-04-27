@@ -78,6 +78,17 @@ fn test_dot_notation_to_schema_pointer() {
         dot_notation_to_schema_pointer("/illustration/properties/insured"),
         "/illustration/properties/insured"
     );
+
+    // Explicit schema pointer with schema keywords should be preserved
+    assert_eq!(
+        dot_notation_to_schema_pointer("illustration.properties.header.properties.app_version.value"),
+        "#/illustration/properties/header/properties/app_version/value"
+    );
+
+    assert_eq!(
+        dot_notation_to_schema_pointer("illustration.properties.header.properties.app_version.type"),
+        "#/illustration/properties/header/properties/app_version/type"
+    );
 }
 
 #[test]
@@ -188,6 +199,17 @@ fn test_canonicalize_schema_path() {
     // Simple top-level fields
     assert_eq!(canonicalize_schema_path("field"), "/field");
     assert_eq!(canonicalize_schema_path("/field"), "/field");
+
+    // Explicit schema pointer with schema keywords should be preserved
+    assert_eq!(
+        canonicalize_schema_path("illustration.properties.header.properties.app_version.value"),
+        "/illustration/properties/header/properties/app_version/value"
+    );
+
+    assert_eq!(
+        canonicalize_schema_path("#/illustration/properties/header/properties/app_version/value"),
+        "/illustration/properties/header/properties/app_version/value"
+    );
 
     // Empty
     assert_eq!(canonicalize_schema_path(""), "");

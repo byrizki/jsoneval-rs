@@ -129,6 +129,11 @@ pub fn dot_notation_to_schema_pointer(path: &str) -> String {
         return path.to_string();
     }
 
+    // Check if it's explicitly a dotted schema pointer
+    if path.starts_with("properties.") || path.contains(".properties.") {
+        return format!("#/{}", path.replace('.', "/"));
+    }
+
     // Split by dots and join with /properties/
     let parts: Vec<&str> = path.split('.').collect();
     if parts.is_empty() {
@@ -235,6 +240,26 @@ pub fn canonicalize_schema_path(path: &str) -> Cow<'_, str> {
         s.push('/');
         s.push_str(clean_path);
         return Cow::Owned(s);
+    }
+
+    // If the path explicitly uses schema pointer semantics, just normalize delimiters
+    if clean_path.starts_with("properties/") || clean_path.starts_with("properties.")
+        || clean_path.contains("/properties/") || clean_path.contains(".properties.") {
+        
+        let mut s = String::with_capacity(clean_path.len() + 1);
+        s.push('/');
+        for c in clean_path.chars() {
+            if c == '.' {
+                s.push('/');
+            } else {
+                s.push(c);
+            }
+        }
+        if s == path {
+            return Cow::Borrowed(path);
+        } else {
+            return Cow::Owned(s);
+        }
     }
 
     // Full decomposition and reconstruction
