@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.87] - 2026-04-27
+
+### Added
+
+- [core] fix schema pointer canonicalization
+
 ## [0.0.86] - 2026-04-13
 
 ### Fixed
