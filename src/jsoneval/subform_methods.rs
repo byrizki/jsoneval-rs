@@ -144,11 +144,28 @@ impl JSONEval {
     where
         F: FnOnce(&mut JSONEval) -> Result<T, String>,
     {
-        let field_key = base_path
+        let original_field_key = base_path
             .split('/')
             .next_back()
             .unwrap_or(base_path)
             .to_string();
+
+        let schema_pointer = if base_path.starts_with("#/") {
+            &base_path[1..]
+        } else if base_path.starts_with('#') {
+            &base_path[1..]
+        } else {
+            base_path
+        };
+
+        let root_key = crate::jsoneval::path_utils::get_value_by_pointer(
+            &self.schema,
+            schema_pointer,
+        )
+        .and_then(|node| node.get("itemsRootKey"))
+        .and_then(|v| v.as_str())
+        .unwrap_or(&original_field_key)
+        .to_string();
 
         // Step 1: update subform data and extract item snapshot for targeted diff.
         // Scoped block releases the mutable borrow on `self.subforms` before we touch
@@ -169,12 +186,29 @@ impl JSONEval {
             subform
                 .eval_data
                 .replace_data_and_context(data_value, context_value);
-            let new_item_val = subform
+            let mut new_item_val = subform
                 .eval_data
                 .data()
-                .get(&field_key)
-                .cloned()
-                .unwrap_or(Value::Null);
+                .get(&root_key)
+                .cloned();
+
+            // Fallback 1: Absolute data path extraction (e.g. for full form payload)
+            if new_item_val.is_none() {
+                let array_path = crate::jsoneval::path_utils::schema_path_to_data_pointer(base_path).into_owned();
+                let item_path = format!("{}/{}", array_path, idx);
+                new_item_val = subform.eval_data.get(&item_path).cloned();
+            }
+
+            // Fallback 2: Single key wrapper heuristic
+            if new_item_val.is_none() {
+                if let Value::Object(map) = subform.eval_data.data() {
+                    if map.len() == 1 {
+                        new_item_val = Some(map.values().next().unwrap().clone());
+                    }
+                }
+            }
+
+            let new_item_val = new_item_val.unwrap_or(Value::Null);
 
             // INJECT the item into the parent array location within subform's eval_data!
             // The frontend sometimes only provides the active item root but leaves the
@@ -235,7 +269,7 @@ impl JSONEval {
             // Diff only the item field to find what changed (skips the 5 MB parent tree).
             crate::jsoneval::eval_cache::diff_and_update_versions(
                 &mut c.data_versions,
-                &format!("/{}", field_key),
+                &format!("/{}", root_key),
                 &old_item_snapshot,
                 &new_item_val,
                 "with_item_cache_swap_diff_and_update_versions"
@@ -256,7 +290,7 @@ impl JSONEval {
         // This prevents the regression where run_subform_pass sees stale per-rider bumps
         // and erroneously re-evaluates expensive tables (RIDER_ZLOB_TABLE etc.) for every rider.
         {
-            let item_field_prefix = format!("/{}/", field_key);
+            let item_field_prefix = format!("/{}/", root_key);
             if let (Some(ref pre), Some(c)) = (
                 &pre_diff_item_versions,
                 parent_cache.subform_caches.get(&idx),
@@ -338,7 +372,7 @@ impl JSONEval {
         // Gate: only re-evaluate tables when at least one item-level path was NEWLY bumped
         // in this diff pass. Using any_bumped_with_prefix(v > 0) would return true for
         // historical bumps from prior calls, causing spurious table invalidation every time.
-        let field_prefix = format!("/{}/", field_key);
+        let field_prefix = format!("/{}/", root_key);
         let item_paths_bumped = match &pre_diff_item_versions {
             None => {
                 // No pre-diff snapshot = cache slot was just created, treat as new
@@ -378,7 +412,7 @@ impl JSONEval {
                                 // Convert data-version path (e.g. /riders/wop_rider_premi) to schema dep
                                 // format (e.g. #/riders/properties/wop_rider_premi) for dep matching.
                                 let sub = k.trim_start_matches(&field_prefix);
-                                format!("#/{}/properties/{}", field_key, sub)
+                                format!("#/{}/properties/{}", root_key, sub)
                             })
                             .collect::<Vec<_>>()
                     })
@@ -430,8 +464,8 @@ impl JSONEval {
                     // Tables like WOP_RIDERS contain formulas like `#/illustration/product_benefit/riders`
                     // and MUST be evaluated by the parent engine to see the full parent array.
                     let depends_on_subform_item = if let Some(deps) = self.dependencies.get(key) {
-                        let subform_dep_prefix = format!("#/{}/properties/", field_key);
-                        let subform_dep_prefix_short = format!("#/{}/", field_key);
+                        let subform_dep_prefix = format!("#/{}/properties/", root_key);
+                        let subform_dep_prefix_short = format!("#/{}/", root_key);
                         deps.iter().any(|dep| {
                             dep.starts_with(&subform_dep_prefix)
                                 || dep.starts_with(&subform_dep_prefix_short)

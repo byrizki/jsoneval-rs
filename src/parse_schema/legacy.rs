@@ -129,6 +129,12 @@ fn create_subform(
     // Extract field key from path (e.g., "#/properties/riders" -> "riders")
     let field_key = path.split('/').last().unwrap_or(path);
 
+    // Support itemsRootKey to allow subforms to be wrapped in a different key
+    let root_key = field_map
+        .get("itemsRootKey")
+        .and_then(|v| v.as_str())
+        .unwrap_or(field_key);
+
     // Build subform schema: { $params: from parent, [field_key]: items content }
     let mut subform_schema = serde_json::Map::new();
 
@@ -157,7 +163,7 @@ fn create_subform(
     // Set type to "object" for the subform root
     field_obj.insert("type".to_string(), Value::String("object".to_string()));
 
-    subform_schema.insert(field_key.to_string(), Value::Object(field_obj));
+    subform_schema.insert(root_key.to_string(), Value::Object(field_obj));
 
     // Create sub-JSONEval with isolated schema, zero-copying context and static_arrays
     let sub_eval = crate::JSONEval::new_subform(
