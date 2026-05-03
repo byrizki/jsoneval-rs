@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.88] - 2026-05-04
+
+### Added
+
+- [core] Add subform root path alias with `itemsRootKey` in schema
+
 ## [0.0.87] - 2026-04-27
 
 ### Added
