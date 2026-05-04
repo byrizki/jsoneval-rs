@@ -80,7 +80,8 @@ impl JSONEval {
             } else {
                 format!("{}.elements.{}", parent_path, index)
             };
-            let resolved = self.resolve_element_ref_recursive(element.clone(), &element_path);
+            let element_pointer = format!("{}/{}", normalized_path, index);
+            let resolved = self.resolve_element_ref_recursive(element.clone(), &element_path, &element_pointer);
             resolved_elements.push(resolved);
         }
 
@@ -90,11 +91,9 @@ impl JSONEval {
         }
     }
 
-    /// Recursively resolve $ref in an element and its nested elements
-    /// path_context: The dotted path to the current element (e.g., "form.$layout.elements.0")
-    fn resolve_element_ref_recursive(&self, element: Value, path_context: &str) -> Value {
+    fn resolve_element_ref_recursive(&self, element: Value, path_context: &str, original_pointer_path: &str) -> Value {
         // First resolve the current element's $ref
-        let resolved = self.resolve_element_ref(element);
+        let resolved = self.resolve_element_ref(element, original_pointer_path);
 
         // Then recursively resolve any nested elements arrays
         if let Value::Object(mut map) = resolved {
@@ -121,8 +120,9 @@ impl JSONEval {
                 let mut resolved_nested = Vec::with_capacity(elements.len());
                 for (index, nested_element) in elements.iter().enumerate() {
                     let nested_path = format!("{}.elements.{}", path_context, index);
+                    let nested_pointer = format!("{}/elements/{}", original_pointer_path, index);
                     resolved_nested.push(
-                        self.resolve_element_ref_recursive(nested_element.clone(), &nested_path),
+                        self.resolve_element_ref_recursive(nested_element.clone(), &nested_path, &nested_pointer),
                     );
                 }
                 map.insert("elements".to_string(), Value::Array(resolved_nested));
@@ -135,7 +135,7 @@ impl JSONEval {
     }
 
     /// Resolve $ref in a single element
-    fn resolve_element_ref(&self, element: Value) -> Value {
+    fn resolve_element_ref(&self, element: Value, original_pointer_path: &str) -> Value {
         match element {
             Value::Object(mut map) => {
                 // Check if element has $ref
@@ -206,6 +206,17 @@ impl JSONEval {
                         } else {
                             return resolved;
                         }
+                    }
+                }
+
+                // If it's a direct element (no $ref), we must preserve its evaluated state 
+                // from evaluated_schema, because evaluate_others may have updated hideLayout or condition.
+                if let Some(Value::Object(evaluated_map)) = self.evaluated_schema.pointer(original_pointer_path) {
+                    if let Some(hide_layout) = evaluated_map.get("hideLayout") {
+                        map.insert("hideLayout".to_string(), hide_layout.clone());
+                    }
+                    if let Some(condition) = evaluated_map.get("condition") {
+                        map.insert("condition".to_string(), condition.clone());
                     }
                 }
 

@@ -414,7 +414,9 @@ pub fn walk_schema(
         Value::Array(arr) => {
             // Skip large arrays that contain no actionable schema keys.
             // This avoids recursively walking pure-data arrays (e.g., table rows in $params).
-            if arr.len() > 10 && !has_actionable_keys(value) {
+            // We specifically avoid skipping layout elements which can be large.
+            let is_layout_array = path.contains("$layout") || path.contains("elements");
+            if !is_layout_array && arr.len() > 10 && !has_actionable_keys(value) {
                 return Ok(());
             }
             Ok(for (index, item) in arr.iter().enumerate() {
