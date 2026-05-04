@@ -237,7 +237,7 @@ dependencies = [
 
 [[package]]
 name = "json-eval-rs"
-version = "0.0.88"
+version = "0.0.89"
 dependencies = [
  "chrono",
  "console_error_panic_hook",

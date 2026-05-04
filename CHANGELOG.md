@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.89] - 2026-05-04
+
+### Fixed
+
+- [core] fixing layout schema resolver
+
 ## [0.0.88] - 2026-05-04
 
 ### Added
