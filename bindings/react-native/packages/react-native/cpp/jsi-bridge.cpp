@@ -1,20 +1,8 @@
 #include "jsi-bridge.h"
 #include "json-eval-bridge.h"
 
-// Forward declarations for C FFI functions (same as in json-eval-bridge.cpp)
+// C FFI function declarations (types defined in jsi-bridge.h)
 extern "C" {
-    typedef struct {
-        void* inner;
-    } JSONEvalHandle;
-
-    typedef struct {
-        bool success;
-        const uint8_t* data_ptr;
-        size_t data_len;
-        char* error;
-        void* _owned_data;
-    } FFIResult;
-
     JSONEvalHandle* json_eval_new(const char* schema, const char* context, const char* data);
     JSONEvalHandle* json_eval_new_from_msgpack(const uint8_t* schema_msgpack, size_t schema_len, const char* context, const char* data);
     JSONEvalHandle* json_eval_new_from_cache(const char* cache_key, const char* context, const char* data);

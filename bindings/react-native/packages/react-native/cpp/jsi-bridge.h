@@ -8,9 +8,26 @@
 
 #include "json-eval-bridge.h"
 
-// Forward declarations for C FFI types (defined in jsi-bridge.cpp extern "C" block)
-struct JSONEvalHandle;
-struct FFIResult;
+// C-compatible FFI types — full definition needed so callers can access fields
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct {
+    void* inner;
+} JSONEvalHandle;
+
+typedef struct {
+    bool success;
+    const uint8_t* data_ptr;
+    size_t data_len;
+    char* error;
+    void* _owned_data;
+} FFIResult;
+
+#ifdef __cplusplus
+}
+#endif
 
 namespace jsoneval {
 
@@ -38,14 +55,9 @@ public:
   void set(jsi::Runtime& runtime, const jsi::PropNameID& name, const jsi::Value& value) override;
   std::vector<jsi::PropNameID> getPropertyNames(jsi::Runtime& runtime) override;
 
-private:
-  // Helper: extract std::string from jsi::Value (string or null → "")
+  // Helpers (public so free functions and lambdas can call them)
   static std::string stringFromValue(jsi::Runtime& runtime, const jsi::Value& val);
-  
-  // Helper: throw JSError based on FFIResult
   static void checkResult(jsi::Runtime& runtime, const FFIResult& result);
-  
-  // Helper: check arg count, throw if not enough
   static void checkArgCount(jsi::Runtime& runtime, size_t actual, size_t expected);
 };
 
