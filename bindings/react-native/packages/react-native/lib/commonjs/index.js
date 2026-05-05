@@ -193,9 +193,15 @@ class JSONEval {
     const contextStr = context ? typeof context === 'string' ? context : (0, _jsonWithBigint.JSONStringify)(context) : null;
     const dataStr = data ? typeof data === 'string' ? data : (0, _jsonWithBigint.JSONStringify)(data) : null;
     try {
+      var _jsi3;
       // Convert Uint8Array to number array if needed
       const msgpackArray = schemaMsgpack instanceof Uint8Array ? Array.from(schemaMsgpack) : schemaMsgpack;
-      const handle = JsonEvalRs.createFromMsgpack(msgpackArray, contextStr, dataStr);
+      let handle;
+      if (useJSI && (_jsi3 = _jsi) !== null && _jsi3 !== void 0 && _jsi3.createFromMsgpack) {
+        handle = _jsi.createFromMsgpack(msgpackArray, contextStr, dataStr);
+      } else {
+        handle = JsonEvalRs.createFromMsgpack(msgpackArray, contextStr, dataStr);
+      }
       return new JSONEval({
         schema: {},
         _handle: handle
@@ -286,6 +292,14 @@ class JSONEval {
    */
   async _callNativeJson(methodName, ...args) {
     const result = await this._callNative(methodName, ...args);
+    if (!result) return null;
+
+    // If it's an ArrayBuffer (Zero-Copy JSI result), decode it first
+    if (result instanceof ArrayBuffer) {
+      if (result.byteLength === 0) return null;
+      const jsonStr = _jsi.decodeArrayBuffer(result);
+      return (0, _jsonWithBigint.JSONParse)(jsonStr);
+    }
     return typeof result === 'string' ? (0, _jsonWithBigint.JSONParse)(result) : result;
   }
 
@@ -294,6 +308,12 @@ class JSONEval {
    */
   async _callNativeJsonOrNull(methodName, ...args) {
     const result = await this._callNative(methodName, ...args);
+    if (!result) return null;
+    if (result instanceof ArrayBuffer) {
+      if (result.byteLength === 0) return null;
+      const jsonStr = _jsi.decodeArrayBuffer(result);
+      return jsonStr === 'null' || jsonStr === '' ? null : (0, _jsonWithBigint.JSONParse)(jsonStr);
+    }
     return result ? (0, _jsonWithBigint.JSONParse)(result) : null;
   }
 
@@ -899,8 +919,8 @@ class JSONEval {
    * @returns Promise resolving to version string
    */
   static async version() {
-    var _jsi3;
-    if (useJSI && (_jsi3 = _jsi) !== null && _jsi3 !== void 0 && _jsi3.version) {
+    var _jsi4;
+    if (useJSI && (_jsi4 = _jsi) !== null && _jsi4 !== void 0 && _jsi4.version) {
       return _jsi.version();
     }
     return JsonEvalRs.version();

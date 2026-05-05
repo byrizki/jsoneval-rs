@@ -10,6 +10,7 @@
 export interface JsonEvalJSIGlobal {
     create(schema: string, context: string | null, data: string | null): string;
     createFromCache(cacheKey: string, context: string | null, data: string | null): string;
+    createFromMsgpack(msgpack: number[], context: string | null, data: string | null): string;
     dispose(handle: string): void;
     evaluateOnly(handle: string, data: string, context: string | null, paths: string | null): void;
     evaluate(handle: string, data: string, context: string | null, paths: string | null): string;
@@ -28,6 +29,7 @@ export interface JsonEvalJSIGlobal {
     resolveLayout(handle: string, evaluate: boolean): void;
     reloadSchema(handle: string, schema: string, context: string | null, data: string | null): void;
     reloadSchemaFromCache(handle: string, cacheKey: string, context: string | null, data: string | null): void;
+    reloadSchemaMsgpack(handle: string, msgpack: number[], context: string | null, data: string | null): void;
     setTimezoneOffset(handle: string, offsetMinutes: number): void;
     cancel(handle: string): void;
     compileAndRunLogic(handle: string, logicStr: string, data: string | null, context: string | null): string;
@@ -48,6 +50,9 @@ export interface JsonEvalJSIGlobal {
     getSchemaByPathsSubform(handle: string, subformPath: string, schemaPathsJson: string, format: number): string;
     getSubformPaths(handle: string): string;
     hasSubform(handle: string, subformPath: string): boolean;
+    /** Convert ArrayBuffer (UTF-8 encoded) to string — replaces TextDecoder */
+    decodeArrayBuffer(buffer: ArrayBuffer): string;
+    evaluateLogic(logic: string, data: string | null, context: string | null): string;
     version(): string;
 }
 /**
