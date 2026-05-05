@@ -338,6 +338,12 @@ namespace JsonEvalRs
             IntPtr handle,
             int offsetMinutes
         );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_get_field_options(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string fieldPath
+        );
     }
 }
 #endif

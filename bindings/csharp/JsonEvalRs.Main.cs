@@ -739,6 +739,56 @@ namespace JsonEvalRs
         }
 
         /// <summary>
+        /// Evaluates and returns the options for a specific field on demand.
+        ///
+        /// The field path supports:
+        /// - Dotted notation: "form.occupation"
+        /// - JSON pointer: "/properties/form/properties/occupation"
+        /// - Schema ref: "#/properties/form/properties/occupation"
+        /// </summary>
+        /// <param name="fieldPath">Field path in dotted, pointer, or ref notation</param>
+        /// <returns>Resolved options value as JToken, or null if the field has no options</returns>
+        public JToken? GetFieldOptions(string fieldPath)
+        {
+            ThrowIfDisposed();
+
+            if (string.IsNullOrEmpty(fieldPath))
+                throw new ArgumentNullException(nameof(fieldPath));
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+            var result = Native.json_eval_get_field_options(_handle, fieldPath);
+#else
+            var result = Native.json_eval_get_field_options(_handle, Native.ToUTF8Bytes(fieldPath)!);
+#endif
+
+            if (!result.Success)
+            {
+                Native.json_eval_free_result(result);
+                return null;
+            }
+
+            try
+            {
+                if (result.DataPtr == IntPtr.Zero)
+                    return null;
+
+                int dataLen = (int)result.DataLen.ToUInt32();
+                if (dataLen == 0)
+                    return null;
+
+                byte[] buffer = new byte[dataLen];
+                Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
+
+                string json = Encoding.UTF8.GetString(buffer);
+                return JToken.Parse(json);
+            }
+            finally
+            {
+                Native.json_eval_free_result(result);
+            }
+        }
+
+        /// <summary>
         /// Reloads the schema with new data
         /// </summary>
         /// <param name="schema">New JSON schema string</param>

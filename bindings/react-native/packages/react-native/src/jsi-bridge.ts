@@ -70,6 +70,7 @@ export interface JsonEvalJSIGlobal {
   ): string;
   getSchemaByPath(handle: string, path: string): string;
   getSchemaByPaths(handle: string, pathsJson: string, format: number): string;
+  getFieldOptions(handle: string, fieldPath: string): string;
 
   // Layout resolution (returns overlay JSON string)
   resolveLayout(handle: string, evaluate: boolean): string;

@@ -1,9 +1,9 @@
 use super::JSONEval;
 use crate::jsoneval::path_utils;
 use crate::jsoneval::types::{ResolvedLayoutResult, ReturnFormat};
-
+use crate::utils::clean_float_noise_scalar;
 use crate::time_block;
-use serde_json::Value; 
+use serde_json::Value;
 use std::sync::Arc;
 
 impl JSONEval {
@@ -685,9 +685,6 @@ impl JSONEval {
                 Value::Object(result)
             }
             ReturnFormat::Array => {
-                // Convert object values to array? Only if source was object?
-                // Or flattened values?
-                // Usually converting to array disregards keys.
                 if let Value::Object(map) = value {
                     Value::Array(map.values().cloned().collect())
                 } else if let Value::Array(arr) = value {
@@ -697,5 +694,73 @@ impl JSONEval {
                 }
             }
         }
+    }
+
+    /// Evaluate and return the options for a specific field on demand.
+    ///
+    /// Accepts dotted notation (`form.occupation`), JSON pointer
+    /// (`/properties/form/properties/occupation`), or schema ref
+    /// (`#/properties/form/properties/occupation`).
+    ///
+    /// Returns `None` when the field does not have an `options` key.
+    /// Returns the resolved options value (array, URL string, or null) otherwise.
+    pub fn get_field_options(&mut self, field_path: &str) -> Option<Value> {
+        // Normalize the input to a schema pointer (e.g. #/properties/form/properties/occupation)
+        let schema_ptr = if field_path.starts_with('#') || field_path.starts_with('/') {
+            path_utils::normalize_to_json_pointer(field_path).into_owned()
+        } else {
+            path_utils::dot_notation_to_schema_pointer(field_path)
+        };
+
+        // Build the JSON pointer path to the /options node (strip leading # for serde pointer())
+        let options_schema_key = format!("{}/options", schema_ptr);
+        let options_pointer = path_utils::normalize_to_json_pointer(&options_schema_key).into_owned();
+
+        // Check if the options node exists in the evaluated schema
+        let options_node = self.evaluated_schema.pointer(&options_pointer)?.clone();
+
+        // If the options node is an object with $evaluation, evaluate it now (deferred)
+        if let Value::Object(ref map) = options_node {
+            if map.contains_key("$evaluation") {
+                let eval_key = options_schema_key.clone();
+
+                if let Some(logic_id) = self.evaluations.get(&eval_key).copied() {
+                    let snap = self.eval_data.snapshot_data();
+                    if let Ok(result) = self.engine.run(&logic_id, &*snap) {
+                        let cleaned = clean_float_noise_scalar(result);
+                        if let Some(node) = self.evaluated_schema.pointer_mut(&options_pointer) {
+                            *node = cleaned.clone();
+                        }
+                        return Some(cleaned);
+                    }
+                }
+                // No compiled logic found — options cannot be resolved
+                return None;
+            }
+        }
+
+        // Check options_templates for a URL template at this field's options/url path
+        let url_pointer = path_utils::normalize_to_json_pointer(
+            &format!("{}/options/url", schema_ptr)
+        ).into_owned();
+
+        let templates = self.options_templates.clone();
+        for (tmpl_url_path, tmpl_str, tmpl_params_path) in templates.iter() {
+            if *tmpl_url_path == url_pointer {
+                if let Some(params) = self.evaluated_schema.pointer(tmpl_params_path) {
+                    let params = params.clone();
+                    if let Ok(resolved_url) = self.evaluate_template(tmpl_str, &params) {
+                        if let Some(target) = self.evaluated_schema.pointer_mut(&url_pointer) {
+                            *target = Value::String(resolved_url);
+                        }
+                        return self.evaluated_schema.pointer(&options_pointer).cloned();
+                    }
+                }
+                break;
+            }
+        }
+
+        // Static options (already-evaluated array or plain value)
+        Some(options_node)
     }
 }

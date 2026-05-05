@@ -50,6 +50,7 @@ extern "C" {
     FFIResult json_eval_get_subform_paths(JSONEvalHandle* handle);
     FFIResult json_eval_has_subform(JSONEvalHandle* handle, const char* subform_path);
     FFIResult json_eval_evaluate_logic_pure(const char* logic_str, const char* data, const char* context);
+    FFIResult json_eval_get_field_options(JSONEvalHandle* handle, const char* field_path);
 }
 
 namespace jsoneval {
@@ -487,6 +488,26 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_get_schema_by_paths(handle, pathsJson.c_str(), format);
+                return ffiResultToJsiBuffer(rt, result);
+            }
+        );
+    }
+
+    // ---- getFieldOptions ----
+    if (prop == "getFieldOptions") {
+        return createJsiFn(runtime, "getFieldOptions",
+            [](jsi::Runtime& rt, const jsi::Value* args, size_t count) -> jsi::Value {
+                checkArgCount(rt, count, 2);
+                auto handleId = stringFromValue(rt, args[0]);
+                auto fieldPath = stringFromValue(rt, args[1]);
+
+                auto [handle, lock] = lockHandleById(handleId);
+                FFIResult result = json_eval_get_field_options(handle, fieldPath.c_str());
+                // Not found is returned as a failed result — propagate as null to JS
+                if (!result.success) {
+                    json_eval_free_result(result);
+                    return jsi::Value::null();
+                }
                 return ffiResultToJsiBuffer(rt, result);
             }
         );
@@ -1068,7 +1089,8 @@ std::vector<jsi::PropNameID> JsonEvalJSI::getPropertyNames(jsi::Runtime& runtime
         "getEvaluatedSchemaWithoutParamsSubform",
         "getEvaluatedSchemaByPathSubform", "getEvaluatedSchemaByPathsSubform",
         "getSchemaByPathSubform", "getSchemaByPathsSubform",
-        "getSubformPaths", "hasSubform"
+        "getSubformPaths", "hasSubform",
+        "getFieldOptions"
     };
     std::vector<jsi::PropNameID> result;
     for (auto& n : names) {

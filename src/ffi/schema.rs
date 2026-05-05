@@ -333,3 +333,42 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_resolved(
     let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
     FFIResult::success(result_bytes)
 }
+
+/// Evaluate and return the options for a specific field on demand.
+///
+/// The field path can be dotted notation (`form.occupation`), a JSON pointer
+/// (`/properties/form/properties/occupation`), or a schema ref
+/// (`#/properties/form/properties/occupation`).
+///
+/// Returns the resolved options value (array or URL string) for the field.
+/// Returns an error result if the field has no options or options cannot be resolved.
+///
+/// # Safety
+///
+/// - handle must be a valid pointer from json_eval_new
+/// - field_path must be a valid null-terminated UTF-8 string
+/// - Caller must call json_eval_free_result when done
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_get_field_options(
+    handle: *mut JSONEvalHandle,
+    field_path: *const c_char,
+) -> FFIResult {
+    if handle.is_null() || field_path.is_null() {
+        return FFIResult::error("Invalid handle or field_path pointer".to_string());
+    }
+
+    let eval = &mut (*handle).inner;
+
+    let path_str = match CStr::from_ptr(field_path).to_str() {
+        Ok(s) => s,
+        Err(_) => return FFIResult::error("Invalid UTF-8 in field_path".to_string()),
+    };
+
+    match eval.get_field_options(path_str) {
+        Some(value) => {
+            let result_bytes = serde_json::to_vec(&value).unwrap_or_default();
+            FFIResult::success(result_bytes)
+        }
+        None => FFIResult::error("Field has no options or options could not be resolved".to_string()),
+    }
+}

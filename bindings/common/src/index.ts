@@ -34,6 +34,7 @@ export {
   GetEvaluatedSchemaByPathsSubformOptions,
   GetSchemaByPathSubformOptions,
   GetSchemaByPathsSubformOptions,
+  GetFieldOptionsOptions,
   LayoutOverlayEntry,
 } from './types.js';
 

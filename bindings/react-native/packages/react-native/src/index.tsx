@@ -627,6 +627,23 @@ export class JSONEval {
   }
 
   /**
+   * Evaluate and return the options for a specific field on demand.
+   *
+   * The field is identified by `fieldPath`, which can be:
+   * - Dotted notation: `"form.occupation"`
+   * - JSON pointer: `"/properties/form/properties/occupation"`
+   * - Schema ref: `"#/properties/form/properties/occupation"`
+   *
+   * @param fieldPath - Field path identifying which field's options to retrieve
+   * @returns Promise resolving to the resolved options (array or URL string), or null if none
+   * @throws {Error} If operation fails
+   */
+  async getFieldOptions(fieldPath: string): Promise<any | null> {
+    this.throwIfDisposed();
+    return await this._callNativeJsonOrNull('getFieldOptions', fieldPath);
+  }
+
+  /**
    * Reload schema with new data
    * @param options - Configuration options with new schema, context, and data
    * @throws {Error} If reload fails

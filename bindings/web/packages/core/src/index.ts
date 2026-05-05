@@ -6,6 +6,7 @@ import {
   type EvaluateOptions,
   type EvaluateSubformOptions,
   type GetEvaluatedSchemaSubformOptions,
+  type GetFieldOptionsOptions,
   type GetSchemaByPathOptions,
   type GetSchemaByPathSubformOptions,
   type GetSchemaByPathsOptions,
@@ -35,6 +36,7 @@ export {
   GetEvaluatedSchemaByPathSubformOptions,
   GetEvaluatedSchemaByPathsSubformOptions,
   GetEvaluatedSchemaSubformOptions,
+  GetFieldOptionsOptions,
   GetSchemaByPathOptions,
   GetSchemaByPathSubformOptions,
   GetSchemaByPathsOptions,
@@ -937,6 +939,21 @@ export class JSONEvalCore {
   async hasSubform(subformPath: string): Promise<boolean> {
     await this.init();
     return this._instance.hasSubform(subformPath);
+  }
+
+  /**
+   * Evaluate and return the options for a specific field on demand.
+   *
+   * The field is identified by `path`, which can be:
+   * - Dotted notation: `"form.occupation"`
+   * - JSON pointer: `"/properties/form/properties/occupation"`
+   * - Schema ref: `"#/properties/form/properties/occupation"`
+   *
+   * @returns Resolved options value (array or URL string), or null if the field has no options
+   */
+  async getFieldOptions({ path }: GetFieldOptionsOptions): Promise<any | null> {
+    await this.init();
+    return this._instance.getFieldOptionsJS(path);
   }
 
   /**

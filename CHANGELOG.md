@@ -2,7 +2,8 @@
 
 ## [0.0.94] - 2026-05-06
 
-- [core] implement delta evaluated schema
+- [core] [RN] [C#] [WASM] implement delta evaluated schema
+- introduce large options arrays optimization and schema store
 
 ## [0.0.93] - 2026-05-06
 

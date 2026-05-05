@@ -107,18 +107,9 @@ impl JSONEval {
                     String::new()
                 };
 
-                // Only inject metadata for elements with $ref
                 if let Some(Value::String(ref_str)) = map.get("$ref").cloned() {
-                    let dotted_path = path_utils::pointer_to_dot_notation(&ref_str);
-                    let last_segment = dotted_path.split('.').last().unwrap_or(&dotted_path);
-
-                    // Inject metadata
-                    map.insert("$fullpath".to_string(), Value::String(dotted_path.clone()));
-                    map.insert("$path".to_string(), Value::String(last_segment.to_string()));
-                    map.insert("$parentHide".to_string(), Value::Bool(false));
-
-                    let normalized_path = if ref_str.starts_with('#') || ref_str.starts_with('/')
-                    {
+                    // Resolve the $ref to an actual schema pointer first
+                    let normalized_path = if ref_str.starts_with('#') || ref_str.starts_with('/') {
                         path_utils::normalize_to_json_pointer(&ref_str).into_owned()
                     } else {
                         let schema_pointer =
@@ -133,23 +124,29 @@ impl JSONEval {
                         }
                     };
 
-                    if let Some(referenced_value) = self.evaluated_schema.pointer(&normalized_path)
-                    {
+                    // Build $fullpath from the actual resolved pointer (not the raw $ref string).
+                    // This ensures $fullpath always reflects the true schema field path.
+                    let dotted_path = path_utils::pointer_to_dot_notation(&normalized_path);
+                    let last_segment = dotted_path.split('.').last().unwrap_or(&dotted_path);
+
+                    map.insert("$fullpath".to_string(), Value::String(dotted_path.clone()));
+                    map.insert("$path".to_string(), Value::String(last_segment.to_string()));
+                    map.insert("$parentHide".to_string(), Value::Bool(false));
+
+                    if let Some(referenced_value) = self.evaluated_schema.pointer(&normalized_path) {
                         let resolved = referenced_value.clone();
 
                         if let Value::Object(mut resolved_map) = resolved {
                             map.remove("$ref");
 
-                            if let Some(Value::Object(layout_obj)) = resolved_map.remove("$layout")
-                            {
-                                // Flatten $layout: start with layout_obj, merge rest from resolved_map
+                            if let Some(Value::Object(layout_obj)) = resolved_map.remove("$layout") {
                                 let mut result = layout_obj.clone();
                                 for (key, value) in resolved_map {
                                     if key != "type" || !result.contains_key("type") {
                                         result.insert(key, value);
                                     }
                                 }
-                                // Element overrides on top
+                                // Ensure $fullpath from the map (actual ref path) wins
                                 for (key, value) in map {
                                     result.insert(key, value);
                                 }
@@ -205,30 +202,32 @@ impl JSONEval {
                     }
                 }
 
-                // ── Inject metadata if not present ──
+                // ── Inject $fullpath for ALL elements (ref and non-ref) ──
                 if !overlay.contains_key("$fullpath") {
-                    // For direct elements without $ref, compute $fullpath and $path
                     if !ref_path.is_empty() {
-                        // Has $ref, use dotted path from reference
-                        let last_segment = ref_path.split('.').last().unwrap_or(&ref_path);
+                        // $ref element: use the actual schema ref target dotted path
+                        let last_segment = ref_path.split('.').last().unwrap_or(ref_path);
                         overlay.insert("$fullpath".to_string(), Value::String(ref_path.clone()));
                         overlay.insert("$path".to_string(), Value::String(last_segment.to_string()));
                     } else {
-                        // Direct element without $ref, compute based on position
-                        let idx = element_idx.to_string();
-                        
-                        // Build $fullpath from layout path + index using existing path utils
-                        // layout_path is like "#/properties/form/$layout/elements"
-                        // Get dotted form: "properties.form.$layout.elements"
-                        let dotted_path = path_utils::pointer_to_dot_notation(layout_path);
-                        
-                        // Append index: "properties.form.$layout.elements.0"
-                        let fullpath = format!("{}.{}", dotted_path, idx);
+                        // Non-$ref (inline layout container): build a clean positional path by
+                        // stripping the structural /$layout/elements suffix from layout_path
+                        // so it reads as a field-relative path, not an internal layout pointer.
+                        //
+                        // e.g. "#/properties/form/$layout/elements" → "form" → "form.0"
+                        //      "#/form/$layout/elements/2/elements" → "form.2" → "form.2.0"
+                        let base = Self::layout_path_to_field_path(layout_path);
+                        let fullpath = if base.is_empty() {
+                            format!("{}", element_idx)
+                        } else {
+                            format!("{}.{}", base, element_idx)
+                        };
+                        let last_segment = fullpath.split('.').last().unwrap_or(&fullpath).to_string();
                         overlay.insert("$fullpath".to_string(), Value::String(fullpath));
-                        overlay.insert("$path".to_string(), Value::String(idx));
+                        overlay.insert("$path".to_string(), Value::String(last_segment));
                     }
                 }
-                
+
                 // Override $parentHide — may exist from ref resolution as false,
                 // but tree_to_overlays owns the correct parent_hidden value.
                 overlay.insert("$parentHide".to_string(), Value::Bool(parent_hidden));
@@ -396,5 +395,47 @@ impl JSONEval {
                 map.insert("condition".to_string(), Value::Object(condition));
             }
         }
+    }
+
+    // ── Private helpers ──────────────────────────────────────────────────────
+
+    /// Convert a layout elements path to a clean field-relative dotted path
+    /// by stripping all structural `/$layout/elements` segments and the leading
+    /// `/properties` prefix.
+    ///
+    /// ## Examples
+    ///
+    /// ```text
+    /// "#/properties/form/$layout/elements"       → "form"
+    /// "#/form/$layout/elements"                  → "form"
+    /// "#/properties/form/$layout/elements/2/elements" → "form.2"
+    /// "#/a/properties/b/$layout/elements"        → "a.b"
+    /// ```
+    fn layout_path_to_field_path(layout_path: &str) -> String {
+        // Strip leading `#` or `#/`
+        let raw = if layout_path.starts_with("#/") {
+            &layout_path[2..]
+        } else if layout_path.starts_with('#') {
+            &layout_path[1..]
+        } else if layout_path.starts_with('/') {
+            &layout_path[1..]
+        } else {
+            layout_path
+        };
+
+        // Walk segments, dropping "properties", "$layout", "elements" structural tokens
+        let parts: Vec<&str> = raw.split('/').collect();
+        let mut out: Vec<&str> = Vec::new();
+        let mut i = 0;
+        while i < parts.len() {
+            let seg = parts[i];
+            match seg {
+                "" | "properties" | "$layout" | "elements" | "additionalProperties" => {}
+                _ => out.push(seg),
+            }
+            i += 1;
+        }
+
+        out.join(".")
     }
 }

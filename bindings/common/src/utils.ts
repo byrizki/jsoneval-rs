@@ -162,6 +162,109 @@ function dotNotationToSchemaPointer(path: string): string {
   return result;
 }
 
+// ─── Private: mirrors Rust layout_path_to_field_path ─────────────────────────
+
+/**
+ * Convert a layout elements path to a clean field-relative dotted path by
+ * stripping structural `/$layout/elements` segments and the leading `/properties` prefix.
+ *
+ * @example
+ * layoutPathToFieldPath("#/properties/form/$layout/elements")  // "form"
+ * layoutPathToFieldPath("#/form/$layout/elements/2/elements")  // "form.2"
+ * layoutPathToFieldPath("#/a/properties/b/$layout/elements")   // "a.b"
+ */
+function layoutPathToFieldPath(layoutPath: string): string {
+  const raw = layoutPath.startsWith('#/')
+    ? layoutPath.slice(2)
+    : layoutPath.startsWith('#') || layoutPath.startsWith('/')
+      ? layoutPath.slice(1)
+      : layoutPath;
+
+  const SKIP = new Set(['', 'properties', '$layout', 'elements', 'additionalProperties']);
+  const parts = raw.split('/').filter((s) => !SKIP.has(s));
+  return parts.join('.');
+}
+
+/**
+ * Stamp `$fullpath` (and `$path`) on a single element object in-place.
+ *
+ * - `$ref` element → use the resolved pointer path (dotted) as `$fullpath`
+ * - non-`$ref` element → derive from layout path + positional index
+ *
+ * @param element   The element object to stamp (mutated in-place)
+ * @param refPointer Normalised resolved ref pointer (e.g. `/properties/form`) or null
+ * @param layoutPath The parent layout elements path (e.g. `#/form/$layout/elements`)
+ * @param idx        Zero-based index of element within its elements array
+ */
+function stampFullpath(
+  element: Record<string, any>,
+  refPointer: string | null,
+  layoutPath: string,
+  idx: number,
+): void {
+  if (refPointer !== null) {
+    // $ref element: $fullpath is the actual resolved schema field path
+    // Convert pointer → dotted notation (strip leading / or /properties/)
+    const dotted = refPointer
+      .replace(/^\//, '')
+      .replace(/\/properties\//g, '.')
+      .replace(/^properties\./, '');
+    element['$fullpath'] = dotted;
+    element['$path'] = dotted.split('.').pop() ?? dotted;
+  } else {
+    // Non-$ref (inline layout container): clean positional path
+    const base = layoutPathToFieldPath(layoutPath);
+    const fullpath = base ? `${base}.${idx}` : String(idx);
+    element['$fullpath'] = fullpath;
+    element['$path'] = fullpath.split('.').pop() ?? fullpath;
+  }
+}
+
+/**
+ * Recursively walk `elements` arrays in the resolved schema and stamp
+ * `$fullpath` / `$path` on every item that does not already have one
+ * or whose `$fullpath` looks like a raw layout path (contains `$layout`).
+ *
+ * This is the TS mirror of Rust's recursive `tree_to_overlays` fullpath injection.
+ *
+ * @param elements    The elements array (mutated in-place)
+ * @param layoutPath  The JSON-pointer path to this elements array
+ *                    (e.g. `#/form/$layout/elements`)
+ * @param schema      The full schema (for $ref resolution)
+ */
+function stampFullpathRecursive(
+  elements: any[],
+  layoutPath: string,
+  schema: any,
+): void {
+  for (let i = 0; i < elements.length; i++) {
+    const el = elements[i];
+    if (el == null || typeof el !== 'object') continue;
+
+    const refStr: string | undefined = el.$ref;
+    let resolvedRefPointer: string | null = null;
+
+    if (refStr) {
+      resolvedRefPointer = resolveRefPointer(schema, refStr);
+    }
+
+    const needsStamp =
+      !el.$fullpath ||
+      el.$fullpath.includes('$layout') ||
+      el.$fullpath.includes('/elements/');
+
+    if (needsStamp) {
+      stampFullpath(el, resolvedRefPointer, layoutPath, i);
+    }
+
+    // Recurse into nested elements
+    if (Array.isArray(el.elements)) {
+      const nestedPath = `${layoutPath.replace(/\/$/, '')}/${i}/elements`;
+      stampFullpathRecursive(el.elements, nestedPath, schema);
+    }
+  }
+}
+
 // ─── $ref pointer resolution (mirrors Rust Phase 2 inline logic) ─────────────
 
 /**
@@ -199,13 +302,15 @@ function resolveRefPointer(schema: any, refStr: string): string | null {
  * 2. For each entry, operating on the **already-mutated** schema:
  *    a. Read `$ref` from the live element at `layout_path[element_idx]`.
  *    b. Resolve the `$ref` against the current schema state.
- *    c. [Dropped] Clone the resolved node; if it has a `$layout` key, flatten it:
- *       `$layout` becomes the base object, non-`type` fields from the resolved
- *       node are merged on top (matching Rust priority).
+ *    c. Flatten `$layout` from the resolved node into the element base.
  *    d. Strip `$ref` from the original element and merge its remaining keys
  *       into the resolved object (element keys win over resolved).
  *    e. Replace the element in-place with the merged object.
  *    f. Apply `entry.overlay` properties on top of the replaced element.
+ * 3. After all entries are processed, walk every `$layout/elements` array and
+ *    stamp `$fullpath` / `$path` on every element recursively, ensuring:
+ *    - `$ref` elements get the **actual resolved schema path** (not the raw `$ref` string).
+ *    - Non-`$ref` elements get a clean positional path (no `$layout`/`elements` tokens).
  *
  * @param schema - Evaluated schema with unresolved `$layout` (mutated in-place)
  * @param overlayEntries - Entries returned by `getResolvedLayout()`
@@ -237,10 +342,12 @@ export function mergeLayoutOverlay(
 
     // 2a-e: Resolve $ref and replace element
     const refStr: string | undefined = element.$ref;
+    let resolvedRefPointer: string | null = null;
+
     if (refStr) {
-      const refPointer = resolveRefPointer(schema, refStr);
-      if (refPointer !== null) {
-        let resolved: any = getByPointer(schema, refPointer);
+      resolvedRefPointer = resolveRefPointer(schema, refStr);
+      if (resolvedRefPointer !== null) {
+        let resolved: any = getByPointer(schema, resolvedRefPointer);
 
         // 2c: Flatten $layout — $layout becomes base, resolved non-type fields merge in
         if (resolved != null && typeof resolved === 'object' && resolved.$layout != null && typeof resolved.$layout === 'object') {
@@ -263,6 +370,9 @@ export function mergeLayoutOverlay(
         } else {
           elements[entry.element_idx] = resolved;
         }
+
+        // Stamp $fullpath from the actual resolved ref pointer (not the raw $ref string)
+        stampFullpath(elements[entry.element_idx], resolvedRefPointer, entry.layout_path, entry.element_idx);
       }
     }
 
@@ -273,7 +383,48 @@ export function mergeLayoutOverlay(
         target[k] = v;
       }
     }
+
+    // Step 3a: For non-$ref elements, ensure $fullpath is a clean positional path
+    if (!refStr) {
+      const el = elements[entry.element_idx];
+      if (el != null && typeof el === 'object') {
+        const needsStamp =
+          !el.$fullpath ||
+          el.$fullpath.includes('$layout') ||
+          el.$fullpath.includes('/elements/');
+        if (needsStamp) {
+          stampFullpath(el, null, entry.layout_path, entry.element_idx);
+        }
+      }
+    }
   }
+
+  // Step 3b: Final recursive pass — stamp $fullpath on ALL nested elements
+  // arrays that were expanded via overlay, including non-$ref children that
+  // the overlay entries may not have covered.
+  function walkLayoutArrays(obj: any, currentPath: string): void {
+    if (obj == null || typeof obj !== 'object') return;
+    if (Array.isArray(obj)) {
+      for (let i = 0; i < obj.length; i++) {
+        walkLayoutArrays(obj[i], `${currentPath}/${i}`);
+      }
+      return;
+    }
+    for (const [key, val] of Object.entries(obj)) {
+      if (key === '$layout' && val != null && typeof val === 'object' && !Array.isArray(val)) {
+        const layoutVal = val as Record<string, any>;
+        if (Array.isArray(layoutVal.elements)) {
+          const elemPath = `${currentPath}/$layout/elements`;
+          stampFullpathRecursive(layoutVal.elements, elemPath, schema);
+        }
+      } else if (key === 'elements' && Array.isArray(val)) {
+        stampFullpathRecursive(val, `${currentPath}/elements`, schema);
+      } else {
+        walkLayoutArrays(val, `${currentPath}/${key}`);
+      }
+    }
+  }
+  walkLayoutArrays(schema, '#');
 
   return schema;
 }

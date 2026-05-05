@@ -356,6 +356,19 @@ export interface GetSchemaByPathsSubformOptions {
 // ============================================================================
 
 /**
+ * Options for getting field options on demand
+ */
+export interface GetFieldOptionsOptions {
+  /**
+   * Field path — supports:
+   * - Dotted notation: `"form.occupation"`
+   * - JSON pointer: `"/properties/form/properties/occupation"`
+   * - Schema ref: `"#/properties/form/properties/occupation"`
+   */
+  path: string;
+}
+
+/**
  * A single overlay entry produced by the layout resolution engine.
  * Each entry describes properties to apply on top of the compact $layout element.
  */

@@ -711,6 +711,14 @@ impl JSONEval {
                                 return;
                             }
                         }
+
+                        // Defer options array evaluation — only the root /options field,
+                        // not its children (e.g. /options/0/label are still evaluated normally).
+                        // Call get_field_options() to resolve on demand.
+                        if eval_key.ends_with("/options") {
+                            continue;
+                        }
+
                         // Filter items if paths are provided
                         if let Some(filter_paths) = normalized_paths.as_ref() {
                             if !filter_paths.is_empty()
@@ -793,15 +801,12 @@ impl JSONEval {
             }
         });
 
-        // Step 2: Evaluate options URL templates (handles {variable} patterns)
-        // Skip when all entries were cache hits — template inputs can't have changed.
-        if had_cache_miss {
-            time_block!("      evaluate_options_templates", {
-                self.evaluate_options_templates(paths);
-            });
+        // Note: options URL templates (options_templates) are evaluated on-demand via get_field_options().
+        // They are intentionally skipped here to avoid eager resolution on every evaluate() call.
 
-            // Step 3: Resolve layout logic (metadata injection, hidden propagation)
-            // Skip when no values changed — layout state is guaranteed identical.
+        // Step 2: Resolve layout logic (metadata injection, hidden propagation)
+        // Skip when no values changed — layout state is guaranteed identical.
+        if had_cache_miss {
             time_block!("      resolve_layout", {
                 let _ = self.resolve_layout(false);
             });
@@ -813,8 +818,9 @@ impl JSONEval {
         self.resolved_layout_cache = None;
     }
 
-    /// Evaluate options URL templates (handles {variable} patterns)
-    fn evaluate_options_templates(&mut self, paths: Option<&[String]>) {
+    /// Evaluate options URL templates (handles {variable} patterns) — called on demand from get_field_options
+    #[allow(dead_code)]
+    pub(crate) fn evaluate_options_templates(&mut self, paths: Option<&[String]>) {
         // Use pre-collected options templates from parsing (Arc clone is cheap)
         let templates_to_eval = self.options_templates.clone();
 
@@ -844,7 +850,7 @@ impl JSONEval {
     }
 
     /// Evaluate a template string like "api/users/{id}" with params
-    fn evaluate_template(&self, template: &str, params: &Value) -> Result<String, String> {
+    pub(crate) fn evaluate_template(&self, template: &str, params: &Value) -> Result<String, String> {
         let mut result = template.to_string();
 
         // Simple template evaluation: replace {key} with params.key

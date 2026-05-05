@@ -323,4 +323,35 @@ impl JSONEvalWasm {
         let result = self.inner.get_evaluated_schema_resolved();
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
+
+    /// Evaluate and return the options for a specific field on demand.
+    ///
+    /// Accepts dotted notation (`form.occupation`), JSON pointer
+    /// (`/properties/form/properties/occupation`), or schema ref
+    /// (`#/properties/form/properties/occupation`).
+    ///
+    /// @param fieldPath - Field path in dotted, pointer, or ref notation
+    /// @returns Options as JSON string, or null if the field has no options
+    #[wasm_bindgen(js_name = getFieldOptions)]
+    pub fn get_field_options(&mut self, field_path: &str) -> Option<String> {
+        self.inner
+            .get_field_options(field_path)
+            .map(|v| serde_json::to_string(&v).unwrap_or_else(|_| "null".to_string()))
+    }
+
+    /// Evaluate and return the options for a specific field on demand (as JavaScript object).
+    ///
+    /// Accepts dotted notation (`form.occupation`), JSON pointer
+    /// (`/properties/form/properties/occupation`), or schema ref
+    /// (`#/properties/form/properties/occupation`).
+    ///
+    /// @param fieldPath - Field path in dotted, pointer, or ref notation
+    /// @returns Options as JavaScript value, or null if the field has no options
+    #[wasm_bindgen(js_name = getFieldOptionsJS)]
+    pub fn get_field_options_js(&mut self, field_path: &str) -> Result<JsValue, JsValue> {
+        match self.inner.get_field_options(field_path) {
+            Some(value) => super::to_value(&value).map_err(|e| JsValue::from_str(&e.to_string())),
+            None => Ok(JsValue::NULL),
+        }
+    }
 }
