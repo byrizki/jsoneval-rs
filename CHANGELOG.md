@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.0.93] - 2026-05-06
+
+- [RN] implement zero copy data
+
 ## [0.0.92] - 2026-05-06
 
 - [RN] enable JSI on react native binding 
