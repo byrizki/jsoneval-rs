@@ -1,5 +1,6 @@
 #include "jsi-bridge.h"
 #include "json-eval-bridge.h"
+#include "RustBuffer.h"
 
 // C FFI function declarations (types defined in jsi-bridge.h)
 extern "C" {
@@ -133,6 +134,15 @@ static jsi::Value ffiResultToJsiString(jsi::Runtime& runtime, FFIResult& result,
     }
     json_eval_free_result(result);
     return jsi::String::createFromUtf8(runtime, str);
+}
+
+// ---------------------------------------------------------------------------
+// Helper: converts FFI result data_ptr+data_len → jsi::ArrayBuffer (Zero-Copy)
+// ---------------------------------------------------------------------------
+static jsi::Value ffiResultToJsiBuffer(jsi::Runtime& runtime, FFIResult& result) {
+    JsonEvalJSI::checkResult(runtime, result);
+    auto rustBuffer = std::make_shared<RustBuffer>(result);
+    return rustBuffer->toArrayBuffer(runtime);
 }
 
 // ---------------------------------------------------------------------------
@@ -291,16 +301,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 
                 // Step 2: Get evaluated schema
                 FFIResult schemaResult = json_eval_get_evaluated_schema(handle, true);
-                checkResult(rt, schemaResult);
-                
-                std::string str;
-                if (schemaResult.data_ptr && schemaResult.data_len > 0) {
-                    str.assign(reinterpret_cast<const char*>(schemaResult.data_ptr), schemaResult.data_len);
-                } else {
-                    str = "{}";
-                }
-                json_eval_free_result(schemaResult);
-                return jsi::String::createFromUtf8(rt, str);
+                return ffiResultToJsiBuffer(rt, schemaResult);
             }
         );
     }
@@ -320,7 +321,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                     data.c_str(),
                     ctx.empty() ? nullptr : ctx.c_str()
                 );
-                return ffiResultToJsiString(rt, result, "{}");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -342,7 +343,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                     ctx.empty() ? nullptr : ctx.c_str(),
                     paths.empty() ? nullptr : paths.c_str()
                 );
-                return ffiResultToJsiString(rt, result, "{}");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -368,7 +369,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                     reEvaluate ? 1 : 0,
                     includeSubforms ? 1 : 0
                 );
-                return ffiResultToJsiString(rt, result, "[]");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -383,7 +384,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_get_evaluated_schema(handle, skipLayout);
-                return ffiResultToJsiString(rt, result, "{}");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -396,7 +397,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 auto handleId = stringFromValue(rt, args[0]);
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_get_schema_value(handle);
-                return ffiResultToJsiString(rt, result, "{}");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -409,7 +410,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 auto handleId = stringFromValue(rt, args[0]);
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_get_schema_value_array(handle);
-                return ffiResultToJsiString(rt, result, "[]");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -422,7 +423,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 auto handleId = stringFromValue(rt, args[0]);
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_get_schema_value_object(handle);
-                return ffiResultToJsiString(rt, result, "{}");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -438,7 +439,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_get_evaluated_schema_by_path(handle, path.c_str(), skipLayout);
-                return ffiResultToJsiString(rt, result, "null");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -455,7 +456,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_get_evaluated_schema_by_paths(handle, pathsJson.c_str(), skipLayout, format);
-                return ffiResultToJsiString(rt, result, "{}");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -470,7 +471,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_get_schema_by_path(handle, path.c_str());
-                return ffiResultToJsiString(rt, result, "null");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -486,7 +487,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_get_schema_by_paths(handle, pathsJson.c_str(), format);
-                return ffiResultToJsiString(rt, result, "{}");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -501,7 +502,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_get_evaluated_schema_without_params(handle, skipLayout);
-                return ffiResultToJsiString(rt, result, "{}");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -540,7 +541,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                     data.empty() ? nullptr : data.c_str(),
                     ctx.empty() ? nullptr : ctx.c_str()
                 );
-                return ffiResultToJsiString(rt, result, "null");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -580,7 +581,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                     data.empty() ? nullptr : data.c_str(),
                     ctx.empty() ? nullptr : ctx.c_str()
                 );
-                return ffiResultToJsiString(rt, result, "null");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -727,7 +728,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                     data.empty() ? nullptr : data.c_str(),
                     ctx.empty() ? nullptr : ctx.c_str()
                 );
-                return ffiResultToJsiString(rt, result, "null");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -787,7 +788,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                     data.c_str(),
                     ctx.empty() ? nullptr : ctx.c_str()
                 );
-                return ffiResultToJsiString(rt, result, "{\"hasError\":false,\"errors\":[]}");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -812,7 +813,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                     ctx.empty() ? nullptr : ctx.c_str(),
                     reEvaluate ? 1 : 0, includeSubforms ? 1 : 0
                 );
-                return ffiResultToJsiString(rt, result, "[]");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -846,7 +847,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_get_evaluated_schema_subform(handle, subformPath.c_str(), resolveLayout);
-                return ffiResultToJsiString(rt, result, "{}");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -861,7 +862,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_get_schema_value_subform(handle, subformPath.c_str());
-                return ffiResultToJsiString(rt, result, "{}");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -876,7 +877,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_get_schema_value_array_subform(handle, subformPath.c_str());
-                return ffiResultToJsiString(rt, result, "[]");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -891,7 +892,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_get_schema_value_object_subform(handle, subformPath.c_str());
-                return ffiResultToJsiString(rt, result, "{}");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -907,7 +908,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_get_evaluated_schema_without_params_subform(handle, subformPath.c_str(), resolveLayout);
-                return ffiResultToJsiString(rt, result, "{}");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -924,7 +925,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_get_evaluated_schema_by_path_subform(handle, subformPath.c_str(), schemaPath.c_str(), skipLayout);
-                return ffiResultToJsiString(rt, result, "null");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -942,7 +943,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_get_evaluated_schema_by_paths_subform(handle, subformPath.c_str(), schemaPathsJson.c_str(), skipLayout, format);
-                return ffiResultToJsiString(rt, result, "{}");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -958,7 +959,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_get_schema_by_path_subform(handle, subformPath.c_str(), schemaPath.c_str());
-                return ffiResultToJsiString(rt, result, "null");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -975,7 +976,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_get_schema_by_paths_subform(handle, subformPath.c_str(), schemaPathsJson.c_str(), format);
-                return ffiResultToJsiString(rt, result, "{}");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -989,7 +990,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_get_subform_paths(handle);
-                return ffiResultToJsiString(rt, result, "[]");
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }

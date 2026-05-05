@@ -528,6 +528,15 @@ export class JSONEval {
     ...args: any[]
   ): Promise<any> {
     const result = await this._callNative(methodName, ...args);
+    if (!result) return null;
+    
+    // If it's an ArrayBuffer (Zero-Copy JSI result), decode it first
+    if (result instanceof ArrayBuffer) {
+        if (result.byteLength === 0) return null;
+        const jsonStr = new TextDecoder().decode(result);
+        return JSONParse(jsonStr);
+    }
+    
     return typeof result === 'string' ? JSONParse(result) : result;
   }
 
@@ -539,6 +548,14 @@ export class JSONEval {
     ...args: any[]
   ): Promise<any | null> {
     const result = await this._callNative(methodName, ...args);
+    if (!result) return null;
+
+    if (result instanceof ArrayBuffer) {
+        if (result.byteLength === 0) return null;
+        const jsonStr = new TextDecoder().decode(result);
+        return jsonStr === 'null' || jsonStr === '' ? null : JSONParse(jsonStr);
+    }
+
     return result ? JSONParse(result) : null;
   }
 
