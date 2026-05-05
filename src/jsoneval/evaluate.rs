@@ -801,8 +801,7 @@ impl JSONEval {
             }
         });
 
-        // Note: options URL templates (options_templates) are evaluated on-demand via get_field_options().
-        // They are intentionally skipped here to avoid eager resolution on every evaluate() call.
+        self.evaluate_options_templates(paths);
 
         // Step 2: Resolve layout logic (metadata injection, hidden propagation)
         // Skip when no values changed — layout state is guaranteed identical.

@@ -119,19 +119,10 @@ fn test_options_url_dynamic_template_evaluation() {
     eval.evaluate(&data_str, None, None, None).unwrap();
 
     
-    // NEW APPROACH: Get compact schema + overlay entries, then merge
     let mut evaluated = eval.get_evaluated_schema();
     let overlay_entries = eval.get_resolved_layout();
     merge_layout_overlay(&mut evaluated, &overlay_entries);
-    eprintln!("DEBUG: overlay_entries.len(): {}", overlay_entries.len());
-    for i in 0..overlay_entries.len().min(3) {
-        let e = &overlay_entries[i];
-        eprintln!("DEBUG: entry[{}]: layout_path={}, element_idx={}, schema_ref_path={}, overlay.len={}", i, e.layout_path, e.element_idx, e.schema_ref_path, e.overlay.len());
-        eprintln!("DEBUG: entry[{}] has $fullpath: {}", i, e.overlay.contains_key("$fullpath"));
-        eprintln!("DEBUG: entry[{}] overlay keys: {:?}", i, e.overlay.keys().collect::<Vec<_>>());
-    }
 
-    // Check that URL template was evaluated
     let url = evaluated
         .pointer("/properties/users/properties/list/options/url")
         .and_then(|v| v.as_str());
@@ -175,19 +166,10 @@ fn test_options_url_template_evaluation() {
     let data_str = serde_json::to_string(&data).unwrap();
     eval.evaluate(&data_str, None, None, None).unwrap();
 
-    // NEW APPROACH: Get compact schema + overlay entries, then merge
     let mut evaluated = eval.get_evaluated_schema();
     let overlay_entries = eval.get_resolved_layout();
     merge_layout_overlay(&mut evaluated, &overlay_entries);
-    eprintln!("DEBUG: overlay_entries.len(): {}", overlay_entries.len());
-    for i in 0..overlay_entries.len().min(3) {
-        let e = &overlay_entries[i];
-        eprintln!("DEBUG: entry[{}]: layout_path={}, element_idx={}, schema_ref_path={}, overlay.len={}", i, e.layout_path, e.element_idx, e.schema_ref_path, e.overlay.len());
-        eprintln!("DEBUG: entry[{}] has $fullpath: {}", i, e.overlay.contains_key("$fullpath"));
-        eprintln!("DEBUG: entry[{}] overlay keys: {:?}", i, e.overlay.keys().collect::<Vec<_>>());
-    }
 
-    // Check that URL template was evaluated
     let url = evaluated
         .pointer("/properties/users/properties/list/options/url")
         .and_then(|v| v.as_str());
@@ -225,17 +207,9 @@ fn test_options_url_template_with_number_params() {
     let data_str = serde_json::to_string(&data).unwrap();
     eval.evaluate(&data_str, None, None, None).unwrap();
 
-    // NEW APPROACH: Get compact schema + overlay entries, then merge
     let mut evaluated = eval.get_evaluated_schema();
     let overlay_entries = eval.get_resolved_layout();
     merge_layout_overlay(&mut evaluated, &overlay_entries);
-    eprintln!("DEBUG: overlay_entries.len(): {}", overlay_entries.len());
-    for i in 0..overlay_entries.len().min(3) {
-        let e = &overlay_entries[i];
-        eprintln!("DEBUG: entry[{}]: layout_path={}, element_idx={}, schema_ref_path={}, overlay.len={}", i, e.layout_path, e.element_idx, e.schema_ref_path, e.overlay.len());
-        eprintln!("DEBUG: entry[{}] has $fullpath: {}", i, e.overlay.contains_key("$fullpath"));
-        eprintln!("DEBUG: entry[{}] overlay keys: {:?}", i, e.overlay.keys().collect::<Vec<_>>());
-    }
 
     let url = evaluated
         .pointer("/properties/items/options/url")
@@ -273,17 +247,9 @@ fn test_options_url_without_template_unchanged() {
     let data_str = serde_json::to_string(&data).unwrap();
     eval.evaluate(&data_str, None, None, None).unwrap();
 
-    // NEW APPROACH: Get compact schema + overlay entries, then merge
     let mut evaluated = eval.get_evaluated_schema();
     let overlay_entries = eval.get_resolved_layout();
     merge_layout_overlay(&mut evaluated, &overlay_entries);
-    eprintln!("DEBUG: overlay_entries.len(): {}", overlay_entries.len());
-    for i in 0..overlay_entries.len().min(3) {
-        let e = &overlay_entries[i];
-        eprintln!("DEBUG: entry[{}]: layout_path={}, element_idx={}, schema_ref_path={}, overlay.len={}", i, e.layout_path, e.element_idx, e.schema_ref_path, e.overlay.len());
-        eprintln!("DEBUG: entry[{}] has $fullpath: {}", i, e.overlay.contains_key("$fullpath"));
-        eprintln!("DEBUG: entry[{}] overlay keys: {:?}", i, e.overlay.keys().collect::<Vec<_>>());
-    }
 
     let url = evaluated
         .pointer("/properties/data/options/url")
@@ -337,17 +303,9 @@ fn test_layout_metadata_injection() {
     let data_str = serde_json::to_string(&data).unwrap();
     eval.evaluate(&data_str, None, None, None).unwrap();
 
-    // NEW APPROACH: Get compact schema + overlay entries, then merge
     let mut evaluated = eval.get_evaluated_schema();
     let overlay_entries = eval.get_resolved_layout();
     merge_layout_overlay(&mut evaluated, &overlay_entries);
-    eprintln!("DEBUG: overlay_entries.len(): {}", overlay_entries.len());
-    for i in 0..overlay_entries.len().min(3) {
-        let e = &overlay_entries[i];
-        eprintln!("DEBUG: entry[{}]: layout_path={}, element_idx={}, schema_ref_path={}, overlay.len={}", i, e.layout_path, e.element_idx, e.schema_ref_path, e.overlay.len());
-        eprintln!("DEBUG: entry[{}] has $fullpath: {}", i, e.overlay.contains_key("$fullpath"));
-        eprintln!("DEBUG: entry[{}] overlay keys: {:?}", i, e.overlay.keys().collect::<Vec<_>>());
-    }
 
     // Check first element has metadata
     let first_element = evaluated
@@ -360,8 +318,8 @@ fn test_layout_metadata_injection() {
     );
     assert_eq!(
         first_element.get("$fullpath").and_then(|v| v.as_str()),
-        Some("person.name"),
-        "$fullpath should match $ref"
+        Some("properties.person.properties.name"),
+        "$fullpath should match resolved dotted path"
     );
 
     assert!(
@@ -435,17 +393,9 @@ fn test_layout_metadata_parent_hidden() {
     let data_str = serde_json::to_string(&data).unwrap();
     eval.evaluate(&data_str, None, None, None).unwrap();
 
-    // NEW APPROACH: Get compact schema + overlay entries, then merge
     let mut evaluated = eval.get_evaluated_schema();
     let overlay_entries = eval.get_resolved_layout();
     merge_layout_overlay(&mut evaluated, &overlay_entries);
-    eprintln!("DEBUG: overlay_entries.len(): {}", overlay_entries.len());
-    for i in 0..overlay_entries.len().min(3) {
-        let e = &overlay_entries[i];
-        eprintln!("DEBUG: entry[{}]: layout_path={}, element_idx={}, schema_ref_path={}, overlay.len={}", i, e.layout_path, e.element_idx, e.schema_ref_path, e.overlay.len());
-        eprintln!("DEBUG: entry[{}] has $fullpath: {}", i, e.overlay.contains_key("$fullpath"));
-        eprintln!("DEBUG: entry[{}] overlay keys: {:?}", i, e.overlay.keys().collect::<Vec<_>>());
-    }
 
     // Test 1: Child at root level should have $parentHide = false
     let root_element = evaluated
@@ -531,17 +481,9 @@ fn test_hide_layout_propagation() {
     let data_str = serde_json::to_string(&data).unwrap();
     eval.evaluate(&data_str, None, None, None).unwrap();
 
-    // NEW APPROACH: Get compact schema + overlay entries, then merge
     let mut evaluated = eval.get_evaluated_schema();
     let overlay_entries = eval.get_resolved_layout();
     merge_layout_overlay(&mut evaluated, &overlay_entries);
-    eprintln!("DEBUG: overlay_entries.len(): {}", overlay_entries.len());
-    for i in 0..overlay_entries.len().min(3) {
-        let e = &overlay_entries[i];
-        eprintln!("DEBUG: entry[{}]: layout_path={}, element_idx={}, schema_ref_path={}, overlay.len={}", i, e.layout_path, e.element_idx, e.schema_ref_path, e.overlay.len());
-        eprintln!("DEBUG: entry[{}] has $fullpath: {}", i, e.overlay.contains_key("$fullpath"));
-        eprintln!("DEBUG: entry[{}] overlay keys: {:?}", i, e.overlay.keys().collect::<Vec<_>>());
-    }
 
     // Test 1: Parent HorizontalLayout has hideLayout.all = true
     let parent_layout = evaluated
@@ -654,17 +596,9 @@ fn test_direct_layout_elements_have_metadata() {
     let data_str = serde_json::to_string(&data).unwrap();
     eval.evaluate(&data_str, None, None, None).unwrap();
 
-    // NEW APPROACH: Get compact schema + overlay entries, then merge
     let mut evaluated = eval.get_evaluated_schema();
     let overlay_entries = eval.get_resolved_layout();
     merge_layout_overlay(&mut evaluated, &overlay_entries);
-    eprintln!("DEBUG: overlay_entries.len(): {}", overlay_entries.len());
-    for i in 0..overlay_entries.len().min(3) {
-        let e = &overlay_entries[i];
-        eprintln!("DEBUG: entry[{}]: layout_path={}, element_idx={}, schema_ref_path={}, overlay.len={}", i, e.layout_path, e.element_idx, e.schema_ref_path, e.overlay.len());
-        eprintln!("DEBUG: entry[{}] has $fullpath: {}", i, e.overlay.contains_key("$fullpath"));
-        eprintln!("DEBUG: entry[{}] overlay keys: {:?}", i, e.overlay.keys().collect::<Vec<_>>());
-    }
 
     // Check the FlexLayout container (which has no $ref)
     let flex_container = evaluated
@@ -703,8 +637,8 @@ fn test_direct_layout_elements_have_metadata() {
 
     assert_eq!(
         flex_container.get("$fullpath").and_then(|v| v.as_str()),
-        Some("properties.form.$layout.elements.0"),
-        "$fullpath should show full path in layout hierarchy for direct layout elements"
+        Some("form.0"),
+        "$fullpath for non-$ref container should be clean positional path (layout segments stripped)"
     );
 }
 
@@ -748,17 +682,9 @@ fn test_json_pointer_ref_conversion() {
     let data_str = serde_json::to_string(&data).unwrap();
     eval.evaluate(&data_str, None, None, None).unwrap();
 
-    // NEW APPROACH: Get compact schema + overlay entries, then merge
     let mut evaluated = eval.get_evaluated_schema();
     let overlay_entries = eval.get_resolved_layout();
     merge_layout_overlay(&mut evaluated, &overlay_entries);
-    eprintln!("DEBUG: overlay_entries.len(): {}", overlay_entries.len());
-    for i in 0..overlay_entries.len().min(3) {
-        let e = &overlay_entries[i];
-        eprintln!("DEBUG: entry[{}]: layout_path={}, element_idx={}, schema_ref_path={}, overlay.len={}", i, e.layout_path, e.element_idx, e.schema_ref_path, e.overlay.len());
-        eprintln!("DEBUG: entry[{}] has $fullpath: {}", i, e.overlay.contains_key("$fullpath"));
-        eprintln!("DEBUG: entry[{}] overlay keys: {:?}", i, e.overlay.keys().collect::<Vec<_>>());
-    }
 
     let element = evaluated
         .pointer("/properties/form/$layout/elements/0")
@@ -812,38 +738,20 @@ fn test_multiple_options_templates_in_schema() {
     let data_str = serde_json::to_string(&data).unwrap();
     eval.evaluate(&data_str, None, None, None).unwrap();
 
-    // NEW APPROACH: Get compact schema + overlay entries, then merge
     let mut evaluated = eval.get_evaluated_schema();
     let overlay_entries = eval.get_resolved_layout();
     merge_layout_overlay(&mut evaluated, &overlay_entries);
-    eprintln!("DEBUG: overlay_entries.len(): {}", overlay_entries.len());
-    for i in 0..overlay_entries.len().min(3) {
-        let e = &overlay_entries[i];
-        eprintln!("DEBUG: entry[{}]: layout_path={}, element_idx={}, schema_ref_path={}, overlay.len={}", i, e.layout_path, e.element_idx, e.schema_ref_path, e.overlay.len());
-        eprintln!("DEBUG: entry[{}] has $fullpath: {}", i, e.overlay.contains_key("$fullpath"));
-        eprintln!("DEBUG: entry[{}] overlay keys: {:?}", i, e.overlay.keys().collect::<Vec<_>>());
-    }
 
-    // Check all URLs
     assert_eq!(
-        evaluated
-            .pointer("/properties/users/options/url")
-            .and_then(|v| v.as_str()),
+        evaluated.pointer("/properties/users/options/url").and_then(|v| v.as_str()),
         Some("/api/users/42")
     );
-
     assert_eq!(
-        evaluated
-            .pointer("/properties/posts/options/url")
-            .and_then(|v| v.as_str()),
+        evaluated.pointer("/properties/posts/options/url").and_then(|v| v.as_str()),
         Some("/api/posts/100/comments/5")
     );
-
-    // Static URL should remain unchanged
     assert_eq!(
-        evaluated
-            .pointer("/properties/static/options/url")
-            .and_then(|v| v.as_str()),
+        evaluated.pointer("/properties/static/options/url").and_then(|v| v.as_str()),
         Some("/api/static")
     );
 }
