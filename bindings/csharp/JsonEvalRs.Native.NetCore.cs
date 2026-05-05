@@ -135,15 +135,7 @@ namespace JsonEvalRs
             [MarshalAs(UnmanagedType.LPUTF8Str)] string path
         );
 
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_get_resolved_layout(
-            IntPtr handle
-        );
 
-        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
-        internal static extern FFIResult json_eval_get_evaluated_schema_resolved(
-            IntPtr handle
-        );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_get_evaluated_schema_by_paths(
