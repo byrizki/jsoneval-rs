@@ -85,7 +85,11 @@ void runAsyncWithPromise(
     
     bridgeCall([jvm, globalPromise, errorCode](const std::string& result, const std::string& error) {
         JNIEnv* env = nullptr;
-        jvm->AttachCurrentThread(&env, nullptr);
+        // Thread pool threads are persistent — attach once as daemon, never detach
+        // GetEnv returns OK if already attached, avoids repeated attach/detach overhead
+        if (jvm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
+            jvm->AttachCurrentThreadAsDaemon(&env, nullptr);
+        }
         
         if (error.empty()) {
             resolvePromise(env, globalPromise, result);
@@ -94,7 +98,8 @@ void runAsyncWithPromise(
         }
         
         env->DeleteGlobalRef(globalPromise);
-        jvm->DetachCurrentThread();
+        // NO DetachCurrentThread — pool threads are long-lived, daemon threads
+        // are cleaned up automatically when the JVM shuts down
     });
 }
 

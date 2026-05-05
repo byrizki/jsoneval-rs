@@ -2,6 +2,64 @@
 #include <map>
 #include <mutex>
 #include <memory>
+#include <queue>
+#include <condition_variable>
+#include <thread>
+#include <functional>
+#include <vector>
+
+// Small fixed thread pool -- reuses threads instead of spawn+detach per call
+class SimpleThreadPool {
+public:
+    SimpleThreadPool(size_t numThreads = 4) : stop(false) {
+        for (size_t i = 0; i < numThreads; ++i) {
+            workers.emplace_back([this] {
+                for (;;) {
+                    std::function<void()> task;
+                    {
+                        std::unique_lock<std::mutex> lock(queueMutex);
+                        condition.wait(lock, [this] { return stop || !tasks.empty(); });
+                        if (stop && tasks.empty()) return;
+                        task = std::move(tasks.front());
+                        tasks.pop();
+                    }
+                    task();
+                }
+            });
+        }
+    }
+
+    ~SimpleThreadPool() {
+        {
+            std::unique_lock<std::mutex> lock(queueMutex);
+            stop = true;
+        }
+        condition.notify_all();
+        for (std::thread& worker : workers) {
+            if (worker.joinable()) worker.join();
+        }
+    }
+
+    template<class F>
+    void enqueue(F&& f) {
+        {
+            std::unique_lock<std::mutex> lock(queueMutex);
+            if (stop) return;
+            tasks.emplace(std::forward<F>(f));
+        }
+        condition.notify_one();
+    }
+
+private:
+    std::vector<std::thread> workers;
+    std::queue<std::function<void()>> tasks;
+    std::mutex queueMutex;
+    std::condition_variable condition;
+    bool stop;
+};
+
+// One pool shared across all bridge calls
+static SimpleThreadPool gThreadPool;
 
 // Forward declarations for FFI functions
 extern "C" {
@@ -71,10 +129,30 @@ extern "C" {
 
 namespace jsoneval {
 
-// Handle storage
+// Per-handle storage with per-handle mutex (not global)
+// Map access protected by handlesMapMutex (brief lock for find/insert/erase)
+// FFI calls on a handle protected by handle's own mutex for true concurrency
+// NOTE: std::mutex is non-movable in NDK libc++, so we keep two parallel maps
 static std::map<std::string, JSONEvalHandle*> handles;
-static std::mutex handlesMutex;
+static std::map<std::string, std::mutex> handleMutexes;
+static std::mutex handlesMapMutex;
 static int handleCounter = 0;
+
+// ----- Helper: lock a handle for FFI access -----
+// Locks per-handle mutex, returns handle pointer.
+// Caller must keep the returned unique_lock alive until FFI calls complete.
+static std::pair<JSONEvalHandle*, std::unique_lock<std::mutex>> lockHandle(
+    const std::string& handleId)
+{
+    std::lock_guard<std::mutex> mapLock(handlesMapMutex);
+    auto it = handles.find(handleId);
+    if (it == handles.end()) {
+        throw std::runtime_error("Invalid handle");
+    }
+    // Lock per-handle mutex while still under map lock so the entry can't be erased
+    std::unique_lock<std::mutex> handleLock(handleMutexes[handleId]);
+    return {it->second, std::move(handleLock)};
+}
 
 std::string JsonEvalBridge::create(
     const std::string& schema,
@@ -90,9 +168,10 @@ std::string JsonEvalBridge::create(
         throw std::runtime_error("Failed to create JSONEval instance");
     }
     
-    std::lock_guard<std::mutex> lock(handlesMutex);
+    std::lock_guard<std::mutex> lock(handlesMapMutex);
     std::string handleId = "handle_" + std::to_string(handleCounter++);
     handles[handleId] = handle;
+    handleMutexes.try_emplace(handleId);  // default-constructs mutex in-place
     
     return handleId;
 }
@@ -116,9 +195,10 @@ std::string JsonEvalBridge::createFromMsgpack(
         throw std::runtime_error("Failed to create JSONEval instance from MessagePack");
     }
     
-    std::lock_guard<std::mutex> lock(handlesMutex);
+    std::lock_guard<std::mutex> lock(handlesMapMutex);
     std::string handleId = "handle_" + std::to_string(handleCounter++);
     handles[handleId] = handle;
+    handleMutexes.try_emplace(handleId);
     
     return handleId;
 }
@@ -141,23 +221,47 @@ std::string JsonEvalBridge::createFromCache(
         throw std::runtime_error("Failed to create JSONEval instance from cache");
     }
     
-    std::lock_guard<std::mutex> lock(handlesMutex);
+    std::lock_guard<std::mutex> lock(handlesMapMutex);
     std::string handleId = "handle_" + std::to_string(handleCounter++);
     handles[handleId] = handle;
+    handleMutexes.try_emplace(handleId);
     
     return handleId;
 }
 
 template<typename Func>
 void JsonEvalBridge::runAsync(Func&& func, std::function<void(const std::string&, const std::string&)> callback) {
-    std::thread([func = std::forward<Func>(func), callback]() {
+    gThreadPool.enqueue([func = std::forward<Func>(func), callback]() {
         try {
             std::string result = func();
             callback(result, "");
         } catch (const std::exception& e) {
             callback("", e.what());
         }
-    }).detach();
+    });
+}
+
+// ============================================================================
+// Helper: execute FFI on a locked handle inside runAsync
+// Handles map lookup + per-handle mutex lock in one step
+// ============================================================================
+
+// Wraps a lambda that receives (JSONEvalHandle*) and returns std::string
+template<typename Fn>
+static void runWithHandle(
+    const std::string& handleId,
+    Fn&& fn,
+    std::function<void(const std::string&, const std::string&)> callback)
+{
+    gThreadPool.enqueue([handleId, fn = std::forward<Fn>(fn), callback]() {
+        try {
+            auto [nativeHandle, handleLock] = lockHandle(handleId);
+            std::string result = fn(nativeHandle);
+            callback(result, "");
+        } catch (const std::exception& e) {
+            callback("", e.what());
+        }
+    });
 }
 
 void JsonEvalBridge::evaluateAsync(
@@ -167,18 +271,12 @@ void JsonEvalBridge::evaluateAsync(
     const std::string& pathsJson,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, data, context, pathsJson]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        // Step 1: Evaluate with pathsJson parameter
+    runWithHandle(handleId, [data, context, pathsJson](JSONEvalHandle* nativeHandle) -> std::string {
         const char* ctx = context.empty() ? nullptr : context.c_str();
         const char* pathsPtr = pathsJson.empty() ? nullptr : pathsJson.c_str();
-        FFIResult evalResult = json_eval_evaluate(it->second, data.c_str(), ctx, pathsPtr);
         
+        // Step 1: Evaluate
+        FFIResult evalResult = json_eval_evaluate(nativeHandle, data.c_str(), ctx, pathsPtr);
         if (!evalResult.success) {
             std::string error = evalResult.error ? evalResult.error : "Unknown error";
             json_eval_free_result(evalResult);
@@ -186,19 +284,16 @@ void JsonEvalBridge::evaluateAsync(
         }
         json_eval_free_result(evalResult);
         
-        // Step 2: Get the evaluated schema
-        FFIResult schemaResult = json_eval_get_evaluated_schema(it->second, true);
-        
+        // Step 2: Get evaluated schema
+        FFIResult schemaResult = json_eval_get_evaluated_schema(nativeHandle, true);
         if (!schemaResult.success) {
             std::string error = schemaResult.error ? schemaResult.error : "Unknown error";
             json_eval_free_result(schemaResult);
             throw std::runtime_error(error);
         }
         
-        // Zero-copy: construct string directly from raw pointer without intermediate copy
         std::string resultStr;
         if (schemaResult.data_ptr && schemaResult.data_len > 0) {
-            // Use string constructor that takes pointer + length (still copies, but single copy)
             resultStr.assign(reinterpret_cast<const char*>(schemaResult.data_ptr), schemaResult.data_len);
         } else {
             resultStr = "{}";
@@ -215,26 +310,17 @@ void JsonEvalBridge::evaluateOnlyAsync(
     const std::string& pathsJson,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, data, context, pathsJson]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        // Evaluate with pathsJson parameter
+    runWithHandle(handleId, [data, context, pathsJson](JSONEvalHandle* nativeHandle) -> std::string {
         const char* ctx = context.empty() ? nullptr : context.c_str();
         const char* pathsPtr = pathsJson.empty() ? nullptr : pathsJson.c_str();
-        FFIResult evalResult = json_eval_evaluate(it->second, data.c_str(), ctx, pathsPtr);
         
+        FFIResult evalResult = json_eval_evaluate(nativeHandle, data.c_str(), ctx, pathsPtr);
         if (!evalResult.success) {
             std::string error = evalResult.error ? evalResult.error : "Unknown error";
             json_eval_free_result(evalResult);
             throw std::runtime_error(error);
         }
         json_eval_free_result(evalResult);
-        
-        // Return empty string to indicate success (void return)
         return "";
     }, callback);
 }
@@ -243,17 +329,11 @@ uint64_t JsonEvalBridge::compileLogic(
     const std::string& handleId,
     const std::string& logicStr
 ) {
-    std::lock_guard<std::mutex> lock(handlesMutex);
-    auto it = handles.find(handleId);
-    if (it == handles.end()) {
-        throw std::runtime_error("Invalid handle");
-    }
-
-    uint64_t logicId = json_eval_compile_logic(it->second, logicStr.c_str());
+    auto [nativeHandle, handleLock] = lockHandle(handleId);
+    uint64_t logicId = json_eval_compile_logic(nativeHandle, logicStr.c_str());
     if (logicId == 0) {
         throw std::runtime_error("Failed to compile logic (received ID 0)");
     }
-
     return logicId;
 }
 
@@ -264,26 +344,18 @@ void JsonEvalBridge::runLogicAsync(
     const std::string& context,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, logicId, data, context]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-
+    runWithHandle(handleId, [logicId, data, context](JSONEvalHandle* nativeHandle) -> std::string {
         FFIResult result = json_eval_run_logic(
-            it->second,
+            nativeHandle,
             logicId,
             data.empty() ? nullptr : data.c_str(),
             context.empty() ? nullptr : context.c_str()
         );
-
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -301,23 +373,14 @@ void JsonEvalBridge::validateAsync(
     const std::string& context,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, data, context]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
+    runWithHandle(handleId, [data, context](JSONEvalHandle* nativeHandle) -> std::string {
         const char* ctx = context.empty() ? nullptr : context.c_str();
-        FFIResult result = json_eval_validate(it->second, data.c_str(), ctx);
-        
+        FFIResult result = json_eval_validate(nativeHandle, data.c_str(), ctx);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
-        // Zero-copy: construct string directly from raw pointer
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -335,27 +398,28 @@ void JsonEvalBridge::evaluateLogicAsync(
     const std::string& context,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([logicStr, data, context]() -> std::string {
-        const char* dt = data.empty() ? nullptr : data.c_str();
-        const char* ctx = context.empty() ? nullptr : context.c_str();
-        
-        FFIResult result = json_eval_evaluate_logic_pure(logicStr.c_str(), dt, ctx);
-        
-        if (!result.success) {
-            std::string error = result.error ? result.error : "Unknown error";
+    gThreadPool.enqueue([logicStr, data, context, callback]() {
+        try {
+            const char* dt = data.empty() ? nullptr : data.c_str();
+            const char* ctx = context.empty() ? nullptr : context.c_str();
+            FFIResult result = json_eval_evaluate_logic_pure(logicStr.c_str(), dt, ctx);
+            if (!result.success) {
+                std::string error = result.error ? result.error : "Unknown error";
+                json_eval_free_result(result);
+                throw std::runtime_error(error);
+            }
+            std::string resultStr;
+            if (result.data_ptr && result.data_len > 0) {
+                resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
+            } else {
+                resultStr = "null";
+            }
             json_eval_free_result(result);
-            throw std::runtime_error(error);
+            callback(resultStr, "");
+        } catch (const std::exception& e) {
+            callback("", e.what());
         }
-        
-        std::string resultStr;
-        if (result.data_ptr && result.data_len > 0) {
-            resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
-        } else {
-            resultStr = "null";
-        }
-        json_eval_free_result(result);
-        return resultStr;
-    }, callback);
+    });
 }
 
 void JsonEvalBridge::evaluateDependentsAsync(
@@ -367,31 +431,22 @@ void JsonEvalBridge::evaluateDependentsAsync(
     bool includeSubforms,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, changedPathsJson, data, context, reEvaluate, includeSubforms]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
+    runWithHandle(handleId, [changedPathsJson, data, context, reEvaluate, includeSubforms](JSONEvalHandle* nativeHandle) -> std::string {
         const char* dataPtr = data.empty() ? nullptr : data.c_str();
         const char* ctx = context.empty() ? nullptr : context.c_str();
         FFIResult result = json_eval_evaluate_dependents(
-            it->second, 
-            changedPathsJson.c_str(), 
-            dataPtr, 
+            nativeHandle,
+            changedPathsJson.c_str(),
+            dataPtr,
             ctx,
             reEvaluate ? 1 : 0,
             includeSubforms ? 1 : 0
         );
-        
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
-        // Zero-copy: construct string directly from raw pointer
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -408,22 +463,13 @@ void JsonEvalBridge::getEvaluatedSchemaAsync(
     bool skipLayout,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, skipLayout]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_get_evaluated_schema(it->second, skipLayout);
-        
+    runWithHandle(handleId, [skipLayout](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_get_evaluated_schema(nativeHandle, skipLayout);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
-        // Zero-copy: construct string directly from raw pointer
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -440,22 +486,13 @@ void JsonEvalBridge::getEvaluatedSchemaMsgpackAsync(
     bool skipLayout,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, skipLayout]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_get_evaluated_schema_msgpack(it->second, skipLayout);
-        
+    runWithHandle(handleId, [skipLayout](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_get_evaluated_schema_msgpack(nativeHandle, skipLayout);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
-        // Zero-copy: construct string directly from raw pointer (binary data)
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -471,22 +508,13 @@ void JsonEvalBridge::getSchemaValueAsync(
     const std::string& handleId,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_get_schema_value(it->second);
-        
+    runWithHandle(handleId, [](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_get_schema_value(nativeHandle);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
-        // Zero-copy: construct string directly from raw pointer
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -502,21 +530,13 @@ void JsonEvalBridge::getSchemaValueArrayAsync(
     const std::string& handleId,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_get_schema_value_array(it->second);
-        
+    runWithHandle(handleId, [](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_get_schema_value_array(nativeHandle);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -532,21 +552,13 @@ void JsonEvalBridge::getSchemaValueObjectAsync(
     const std::string& handleId,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_get_schema_value_object(it->second);
-        
+    runWithHandle(handleId, [](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_get_schema_value_object(nativeHandle);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -563,22 +575,13 @@ void JsonEvalBridge::getEvaluatedSchemaWithoutParamsAsync(
     bool skipLayout,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, skipLayout]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_get_evaluated_schema_without_params(it->second, skipLayout);
-        
+    runWithHandle(handleId, [skipLayout](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_get_evaluated_schema_without_params(nativeHandle, skipLayout);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
-        // Zero-copy: construct string directly from raw pointer
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -596,22 +599,13 @@ void JsonEvalBridge::getEvaluatedSchemaByPathAsync(
     bool skipLayout,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, path, skipLayout]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_get_evaluated_schema_by_path(it->second, path.c_str(), skipLayout);
-        
+    runWithHandle(handleId, [path, skipLayout](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_get_evaluated_schema_by_path(nativeHandle, path.c_str(), skipLayout);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
-        // Zero-copy: construct string directly from raw pointer
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -630,22 +624,13 @@ void JsonEvalBridge::getEvaluatedSchemaByPathsAsync(
     int format,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, pathsJson, skipLayout, format]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_get_evaluated_schema_by_paths(it->second, pathsJson.c_str(), skipLayout, static_cast<uint8_t>(format));
-        
+    runWithHandle(handleId, [pathsJson, skipLayout, format](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_get_evaluated_schema_by_paths(nativeHandle, pathsJson.c_str(), skipLayout, static_cast<uint8_t>(format));
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
-        // Zero-copy: construct string directly from raw pointer
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -662,22 +647,13 @@ void JsonEvalBridge::getSchemaByPathAsync(
     const std::string& path,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, path]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_get_schema_by_path(it->second, path.c_str());
-        
+    runWithHandle(handleId, [path](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_get_schema_by_path(nativeHandle, path.c_str());
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
-        // Zero-copy: construct string directly from raw pointer
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -695,22 +671,13 @@ void JsonEvalBridge::getSchemaByPathsAsync(
     int format,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, pathsJson, format]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_get_schema_by_paths(it->second, pathsJson.c_str(), static_cast<uint8_t>(format));
-        
+    runWithHandle(handleId, [pathsJson, format](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_get_schema_by_paths(nativeHandle, pathsJson.c_str(), static_cast<uint8_t>(format));
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
-        // Zero-copy: construct string directly from raw pointer
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -729,23 +696,15 @@ void JsonEvalBridge::reloadSchemaAsync(
     const std::string& data,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, schema, context, data]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
+    runWithHandle(handleId, [schema, context, data](JSONEvalHandle* nativeHandle) -> std::string {
         const char* ctx = context.empty() ? nullptr : context.c_str();
         const char* dt = data.empty() ? nullptr : data.c_str();
-        FFIResult result = json_eval_reload_schema(it->second, schema.c_str(), ctx, dt);
-        
+        FFIResult result = json_eval_reload_schema(nativeHandle, schema.c_str(), ctx, dt);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
         json_eval_free_result(result);
         return "{}";
     }, callback);
@@ -758,29 +717,21 @@ void JsonEvalBridge::reloadSchemaMsgpackAsync(
     const std::string& data,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, schemaMsgpack, context, data]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
+    runWithHandle(handleId, [schemaMsgpack, context, data](JSONEvalHandle* nativeHandle) -> std::string {
         const char* ctx = context.empty() ? nullptr : context.c_str();
         const char* dt = data.empty() ? nullptr : data.c_str();
         FFIResult result = json_eval_reload_schema_msgpack(
-            it->second,
+            nativeHandle,
             schemaMsgpack.data(),
             schemaMsgpack.size(),
             ctx,
             dt
         );
-        
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
         json_eval_free_result(result);
         return "{}";
     }, callback);
@@ -793,28 +744,20 @@ void JsonEvalBridge::reloadSchemaFromCacheAsync(
     const std::string& data,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, cacheKey, context, data]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
+    runWithHandle(handleId, [cacheKey, context, data](JSONEvalHandle* nativeHandle) -> std::string {
         const char* ctx = context.empty() ? nullptr : context.c_str();
         const char* dt = data.empty() ? nullptr : data.c_str();
         FFIResult result = json_eval_reload_schema_from_cache(
-            it->second,
+            nativeHandle,
             cacheKey.c_str(),
             ctx,
             dt
         );
-        
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
         json_eval_free_result(result);
         return "{}";
     }, callback);
@@ -825,21 +768,13 @@ void JsonEvalBridge::resolveLayoutAsync(
     bool evaluate,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, evaluate]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_resolve_layout(it->second, evaluate);
-        
+    runWithHandle(handleId, [evaluate](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_resolve_layout(nativeHandle, evaluate);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
         json_eval_free_result(result);
         return "{}";
     }, callback);
@@ -852,24 +787,15 @@ void JsonEvalBridge::compileAndRunLogicAsync(
     const std::string& context,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, logicStr, data, context]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
+    runWithHandle(handleId, [logicStr, data, context](JSONEvalHandle* nativeHandle) -> std::string {
         const char* dataPtr = data.empty() ? nullptr : data.c_str();
         const char* contextPtr = context.empty() ? nullptr : context.c_str();
-        FFIResult result = json_eval_compile_and_run_logic(it->second, logicStr.c_str(), dataPtr, contextPtr);
-        
+        FFIResult result = json_eval_compile_and_run_logic(nativeHandle, logicStr.c_str(), dataPtr, contextPtr);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
-        // Zero-copy: construct string directly from raw pointer
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -888,24 +814,15 @@ void JsonEvalBridge::validatePathsAsync(
     const std::string& pathsJson,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, data, context, pathsJson]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
+    runWithHandle(handleId, [data, context, pathsJson](JSONEvalHandle* nativeHandle) -> std::string {
         const char* ctx = context.empty() ? nullptr : context.c_str();
         const char* paths = pathsJson.empty() ? nullptr : pathsJson.c_str();
-        FFIResult result = json_eval_validate_paths(it->second, data.c_str(), ctx, paths);
-        
+        FFIResult result = json_eval_validate_paths(nativeHandle, data.c_str(), ctx, paths);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
-        // Zero-copy: construct string directly from raw pointer
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -929,29 +846,15 @@ void JsonEvalBridge::evaluateSubformAsync(
     const std::string& pathsJson,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, subformPath, data, context, pathsJson]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
+    runWithHandle(handleId, [subformPath, data, context, pathsJson](JSONEvalHandle* nativeHandle) -> std::string {
         const char* ctx = context.empty() ? nullptr : context.c_str();
         const char* pathsPtr = pathsJson.empty() ? nullptr : pathsJson.c_str();
-        FFIResult result = json_eval_evaluate_subform(
-            it->second, 
-            subformPath.c_str(), 
-            data.c_str(), 
-            ctx,
-            pathsPtr
-        );
-        
+        FFIResult result = json_eval_evaluate_subform(nativeHandle, subformPath.c_str(), data.c_str(), ctx, pathsPtr);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
         json_eval_free_result(result);
         return "{}";
     }, callback);
@@ -964,22 +867,14 @@ void JsonEvalBridge::validateSubformAsync(
     const std::string& context,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, subformPath, data, context]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
+    runWithHandle(handleId, [subformPath, data, context](JSONEvalHandle* nativeHandle) -> std::string {
         const char* ctx = context.empty() ? nullptr : context.c_str();
-        FFIResult result = json_eval_validate_subform(it->second, subformPath.c_str(), data.c_str(), ctx);
-        
+        FFIResult result = json_eval_validate_subform(nativeHandle, subformPath.c_str(), data.c_str(), ctx);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -1001,26 +896,18 @@ void JsonEvalBridge::evaluateDependentsSubformAsync(
     bool includeSubforms,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, subformPath, changedPath, data, context, reEvaluate, includeSubforms]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
+    runWithHandle(handleId, [subformPath, changedPath, data, context, reEvaluate, includeSubforms](JSONEvalHandle* nativeHandle) -> std::string {
         const char* dt = data.empty() ? nullptr : data.c_str();
         const char* ctx = context.empty() ? nullptr : context.c_str();
         FFIResult result = json_eval_evaluate_dependents_subform(
-            it->second, subformPath.c_str(), changedPath.c_str(), dt, ctx,
+            nativeHandle, subformPath.c_str(), changedPath.c_str(), dt, ctx,
             reEvaluate ? 1 : 0, includeSubforms ? 1 : 0
         );
-        
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -1038,21 +925,13 @@ void JsonEvalBridge::resolveLayoutSubformAsync(
     bool evaluate,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, subformPath, evaluate]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_resolve_layout_subform(it->second, subformPath.c_str(), evaluate);
-        
+    runWithHandle(handleId, [subformPath, evaluate](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_resolve_layout_subform(nativeHandle, subformPath.c_str(), evaluate);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
         json_eval_free_result(result);
         return "{}";
     }, callback);
@@ -1064,21 +943,13 @@ void JsonEvalBridge::getEvaluatedSchemaSubformAsync(
     bool resolveLayout,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, subformPath, resolveLayout]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_get_evaluated_schema_subform(it->second, subformPath.c_str(), resolveLayout);
-        
+    runWithHandle(handleId, [subformPath, resolveLayout](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_get_evaluated_schema_subform(nativeHandle, subformPath.c_str(), resolveLayout);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -1095,21 +966,13 @@ void JsonEvalBridge::getSchemaValueSubformAsync(
     const std::string& subformPath,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, subformPath]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_get_schema_value_subform(it->second, subformPath.c_str());
-        
+    runWithHandle(handleId, [subformPath](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_get_schema_value_subform(nativeHandle, subformPath.c_str());
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -1126,21 +989,13 @@ void JsonEvalBridge::getSchemaValueArraySubformAsync(
     const std::string& subformPath,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, subformPath]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_get_schema_value_array_subform(it->second, subformPath.c_str());
-        
+    runWithHandle(handleId, [subformPath](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_get_schema_value_array_subform(nativeHandle, subformPath.c_str());
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -1157,21 +1012,13 @@ void JsonEvalBridge::getSchemaValueObjectSubformAsync(
     const std::string& subformPath,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, subformPath]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_get_schema_value_object_subform(it->second, subformPath.c_str());
-        
+    runWithHandle(handleId, [subformPath](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_get_schema_value_object_subform(nativeHandle, subformPath.c_str());
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -1189,21 +1036,13 @@ void JsonEvalBridge::getEvaluatedSchemaWithoutParamsSubformAsync(
     bool resolveLayout,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, subformPath, resolveLayout]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_get_evaluated_schema_without_params_subform(it->second, subformPath.c_str(), resolveLayout);
-        
+    runWithHandle(handleId, [subformPath, resolveLayout](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_get_evaluated_schema_without_params_subform(nativeHandle, subformPath.c_str(), resolveLayout);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -1222,21 +1061,13 @@ void JsonEvalBridge::getEvaluatedSchemaByPathSubformAsync(
     bool skipLayout,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, subformPath, schemaPath, skipLayout]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_get_evaluated_schema_by_path_subform(it->second, subformPath.c_str(), schemaPath.c_str(), skipLayout);
-        
+    runWithHandle(handleId, [subformPath, schemaPath, skipLayout](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_get_evaluated_schema_by_path_subform(nativeHandle, subformPath.c_str(), schemaPath.c_str(), skipLayout);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -1256,21 +1087,13 @@ void JsonEvalBridge::getEvaluatedSchemaByPathsSubformAsync(
     int format,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, subformPath, schemaPathsJson, skipLayout, format]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_get_evaluated_schema_by_paths_subform(it->second, subformPath.c_str(), schemaPathsJson.c_str(), skipLayout, static_cast<uint8_t>(format));
-        
+    runWithHandle(handleId, [subformPath, schemaPathsJson, skipLayout, format](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_get_evaluated_schema_by_paths_subform(nativeHandle, subformPath.c_str(), schemaPathsJson.c_str(), skipLayout, static_cast<uint8_t>(format));
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -1286,21 +1109,13 @@ void JsonEvalBridge::getSubformPathsAsync(
     const std::string& handleId,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_get_subform_paths(it->second);
-        
+    runWithHandle(handleId, [](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_get_subform_paths(nativeHandle);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -1318,21 +1133,13 @@ void JsonEvalBridge::getSchemaByPathSubformAsync(
     const std::string& schemaPath,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, subformPath, schemaPath]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_get_schema_by_path_subform(it->second, subformPath.c_str(), schemaPath.c_str());
-        
+    runWithHandle(handleId, [subformPath, schemaPath](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_get_schema_by_path_subform(nativeHandle, subformPath.c_str(), schemaPath.c_str());
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -1351,21 +1158,13 @@ void JsonEvalBridge::getSchemaByPathsSubformAsync(
     int format,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, subformPath, schemaPathsJson, format]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_get_schema_by_paths_subform(it->second, subformPath.c_str(), schemaPathsJson.c_str(), static_cast<uint8_t>(format));
-        
+    runWithHandle(handleId, [subformPath, schemaPathsJson, format](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_get_schema_by_paths_subform(nativeHandle, subformPath.c_str(), schemaPathsJson.c_str(), static_cast<uint8_t>(format));
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -1382,21 +1181,13 @@ void JsonEvalBridge::hasSubformAsync(
     const std::string& subformPath,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, subformPath]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        FFIResult result = json_eval_has_subform(it->second, subformPath.c_str());
-        
+    runWithHandle(handleId, [subformPath](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_has_subform(nativeHandle, subformPath.c_str());
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
             throw std::runtime_error(error);
         }
-        
         std::string resultStr;
         if (result.data_ptr && result.data_len > 0) {
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -1409,11 +1200,20 @@ void JsonEvalBridge::hasSubformAsync(
 }
 
 void JsonEvalBridge::dispose(const std::string& handleId) {
-    std::lock_guard<std::mutex> lock(handlesMutex);
-    auto it = handles.find(handleId);
-    if (it != handles.end()) {
-        json_eval_free(it->second);
-        handles.erase(it);
+    JSONEvalHandle* nativeHandle = nullptr;
+    {
+        std::lock_guard<std::mutex> mapLock(handlesMapMutex);
+        auto it = handles.find(handleId);
+        if (it != handles.end()) {
+            // Lock the handle's mutex to wait for any in-flight FFI call to finish
+            std::lock_guard<std::mutex> handleLock(handleMutexes[handleId]);
+            nativeHandle = it->second;
+            handles.erase(it);
+            handleMutexes.erase(handleId);
+        }
+    }
+    if (nativeHandle) {
+        json_eval_free(nativeHandle);
     }
 }
 
@@ -1422,14 +1222,8 @@ void JsonEvalBridge::setTimezoneOffsetAsync(
     int32_t offsetMinutes,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runAsync([handleId, offsetMinutes]() -> std::string {
-        std::lock_guard<std::mutex> lock(handlesMutex);
-        auto it = handles.find(handleId);
-        if (it == handles.end()) {
-            throw std::runtime_error("Invalid handle");
-        }
-        
-        json_eval_set_timezone_offset(it->second, offsetMinutes);
+    runWithHandle(handleId, [offsetMinutes](JSONEvalHandle* nativeHandle) -> std::string {
+        json_eval_set_timezone_offset(nativeHandle, offsetMinutes);
         return "{}";
     }, callback);
 }
@@ -1438,28 +1232,21 @@ void JsonEvalBridge::setTimezoneOffset(
     const std::string& handleId,
     int32_t offsetMinutes
 ) {
-    std::lock_guard<std::mutex> lock(handlesMutex);
-    auto it = handles.find(handleId);
-    if (it == handles.end()) {
-        throw std::runtime_error("Invalid handle");
-    }
-
-    json_eval_set_timezone_offset(it->second, offsetMinutes);
+    auto [nativeHandle, handleLock] = lockHandle(handleId);
+    json_eval_set_timezone_offset(nativeHandle, offsetMinutes);
 }
 
-
-
-void JsonEvalBridge::cancel(const std::string& handle) {
-    std::lock_guard<std::mutex> lock(handlesMutex);
-    auto it = handles.find(handle);
+void JsonEvalBridge::cancel(const std::string& handleId) {
+    std::lock_guard<std::mutex> mapLock(handlesMapMutex);
+    auto it = handles.find(handleId);
     if (it != handles.end()) {
+        std::lock_guard<std::mutex> handleLock(handleMutexes[handleId]);
         json_eval_cancel(it->second);
     }
 }
 
 std::string JsonEvalBridge::version() {
     const char* ver = json_eval_version();
-    // Version string is static in Rust, no need to free it
     return ver ? ver : "unknown";
 }
 
