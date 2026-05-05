@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.0.94] - 2026-05-06
+
+- [core] implement delta evaluated schema
+
 ## [0.0.93] - 2026-05-06
 
 - [RN] implement zero copy data
