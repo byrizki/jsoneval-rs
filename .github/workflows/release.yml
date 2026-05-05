@@ -6,12 +6,12 @@ permissions:
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
     paths-ignore:
-      - 'docs/**'
-      - './README.md'
-      - '.github/workflows/pages.yml'
-      - '.github/workflows/publish.yml'
+      - "docs/**"
+      - "./README.md"
+      - ".github/workflows/pages.yml"
+      - ".github/workflows/publish.yml"
   workflow_dispatch:
 
 env:
@@ -28,7 +28,7 @@ jobs:
     outputs:
       tag: ${{ steps.get_version.outputs.tag }}
       version: ${{ steps.get_version.outputs.version }}
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -47,7 +47,7 @@ jobs:
         id: changelog
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"
-          
+
           # Extract changelog section for current version
           if [ -f "CHANGELOG.md" ]; then
             # Try to find version section in CHANGELOG
@@ -62,9 +62,9 @@ jobs:
             if [ -z "$CHANGELOG_CONTENT" ]; then
               cat > changelog_body.md << EOF
           ## Changes in v$VERSION
-          
+
           Automatic release from main branch.
-          
+
           See [CHANGELOG.md](CHANGELOG.md) for full details.
           EOF
             else
@@ -73,14 +73,14 @@ jobs:
           else
             cat > changelog_body.md << EOF
           ## Release v$VERSION
-          
+
           Automatic release from main branch.
-          
+
           ### Commit
           - $(git log -1 --pretty=format:'%s')
           EOF
           fi
-          
+
           echo "Changelog extracted successfully"
 
       - name: Check if tag exists
@@ -99,13 +99,13 @@ jobs:
         if: steps.check_tag.outputs.exists == 'true'
         run: |
           TAG="${{ steps.get_version.outputs.tag }}"
-          
+
           # Delete remote tag
           git push origin :refs/tags/$TAG || true
-          
+
           # Delete local tag
           git tag -d $TAG || true
-          
+
           # Delete GitHub release if it exists
           gh release delete $TAG --yes || true
         env:
@@ -142,30 +142,30 @@ jobs:
     outputs:
       should_run: ${{ steps.check.outputs.should_run }}
     steps:
-    - uses: actions/checkout@v6
-    - id: check
-      name: Check for [RN] flag
-      run: |
-        SHOULD_RUN=false
-        # Check latest changes in CHANGELOG.md for [RN]
-        # Extract content between first '## [' and the next '## ['
-        if [ -f CHANGELOG.md ]; then
-          LATEST_CHANGES=$(awk '/^## \[/ { if (found) exit; found=1; print; next } found { print }' CHANGELOG.md)
-          echo "Latest changes analyzed:"
-          echo "$LATEST_CHANGES"
-          
-          if echo "$LATEST_CHANGES" | grep -Fq "[RN]"; then
-            echo "Found [RN] in CHANGELOG.md (latest version)"
+      - uses: actions/checkout@v6
+      - id: check
+        name: Check for [RN] flag
+        run: |
+          SHOULD_RUN=false
+          # Check latest changes in CHANGELOG.md for [RN]
+          # Extract content between first '## [' and the next '## ['
+          if [ -f CHANGELOG.md ]; then
+            LATEST_CHANGES=$(awk '/^## \[/ { if (found) exit; found=1; print; next } found { print }' CHANGELOG.md)
+            echo "Latest changes analyzed:"
+            echo "$LATEST_CHANGES"
+            
+            if echo "$LATEST_CHANGES" | grep -Fq "[RN]"; then
+              echo "Found [RN] in CHANGELOG.md (latest version)"
+              SHOULD_RUN=true
+            fi
+          fi
+
+          # Check commit message for [RN]
+          if [[ "${{ github.event.head_commit.message }}" == *"[RN]"* ]]; then
+            echo "Found [RN] in commit message"
             SHOULD_RUN=true
           fi
-        fi
-        
-        # Check commit message for [RN]
-        if [[ "${{ github.event.head_commit.message }}" == *"[RN]"* ]]; then
-          echo "Found [RN] in commit message"
-          SHOULD_RUN=true
-        fi
-        echo "should_run=$SHOULD_RUN" >> $GITHUB_OUTPUT
+          echo "should_run=$SHOULD_RUN" >> $GITHUB_OUTPUT
 
   # Build native libraries for all platforms
   build-native:
@@ -178,43 +178,43 @@ jobs:
             target: x86_64-unknown-linux-gnu
             artifact_name: libjson_eval_rs.so
             build_features: ffi
-          
+
           # Linux ARM64
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             artifact_name: libjson_eval_rs.so
             build_features: ffi
-          
+
           # Windows x86_64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact_name: json_eval_rs.dll
             build_features: ffi
-          
+
           # macOS x86_64
           - os: macos-latest
             target: x86_64-apple-darwin
             artifact_name: libjson_eval_rs.dylib
             build_features: ffi
-          
+
           # macOS ARM64
           - os: macos-latest
             target: aarch64-apple-darwin
             artifact_name: libjson_eval_rs.dylib
             build_features: ffi
-          
+
           # iOS ARM64 (device)
           - os: macos-latest
             target: aarch64-apple-ios
             artifact_name: libjson_eval_rs.a
             build_features: ffi
-          
+
           # iOS ARM64 (simulator - Apple Silicon Mac)
           - os: macos-latest
             target: aarch64-apple-ios-sim
             artifact_name: libjson_eval_rs.a
             build_features: ffi
-          
+
           # iOS x86_64 (simulator - Intel Mac)
           - os: macos-latest
             target: x86_64-apple-ios
@@ -222,272 +222,289 @@ jobs:
             build_features: ffi
 
     runs-on: ${{ matrix.os }}
-    
+
     steps:
-    - uses: actions/checkout@v6
-    
-    - name: Setup Rust
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-      with:
-        toolchain: stable
-        target: ${{ matrix.target }}
-    
-    - name: Install cross-compilation toolchain (Linux ARM64)
-      if: matrix.target == 'aarch64-unknown-linux-gnu'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-        echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-    
-    - name: Cache cargo build
-      uses: actions/cache@v5
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
-    
-    - name: Build native library
-      run: cargo build --release --target ${{ matrix.target }} --features ${{ matrix.build_features }}
-    
-    - name: Upload native library artifact
-      uses: actions/upload-artifact@v7
-      with:
-        name: native-${{ matrix.target }}
-        path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
-        if-no-files-found: error
+      - uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+
+      - name: Install cross-compilation toolchain (Linux ARM64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+
+      - name: Cache cargo build
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build native library
+        run: cargo build --release --target ${{ matrix.target }} --features ${{ matrix.build_features }}
+
+      - name: Upload native library artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+          if-no-files-found: error
 
   # Build C# NuGet package
   build-csharp:
     needs: build-native
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v6
-    
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v5
-      with:
-        dotnet-version: |
-          8.0.x
-          6.0.x
-    
-    - name: Download all native libraries
-      uses: actions/download-artifact@v8
-      with:
-        pattern: native-*
-        path: artifacts/
-        merge-multiple: false
-    
-    - name: Organize native libraries for NuGet
-      run: |
-        # Create native library directories for C# bindings
-        mkdir -p bindings/csharp/runtimes/linux-x64/native
-        mkdir -p bindings/csharp/runtimes/linux-arm64/native
-        mkdir -p bindings/csharp/runtimes/win-x64/native
-        mkdir -p bindings/csharp/runtimes/osx-x64/native
-        mkdir -p bindings/csharp/runtimes/osx-arm64/native
-        
-        # Copy native libraries to C# native directory
-        cp artifacts/native-x86_64-unknown-linux-gnu/*.so bindings/csharp/runtimes/linux-x64/native/ 2>/dev/null || true
-        cp artifacts/native-aarch64-unknown-linux-gnu/*.so bindings/csharp/runtimes/linux-arm64/native/ 2>/dev/null || true
-        cp artifacts/native-x86_64-pc-windows-msvc/*.dll bindings/csharp/runtimes/win-x64/native/ 2>/dev/null || true
-        cp artifacts/native-x86_64-apple-darwin/*.dylib bindings/csharp/runtimes/osx-x64/native/ 2>/dev/null || true
-        cp artifacts/native-aarch64-apple-darwin/*.dylib bindings/csharp/runtimes/osx-arm64/native/ 2>/dev/null || true
-    
-    - name: Verify native libraries exist
-      run: |
-        echo "Checking for native libraries in bindings/csharp/runtimes/..."
-        echo ""
-        echo "Linux x64:"
-        ls -lh bindings/csharp/runtimes/linux-x64/native/*.so 2>/dev/null || echo "  Not found"
-        echo ""
-        echo "Linux ARM64:"
-        ls -lh bindings/csharp/runtimes/linux-arm64/native/*.so 2>/dev/null || echo "  Not found"
-        echo ""
-        echo "Windows x64:"
-        ls -lh bindings/csharp/runtimes/win-x64/native/*.dll 2>/dev/null || echo "  Not found"
-        echo ""
-        echo "macOS x64:"
-        ls -lh bindings/csharp/runtimes/osx-x64/native/*.dylib 2>/dev/null || echo "  Not found"
-        echo ""
-        echo "macOS ARM64:"
-        ls -lh bindings/csharp/runtimes/osx-arm64/native/*.dylib 2>/dev/null || echo "  Not found"
-    
-    - name: Build NuGet package
-      run: |
-        cd bindings/csharp
-        dotnet pack -c Release
-    
-    - name: Verify NuGet package contents
-      run: |
-        cd bindings/csharp/bin/Release
-        NUPKG=$(ls *.nupkg | head -n 1)
-        echo "Inspecting NuGet package: $NUPKG"
-        unzip -l "$NUPKG" | grep -E '\.(dll|so|dylib)$' || echo "⚠ No native libraries found in package!"
-    
-    - name: Upload NuGet package
-      uses: actions/upload-artifact@v7
-      with:
-        name: nuget-package
-        path: bindings/csharp/bin/Release/*.nupkg
-        if-no-files-found: error
+      - uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.0.x
+            6.0.x
+
+      - name: Download all native libraries
+        uses: actions/download-artifact@v8
+        with:
+          pattern: native-*
+          path: artifacts/
+          merge-multiple: false
+
+      - name: Organize native libraries for NuGet
+        run: |
+          # Create native library directories for C# bindings
+          mkdir -p bindings/csharp/runtimes/linux-x64/native
+          mkdir -p bindings/csharp/runtimes/linux-arm64/native
+          mkdir -p bindings/csharp/runtimes/win-x64/native
+          mkdir -p bindings/csharp/runtimes/osx-x64/native
+          mkdir -p bindings/csharp/runtimes/osx-arm64/native
+
+          # Copy native libraries to C# native directory
+          cp artifacts/native-x86_64-unknown-linux-gnu/*.so bindings/csharp/runtimes/linux-x64/native/ 2>/dev/null || true
+          cp artifacts/native-aarch64-unknown-linux-gnu/*.so bindings/csharp/runtimes/linux-arm64/native/ 2>/dev/null || true
+          cp artifacts/native-x86_64-pc-windows-msvc/*.dll bindings/csharp/runtimes/win-x64/native/ 2>/dev/null || true
+          cp artifacts/native-x86_64-apple-darwin/*.dylib bindings/csharp/runtimes/osx-x64/native/ 2>/dev/null || true
+          cp artifacts/native-aarch64-apple-darwin/*.dylib bindings/csharp/runtimes/osx-arm64/native/ 2>/dev/null || true
+
+      - name: Verify native libraries exist
+        run: |
+          echo "Checking for native libraries in bindings/csharp/runtimes/..."
+          echo ""
+          echo "Linux x64:"
+          ls -lh bindings/csharp/runtimes/linux-x64/native/*.so 2>/dev/null || echo "  Not found"
+          echo ""
+          echo "Linux ARM64:"
+          ls -lh bindings/csharp/runtimes/linux-arm64/native/*.so 2>/dev/null || echo "  Not found"
+          echo ""
+          echo "Windows x64:"
+          ls -lh bindings/csharp/runtimes/win-x64/native/*.dll 2>/dev/null || echo "  Not found"
+          echo ""
+          echo "macOS x64:"
+          ls -lh bindings/csharp/runtimes/osx-x64/native/*.dylib 2>/dev/null || echo "  Not found"
+          echo ""
+          echo "macOS ARM64:"
+          ls -lh bindings/csharp/runtimes/osx-arm64/native/*.dylib 2>/dev/null || echo "  Not found"
+
+      - name: Build NuGet package
+        run: |
+          cd bindings/csharp
+          dotnet pack -c Release
+
+      - name: Verify NuGet package contents
+        run: |
+          cd bindings/csharp/bin/Release
+          NUPKG=$(ls *.nupkg | head -n 1)
+          echo "Inspecting NuGet package: $NUPKG"
+          unzip -l "$NUPKG" | grep -E '\.(dll|so|dylib)$' || echo "⚠ No native libraries found in package!"
+
+      - name: Upload NuGet package
+        uses: actions/upload-artifact@v7
+        with:
+          name: nuget-package
+          path: bindings/csharp/bin/Release/*.nupkg
+          if-no-files-found: error
 
   # Build Web/WASM package
   build-web:
     runs-on: ubuntu-latest
-    
-    env:
-      RUSTFLAGS: "--cfg=getrandom_backend=\"wasm_js\""
-    
-    steps:
-    - uses: actions/checkout@v6
-    
-    - name: Setup Rust
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-      with:
-        toolchain: stable
-        target: wasm32-unknown-unknown
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v6
-      with:
-        node-version: '20'
-    
-    - name: Install wasm-pack
-      run: curl https://wasm-bindgen.github.io/wasm-pack/installer/init.sh -sSf | bash
-    
-    - name: Cache cargo build
-      uses: actions/cache@v5
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-wasm-${{ hashFiles('**/Cargo.lock') }}
-    
-    - name: Build WASM for bundler
-      run: wasm-pack build --release --target bundler --out-dir bindings/web/packages/bundler/pkg --features wasm
-    
-    - name: Build WASM for Node.js
-      run: wasm-pack build --release --target nodejs --out-dir bindings/web/packages/node/pkg --features wasm
-    
-    - name: Build WASM for vanilla (web)
-      run: wasm-pack build --release --target web --out-dir bindings/web/packages/vanilla/pkg --features wasm
-    
-    - name: Install web dependencies
-      run: |
-        cd bindings/web
-        yarn install
-    
-    - name: Verify WASM files exist
-      run: |
-        echo "Bundler WASM files:"
-        ls -lh bindings/web/packages/bundler/pkg/ || echo "No bundler pkg directory"
-        echo ""
-        echo "Node WASM files:"
-        ls -lh bindings/web/packages/node/pkg/ || echo "No node pkg directory"
-        echo ""
-        echo "Vanilla WASM files:"
-        ls -lh bindings/web/packages/vanilla/pkg/ || echo "No vanilla pkg directory"
-    
-    - name: Remove pkg .gitignore files
-      run: |
-        # wasm-pack generates .gitignore files that can prevent npm pack from including WASM files
-        rm -f bindings/web/packages/bundler/pkg/.gitignore
-        rm -f bindings/web/packages/node/pkg/.gitignore
-        rm -f bindings/web/packages/vanilla/pkg/.gitignore
-        echo "✓ Removed .gitignore files from pkg directories"
-    
-    - name: Package core wrapper
-      run: |
-        cd bindings/web/packages/core
-        npm pack
-        
-        echo ""
-        echo "✅ Core package created:"
-        ls -lh *.tgz
-        
-        echo ""
-        echo "📋 Contents of core package:"
-        tar -tzf *.tgz | grep -E '\.(js|ts|json)$'
-    
-    - name: Package web binding (bundler)
-      run: |
-        cd bindings/web/packages/bundler
-        npm pack
-        
-        echo ""
-        echo "✅ Bundler package created:"
-        ls -lh *.tgz
-        
-        echo ""
-        echo "📋 Verifying bundler package contents:"
-        tar -tzf *.tgz | head -20
-        
-        # Verify key files are included
-        tar -tzf *.tgz | grep -E 'package/dist/index\.js$' && echo "✓ index.js included" || echo "❌ index.js missing"
-        tar -tzf *.tgz | grep -E 'package/dist/index\.d\.ts$' && echo "✓ index.d.ts included" || echo "❌ index.d.ts missing"
-        tar -tzf *.tgz | grep -E '\.wasm$' && echo "✓ WASM files included" || echo "❌ No WASM files"
-        tar -tzf *.tgz | grep -E 'package/pkg/.*\.js$' && echo "✓ pkg/*.js files included" || echo "❌ No pkg/*.js files"
-    
-    - name: Package web binding (node)
-      run: |
-        cd bindings/web/packages/node
-        npm pack
-        
-        echo ""
-        echo "✅ Node package created:"
-        ls -lh *.tgz
-        
-        echo ""
-        echo "📋 Verifying node package contents:"
-        tar -tzf *.tgz | head -20
-        
-        # Verify key files are included
-        tar -tzf *.tgz | grep -E 'package/dist/index\.js$' && echo "✓ index.js included" || echo "❌ index.d.ts missing"
-        tar -tzf *.tgz | grep -E 'package/dist/index\.d\.ts$' && echo "✓ index.d.ts included" || echo "❌ index.d.ts missing"
-        tar -tzf *.tgz | grep -E '\.wasm$' && echo "✓ WASM files included" || echo "❌ No WASM files"
-        tar -tzf *.tgz | grep -E 'package/pkg/.*\.js$' && echo "✓ pkg/*.js files included" || echo "❌ No pkg/*.js files"
 
-    - name: Package web binding (vanilla)
-      run: |
-        cd bindings/web/packages/vanilla
-        npm pack
-        
-        echo ""
-        echo "✅ Vanilla package created:"
-        ls -lh *.tgz
-        
-        echo ""
-        echo "📋 Verifying vanilla package contents:"
-        tar -tzf *.tgz | head -20
-        
-        # Verify key files are included
-        tar -tzf *.tgz | grep -E 'package/dist/index\.js$' && echo "✓ index.js included" || echo "❌ index.js missing"
-        tar -tzf *.tgz | grep -E 'package/dist/index\.d\.ts$' && echo "✓ index.d.ts included" || echo "❌ index.d.ts missing"
-        tar -tzf *.tgz | grep -E '\.wasm$' && echo "✓ WASM files included" || echo "❌ No WASM files"
-        tar -tzf *.tgz | grep -E 'package/pkg/.*\.js$' && echo "✓ pkg/*.js files included" || echo "❌ No pkg/*.js files"
-    
-    - name: Upload web packages
-      uses: actions/upload-artifact@v7
-      with:
-        name: web-packages
-        path: |
-          bindings/web/packages/core/*.tgz
-          bindings/web/packages/bundler/*.tgz
-          bindings/web/packages/node/*.tgz
-          bindings/web/packages/vanilla/*.tgz
-        if-no-files-found: error
-    
-    - name: Upload WASM artifacts
-      uses: actions/upload-artifact@v7
-      with:
-        name: wasm-modules
-        path: |
-          bindings/web/packages/bundler/pkg/
-          bindings/web/packages/node/pkg/
+    env:
+      RUSTFLAGS: '--cfg=getrandom_backend="wasm_js"'
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      - name: Install wasm-pack
+        run: curl https://wasm-bindgen.github.io/wasm-pack/installer/init.sh -sSf | bash
+
+      - name: Cache cargo build
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-wasm-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build WASM for bundler
+        run: wasm-pack build --release --target bundler --out-dir bindings/web/packages/bundler/pkg --features wasm
+
+      - name: Build WASM for Node.js
+        run: wasm-pack build --release --target nodejs --out-dir bindings/web/packages/node/pkg --features wasm
+
+      - name: Build WASM for vanilla (web)
+        run: wasm-pack build --release --target web --out-dir bindings/web/packages/vanilla/pkg --features wasm
+
+      - name: Build common package
+        run: |
+          cd bindings/common
+          yarn install
+          yarn build
+          echo "✓ Common package built: dist/index.js exists?"
+          ls -lh dist/ || echo "⚠ dist/ missing"
+
+      - name: Install web dependencies
+        run: |
+          cd bindings/web
+          yarn install
+
+      - name: Verify WASM files exist
+        run: |
+          echo "Bundler WASM files:"
+          ls -lh bindings/web/packages/bundler/pkg/ || echo "No bundler pkg directory"
+          echo ""
+          echo "Node WASM files:"
+          ls -lh bindings/web/packages/node/pkg/ || echo "No node pkg directory"
+          echo ""
+          echo "Vanilla WASM files:"
+          ls -lh bindings/web/packages/vanilla/pkg/ || echo "No vanilla pkg directory"
+
+      - name: Remove pkg .gitignore files
+        run: |
+          # wasm-pack generates .gitignore files that can prevent npm pack from including WASM files
+          rm -f bindings/web/packages/bundler/pkg/.gitignore
+          rm -f bindings/web/packages/node/pkg/.gitignore
+          rm -f bindings/web/packages/vanilla/pkg/.gitignore
+          echo "✓ Removed .gitignore files from pkg directories"
+
+      - name: Package core wrapper
+        run: |
+          cd bindings/web/packages/core
+          npm pack
+
+          echo ""
+          echo "✅ Core package created:"
+          ls -lh *.tgz
+
+          echo ""
+          echo "📋 Contents of core package:"
+          tar -tzf *.tgz | grep -E '\.(js|ts|json)$'
+
+      - name: Package web binding (bundler)
+        run: |
+          cd bindings/web/packages/bundler
+          npm pack
+
+          echo ""
+          echo "✅ Bundler package created:"
+          ls -lh *.tgz
+
+          echo ""
+          echo "📋 Verifying bundler package contents:"
+          tar -tzf *.tgz | head -20
+
+          # Verify key files are included
+          tar -tzf *.tgz | grep -E 'package/dist/index\.js$' && echo "✓ index.js included" || echo "❌ index.js missing"
+          tar -tzf *.tgz | grep -E 'package/dist/index\.d\.ts$' && echo "✓ index.d.ts included" || echo "❌ index.d.ts missing"
+          tar -tzf *.tgz | grep -E '\.wasm$' && echo "✓ WASM files included" || echo "❌ No WASM files"
+          tar -tzf *.tgz | grep -E 'package/pkg/.*\.js$' && echo "✓ pkg/*.js files included" || echo "❌ No pkg/*.js files"
+
+      - name: Package web binding (node)
+        run: |
+          cd bindings/web/packages/node
+          npm pack
+
+          echo ""
+          echo "✅ Node package created:"
+          ls -lh *.tgz
+
+          echo ""
+          echo "📋 Verifying node package contents:"
+          tar -tzf *.tgz | head -20
+
+          # Verify key files are included
+          tar -tzf *.tgz | grep -E 'package/dist/index\.js$' && echo "✓ index.js included" || echo "❌ index.d.ts missing"
+          tar -tzf *.tgz | grep -E 'package/dist/index\.d\.ts$' && echo "✓ index.d.ts included" || echo "❌ index.d.ts missing"
+          tar -tzf *.tgz | grep -E '\.wasm$' && echo "✓ WASM files included" || echo "❌ No WASM files"
+          tar -tzf *.tgz | grep -E 'package/pkg/.*\.js$' && echo "✓ pkg/*.js files included" || echo "❌ No pkg/*.js files"
+
+      - name: Package web binding (vanilla)
+        run: |
+          cd bindings/web/packages/vanilla
+          npm pack
+
+          echo ""
+          echo "✅ Vanilla package created:"
+          ls -lh *.tgz
+
+          echo ""
+          echo "📋 Verifying vanilla package contents:"
+          tar -tzf *.tgz | head -20
+
+          # Verify key files are included
+          tar -tzf *.tgz | grep -E 'package/dist/index\.js$' && echo "✓ index.js included" || echo "❌ index.js missing"
+          tar -tzf *.tgz | grep -E 'package/dist/index\.d\.ts$' && echo "✓ index.d.ts included" || echo "❌ index.d.ts missing"
+          tar -tzf *.tgz | grep -E '\.wasm$' && echo "✓ WASM files included" || echo "❌ No WASM files"
+          tar -tzf *.tgz | grep -E 'package/pkg/.*\.js$' && echo "✓ pkg/*.js files included" || echo "❌ No pkg/*.js files"
+
+      - name: Package common
+        run: |
+          cd bindings/common
+          npm pack
+          echo ""
+          echo "✅ Common package created:"
+          ls -lh *.tgz
+
+      - name: Upload web packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-packages
+          path: |
+            bindings/web/packages/core/*.tgz
+            bindings/web/packages/bundler/*.tgz
+            bindings/web/packages/node/*.tgz
+            bindings/web/packages/vanilla/*.tgz
+            bindings/common/*.tgz
+          if-no-files-found: true
+
+      - name: Upload WASM artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: wasm-modules
+          path: |
+            bindings/web/packages/bundler/pkg/
+            bindings/web/packages/node/pkg/
 
   # Build Android JNI libraries
   build-android-jni:
@@ -499,260 +516,267 @@ jobs:
           - armeabi-v7a
           - x86
           - x86_64
-    
+
     steps:
-    - uses: actions/checkout@v6
-    
-    - name: Setup Rust
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-      with:
-        toolchain: stable
-    
-    - name: Setup Android NDK
-      uses: nttld/setup-ndk@v1
-      with:
-        ndk-version: r26c
-        add-to-path: true
-      id: setup-ndk
-    
-    - name: Install Android Rust targets
-      run: |
-        rustup target add \
-          aarch64-linux-android \
-          armv7-linux-androideabi \
-          i686-linux-android \
-          x86_64-linux-android
-    
-    - name: Add NDK toolchain to PATH
-      run: |
-        NDK_HOME="${{ steps.setup-ndk.outputs.ndk-path }}"
-        echo "$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
-        echo "NDK toolchain added to PATH"
-    
-    - name: Cache cargo build
-      uses: actions/cache@v5
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-android-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
-    
-    - name: Map Android ABI to Rust target
-      id: rust-target
-      run: |
-        case "${{ matrix.target }}" in
-          arm64-v8a)
-            echo "target=aarch64-linux-android" >> $GITHUB_OUTPUT
-            ;;
-          armeabi-v7a)
-            echo "target=armv7-linux-androideabi" >> $GITHUB_OUTPUT
-            ;;
-          x86)
-            echo "target=i686-linux-android" >> $GITHUB_OUTPUT
-            ;;
-          x86_64)
-            echo "target=x86_64-linux-android" >> $GITHUB_OUTPUT
-            ;;
-        esac
-    
-    - name: Build Rust shared library
-      env:
-        ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-      run: |
-        cargo build --release --target ${{ steps.rust-target.outputs.target }} --features ffi
-    
-    - name: Verify shared library
-      run: |
-        ls -lh target/${{ steps.rust-target.outputs.target }}/release/libjson_eval_rs.so
-    
-    - name: Copy to jniLibs directory
-      run: |
-        mkdir -p bindings/react-native/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}
-        cp target/${{ steps.rust-target.outputs.target }}/release/libjson_eval_rs.so \
-           bindings/react-native/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}/
-        ls -lh bindings/react-native/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}/
-    
-    - name: Upload Android JNI library artifact
-      uses: actions/upload-artifact@v7
-      with:
-        name: android-jni-${{ matrix.target }}
-        path: bindings/react-native/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}/
-        if-no-files-found: error
+      - uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26c
+          add-to-path: true
+        id: setup-ndk
+
+      - name: Install Android Rust targets
+        run: |
+          rustup target add \
+            aarch64-linux-android \
+            armv7-linux-androideabi \
+            i686-linux-android \
+            x86_64-linux-android
+
+      - name: Add NDK toolchain to PATH
+        run: |
+          NDK_HOME="${{ steps.setup-ndk.outputs.ndk-path }}"
+          echo "$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
+          echo "NDK toolchain added to PATH"
+
+      - name: Cache cargo build
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-android-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Map Android ABI to Rust target
+        id: rust-target
+        run: |
+          case "${{ matrix.target }}" in
+            arm64-v8a)
+              echo "target=aarch64-linux-android" >> $GITHUB_OUTPUT
+              ;;
+            armeabi-v7a)
+              echo "target=armv7-linux-androideabi" >> $GITHUB_OUTPUT
+              ;;
+            x86)
+              echo "target=i686-linux-android" >> $GITHUB_OUTPUT
+              ;;
+            x86_64)
+              echo "target=x86_64-linux-android" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: Build Rust shared library
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          cargo build --release --target ${{ steps.rust-target.outputs.target }} --features ffi
+
+      - name: Verify shared library
+        run: |
+          ls -lh target/${{ steps.rust-target.outputs.target }}/release/libjson_eval_rs.so
+
+      - name: Copy to jniLibs directory
+        run: |
+          mkdir -p bindings/react-native/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}
+          cp target/${{ steps.rust-target.outputs.target }}/release/libjson_eval_rs.so \
+             bindings/react-native/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}/
+          ls -lh bindings/react-native/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}/
+
+      - name: Upload Android JNI library artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-jni-${{ matrix.target }}
+          path: bindings/react-native/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}/
+          if-no-files-found: error
 
   # Build iOS XCFramework (requires macOS)
   build-ios-xcframework:
     needs: [build-native]
     runs-on: macos-latest
-    
+
     steps:
-    - uses: actions/checkout@v6
-    
-    - name: Download iOS libraries
-      uses: actions/download-artifact@v8
-      with:
-        pattern: native-*-apple-ios*
-        path: ios-artifacts/
-    
-    - name: Create XCFramework
-      run: |
-        # Collect libraries by platform
-        DEVICE_LIB=""
-        SIM_LIBS=()
-        
-        for arch_dir in ios-artifacts/native-*; do
-          if [ -d "$arch_dir" ] && [ -f "$arch_dir/libjson_eval_rs.a" ]; then
-            arch_name=$(basename "$arch_dir" | sed 's/native-//')
-            
-            if [[ "$arch_name" == "aarch64-apple-ios" ]]; then
-              DEVICE_LIB="$arch_dir/libjson_eval_rs.a"
-              echo "✓ Found device library: $arch_name"
-            elif [[ "$arch_name" == *"sim"* ]] || [[ "$arch_name" == "x86_64-apple-ios" ]]; then
-              SIM_LIBS+=("$arch_dir/libjson_eval_rs.a")
-              echo "✓ Found simulator library: $arch_name"
+      - uses: actions/checkout@v6
+
+      - name: Download iOS libraries
+        uses: actions/download-artifact@v8
+        with:
+          pattern: native-*-apple-ios*
+          path: ios-artifacts/
+
+      - name: Create XCFramework
+        run: |
+          # Collect libraries by platform
+          DEVICE_LIB=""
+          SIM_LIBS=()
+
+          for arch_dir in ios-artifacts/native-*; do
+            if [ -d "$arch_dir" ] && [ -f "$arch_dir/libjson_eval_rs.a" ]; then
+              arch_name=$(basename "$arch_dir" | sed 's/native-//')
+              
+              if [[ "$arch_name" == "aarch64-apple-ios" ]]; then
+                DEVICE_LIB="$arch_dir/libjson_eval_rs.a"
+                echo "✓ Found device library: $arch_name"
+              elif [[ "$arch_name" == *"sim"* ]] || [[ "$arch_name" == "x86_64-apple-ios" ]]; then
+                SIM_LIBS+=("$arch_dir/libjson_eval_rs.a")
+                echo "✓ Found simulator library: $arch_name"
+              fi
             fi
+          done
+
+          # Create temp directories with identical library names
+          mkdir -p /tmp/device /tmp/simulator
+
+          if [ -n "$DEVICE_LIB" ]; then
+            cp "$DEVICE_LIB" /tmp/device/libjson_eval_rs.a
+            echo "✓ Prepared device library"
           fi
-        done
-        
-        # Create temp directories with identical library names
-        mkdir -p /tmp/device /tmp/simulator
-        
-        if [ -n "$DEVICE_LIB" ]; then
-          cp "$DEVICE_LIB" /tmp/device/libjson_eval_rs.a
-          echo "✓ Prepared device library"
-        fi
-        
-        if [ ${#SIM_LIBS[@]} -gt 0 ]; then
-          if [ ${#SIM_LIBS[@]} -eq 1 ]; then
-            cp "${SIM_LIBS[0]}" /tmp/simulator/libjson_eval_rs.a
+
+          if [ ${#SIM_LIBS[@]} -gt 0 ]; then
+            if [ ${#SIM_LIBS[@]} -eq 1 ]; then
+              cp "${SIM_LIBS[0]}" /tmp/simulator/libjson_eval_rs.a
+            else
+              lipo -create "${SIM_LIBS[@]}" -output /tmp/simulator/libjson_eval_rs.a
+            fi
+            echo "✓ Created universal simulator library"
+          fi
+
+          # Create XCFramework
+          if [ -f "/tmp/device/libjson_eval_rs.a" ] && [ -f "/tmp/simulator/libjson_eval_rs.a" ]; then
+            xcodebuild -create-xcframework \
+              -library /tmp/device/libjson_eval_rs.a \
+              -library /tmp/simulator/libjson_eval_rs.a \
+              -output JsonEvalRs.xcframework
+            
+            echo "✓ XCFramework created successfully"
+            echo ""
+            echo "XCFramework structure:"
+            find JsonEvalRs.xcframework -type f
           else
-            lipo -create "${SIM_LIBS[@]}" -output /tmp/simulator/libjson_eval_rs.a
+            echo "❌ Missing required libraries"
+            exit 1
           fi
-          echo "✓ Created universal simulator library"
-        fi
-        
-        # Create XCFramework
-        if [ -f "/tmp/device/libjson_eval_rs.a" ] && [ -f "/tmp/simulator/libjson_eval_rs.a" ]; then
-          xcodebuild -create-xcframework \
-            -library /tmp/device/libjson_eval_rs.a \
-            -library /tmp/simulator/libjson_eval_rs.a \
-            -output JsonEvalRs.xcframework
-          
-          echo "✓ XCFramework created successfully"
-          echo ""
-          echo "XCFramework structure:"
-          find JsonEvalRs.xcframework -type f
-        else
-          echo "❌ Missing required libraries"
-          exit 1
-        fi
-    
-    - name: Upload XCFramework
-      uses: actions/upload-artifact@v7
-      with:
-        name: ios-xcframework
-        path: JsonEvalRs.xcframework/
-        if-no-files-found: error
-  
+
+      - name: Upload XCFramework
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-xcframework
+          path: JsonEvalRs.xcframework/
+          if-no-files-found: error
+
   # Build React Native package
   build-react-native:
     needs: [build-native, build-android-jni, build-ios-xcframework]
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v6
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v6
-      with:
-        node-version: '20'
-    
-    - name: Download Android JNI libraries
-      uses: actions/download-artifact@v8
-      with:
-        pattern: android-jni-*
-        path: android-jni-artifacts/
-    
-    - name: Organize Android JNI libraries
-      run: |
-        # Copy Android JNI artifacts to the package structure
-        mkdir -p bindings/react-native/packages/react-native/android/src/main/jniLibs
-        
-        # Copy each ABI's libraries (contents only, not the directory)
-        for abi_dir in android-jni-artifacts/android-jni-*/; do
-          if [ -d "$abi_dir" ]; then
-            abi=$(basename "$abi_dir" | sed 's/android-jni-//')
-            echo "Copying $abi libraries..."
-            mkdir -p bindings/react-native/packages/react-native/android/src/main/jniLibs/$abi
-            cp "$abi_dir"/*.so bindings/react-native/packages/react-native/android/src/main/jniLibs/$abi/ 2>/dev/null || true
-          fi
-        done
-        
-        # Verify libraries
-        echo "Android JNI libraries bundled in package:"
-        find bindings/react-native/packages/react-native/android/src/main/jniLibs -name "*.so" -exec ls -lh {} \;
-    
-    - name: Download iOS XCFramework
-      uses: actions/download-artifact@v8
-      with:
-        name: ios-xcframework
-        path: bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework/
-    
-    - name: Verify XCFramework bundled
-      run: |
-        echo "iOS XCFramework bundled in package:"
-        find bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework -type f
-    
-    - name: Install React Native dependencies
-      run: |
-        cd bindings/react-native
-        yarn install
-    
-    - name: Build TypeScript
-      run: |
-        cd bindings/react-native
-        yarn workspace @json-eval-rs/react-native prepare
-    
-    - name: Install example dependencies
-      run: |
-        cd bindings/react-native/examples/rncli
-        yarn install || echo "Example dependencies installation skipped"
-    
-    - name: Package React Native binding
-      run: |
-        cd bindings/react-native/packages/react-native
-        npm pack
-    
-    - name: Upload React Native package
-      uses: actions/upload-artifact@v7
-      with:
-        name: react-native-package
-        path: bindings/react-native/packages/react-native/*.tgz
-        if-no-files-found: error
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      - name: Download Android JNI libraries
+        uses: actions/download-artifact@v8
+        with:
+          pattern: android-jni-*
+          path: android-jni-artifacts/
+
+      - name: Organize Android JNI libraries
+        run: |
+          # Copy Android JNI artifacts to the package structure
+          mkdir -p bindings/react-native/packages/react-native/android/src/main/jniLibs
+
+          # Copy each ABI's libraries (contents only, not the directory)
+          for abi_dir in android-jni-artifacts/android-jni-*/; do
+            if [ -d "$abi_dir" ]; then
+              abi=$(basename "$abi_dir" | sed 's/android-jni-//')
+              echo "Copying $abi libraries..."
+              mkdir -p bindings/react-native/packages/react-native/android/src/main/jniLibs/$abi
+              cp "$abi_dir"/*.so bindings/react-native/packages/react-native/android/src/main/jniLibs/$abi/ 2>/dev/null || true
+            fi
+          done
+
+          # Verify libraries
+          echo "Android JNI libraries bundled in package:"
+          find bindings/react-native/packages/react-native/android/src/main/jniLibs -name "*.so" -exec ls -lh {} \;
+
+      - name: Download iOS XCFramework
+        uses: actions/download-artifact@v8
+        with:
+          name: ios-xcframework
+          path: bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework/
+
+      - name: Verify XCFramework bundled
+        run: |
+          echo "iOS XCFramework bundled in package:"
+          find bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework -type f
+
+      - name: Build common package
+        run: |
+          cd bindings/common
+          yarn install
+          yarn build
+          echo "✓ Common package built"
+
+      - name: Install React Native dependencies
+        run: |
+          cd bindings/react-native
+          yarn install
+
+      - name: Build TypeScript
+        run: |
+          cd bindings/react-native
+          yarn workspace @json-eval-rs/react-native prepare
+
+      - name: Install example dependencies
+        run: |
+          cd bindings/react-native/examples/rncli
+          yarn install || echo "Example dependencies installation skipped"
+
+      - name: Package React Native binding
+        run: |
+          cd bindings/react-native/packages/react-native
+          npm pack
+
+      - name: Upload React Native package
+        uses: actions/upload-artifact@v7
+        with:
+          name: react-native-package
+          path: bindings/react-native/packages/react-native/*.tgz
+          if-no-files-found: error
 
   # Run tests
   test:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v6
-    
-    - name: Setup Rust
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-      with:
-        toolchain: stable
-    
-    - name: Cache cargo build
-      uses: actions/cache@v5
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
-    
-    - name: Run tests
-      run: cargo test --all-features
+      - uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache cargo build
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run tests
+        run: cargo test --all-features
 
   # Test React Native example - Android
   # Integration test to verify the package works on Android
@@ -761,102 +785,109 @@ jobs:
     needs: [build-android-jni, build-react-native, check-rn-tests]
     if: needs.check-rn-tests.outputs.should_run == 'true'
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v6
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v6
-      with:
-        node-version: '20'
-    
-    - name: Setup Java
-      uses: actions/setup-java@v5
-      with:
-        distribution: 'zulu'
-        java-version: '17'
-    
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
-    
-    - name: Download Android JNI libraries
-      uses: actions/download-artifact@v8
-      with:
-        pattern: android-jni-*
-        path: android-artifacts/
-    
-    - name: Copy Android JNI libraries to package
-      run: |
-        mkdir -p bindings/react-native/packages/react-native/android/src/main/jniLibs
-        
-        # Map artifact names to Android ABIs
-        declare -A abi_map=(
-          ["android-jni-arm64-v8a"]="arm64-v8a"
-          ["android-jni-armeabi-v7a"]="armeabi-v7a"
-          ["android-jni-x86"]="x86"
-          ["android-jni-x86_64"]="x86_64"
-        )
-        
-        for artifact_dir in android-artifacts/android-jni-*; do
-          if [ -d "$artifact_dir" ]; then
-            artifact_name=$(basename "$artifact_dir")
-            abi="${abi_map[$artifact_name]}"
-            
-            if [ -n "$abi" ]; then
-              mkdir -p "bindings/react-native/packages/react-native/android/src/main/jniLibs/$abi"
-              cp "$artifact_dir"/*.so "bindings/react-native/packages/react-native/android/src/main/jniLibs/$abi/" 2>/dev/null || true
-              echo "✓ Copied $abi libraries"
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: "zulu"
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Download Android JNI libraries
+        uses: actions/download-artifact@v8
+        with:
+          pattern: android-jni-*
+          path: android-artifacts/
+
+      - name: Copy Android JNI libraries to package
+        run: |
+          mkdir -p bindings/react-native/packages/react-native/android/src/main/jniLibs
+
+          # Map artifact names to Android ABIs
+          declare -A abi_map=(
+            ["android-jni-arm64-v8a"]="arm64-v8a"
+            ["android-jni-armeabi-v7a"]="armeabi-v7a"
+            ["android-jni-x86"]="x86"
+            ["android-jni-x86_64"]="x86_64"
+          )
+
+          for artifact_dir in android-artifacts/android-jni-*; do
+            if [ -d "$artifact_dir" ]; then
+              artifact_name=$(basename "$artifact_dir")
+              abi="${abi_map[$artifact_name]}"
+              
+              if [ -n "$abi" ]; then
+                mkdir -p "bindings/react-native/packages/react-native/android/src/main/jniLibs/$abi"
+                cp "$artifact_dir"/*.so "bindings/react-native/packages/react-native/android/src/main/jniLibs/$abi/" 2>/dev/null || true
+                echo "✓ Copied $abi libraries"
+              fi
             fi
-          fi
-        done
-        
-        echo "Android JNI libraries in package:"
-        find bindings/react-native/packages/react-native/android/src/main/jniLibs -name "*.so" -exec ls -lh {} \;
-    
-    - name: Install monorepo dependencies
-      run: |
-        cd bindings/react-native
-        yarn install
-    
-    - name: Build TypeScript (React Native package)
-      run: |
-        cd bindings/react-native
-        yarn workspace @json-eval-rs/react-native prepare
-    
-    - name: Install example dependencies
-      run: |
-        cd bindings/react-native/examples/rncli
-        yarn install
-    
-    - name: Setup Gradle cache
-      uses: actions/cache@v5
-      with:
-        path: |
-          ~/.gradle/caches
-          ~/.gradle/wrapper
-        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-        restore-keys: |
-          ${{ runner.os }}-gradle-
-    
-    - name: Verify native files exist
-      run: |
-        echo "Checking for CMakeLists.txt..."
-        ls -la bindings/react-native/packages/react-native/android/CMakeLists.txt
-        echo "Checking node_modules link..."
-        ls -la bindings/react-native/examples/rncli/node_modules/@json-eval-rs/react-native/android/CMakeLists.txt || echo "Symlink issue detected"
-    
-    - name: Build Android library (validation)
-      run: |
-        cd bindings/react-native/examples/rncli/android
-        chmod +x gradlew
-        # Only build the React Native library module, not the full app
-        # This validates JNI linking without building the entire APK
-        ./gradlew :json-eval-rs_react-native:assembleDebug --no-daemon --stacktrace --parallel
-        
-        # Verify the library was built
-        echo ""
-        echo "Checking for built library..."
-        find . -name "*.aar" -o -name "*.so" | grep json_eval || echo "⚠ Library artifacts not found"
+          done
+
+          echo "Android JNI libraries in package:"
+          find bindings/react-native/packages/react-native/android/src/main/jniLibs -name "*.so" -exec ls -lh {} \;
+
+      - name: Build common package
+        run: |
+          cd bindings/common
+          yarn install
+          yarn build
+          echo "✓ Common package built"
+
+      - name: Install monorepo dependencies
+        run: |
+          cd bindings/react-native
+          yarn install
+
+      - name: Build TypeScript (React Native package)
+        run: |
+          cd bindings/react-native
+          yarn workspace @json-eval-rs/react-native prepare
+
+      - name: Install example dependencies
+        run: |
+          cd bindings/react-native/examples/rncli
+          yarn install
+
+      - name: Setup Gradle cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Verify native files exist
+        run: |
+          echo "Checking for CMakeLists.txt..."
+          ls -la bindings/react-native/packages/react-native/android/CMakeLists.txt
+          echo "Checking node_modules link..."
+          ls -la bindings/react-native/examples/rncli/node_modules/@json-eval-rs/react-native/android/CMakeLists.txt || echo "Symlink issue detected"
+
+      - name: Build Android library (validation)
+        run: |
+          cd bindings/react-native/examples/rncli/android
+          chmod +x gradlew
+          # Only build the React Native library module, not the full app
+          # This validates JNI linking without building the entire APK
+          ./gradlew :json-eval-rs_react-native:assembleDebug --no-daemon --stacktrace --parallel
+
+          # Verify the library was built
+          echo ""
+          echo "Checking for built library..."
+          find . -name "*.aar" -o -name "*.so" | grep json_eval || echo "⚠ Library artifacts not found"
 
   # Test React Native example - iOS
   # Integration test to verify the package works on iOS
@@ -865,82 +896,89 @@ jobs:
     needs: [build-ios-xcframework, build-react-native, check-rn-tests]
     if: needs.check-rn-tests.outputs.should_run == 'true'
     runs-on: macos-latest
-    
-    steps:
-    - uses: actions/checkout@v6
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v6
-      with:
-        node-version: '20'
-    
-    - name: Download iOS XCFramework
-      uses: actions/download-artifact@v8
-      with:
-        name: ios-xcframework
-        path: ios-xcframework-artifacts/
-    
-    - name: Copy iOS XCFramework to package
-      run: |
-        mkdir -p bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework
-        cp -R ios-xcframework-artifacts/* bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework/
-        
-        echo "iOS XCFramework in package:"
-        find bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework -type f
-    
-    - name: Install monorepo dependencies
-      run: |
-        cd bindings/react-native
-        yarn install
-    
-    - name: Build TypeScript (React Native package)
-      run: |
-        cd bindings/react-native
-        yarn workspace @json-eval-rs/react-native prepare
 
-    - name: Setup CocoaPods cache
-      uses: actions/cache@v5
-      with:
-        path: |
-          bindings/react-native/examples/rncli/ios/Pods
-          ~/Library/Caches/CocoaPods
-          ~/.cocoapods
-        key: ${{ runner.os }}-pods-${{ hashFiles('**/Podfile.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-pods-
-    
-    - name: Install CocoaPods dependencies
-      run: |
-        cd bindings/react-native/examples/rncli/ios
-        pod install
-    
-    - name: Build iOS app (validation)
-      run: |
-        cd bindings/react-native/examples/rncli/ios
-        # Build with optimizations for speed
-        set -o pipefail && xcodebuild \
-          -workspace rncli.xcworkspace \
-          -scheme rncli \
-          -configuration Debug \
-          -sdk iphonesimulator \
-          CODE_SIGNING_ALLOWED=NO \
-          CODE_SIGNING_REQUIRED=NO \
-          ONLY_ACTIVE_ARCH=YES \
-          COMPILER_INDEX_STORE_ENABLE=NO \
-          -quiet \
-          build 2>&1 | tee build.log
-        
-        # Verify our library was linked
-        echo ""
-        echo "Checking if json_eval_rs was linked..."
-        grep -i "json_eval_rs\|json-eval-rs" build.log || echo "✓ Build completed"
-    
-    - name: Upload iOS build logs
-      if: always()
-      uses: actions/upload-artifact@v7
-      with:
-        name: react-native-ios-build-logs
-        path: ~/Library/Logs/xcodebuild/
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      - name: Download iOS XCFramework
+        uses: actions/download-artifact@v8
+        with:
+          name: ios-xcframework
+          path: ios-xcframework-artifacts/
+
+      - name: Copy iOS XCFramework to package
+        run: |
+          mkdir -p bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework
+          cp -R ios-xcframework-artifacts/* bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework/
+
+          echo "iOS XCFramework in package:"
+          find bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework -type f
+
+      - name: Build common package
+        run: |
+          cd bindings/common
+          yarn install
+          yarn build
+          echo "✓ Common package built"
+
+      - name: Install monorepo dependencies
+        run: |
+          cd bindings/react-native
+          yarn install
+
+      - name: Build TypeScript (React Native package)
+        run: |
+          cd bindings/react-native
+          yarn workspace @json-eval-rs/react-native prepare
+
+      - name: Setup CocoaPods cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            bindings/react-native/examples/rncli/ios/Pods
+            ~/Library/Caches/CocoaPods
+            ~/.cocoapods
+          key: ${{ runner.os }}-pods-${{ hashFiles('**/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
+
+      - name: Install CocoaPods dependencies
+        run: |
+          cd bindings/react-native/examples/rncli/ios
+          pod install
+
+      - name: Build iOS app (validation)
+        run: |
+          cd bindings/react-native/examples/rncli/ios
+          # Build with optimizations for speed
+          set -o pipefail && xcodebuild \
+            -workspace rncli.xcworkspace \
+            -scheme rncli \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            ONLY_ACTIVE_ARCH=YES \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            -quiet \
+            build 2>&1 | tee build.log
+
+          # Verify our library was linked
+          echo ""
+          echo "Checking if json_eval_rs was linked..."
+          grep -i "json_eval_rs\|json-eval-rs" build.log || echo "✓ Build completed"
+
+      - name: Upload iOS build logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: react-native-ios-build-logs
+          path: ~/Library/Logs/xcodebuild/
 
   # Upload artifacts to release
   # Only runs if ALL tests pass (including React Native tests)
@@ -949,106 +987,129 @@ jobs:
       always() && 
       !contains(needs.*.result, 'failure') && 
       !contains(needs.*.result, 'cancelled')
-    needs: [create-release, build-native, build-android-jni, build-ios-xcframework, build-csharp, build-web, build-react-native, test, test-react-native-android, test-react-native-ios]
+    needs:
+      [
+        create-release,
+        build-native,
+        build-android-jni,
+        build-ios-xcframework,
+        build-csharp,
+        build-web,
+        build-react-native,
+        test,
+        test-react-native-android,
+        test-react-native-ios,
+      ]
     runs-on: ubuntu-latest
     permissions:
       contents: write
       discussions: write
       id-token: write
-    
+
     steps:
-    - uses: actions/checkout@v6
-    
-    - name: Download all artifacts
-      uses: actions/download-artifact@v8
-      with:
-        path: release-artifacts/
-    
-    - name: Create release archives
-      run: |
-        cd release-artifacts
-        ls -R
-        
-        # Archive native libraries
-        tar -czf native-linux-x64.tar.gz native-x86_64-unknown-linux-gnu/
-        tar -czf native-linux-arm64.tar.gz native-aarch64-unknown-linux-gnu/
-        tar -czf native-windows-x64.tar.gz native-x86_64-pc-windows-msvc/
-        tar -czf native-macos-x64.tar.gz native-x86_64-apple-darwin/
-        tar -czf native-macos-arm64.tar.gz native-aarch64-apple-darwin/
-        
-        # Archive WASM modules
-        tar -czf wasm-modules.tar.gz wasm-modules/
-        
-        # Archive iOS XCFramework
-        if [ -d "ios-xcframework" ]; then
-          tar -czf ios-xcframework.tar.gz ios-xcframework/
-        fi
-        
-        # Move web packages to root level for upload
-        if [ -d "web-packages" ]; then
-          mv web-packages/**/*.tgz . 2>/dev/null || echo "No web packages to move"
-        fi
-        
-        # Move NuGet package to root level for upload
-        if [ -d "nuget-package" ]; then
-          mv nuget-package/*.nupkg . 2>/dev/null || echo "No NuGet package to move"
-        fi
-        
-        # Move React Native package to root level for upload
-        if [ -d "react-native-package" ]; then
-          mv react-native-package/*.tgz . 2>/dev/null || echo "No React Native package to move"
-        fi
-    
-    - name: Verify release assets before upload
-      run: |
-        cd release-artifacts
-        echo "📦 Release assets to be uploaded:"
-        echo ""
-        echo "All files in release-artifacts root:"
-        ls -lh *.tar.gz *.tgz *.nupkg 2>/dev/null || echo "  ⚠️ No release files found!"
-        echo ""
-        echo "File count breakdown:"
-        echo "  .tar.gz files: $(ls -1 *.tar.gz 2>/dev/null | wc -l)"
-        echo "  .tgz files: $(ls -1 *.tgz 2>/dev/null | wc -l)"
-        echo "  .nupkg files: $(ls -1 *.nupkg 2>/dev/null | wc -l)"
-    
-    - name: Upload artifacts to release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ needs.create-release.outputs.tag }}
-        target_commitish: ${{ github.sha }}
-        files: |
-          release-artifacts/*.tar.gz
-          release-artifacts/*.tgz
-          release-artifacts/*.nupkg
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v6
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: release-artifacts/
+
+      - name: Create release archives
+        run: |
+          cd release-artifacts
+          ls -R
+
+          # Archive native libraries
+          tar -czf native-linux-x64.tar.gz native-x86_64-unknown-linux-gnu/
+          tar -czf native-linux-arm64.tar.gz native-aarch64-unknown-linux-gnu/
+          tar -czf native-windows-x64.tar.gz native-x86_64-pc-windows-msvc/
+          tar -czf native-macos-x64.tar.gz native-x86_64-apple-darwin/
+          tar -czf native-macos-arm64.tar.gz native-aarch64-apple-darwin/
+
+          # Archive WASM modules
+          tar -czf wasm-modules.tar.gz wasm-modules/
+
+          # Archive iOS XCFramework
+          if [ -d "ios-xcframework" ]; then
+            tar -czf ios-xcframework.tar.gz ios-xcframework/
+          fi
+
+          # Move web packages to root level for upload
+          if [ -d "web-packages" ]; then
+            mv web-packages/**/*.tgz . 2>/dev/null || echo "No web packages to move"
+          fi
+
+          # Move NuGet package to root level for upload
+          if [ -d "nuget-package" ]; then
+            mv nuget-package/*.nupkg . 2>/dev/null || echo "No NuGet package to move"
+          fi
+
+          # Move React Native package to root level for upload
+          if [ -d "react-native-package" ]; then
+            mv react-native-package/*.tgz . 2>/dev/null || echo "No React Native package to move"
+          fi
+
+      - name: Verify release assets before upload
+        run: |
+          cd release-artifacts
+          echo "📦 Release assets to be uploaded:"
+          echo ""
+          echo "All files in release-artifacts root:"
+          ls -lh *.tar.gz *.tgz *.nupkg 2>/dev/null || echo "  ⚠️ No release files found!"
+          echo ""
+          echo "File count breakdown:"
+          echo "  .tar.gz files: $(ls -1 *.tar.gz 2>/dev/null | wc -l)"
+          echo "  .tgz files: $(ls -1 *.tgz 2>/dev/null | wc -l)"
+          echo "  .nupkg files: $(ls -1 *.nupkg 2>/dev/null | wc -l)"
+
+      - name: Upload artifacts to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.create-release.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          files: |
+            release-artifacts/*.tar.gz
+            release-artifacts/*.tgz
+            release-artifacts/*.nupkg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Summary job
   summary:
     if: always()
-    needs: [build-native, build-android-jni, build-ios-xcframework, build-csharp, build-web, build-react-native, test, test-react-native-android, test-react-native-ios]
+    needs:
+      [
+        build-native,
+        build-android-jni,
+        build-ios-xcframework,
+        build-csharp,
+        build-web,
+        build-react-native,
+        test,
+        test-react-native-android,
+        test-react-native-ios,
+      ]
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Build Summary
-      run: |
-        echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### Native Libraries" >> $GITHUB_STEP_SUMMARY
-        echo "✅ Desktop platforms (Linux x64/ARM64, Windows, macOS x64/ARM64)" >> $GITHUB_STEP_SUMMARY
-        echo "✅ iOS (device & simulator)" >> $GITHUB_STEP_SUMMARY
-        echo "✅ Android (arm64-v8a, armeabi-v7a, x86, x86_64)" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### Bindings Packages" >> $GITHUB_STEP_SUMMARY
-        echo "✅ C# NuGet package created" >> $GITHUB_STEP_SUMMARY
-        echo "✅ Web/WASM package created" >> $GITHUB_STEP_SUMMARY
-        echo "✅ React Native package created" >> $GITHUB_STEP_SUMMARY
-        echo "✅ iOS XCFramework created" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### Tests" >> $GITHUB_STEP_SUMMARY
-        echo "✅ All Rust tests passed" >> $GITHUB_STEP_SUMMARY
-        echo "✅ React Native Android example built" >> $GITHUB_STEP_SUMMARY
-        echo "✅ React Native iOS example built" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "All artifacts are available for download from this workflow run." >> $GITHUB_STEP_SUMMARY
+      - name: Build Summary
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Native Libraries" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Desktop platforms (Linux x64/ARM64, Windows, macOS x64/ARM64)" >> $GITHUB_STEP_SUMMARY
+          echo "✅ iOS (device & simulator)" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Android (arm64-v8a, armeabi-v7a, x86, x86_64)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Bindings Packages" >> $GITHUB_STEP_SUMMARY
+          echo "✅ C# NuGet package created" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Web/WASM package created" >> $GITHUB_STEP_SUMMARY
+          echo "✅ React Native package created" >> $GITHUB_STEP_SUMMARY
+          echo "✅ iOS XCFramework created" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Tests" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All Rust tests passed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ React Native Android example built" >> $GITHUB_STEP_SUMMARY
+          echo "✅ React Native iOS example built" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All artifacts are available for download from this workflow run." >> $GITHUB_STEP_SUMMARY

@@ -21,6 +21,11 @@ on:
         required: false
         type: boolean
         default: true
+      publish_common:
+        description: "Publish @json-eval-rs/common npm package"
+        required: false
+        type: boolean
+        default: true
       publish_web:
         description: "Publish Web npm package"
         required: false
@@ -134,6 +139,49 @@ jobs:
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
 
+  # Publish @json-eval-rs/common npm package (download directly from release)
+  publish-common:
+    if: |
+      needs.check-workflow.outputs.should_run == 'true' &&
+      (github.event_name == 'workflow_run' || github.event.inputs.publish_common == 'true')
+    needs: [check-workflow]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Download common package from release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.check-workflow.outputs.release_tag }}"
+          echo "📦 Downloading common package from release: $TAG"
+          mkdir -p packages
+          cd packages
+          # Download only the common package (not webcore/bundler/node/RN)
+          gh release download "$TAG" --pattern "json-eval-rs-common-*.tgz"
+          ls -lh *.tgz || echo "No common package found"
+
+      - name: Publish common package to npm
+        run: |
+          PKG=$(find packages -name "json-eval-rs-common-*.tgz" -type f | head -n 1)
+          if [ -z "$PKG" ]; then
+            echo "❌ No common package found"
+            ls -lh packages/
+            exit 1
+          fi
+          echo "Publishing: $(basename $PKG)"
+          cd packages
+          npm publish "$(basename $PKG)" --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
   # Publish Web npm packages (download directly from release)
   publish-web:
     if: |
@@ -182,9 +230,9 @@ jobs:
 
           # Look for web package tarballs (they should be directly in packages/)
           for pkg in *.tgz; do
-            # Skip React Native package
-            if [[ "$pkg" == *"react-native"* ]]; then
-              echo "Skipping React Native package: $pkg"
+            # Skip React Native and common packages (published separately)
+            if [[ "$pkg" == *"react-native"* ]] || [[ "$pkg" == *"json-eval-rs-common"* ]]; then
+              echo "Skipping $pkg (published separately)"
               continue
             fi
 
@@ -338,6 +386,7 @@ jobs:
       [
         check-workflow,
         publish-csharp,
+        publish-common,
         publish-web,
         publish-react-native,
         publish-crates-io,
@@ -356,6 +405,7 @@ jobs:
           echo "| Package | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| C# NuGet | ${{ needs.publish-csharp.result == 'success' && '✅' || needs.publish-csharp.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Common npm | ${{ needs.publish-common.result == 'success' && '✅' || needs.publish-common.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Web npm | ${{ needs.publish-web.result == 'success' && '✅' || needs.publish-web.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| React Native npm | ${{ needs.publish-react-native.result == 'success' && '✅' || needs.publish-react-native.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Rust crates.io | ${{ needs.publish-crates-io.result == 'success' && '✅' || needs.publish-crates-io.result == 'skipped' && '⏭️' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
