@@ -181,6 +181,9 @@ export interface JsonEvalJSIGlobal {
   getSubformPaths(handle: string): string;
   hasSubform(handle: string, subformPath: string): boolean;
 
+  /** Convert ArrayBuffer (UTF-8 encoded) to string — replaces TextDecoder */
+  decodeArrayBuffer(buffer: ArrayBuffer): string;
+
   evaluateLogic(
     logic: string,
     data: string | null,

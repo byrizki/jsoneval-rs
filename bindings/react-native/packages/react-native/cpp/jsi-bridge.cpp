@@ -733,6 +733,27 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
         );
     }
 
+    // ---- decodeArrayBuffer: convert ArrayBuffer → UTF-8 string (zero-extra-copy)
+    // Replaces Hermes TextDecoder with direct JSI-level decode
+    if (prop == "decodeArrayBuffer") {
+        return createJsiFn(runtime, "decodeArrayBuffer",
+            [](jsi::Runtime& rt, const jsi::Value* args, size_t count) -> jsi::Value {
+                checkArgCount(rt, count, 1);
+                if (!args[0].isObject()) {
+                    throw jsi::JSError(rt, "decodeArrayBuffer: expected ArrayBuffer");
+                }
+                auto obj = args[0].asObject(rt);
+                if (!obj.isArrayBuffer(rt)) {
+                    throw jsi::JSError(rt, "decodeArrayBuffer: expected ArrayBuffer");
+                }
+                auto buf = obj.getArrayBuffer(rt);
+                auto* data = buf.data(rt);
+                auto length = buf.length(rt);
+                return jsi::String::createFromUtf8(rt, reinterpret_cast<const char*>(data), length);
+            }
+        );
+    }
+
     // ---- version ----
     if (prop == "version") {
         return createJsiFn(runtime, "version",
@@ -1038,7 +1059,7 @@ std::vector<jsi::PropNameID> JsonEvalJSI::getPropertyNames(jsi::Runtime& runtime
         "compileAndRunLogic", "compileLogic", "runLogic",
         "reloadSchema", "reloadSchemaMsgpack", "reloadSchemaFromCache",
         "setTimezoneOffset",
-        "dispose", "evaluateLogic", "version",
+        "dispose", "evaluateLogic", "version", "decodeArrayBuffer",
         // Subform
         "evaluateSubform", "validateSubform", "evaluateDependentsSubform",
         "resolveLayoutSubform",

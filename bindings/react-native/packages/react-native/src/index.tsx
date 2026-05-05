@@ -533,7 +533,7 @@ export class JSONEval {
     // If it's an ArrayBuffer (Zero-Copy JSI result), decode it first
     if (result instanceof ArrayBuffer) {
         if (result.byteLength === 0) return null;
-        const jsonStr = new TextDecoder().decode(result);
+        const jsonStr = _jsi!.decodeArrayBuffer(result);
         return JSONParse(jsonStr);
     }
     
@@ -552,7 +552,7 @@ export class JSONEval {
 
     if (result instanceof ArrayBuffer) {
         if (result.byteLength === 0) return null;
-        const jsonStr = new TextDecoder().decode(result);
+        const jsonStr = _jsi!.decodeArrayBuffer(result);
         return jsonStr === 'null' || jsonStr === '' ? null : JSONParse(jsonStr);
     }
 
