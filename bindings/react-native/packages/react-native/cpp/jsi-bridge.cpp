@@ -749,7 +749,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 auto buf = obj.getArrayBuffer(rt);
                 auto* data = buf.data(rt);
                 auto length = buf.length(rt);
-                return jsi::String::createFromUtf8(rt, reinterpret_cast<const char*>(data), length);
+                return jsi::String::createFromUtf8(rt, data, length);
             }
         );
     }
