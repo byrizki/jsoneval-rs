@@ -4,9 +4,9 @@ permissions:
   contents: read
 
 on:
-  # Trigger after build-bindings workflow completes successfully
+  # Trigger after Release and Build workflow completes successfully
   workflow_run:
-    workflows: ["Build Bindings"]
+    workflows: ["Release and Build"]
     types:
       - completed
   workflow_dispatch:
@@ -60,7 +60,7 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
             if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
-              echo "Build Bindings workflow did not succeed. Skipping publish."
+              echo "Release and Build workflow did not succeed. Skipping publish."
               echo "should_run=false" >> $GITHUB_OUTPUT
               exit 0
             fi
@@ -85,7 +85,7 @@ jobs:
               echo ""
               echo "To publish packages, you need to:"
               echo "1. Create a GitHub Release (e.g., v0.0.94)"
-              echo "2. Run the 'Build Bindings' workflow to upload packages to that release"
+              echo "2. Run the 'Release and Build' workflow to upload packages to that release"
               echo "3. Then run this publish workflow"
               echo ""
               echo "Or use workflow_dispatch and manually specify the release tag."
@@ -274,7 +274,7 @@ jobs:
             ls -lh
             echo ""
             echo "⚠️ Web packages should be directly in the packages/ directory"
-            echo "   Check the build-bindings workflow's web-packages artifact"
+            echo "   Check the 'Release and Build' workflow's web-packages artifact"
             exit 1
           fi
 
