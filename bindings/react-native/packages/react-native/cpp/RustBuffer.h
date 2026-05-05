@@ -50,7 +50,7 @@ public:
                 }
             }
             uint8_t* data() override { return const_cast<uint8_t*>(result_.data_ptr); }
-            size_t size() override { return result_.data_len; }
+            size_t size() const override { return result_.data_len; }
         private:
             FFIResult result_;
         };
