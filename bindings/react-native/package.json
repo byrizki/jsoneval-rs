@@ -5,7 +5,8 @@
   "description": "JSON Eval RS React Native Bindings - Monorepo",
   "workspaces": [
     "packages/*",
-    "examples/*"
+    "examples/*",
+    "../common"
   ],
   "scripts": {
     "build": "yarn workspace @json-eval-rs/react-native prepare",

@@ -1,4 +1,67 @@
-import { JSONStringify } from "json-with-bigint";
+import {
+  type CompileAndRunLogicOptions,
+  type DependentChange,
+  type EvaluateDependentsOptions,
+  type EvaluateDependentsSubformOptions,
+  type EvaluateOptions,
+  type EvaluateSubformOptions,
+  type GetEvaluatedSchemaByPathSubformOptions,
+  type GetEvaluatedSchemaByPathsSubformOptions,
+  type GetEvaluatedSchemaOptions,
+  type GetEvaluatedSchemaSubformOptions,
+  type GetSchemaByPathOptions,
+  type GetSchemaByPathSubformOptions,
+  type GetSchemaByPathsOptions,
+  type GetSchemaByPathsSubformOptions,
+  type GetSchemaValueSubformOptions,
+  type GetValueByPathOptions,
+  type GetValueByPathsOptions,
+  type JSONEvalOptions,
+  type ReloadSchemaOptions,
+  type ResolveLayoutSubformOptions,
+  type SchemaValueItem,
+  type ValidateOptions,
+  type ValidateSubformOptions,
+  type ValidationResult,
+  extractErrorMessage,
+  stringifyOrNull,
+  stringifyValue,
+} from "@json-eval-rs/common";
+
+// Re-export shared types for downstream consumers
+export {
+  CompileAndRunLogicOptions,
+  DependentChange,
+  EvaluateDependentsOptions,
+  EvaluateDependentsSubformOptions,
+  EvaluateOptions,
+  EvaluateSubformOptions,
+  GetEvaluatedSchemaByPathSubformOptions,
+  GetEvaluatedSchemaByPathsSubformOptions,
+  GetEvaluatedSchemaOptions,
+  GetEvaluatedSchemaSubformOptions,
+  GetSchemaByPathOptions,
+  GetSchemaByPathSubformOptions,
+  GetSchemaByPathsOptions,
+  GetSchemaByPathsSubformOptions,
+  GetSchemaValueSubformOptions,
+  GetValueByPathOptions,
+  GetValueByPathsOptions,
+  JSONEvalOptions,
+  ReloadSchemaOptions,
+  ResolveLayoutSubformOptions,
+  ReturnFormat,
+  SchemaValueItem,
+  ValidateOptions,
+  ValidatePathsOptions,
+  ValidateSubformOptions,
+  ValidationError,
+  ValidationResult,
+  extractErrorMessage,
+  parseValue,
+  stringifyOrNull,
+  stringifyValue,
+} from "@json-eval-rs/common";
 
 /**
  * @json-eval-rs/webcore
@@ -17,335 +80,6 @@ export function getVersion(wasmModule: any): string {
     return wasmModule.getVersion();
   }
   return "unknown";
-}
-
-/**
- * Item for get schema value array results
- */
-export interface SchemaValueItem {
-  /** Dotted path (e.g., "field1.field2") */
-  path: string;
-  /** Value at this path */
-  value: any;
-}
-
-/**
- * Return format for path-based methods
- */
-export enum ReturnFormat {
-  /** Nested object preserving the path hierarchy (default) */
-  Nested = 0,
-  /** Flat object with dotted keys */
-  Flat = 1,
-  /** Array of values in the order of requested paths */
-  Array = 2,
-}
-
-/**
- * Validation error for a specific field
- */
-export interface ValidationError {
-  /** Field path with the error */
-  path: string;
-  /** Type of validation rule that failed (e.g., 'required', 'min', 'max', 'pattern') */
-  type: string;
-  /** Error message */
-  message: string;
-  /** Optional error code */
-  code?: string;
-  /** Optional regex pattern (for pattern validation errors) */
-  pattern?: string;
-  /** Optional field value that failed validation (as string) */
-  fieldValue?: string;
-  /** Optional additional data context for the error */
-  data?: any;
-}
-
-/**
- * Result of validation operation
- */
-export interface ValidationResult {
-  /** Whether any validation errors occurred */
-  has_error: boolean;
-  /** Map of validation errors keyed by field path */
-  error: Record<string, ValidationError>;
-}
-
-/**
- * Dependent field change from evaluateDependents
- */
-export interface DependentChange {
-  /** Path of the dependent field (in dot notation) */
-  $ref: string;
-  /** Schema definition of the changed field */
-  $field?: any;
-  /** Schema definition of the parent field */
-  $parentField: any;
-  /** Whether this is a transitive dependency */
-  transitive: boolean;
-  /** If true, the field was cleared */
-  clear?: boolean;
-  /** New value of the field (if changed) */
-  value?: any;
-}
-
-/**
- * Options for creating a JSONEval instance
- */
-export interface JSONEvalOptions {
-  /**
-   * JSON schema object or MessagePack binary or cache key string.
-   * - If object: Standard JSON Schema
-   * - If Uint8Array: MessagePack encoded schema
-   * - If string (and fromCache=true): Cache key for pre-parsed schema
-   */
-  schema: any;
-  /**
-   * Optional context data accessible via $context in logic.
-   * Useful for user sessions, environment variables, etc.
-   */
-  context?: any;
-  /**
-   * Optional initial data object to evaluate against.
-   * Can be updated later with reloadSchema.
-   */
-  data?: any;
-  /**
-   * If true, the `schema` parameter is treated as a string cache key
-   * to lookup a pre-parsed schema from the global cache.
-   * Default: false
-   */
-  fromCache?: boolean;
-}
-
-/**
- * Options for validation
- */
-export interface ValidateOptions {
-  /** JSON data to validate */
-  data: any;
-  /** Optional context data */
-  context?: any;
-}
-
-/**
- * Options for evaluation
- */
-export interface EvaluateOptions {
-  /** JSON data to evaluate */
-  data: any;
-  /** Optional context data */
-  context?: any;
-  /** Optional array of paths for selective evaluation */
-  paths?: string[];
-}
-
-/**
- * Options for evaluating dependents
- */
-export interface EvaluateDependentsOptions {
-  /** Array of field paths that changed */
-  changedPaths: string[];
-  /** Updated JSON data */
-  data?: any;
-  /** Optional context data */
-  context?: any;
-  /** If true, performs full evaluation after processing dependents */
-  reEvaluate?: boolean;
-  /** If true, also evaluates dependents in all registered subforms and appends their schema values (default: true) */
-  includeSubforms?: boolean;
-}
-
-/**
- * Options for getting evaluated schema
- */
-export interface GetEvaluatedSchemaOptions {
-  /** Whether to skip layout resolution */
-  skipLayout?: boolean;
-}
-
-/**
- * Options for getting a value by path from evaluated schema
- */
-export interface GetValueByPathOptions {
-  /** Dotted path to the value */
-  path: string;
-  /** Whether to skip layout resolution */
-  skipLayout?: boolean;
-}
-
-/**
- * Options for getting values by multiple paths from evaluated schema
- */
-export interface GetValueByPathsOptions {
-  /** Array of dotted paths to retrieve */
-  paths: string[];
-  /** Whether to skip layout resolution */
-  skipLayout?: boolean;
-  /** Return format (Nested, Flat, or Array) */
-  format?: ReturnFormat;
-}
-
-/**
- * Options for getting a value by path from schema
- */
-export interface GetSchemaByPathOptions {
-  /** Dotted path to the value */
-  path: string;
-}
-
-/**
- * Options for getting values by multiple paths from schema
- */
-export interface GetSchemaByPathsOptions {
-  /** Array of dotted paths to retrieve */
-  paths: string[];
-  /** Return format (Nested, Flat, or Array) */
-  format?: ReturnFormat;
-}
-
-/**
- * Options for reloading schema
- */
-export interface ReloadSchemaOptions {
-  /** New JSON schema */
-  schema: any;
-  /** Optional new context */
-  context?: any;
-  /** Optional new data */
-  data?: any;
-}
-
-/**
- * Options for evaluating a subform
- */
-export interface EvaluateSubformOptions {
-  /** Path to the subform */
-  subformPath: string;
-  /** JSON data to evaluate */
-  data: any;
-  /** Optional context data */
-  context?: any;
-  /** Optional array of paths to evaluate */
-  paths?: string[];
-}
-
-/**
- * Options for validating a subform
- */
-export interface ValidateSubformOptions {
-  /** Path to the subform */
-  subformPath: string;
-  /** JSON data to validate */
-  data: any;
-  /** Optional context data */
-  context?: any;
-}
-
-/**
- * Options for evaluating dependents in a subform
- */
-export interface EvaluateDependentsSubformOptions {
-  /** Path to the subform */
-  subformPath: string;
-  /** Array of field paths that changed */
-  changedPaths: string[];
-  /** Updated JSON data */
-  data?: any;
-  /** Optional context data */
-  context?: any;
-  /** If true, performs full evaluation after processing dependents */
-  reEvaluate?: boolean;
-  /** If true, also evaluates dependents in sub-subforms and appends their schema values (default: true) */
-  includeSubforms?: boolean;
-}
-
-/**
- * Options for resolving layout in a subform
- */
-export interface ResolveLayoutSubformOptions {
-  /** Path to the subform */
-  subformPath: string;
-  /** Whether to evaluate after resolving layout */
-  evaluate?: boolean;
-}
-
-/**
- * Options for getting evaluated schema from a subform
- */
-export interface GetEvaluatedSchemaSubformOptions {
-  /** Path to the subform */
-  subformPath: string;
-  /** Whether to resolve layout */
-  resolveLayout?: boolean;
-}
-
-/**
- * Options for getting schema value from a subform
- */
-export interface GetSchemaValueSubformOptions {
-  /** Path to the subform */
-  subformPath: string;
-}
-
-/**
- * Options for getting evaluated schema by path from a subform
- */
-export interface GetEvaluatedSchemaByPathSubformOptions {
-  /** Path to the subform */
-  subformPath: string;
-  /** Dotted path to the value within the subform */
-  schemaPath: string;
-  /** Whether to skip layout resolution */
-  skipLayout?: boolean;
-}
-
-/**
- * Options for getting evaluated schema by multiple paths from a subform
- */
-export interface GetEvaluatedSchemaByPathsSubformOptions {
-  /** Path to the subform */
-  subformPath: string;
-  /** Array of dotted paths to retrieve within the subform */
-  schemaPaths: string[];
-  /** Whether to skip layout resolution */
-  skipLayout?: boolean;
-  /** Return format (Nested, Flat, or Array) */
-  format?: ReturnFormat;
-}
-
-/**
- * Options for getting schema by path from a subform
- */
-export interface GetSchemaByPathSubformOptions {
-  /** Path to the subform */
-  subformPath: string;
-  /** Dotted path to the value within the subform */
-  schemaPath: string;
-}
-
-/**
- * Options for getting schema by multiple paths from a subform
- */
-export interface GetSchemaByPathsSubformOptions {
-  /** Path to the subform */
-  subformPath: string;
-  /** Array of dotted paths to retrieve within the subform */
-  schemaPaths: string[];
-  /** Return format (Nested, Flat, or Array) */
-  format?: ReturnFormat;
-}
-
-/**
- * Options for compiling and running logic
- */
-export interface CompileAndRunLogicOptions {
-  /** Logic expression as string or object */
-  logicStr: string | object;
-  /** Optional data context */
-  data?: any;
-  /** Optional context data */
-  context?: any;
 }
 
 /**
@@ -395,7 +129,7 @@ export class JSONEvalCore {
    */
   constructor(
     wasmModule: any,
-    { schema, context, data, fromCache = false }: JSONEvalOptions
+    { schema, context, data, fromCache = false }: JSONEvalOptions,
   ) {
     this._schema = schema;
     this._wasmModule = wasmModule;
@@ -414,12 +148,11 @@ export class JSONEvalCore {
   async init(): Promise<void> {
     if (this._ready) return;
 
-    // If WASM module not provided, throw error - user must provide it or install peer dependency
     if (!this._wasmModule) {
       throw new Error(
         "No WASM module provided. Please either:\n" +
           '1. Pass wasmModule in constructor: new JSONEval({ schema, wasmModule: await import("@json-eval-rs/bundler") })\n' +
-          "2. Or install a peer dependency: yarn install @json-eval-rs/bundler (or @json-eval-rs/vanilla or @json-eval-rs/node)"
+          "2. Or install a peer dependency: yarn install @json-eval-rs/bundler (or @json-eval-rs/vanilla or @json-eval-rs/node)",
       );
     }
 
@@ -429,46 +162,41 @@ export class JSONEvalCore {
       // Create instance from cache, MessagePack, or JSON
       if (this._isFromCache) {
         this._instance = JSONEvalWasm.newFromCache(
-          this._schema, // cache key
-          this._context ? typeof this._context === "string" ? this._context : JSONStringify(this._context) : null,
-          this._data ? typeof this._data === "string" ? this._data : JSONStringify(this._data) : null
+          this._schema,
+          stringifyOrNull(this._context),
+          stringifyOrNull(this._data),
         );
       } else if (this._isMsgpackSchema) {
         this._instance = JSONEvalWasm.newFromMsgpack(
           this._schema,
-          this._context ? typeof this._context === "string" ? this._context : JSONStringify(this._context) : null,
-          this._data ? typeof this._data === "string" ? this._data : JSONStringify(this._data) : null
+          stringifyOrNull(this._context),
+          stringifyOrNull(this._data),
         );
       } else {
         this._instance = new JSONEvalWasm(
-          typeof this._schema === "string" ? this._schema : JSONStringify(this._schema),
-          this._context ? typeof this._context === "string" ? this._context : JSONStringify(this._context) : null,
-          this._data ? typeof this._data === "string" ? this._data : JSONStringify(this._data) : null
+          typeof this._schema === "string"
+            ? this._schema
+            : stringifyValue(this._schema),
+          stringifyOrNull(this._context),
+          stringifyOrNull(this._data),
         );
       }
       this._ready = true;
     } catch (error: any) {
       throw new Error(
-        `Failed to create JSONEval instance: ${error.message || error}`
+        `Failed to create JSONEval instance: ${extractErrorMessage(error)}`,
       );
     }
   }
 
   /**
    * Create a new JSONEval instance from a cached ParsedSchema
-   * Static factory method for convenience
-   *
-   * @param wasmModule - WASM module
-   * @param cacheKey - Cache key to lookup in ParsedSchemaCache
-   * @param context - Optional context data
-   * @param data - Optional initial data
-   * @returns New instance
    */
   static fromCache(
     wasmModule: any,
     cacheKey: string,
     context?: any,
-    data?: any
+    data?: any,
   ): JSONEvalCore {
     return new JSONEvalCore(wasmModule, {
       schema: cacheKey,
@@ -480,19 +208,12 @@ export class JSONEvalCore {
 
   /**
    * Create a new JSONEval instance from a MessagePack schema
-   * Static factory method for convenience
-   *
-   * @param wasmModule - WASM module
-   * @param schemaMsgpack - MessagePack schema (Uint8Array)
-   * @param context - Optional context data
-   * @param data - Optional initial data
-   * @returns New instance
    */
   static fromMsgpack(
     wasmModule: any,
     schemaMsgpack: Uint8Array,
     context?: any,
-    data?: any
+    data?: any,
   ): JSONEvalCore {
     return new JSONEvalCore(wasmModule, {
       schema: schemaMsgpack,
@@ -503,9 +224,6 @@ export class JSONEvalCore {
 
   /**
    * Get the WASM library version
-   *
-   * @param wasmModule - WASM module
-   * @returns Version string
    */
   static version(wasmModule: any): string {
     return getVersion(wasmModule);
@@ -513,18 +231,12 @@ export class JSONEvalCore {
 
   /**
    * Evaluate logic expression without creating an instance
-   *
-   * @param wasmModule - WASM module
-   * @param logicStr - JSON Logic expression (string or object)
-   * @param data - Optional data (string or object)
-   * @param context - Optional context (string or object)
-   * @returns Evaluation result
    */
   static evaluateLogic(
     wasmModule: any,
     logicStr: string | object,
     data?: any,
-    context?: any
+    context?: any,
   ): any {
     if (!wasmModule) {
       throw new Error("No WASM module provided.");
@@ -535,19 +247,13 @@ export class JSONEvalCore {
     }
 
     const logic =
-      typeof logicStr === "string" ? logicStr : JSONStringify(logicStr);
-    const dataStr = data
-      ? typeof data === "string"
-        ? data
-        : JSONStringify(data)
-      : null;
-    const contextStr = context
-      ? typeof context === "string"
-        ? context
-        : JSONStringify(context)
-      : null;
+      typeof logicStr === "string" ? logicStr : stringifyValue(logicStr);
 
-    return JSONEvalWasm.evaluateLogic(logic, dataStr, contextStr);
+    return JSONEvalWasm.evaluateLogic(
+      logic,
+      stringifyOrNull(data),
+      stringifyOrNull(context),
+    );
   }
 
   /**
@@ -560,13 +266,12 @@ export class JSONEvalCore {
   }: ValidateOptions): Promise<ValidationResult> {
     await this.init();
     try {
-      // Use validateJS for proper serialization (Worker-safe)
       return this._instance.validateJS(
-        typeof data === "string" ? data : JSONStringify(data),
-        context ? typeof context === "string" ? context : JSONStringify(context) : null
+        stringifyOrNull(data)!,
+        stringifyOrNull(context),
       );
     } catch (error: any) {
-      throw new Error(`Validation failed: ${error.message || error}`);
+      throw new Error(`Validation failed: ${extractErrorMessage(error)}`);
     }
   }
 
@@ -577,29 +282,28 @@ export class JSONEvalCore {
     await this.init();
     try {
       return this._instance.evaluateJS(
-        typeof data === "string" ? data : JSONStringify(data),
-        context ? typeof context === "string" ? context : JSONStringify(context) : null,
-        paths || null
+        stringifyOrNull(data)!,
+        stringifyOrNull(context),
+        paths || null,
       );
     } catch (error: any) {
-      throw new Error(`Evaluation failed: ${error.message || error}`);
+      throw new Error(`Evaluation failed: ${extractErrorMessage(error)}`);
     }
   }
 
   /**
    * Evaluate schema with data (only updates internal state, returns void)
-   * Maps to WASM evaluate()
    */
   async evaluateOnly({ data, context, paths }: EvaluateOptions): Promise<void> {
     await this.init();
     try {
       this._instance.evaluate(
-        typeof data === "string" ? data : JSONStringify(data),
-        context ? typeof context === "string" ? context : JSONStringify(context) : null,
-        paths || null
+        stringifyOrNull(data)!,
+        stringifyOrNull(context),
+        paths || null,
       );
     } catch (error: any) {
-      throw new Error(`Evaluation failed: ${error.message || error}`);
+      throw new Error(`Evaluation failed: ${extractErrorMessage(error)}`);
     }
   }
 
@@ -615,24 +319,24 @@ export class JSONEvalCore {
   }: EvaluateDependentsOptions): Promise<DependentChange[]> {
     await this.init();
     try {
-      // Ensure paths is an array for WASM
       const paths = Array.isArray(changedPaths) ? changedPaths : [changedPaths];
 
       return this._instance.evaluateDependentsJS(
-        typeof paths === "string" ? paths : JSONStringify(paths),
-        data ? typeof data === "string" ? data : JSONStringify(data) : null,
-        context ? typeof context === "string" ? context : JSONStringify(context) : null,
+        typeof paths === "string" ? paths : stringifyValue(paths),
+        stringifyOrNull(data),
+        stringifyOrNull(context),
         reEvaluate,
-        includeSubforms
+        includeSubforms,
       );
     } catch (error: any) {
-      throw new Error(`Dependent evaluation failed: ${error.message || error}`);
+      throw new Error(
+        `Dependent evaluation failed: ${extractErrorMessage(error)}`,
+      );
     }
   }
 
   /**
    * Evaluate dependents (returns JSON string)
-   * Maps to WASM evaluateDependents()
    */
   async evaluateDependentsString({
     changedPath,
@@ -640,18 +344,26 @@ export class JSONEvalCore {
     context,
     reEvaluate = true,
     includeSubforms = true,
-  }: { changedPath: string, data?: any, context?: any, reEvaluate?: boolean, includeSubforms?: boolean }): Promise<string> {
+  }: {
+    changedPath: string;
+    data?: any;
+    context?: any;
+    reEvaluate?: boolean;
+    includeSubforms?: boolean;
+  }): Promise<string> {
     await this.init();
     try {
       return this._instance.evaluateDependents(
         changedPath,
-        data ? typeof data === "string" ? data : JSONStringify(data) : null,
-        context ? typeof context === "string" ? context : JSONStringify(context) : null,
+        stringifyOrNull(data),
+        stringifyOrNull(context),
         reEvaluate,
-        includeSubforms
+        includeSubforms,
       );
     } catch (error: any) {
-      throw new Error(`Dependent evaluation failed: ${error.message || error}`);
+      throw new Error(
+        `Dependent evaluation failed: ${extractErrorMessage(error)}`,
+      );
     }
   }
 
@@ -685,7 +397,6 @@ export class JSONEvalCore {
 
   /**
    * Get all schema values as array of path-value pairs
-   * Returns [{path: "", value: ""}, ...]
    */
   async getSchemaValueArray(): Promise<SchemaValueItem[]> {
     await this.init();
@@ -694,7 +405,6 @@ export class JSONEvalCore {
 
   /**
    * Get all schema values as object with dotted path keys
-   * Returns {path: value, ...}
    */
   async getSchemaValueObject(): Promise<Record<string, any>> {
     await this.init();
@@ -724,7 +434,6 @@ export class JSONEvalCore {
 
   /**
    * Get values from the evaluated schema using multiple dotted path notations
-   * Returns data in the specified format (skips paths that are not found)
    */
   async getEvaluatedSchemaByPaths({
     paths,
@@ -733,9 +442,9 @@ export class JSONEvalCore {
   }: GetValueByPathsOptions): Promise<any> {
     await this.init();
     return this._instance.getEvaluatedSchemaByPathsJS(
-      typeof paths === "string" ? paths : JSONStringify(paths),
+      typeof paths === "string" ? paths : stringifyValue(paths),
       skipLayout,
-      format
+      format,
     );
   }
 
@@ -757,7 +466,6 @@ export class JSONEvalCore {
 
   /**
    * Get values from the schema using multiple dotted path notations
-   * Returns data in the specified format (skips paths that are not found)
    */
   async getSchemaByPaths({
     paths,
@@ -765,8 +473,8 @@ export class JSONEvalCore {
   }: GetSchemaByPathsOptions): Promise<any> {
     await this.init();
     return this._instance.getSchemaByPathsJS(
-      typeof paths === "string" ? paths : JSONStringify(paths),
-      format
+      typeof paths === "string" ? paths : stringifyValue(paths),
+      format,
     );
   }
 
@@ -784,17 +492,16 @@ export class JSONEvalCore {
 
     try {
       await this._instance.reloadSchema(
-        typeof schema === "string" ? schema : JSONStringify(schema),
-        context ? typeof context === "string" ? context : JSONStringify(context) : null,
-        data ? typeof data === "string" ? data : JSONStringify(data) : null
+        typeof schema === "string" ? schema : stringifyValue(schema),
+        stringifyOrNull(context),
+        stringifyOrNull(data),
       );
 
-      // Update internal state
       this._schema = schema;
       this._context = context;
       this._data = data;
     } catch (error: any) {
-      throw new Error(`Failed to reload schema: ${error.message || error}`);
+      throw new Error(`Failed to reload schema: ${extractErrorMessage(error)}`);
     }
   }
 
@@ -804,7 +511,7 @@ export class JSONEvalCore {
   async reloadSchemaMsgpack(
     schemaMsgpack: Uint8Array,
     context?: any,
-    data?: any
+    data?: any,
   ): Promise<void> {
     if (!this._instance) {
       throw new Error("Instance not initialized. Call init() first.");
@@ -817,18 +524,17 @@ export class JSONEvalCore {
     try {
       await this._instance.reloadSchemaMsgpack(
         schemaMsgpack,
-        context ? typeof context === "string" ? context : JSONStringify(context) : null,
-        data ? typeof data === "string" ? data : JSONStringify(data) : null
+        stringifyOrNull(context),
+        stringifyOrNull(data),
       );
 
-      // Update internal state
       this._schema = schemaMsgpack;
       this._context = context;
       this._data = data;
       this._isMsgpackSchema = true;
     } catch (error: any) {
       throw new Error(
-        `Failed to reload schema from MessagePack: ${error.message || error}`
+        `Failed to reload schema from MessagePack: ${extractErrorMessage(error)}`,
       );
     }
   }
@@ -839,7 +545,7 @@ export class JSONEvalCore {
   async reloadSchemaFromCache(
     cacheKey: string,
     context?: any,
-    data?: any
+    data?: any,
   ): Promise<void> {
     if (!this._instance) {
       throw new Error("Instance not initialized. Call init() first.");
@@ -852,17 +558,15 @@ export class JSONEvalCore {
     try {
       await this._instance.reloadSchemaFromCache(
         cacheKey,
-        context ? typeof context === "string" ? context : JSONStringify(context) : null,
-        data ? typeof data === "string" ? data : JSONStringify(data) : null
+        stringifyOrNull(context),
+        stringifyOrNull(data),
       );
 
-      // Update internal state
       this._context = context;
       this._data = data;
-      // Note: schema is not updated as we don't have access to it from the cache key
     } catch (error: any) {
       throw new Error(
-        `Failed to reload schema from cache: ${error.message || error}`
+        `Failed to reload schema from cache: ${extractErrorMessage(error)}`,
       );
     }
   }
@@ -878,9 +582,6 @@ export class JSONEvalCore {
 
   /**
    * Set timezone offset for datetime operations (TODAY, NOW)
-   * @param offsetMinutes - Timezone offset in minutes from UTC
-   *                        (e.g., 420 for UTC+7, -300 for UTC-5)
-   *                        Pass null or undefined to reset to UTC
    */
   setTimezoneOffset(offsetMinutes: number | null | undefined): void {
     if (!this._instance) {
@@ -899,11 +600,11 @@ export class JSONEvalCore {
   }: CompileAndRunLogicOptions): Promise<any> {
     await this.init();
     const logic =
-      typeof logicStr === "string" ? logicStr : JSONStringify(logicStr);
+      typeof logicStr === "string" ? logicStr : stringifyValue(logicStr);
     const result = await this._instance.compileAndRunLogic(
       logic,
-      data ? typeof data === "string" ? data : JSONStringify(data) : null,
-      context ? typeof context === "string" ? context : JSONStringify(context) : null
+      stringifyOrNull(data),
+      stringifyOrNull(context),
     );
     return result;
   }
@@ -914,7 +615,7 @@ export class JSONEvalCore {
   async compileLogic(logicStr: string | object): Promise<number> {
     await this.init();
     const logic =
-      typeof logicStr === "string" ? logicStr : JSONStringify(logicStr);
+      typeof logicStr === "string" ? logicStr : stringifyValue(logicStr);
     return this._instance.compileLogic(logic);
   }
 
@@ -925,8 +626,8 @@ export class JSONEvalCore {
     await this.init();
     const result = await this._instance.runLogic(
       logicId,
-      data ? typeof data === "string" ? data : JSONStringify(data) : null,
-      context ? typeof context === "string" ? context : JSONStringify(context) : null
+      stringifyOrNull(data),
+      stringifyOrNull(context),
     );
     return result;
   }
@@ -941,14 +642,13 @@ export class JSONEvalCore {
   }: EvaluateOptions): Promise<ValidationResult> {
     await this.init();
     try {
-      // Use validatePathsJS for proper serialization (Worker-safe)
       return this._instance.validatePathsJS(
-        typeof data === "string" ? data : JSONStringify(data),
-        context ? typeof context === "string" ? context : JSONStringify(context) : null,
-        paths || null
+        stringifyOrNull(data)!,
+        stringifyOrNull(context),
+        paths || null,
       );
     } catch (error: any) {
-      throw new Error(`Validation failed: ${error.message || error}`);
+      throw new Error(`Validation failed: ${extractErrorMessage(error)}`);
     }
   }
 
@@ -964,12 +664,12 @@ export class JSONEvalCore {
     await this.init();
     try {
       return this._instance.validatePaths(
-        typeof data === "string" ? data : JSONStringify(data),
-        context ? typeof context === "string" ? context : JSONStringify(context) : null,
-        paths || null
+        stringifyOrNull(data)!,
+        stringifyOrNull(context),
+        paths || null,
       );
     } catch (error: any) {
-      throw new Error(`Validation failed: ${error.message || error}`);
+      throw new Error(`Validation failed: ${extractErrorMessage(error)}`);
     }
   }
 
@@ -998,15 +698,14 @@ export class JSONEvalCore {
     await this.init();
     return this._instance.evaluateSubform(
       subformPath,
-      typeof data === "string" ? data : JSONStringify(data),
-      context ? typeof context === "string" ? context : JSONStringify(context) : null,
-      paths || null
+      stringifyOrNull(data)!,
+      stringifyOrNull(context),
+      paths || null,
     );
   }
 
   /**
-   * Validate subform data against its schema rules (returns parsed JavaScript object)
-   * Uses validateSubformJS for Worker-safe serialization
+   * Validate subform data against its schema rules
    */
   async validateSubform({
     subformPath,
@@ -1017,11 +716,13 @@ export class JSONEvalCore {
     try {
       return this._instance.validateSubformJS(
         subformPath,
-        typeof data === "string" ? data : JSONStringify(data),
-        context ? typeof context === "string" ? context : JSONStringify(context) : null
+        stringifyOrNull(data)!,
+        stringifyOrNull(context),
       );
     } catch (error: any) {
-      throw new Error(`Subform validation failed: ${error.message || error}`);
+      throw new Error(
+        `Subform validation failed: ${extractErrorMessage(error)}`,
+      );
     }
   }
 
@@ -1038,22 +739,20 @@ export class JSONEvalCore {
   }: EvaluateDependentsSubformOptions): Promise<DependentChange[]> {
     await this.init();
 
-    // For backward compatibility, accept single changedPath too (though types say array)
     const paths = Array.isArray(changedPaths) ? changedPaths : [changedPaths];
 
     return this._instance.evaluateDependentsSubformJS(
       subformPath,
-      typeof paths === "string" ? paths : JSONStringify(paths),
-      data ? typeof data === "string" ? data : JSONStringify(data) : null,
-      context ? typeof context === "string" ? context : JSONStringify(context) : null,
+      typeof paths === "string" ? paths : stringifyValue(paths),
+      stringifyOrNull(data),
+      stringifyOrNull(context),
       reEvaluate,
-      includeSubforms
+      includeSubforms,
     );
   }
 
   /**
    * Evaluate dependent fields in subform (returns JSON string)
-   * Maps to WASM evaluateDependentsSubform()
    */
   async evaluateDependentsSubformString({
     subformPath,
@@ -1066,11 +765,11 @@ export class JSONEvalCore {
     const paths = Array.isArray(changedPaths) ? changedPaths : [changedPaths];
     return this._instance.evaluateDependentsSubform(
       subformPath,
-      typeof paths === "string" ? paths : JSONStringify(paths),
-      data ? typeof data === "string" ? data : JSONStringify(data) : null,
-      context ? typeof context === "string" ? context : JSONStringify(context) : null,
+      typeof paths === "string" ? paths : stringifyValue(paths),
+      stringifyOrNull(data),
+      stringifyOrNull(context),
       false,
-      includeSubforms
+      includeSubforms,
     );
   }
 
@@ -1095,13 +794,12 @@ export class JSONEvalCore {
     await this.init();
     return this._instance.getEvaluatedSchemaSubformJS(
       subformPath,
-      resolveLayout
+      resolveLayout,
     );
   }
 
   /**
-   * Get schema value from subform in nested object format (all .value fields).
-   * Returns a hierarchical object structure mimicking the schema.
+   * Get schema value from subform
    */
   async getSchemaValueSubform({
     subformPath,
@@ -1111,8 +809,7 @@ export class JSONEvalCore {
   }
 
   /**
-   * Get schema values from subform as a flat array of path-value pairs.
-   * Returns an array like `[{path: "field.sub", value: 123}, ...]`.
+   * Get schema values from subform as array of path-value pairs
    */
   async getSchemaValueArraySubform({
     subformPath,
@@ -1122,8 +819,7 @@ export class JSONEvalCore {
   }
 
   /**
-   * Get schema values from subform as a flat object with dotted path keys.
-   * Returns an object like `{"field.sub": 123, ...}`.
+   * Get schema values from subform as object with dotted path keys
    */
   async getSchemaValueObjectSubform({
     subformPath,
@@ -1142,7 +838,7 @@ export class JSONEvalCore {
     await this.init();
     return this._instance.getEvaluatedSchemaWithoutParamsSubformJS(
       subformPath,
-      resolveLayout
+      resolveLayout,
     );
   }
 
@@ -1158,13 +854,12 @@ export class JSONEvalCore {
     return this._instance.getEvaluatedSchemaByPathSubformJS(
       subformPath,
       schemaPath,
-      skipLayout
+      skipLayout,
     );
   }
 
   /**
    * Get evaluated schema by multiple paths from subform
-   * Returns data in the specified format (skips paths that are not found)
    */
   async getEvaluatedSchemaByPathsSubform({
     subformPath,
@@ -1175,9 +870,11 @@ export class JSONEvalCore {
     await this.init();
     return this._instance.getEvaluatedSchemaByPathsSubformJS(
       subformPath,
-      typeof schemaPaths === "string" ? schemaPaths : JSONStringify(schemaPaths),
+      typeof schemaPaths === "string"
+        ? schemaPaths
+        : stringifyValue(schemaPaths),
       skipLayout,
-      format
+      format,
     );
   }
 
@@ -1202,7 +899,6 @@ export class JSONEvalCore {
 
   /**
    * Get schema by multiple paths from subform
-   * Returns data in the specified format (skips paths that are not found)
    */
   async getSchemaByPathsSubform({
     subformPath,
@@ -1212,8 +908,10 @@ export class JSONEvalCore {
     await this.init();
     return this._instance.getSchemaByPathsSubformJS(
       subformPath,
-      typeof schemaPaths === "string" ? schemaPaths : JSONStringify(schemaPaths),
-      format
+      typeof schemaPaths === "string"
+        ? schemaPaths
+        : stringifyValue(schemaPaths),
+      format,
     );
   }
 

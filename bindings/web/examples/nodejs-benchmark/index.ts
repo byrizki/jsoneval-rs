@@ -2,7 +2,6 @@ import { JSONEval, version } from "@json-eval-rs/node";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { JSONStringify, JSONParse } from "json-with-bigint";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -65,7 +64,7 @@ function findDifferences(
       }
     } else if (actual[key] !== expected[key]) {
       diffs.push(
-        `${fullPath} differs: actual=${JSONStringify(actual[key])} expected=${JSONStringify(expected[key])}`
+        `${fullPath} differs: actual=${JSON.stringify(actual[key])} expected=${JSON.stringify(expected[key])}`
       );
     }
   }
@@ -108,12 +107,12 @@ async function runNodeBenchmark(
   const schemaJson = fs.readFileSync(schemaPath, "utf8");
   const dataJson = fs.readFileSync(dataPath, "utf8");
 
-  const schema = JSONParse(schemaJson);
-  const data = JSONParse(dataJson);
+  const schema = JSON.parse(schemaJson);
+  const data = JSON.parse(dataJson);
 
   let compareData: Record<string, any> | null = null;
   if (fs.existsSync(comparePath)) {
-    compareData = JSONParse(fs.readFileSync(comparePath, "utf8"));
+    compareData = JSON.parse(fs.readFileSync(comparePath, "utf8"));
   }
 
   console.log("⏱️  Running evaluation...");
@@ -157,11 +156,11 @@ async function runNodeBenchmark(
   const parsedPath = path.join(outputDir, `${scenario}-parsed-schema.json`);
   const sortedPath = path.join(outputDir, `${scenario}-sorted-evaluations.json`);
 
-  const resultJson = JSONStringify(evaluatedSchema, null, 2);
+  const resultJson = JSON.stringify(evaluatedSchema, null, 2);
   fs.writeFileSync(evaluatedPath, resultJson);
 
   const schemaValue = evaluatedSchema?.["$params"] ?? {};
-  fs.writeFileSync(parsedPath, JSONStringify(schemaValue, null, 2));
+  fs.writeFileSync(parsedPath, JSON.stringify(schemaValue, null, 2));
   fs.writeFileSync(sortedPath, resultJson);
 
   console.log("\x1b[32m✅ Results saved:\x1b[0m");
@@ -226,8 +225,8 @@ async function runWopFlagDependentsTest(projectRoot: string): Promise<void> {
   const schemaJson = fs.readFileSync(path.join(samplesPath, "zpp.json"), "utf8");
   const dataJson = fs.readFileSync(path.join(samplesPath, "zpp-data.json"), "utf8");
 
-  const schema = JSONParse(schemaJson);
-  const data = JSONParse(dataJson);
+  const schema = JSON.parse(schemaJson);
+  const data = JSON.parse(dataJson);
 
   // Sanity check — fixture must start with wop_flag = true
   if (data?.illustration?.product_benefit?.wop_flag !== true) {
@@ -255,7 +254,7 @@ async function runWopFlagDependentsTest(projectRoot: string): Promise<void> {
   }
 
   // Flip wop_flag to false
-  const updatedData = JSONParse(dataJson);
+  const updatedData = JSON.parse(dataJson);
   updatedData.illustration.product_benefit.wop_flag = false;
   console.log("  🔁 wop_flag set to false — calling evaluateDependents...");
 
@@ -286,12 +285,12 @@ async function runWopFlagDependentsTest(projectRoot: string): Promise<void> {
       });
 
       if (match) {
-        console.log(`  \x1b[32m✅ riders[${idx}].${field} → ${JSONStringify(match)}\x1b[0m`);
+        console.log(`  \x1b[32m✅ riders[${idx}].${field} → ${JSON.stringify(match)}\x1b[0m`);
         passed++;
       } else {
         const found = deps.find((d: any) => d["$ref"] === refPath);
         console.log(
-          `  \x1b[31m❌ riders[${idx}].${field} — not cleared. Found: ${found ? JSONStringify(found) : "not in deps"}\x1b[0m`
+          `  \x1b[31m❌ riders[${idx}].${field} — not cleared. Found: ${found ? JSON.stringify(found) : "not in deps"}\x1b[0m`
         );
         failed++;
       }
@@ -310,7 +309,7 @@ async function runWopFlagDependentsTest(projectRoot: string): Promise<void> {
     console.log(
       deps
         .filter((d: any) => (d["$ref"] ?? "").includes("riders"))
-        .map((d: any) => `  ${JSONStringify(d)}`)
+        .map((d: any) => `  ${JSON.stringify(d)}`)
         .join("\n")
     );
     throw new Error(`wop_flag dependents test failed: ${failed} assertion(s) failed`);

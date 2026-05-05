@@ -1,13 +1,16 @@
 {
-  "name": "@json-eval-rs/webcore",
+  "name": "@json-eval-rs/common",
   "version": "0.0.93",
-  "description": "JSON Eval RS core JavaScript wrapper (internal package - not published)",
+  "description": "Shared TypeScript types and utilities for JSON Eval RS bindings",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "npx tsc",
     "prepack": "npm run build"
@@ -16,18 +19,20 @@
     "json",
     "json-logic",
     "schema",
-    "validation",
-    "wasm"
+    "validation"
   ],
   "author": "Muhamad Rizki",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/byrizki/jsoneval-rs.git",
-    "directory": "bindings/web/packages/core"
+    "directory": "bindings/common"
   },
-  "dependencies": {
-    "@json-eval-rs/common": "*"
+  "devDependencies": {
+    "typescript": "^5.0.0"
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
 }

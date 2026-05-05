@@ -5,7 +5,8 @@
   "description": "JSON Eval RS Web Bindings - Monorepo",
   "workspaces": [
     "packages/*",
-    "examples/*"
+    "examples/*",
+    "../common"
   ],
   "scripts": {
     "nextjs": "yarn workspace nextjs dev",

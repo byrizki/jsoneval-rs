@@ -8,8 +8,6 @@
  * is unavailable (e.g., during debugging with remote debugger).
  */
 
-import { JSONStringify } from 'json-with-bigint';
-
 // Type definition for the JSI global installed by native code
 export interface JsonEvalJSIGlobal {
   // Lifecycle

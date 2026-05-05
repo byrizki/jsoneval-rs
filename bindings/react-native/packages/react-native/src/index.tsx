@@ -1,7 +1,52 @@
 import React from 'react';
 import { NativeModules, Platform } from 'react-native';
-import { JSONParse, JSONStringify } from 'json-with-bigint';
+import {
+  type JSONEvalOptions,
+  type EvaluateOptions,
+  type EvaluateDependentsOptions,
+  type EvaluateSubformOptions,
+  type ValidateSubformOptions,
+  type EvaluateDependentsSubformOptions,
+  type ResolveLayoutSubformOptions,
+  type GetEvaluatedSchemaSubformOptions,
+  type GetSchemaValueSubformOptions,
+  type GetEvaluatedSchemaByPathSubformOptions,
+  type GetEvaluatedSchemaByPathsSubformOptions,
+  type GetSchemaByPathSubformOptions,
+  type GetSchemaByPathsSubformOptions,
+  type ValidationResult,
+  type DependentChange,
+  type SchemaValueItem,
+  type ValidatePathsOptions,
+  ReturnFormat,
+  stringifyValue,
+  stringifyOrNull,
+  extractErrorMessage,
+  parseValue,
+} from '@json-eval-rs/common';
 import { getJSIGlobal, JsonEvalJSIGlobal } from './jsi-bridge';
+
+// Re-export shared types for downstream consumers
+export { ReturnFormat } from '@json-eval-rs/common';
+export type {
+  SchemaValueItem,
+  ValidationResult,
+  DependentChange,
+  ValidationError,
+  JSONEvalOptions,
+  EvaluateOptions,
+  EvaluateDependentsOptions,
+  EvaluateSubformOptions,
+  ValidateSubformOptions,
+  EvaluateDependentsSubformOptions,
+  ResolveLayoutSubformOptions,
+  GetEvaluatedSchemaSubformOptions,
+  GetSchemaValueSubformOptions,
+  GetEvaluatedSchemaByPathSubformOptions,
+  GetEvaluatedSchemaByPathsSubformOptions,
+  GetSchemaByPathSubformOptions,
+  GetSchemaByPathsSubformOptions,
+} from '@json-eval-rs/common';
 
 const LINKING_ERROR =
   `The package '@json-eval-rs/react-native' doesn't seem to be linked. Make sure: \n\n` +
@@ -21,8 +66,6 @@ const JsonEvalRs = NativeModules.JsonEvalRs
     );
 
 // JSI bootstrap: install sync host object at module load.
-// Uses blocking-synchronous bridge call once, then all
-// subsequent calls go through JSI (zero bridge overhead).
 let _jsi: JsonEvalJSIGlobal | null = null;
 try {
   if (typeof JsonEvalRs.installJSI === 'function') {
@@ -36,248 +79,6 @@ try {
   // JSI unavailable — fall back to bridge
 }
 const useJSI = _jsi !== null;
-
-/**
- * Item for get schema value array results
- */
-export interface SchemaValueItem {
-  /** Dotted path (e.g., "field1.field2") */
-  path: string;
-  /** Value at this path */
-  value: any;
-}
-
-/**
- * Return format for path-based methods
- */
-export enum ReturnFormat {
-  /** Nested object preserving the path hierarchy (default) */
-  Nested = 0,
-  /** Flat object with dotted keys */
-  Flat = 1,
-  /** Array of values in the order of requested paths */
-  Array = 2,
-}
-
-/**
- * Validation error for a specific field
- */
-export interface ValidationError {
-  /** Field path with the error */
-  path: string;
-  /** Type of validation rule that failed (e.g., 'required', 'min', 'max', 'pattern') */
-  type: string;
-  /** Error message */
-  message: string;
-  /** Optional error code */
-  code?: string;
-  /** Optional regex pattern (for pattern validation errors) */
-  pattern?: string;
-  /** Optional field value that failed validation (as string) */
-  fieldValue?: string;
-  /** Optional additional data context for the error */
-  data?: any;
-}
-
-/**
- * Result of validation operation
- */
-export interface ValidationResult {
-  /** Whether any validation errors occurred */
-  hasError: boolean;
-  /** Map of validation errors keyed by field path */
-  error: Record<string, ValidationError>;
-}
-
-/**
- * Dependent field change from evaluateDependents
- */
-export interface DependentChange {
-  /** Path of the dependent field (in dot notation) */
-  $ref: string;
-  /** Schema definition of the changed field */
-  $field?: any;
-  /** Schema definition of the parent field */
-  $parentField: any;
-  /** Whether this is a transitive dependency */
-  transitive: boolean;
-  /** If true, the field was cleared */
-  clear?: boolean;
-  /** New value of the field (if changed) */
-  value?: any;
-}
-
-/**
- * Options for creating a JSONEval instance
- */
-export interface JSONEvalOptions {
-  /** JSON schema string or object */
-  schema: string | object;
-  /** Optional context data (string or object) */
-  context?: string | object;
-  /** Optional initial data (string or object) */
-  data?: string | object;
-}
-
-/**
- * Options for evaluation
- */
-export interface EvaluateOptions {
-  /** JSON data string or object */
-  data: string | object;
-  /** Optional context data (string or object) */
-  context?: string | object;
-  /** Optional array of paths for selective evaluation */
-  paths?: string[];
-}
-
-/**
- * Options for validation with path filtering
- */
-export interface ValidatePathsOptions {
-  /** JSON data string or object */
-  data: string | object;
-  /** Optional context data (string or object) */
-  context?: string | object;
-  /** Optional array of paths to validate (if not provided, validates all) */
-  paths?: string[];
-}
-
-/**
- * Options for evaluating dependents
- */
-export interface EvaluateDependentsOptions {
-  /** Array of field paths that changed */
-  changedPaths: string[];
-  /** Updated JSON data (string or object) */
-  data?: string | object;
-  /** Optional context data (string or object) */
-  context?: string | object;
-  /** If true, performs full evaluation after processing dependents */
-  reEvaluate?: boolean;
-  /** If true, includes subforms in the evaluation */
-  includeSubforms?: boolean;
-}
-
-/**
- * Options for evaluating a subform
- */
-export interface EvaluateSubformOptions {
-  /** Path to the subform (e.g., "#/riders") */
-  subformPath: string;
-  /** JSON data string or object */
-  data: string | object;
-  /** Optional context data (string or object) */
-  context?: string | object;
-  /** Optional array of paths for selective evaluation */
-  paths?: string[];
-}
-
-/**
- * Options for validating a subform
- */
-export interface ValidateSubformOptions {
-  /** Path to the subform */
-  subformPath: string;
-  /** JSON data string or object */
-  data: string | object;
-  /** Optional context data (string or object) */
-  context?: string | object;
-}
-
-/**
- * Options for evaluating dependents in a subform
- */
-export interface EvaluateDependentsSubformOptions {
-  /** Path to the subform */
-  subformPath: string;
-  /** Array of field paths that changed */
-  changedPaths: string[];
-  /** Optional updated JSON data (string or object) */
-  data?: string | object;
-  /** Optional context data (string or object) */
-  context?: string | object;
-  /** If true, performs full evaluation after processing dependents */
-  reEvaluate?: boolean;
-  /** If true, includes subforms in the evaluation */
-  includeSubforms?: boolean;
-}
-
-/**
- * Options for resolving layout in a subform
- */
-export interface ResolveLayoutSubformOptions {
-  /** Path to the subform */
-  subformPath: string;
-  /** If true, runs evaluation before resolving layout */
-  evaluate?: boolean;
-}
-
-/**
- * Options for getting evaluated schema from a subform
- */
-export interface GetEvaluatedSchemaSubformOptions {
-  /** Path to the subform */
-  subformPath: string;
-  /** Whether to resolve layout */
-  resolveLayout?: boolean;
-}
-
-/**
- * Options for getting schema value from a subform
- */
-export interface GetSchemaValueSubformOptions {
-  /** Path to the subform */
-  subformPath: string;
-}
-
-/**
- * Options for getting evaluated schema by path from a subform
- */
-export interface GetEvaluatedSchemaByPathSubformOptions {
-  /** Path to the subform */
-  subformPath: string;
-  /** Dotted path to the value within the subform */
-  schemaPath: string;
-  /** Whether to skip layout resolution */
-  skipLayout?: boolean;
-}
-
-/**
- * Options for getting evaluated schema by multiple paths from a subform
- */
-export interface GetEvaluatedSchemaByPathsSubformOptions {
-  /** Path to the subform */
-  subformPath: string;
-  /** Array of dotted paths to the values within the subform */
-  schemaPaths: string[];
-  /** Whether to skip layout resolution */
-  skipLayout?: boolean;
-  /** Return format (Nested, Flat, or Array) */
-  format?: ReturnFormat;
-}
-
-/**
- * Options for getting schema by path from a subform
- */
-export interface GetSchemaByPathSubformOptions {
-  /** Path to the subform */
-  subformPath: string;
-  /** Dotted path to the value within the subform */
-  schemaPath: string;
-}
-
-/**
- * Options for getting schema by multiple paths from a subform
- */
-export interface GetSchemaByPathsSubformOptions {
-  /** Path to the subform */
-  subformPath: string;
-  /** Array of dotted paths to the values within the subform */
-  schemaPaths: string[];
-  /** Return format (Nested, Flat, or Array) */
-  format?: ReturnFormat;
-}
 
 /**
  * High-performance JSON Logic evaluator with schema validation for React Native
@@ -321,7 +122,7 @@ export interface GetSchemaByPathsSubformOptions {
  * console.log(result);
  *
  * const validation = await eval.validate({ data });
- * if (validation.hasError) {
+ * if (validation.has_error) {
  *   console.error('Validation errors:', validation.errors);
  * }
  *
@@ -345,16 +146,8 @@ export class JSONEval {
     context?: string | object | null,
     data?: string | object | null
   ): JSONEval {
-    const contextStr = context
-      ? typeof context === 'string'
-        ? context
-        : JSONStringify(context)
-      : null;
-    const dataStr = data
-      ? typeof data === 'string'
-        ? data
-        : JSONStringify(data)
-      : null;
+    const contextStr = stringifyOrNull(context);
+    const dataStr = stringifyOrNull(data);
 
     if (useJSI && _jsi?.createFromCache) {
       const handle = _jsi.createFromCache(cacheKey, contextStr, dataStr);
@@ -378,16 +171,8 @@ export class JSONEval {
     context?: string | object | null,
     data?: string | object | null
   ): JSONEval {
-    const contextStr = context
-      ? typeof context === 'string'
-        ? context
-        : JSONStringify(context)
-      : null;
-    const dataStr = data
-      ? typeof data === 'string'
-        ? data
-        : JSONStringify(data)
-      : null;
+    const contextStr = stringifyOrNull(context);
+    const dataStr = stringifyOrNull(data);
 
     try {
       // Convert Uint8Array to number array if needed
@@ -408,10 +193,10 @@ export class JSONEval {
       }
       return new JSONEval({ schema: {}, _handle: handle });
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
       throw new Error(
-        `Failed to create JSONEval instance from MessagePack: ${errorMessage}`
+        `Failed to create JSONEval instance from MessagePack: ${extractErrorMessage(
+          error
+        )}`
       );
     }
   }
@@ -428,22 +213,13 @@ export class JSONEval {
     data?: string | object | null,
     context?: string | object | null
   ): Promise<any> {
-    const logic =
-      typeof logicStr === 'string' ? logicStr : JSONStringify(logicStr);
-    const dataStr = data
-      ? typeof data === 'string'
-        ? data
-        : JSONStringify(data)
-      : null;
-    const contextStr = context
-      ? typeof context === 'string'
-        ? context
-        : JSONStringify(context)
-      : null;
+    const logic = stringifyValue(logicStr);
+    const dataStr = stringifyOrNull(data);
+    const contextStr = stringifyOrNull(context);
 
     if (useJSI && (_jsi as any).evaluateLogic) {
       const resultStr = (_jsi as any).evaluateLogic(logic, dataStr, contextStr);
-      return JSONParse(resultStr);
+      return parseValue(resultStr);
     }
 
     const resultStr = await JsonEvalRs.evaluateLogic(
@@ -451,7 +227,7 @@ export class JSONEval {
       dataStr,
       contextStr
     );
-    return JSONParse(resultStr);
+    return parseValue(resultStr);
   }
 
   /**
@@ -469,18 +245,9 @@ export class JSONEval {
     const { schema, context, data } = options;
 
     try {
-      const schemaStr =
-        typeof schema === 'string' ? schema : JSONStringify(schema);
-      const contextStr = context
-        ? typeof context === 'string'
-          ? context
-          : JSONStringify(context)
-        : null;
-      const dataStr = data
-        ? typeof data === 'string'
-          ? data
-          : JSONStringify(data)
-        : null;
+      const schemaStr = stringifyValue(schema);
+      const contextStr = stringifyOrNull(context);
+      const dataStr = stringifyOrNull(data);
 
       if (useJSI) {
         this.handle = _jsi!.create(schemaStr, contextStr, dataStr);
@@ -488,9 +255,9 @@ export class JSONEval {
         this.handle = JsonEvalRs.create(schemaStr, contextStr, dataStr);
       }
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to create JSONEval instance: ${errorMessage}`);
+      throw new Error(
+        `Failed to create JSONEval instance: ${extractErrorMessage(error)}`
+      );
     }
   }
 
@@ -498,15 +265,6 @@ export class JSONEval {
     if (this.disposed) {
       throw new Error('JSONEval instance has been disposed');
     }
-  }
-
-  /**
-   * Convert value to JSON string
-   * Performance note: If you have a pre-serialized JSON string, pass it directly
-   * instead of an object to avoid the JSONStringify overhead
-   */
-  private toJsonString(value: string | object): string {
-    return typeof value === 'string' ? value : JSONStringify(value);
   }
 
   /**
@@ -529,15 +287,15 @@ export class JSONEval {
   ): Promise<any> {
     const result = await this._callNative(methodName, ...args);
     if (!result) return null;
-    
+
     // If it's an ArrayBuffer (Zero-Copy JSI result), decode it first
     if (result instanceof ArrayBuffer) {
-        if (result.byteLength === 0) return null;
-        const jsonStr = _jsi!.decodeArrayBuffer(result);
-        return JSONParse(jsonStr);
+      if (result.byteLength === 0) return null;
+      const jsonStr = _jsi!.decodeArrayBuffer(result);
+      return parseValue(jsonStr);
     }
-    
-    return typeof result === 'string' ? JSONParse(result) : result;
+
+    return typeof result === 'string' ? parseValue(result) : result;
   }
 
   /**
@@ -551,18 +309,16 @@ export class JSONEval {
     if (!result) return null;
 
     if (result instanceof ArrayBuffer) {
-        if (result.byteLength === 0) return null;
-        const jsonStr = _jsi!.decodeArrayBuffer(result);
-        return jsonStr === 'null' || jsonStr === '' ? null : JSONParse(jsonStr);
+      if (result.byteLength === 0) return null;
+      const jsonStr = _jsi!.decodeArrayBuffer(result);
+      return jsonStr === 'null' || jsonStr === '' ? null : parseValue(jsonStr);
     }
 
-    return result ? JSONParse(result) : null;
+    return result ? parseValue(result) : null;
   }
 
   /**
    * Cancel any running evaluation
-   * The generic auto-cancellation on new evaluation will still work,
-   * but this allows manual cancellation.
    */
   async cancel(): Promise<void> {
     this.throwIfDisposed();
@@ -579,14 +335,14 @@ export class JSONEval {
     this.throwIfDisposed();
 
     try {
-      const dataStr = this.toJsonString(options.data);
+      const dataStr = stringifyValue(options.data);
       const contextStr = options.context
-        ? this.toJsonString(options.context)
+        ? stringifyValue(options.context)
         : null;
       const pathsJson = options.paths
         ? typeof options.paths === 'string'
           ? options.paths
-          : JSONStringify(options.paths)
+          : JSON.stringify(options.paths)
         : null;
 
       return await this._callNativeJson(
@@ -596,9 +352,7 @@ export class JSONEval {
         pathsJson
       );
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      throw new Error(`Evaluation failed: ${errorMessage}`);
+      throw new Error(`Evaluation failed: ${extractErrorMessage(error)}`);
     }
   }
 
@@ -612,21 +366,19 @@ export class JSONEval {
     this.throwIfDisposed();
 
     try {
-      const dataStr = this.toJsonString(options.data);
+      const dataStr = stringifyValue(options.data);
       const contextStr = options.context
-        ? this.toJsonString(options.context)
+        ? stringifyValue(options.context)
         : null;
       const pathsJson = options.paths
         ? typeof options.paths === 'string'
           ? options.paths
-          : JSONStringify(options.paths)
+          : JSON.stringify(options.paths)
         : null;
 
       await this._callNative('evaluateOnly', dataStr, contextStr, pathsJson);
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      throw new Error(`Evaluation failed: ${errorMessage}`);
+      throw new Error(`Evaluation failed: ${extractErrorMessage(error)}`);
     }
   }
 
@@ -640,16 +392,14 @@ export class JSONEval {
     this.throwIfDisposed();
 
     try {
-      const dataStr = this.toJsonString(options.data);
+      const dataStr = stringifyValue(options.data);
       const contextStr = options.context
-        ? this.toJsonString(options.context)
+        ? stringifyValue(options.context)
         : null;
 
       return await this._callNativeJson('validate', dataStr, contextStr);
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      throw new Error(`Validation failed: ${errorMessage}`);
+      throw new Error(`Validation failed: ${extractErrorMessage(error)}`);
     }
   }
 
@@ -675,9 +425,9 @@ export class JSONEval {
       const changedPathsJson =
         typeof changedPaths === 'string'
           ? changedPaths
-          : JSONStringify(changedPaths);
-      const dataStr = data ? this.toJsonString(data) : null;
-      const contextStr = context ? this.toJsonString(context) : null;
+          : JSON.stringify(changedPaths);
+      const dataStr = data ? stringifyValue(data) : null;
+      const contextStr = context ? stringifyValue(context) : null;
 
       return await this._callNativeJson(
         'evaluateDependents',
@@ -688,9 +438,9 @@ export class JSONEval {
         includeSubforms
       );
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      throw new Error(`Dependent evaluation failed: ${errorMessage}`);
+      throw new Error(
+        `Dependent evaluation failed: ${extractErrorMessage(error)}`
+      );
     }
   }
 
@@ -716,9 +466,9 @@ export class JSONEval {
       const changedPathsJson =
         typeof changedPaths === 'string'
           ? changedPaths
-          : JSONStringify(changedPaths);
-      const dataStr = data ? this.toJsonString(data) : null;
-      const contextStr = context ? this.toJsonString(context) : null;
+          : JSON.stringify(changedPaths);
+      const dataStr = data ? stringifyValue(data) : null;
+      const contextStr = context ? stringifyValue(context) : null;
 
       return await this._callNative(
         'evaluateDependents',
@@ -729,9 +479,9 @@ export class JSONEval {
         includeSubforms
       );
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      throw new Error(`Dependent evaluation failed: ${errorMessage}`);
+      throw new Error(
+        `Dependent evaluation failed: ${extractErrorMessage(error)}`
+      );
     }
   }
 
@@ -828,7 +578,7 @@ export class JSONEval {
     format: ReturnFormat = ReturnFormat.Nested
   ): Promise<any> {
     this.throwIfDisposed();
-    const pathsJson = typeof paths === 'string' ? paths : JSONStringify(paths);
+    const pathsJson = typeof paths === 'string' ? paths : JSON.stringify(paths);
     return await this._callNativeJson(
       'getEvaluatedSchemaByPaths',
       pathsJson,
@@ -861,7 +611,7 @@ export class JSONEval {
     format: ReturnFormat = ReturnFormat.Nested
   ): Promise<any> {
     this.throwIfDisposed();
-    const pathsJson = typeof paths === 'string' ? paths : JSONStringify(paths);
+    const pathsJson = typeof paths === 'string' ? paths : JSON.stringify(paths);
     return await this._callNativeJson('getSchemaByPaths', pathsJson, format);
   }
 
@@ -875,24 +625,13 @@ export class JSONEval {
 
     try {
       const { schema, context, data } = options;
-      const schemaStr =
-        typeof schema === 'string' ? schema : JSONStringify(schema);
-      const contextStr = context
-        ? typeof context === 'string'
-          ? context
-          : JSONStringify(context)
-        : null;
-      const dataStr = data
-        ? typeof data === 'string'
-          ? data
-          : JSONStringify(data)
-        : null;
+      const schemaStr = stringifyValue(schema);
+      const contextStr = stringifyOrNull(context);
+      const dataStr = stringifyOrNull(data);
 
       await this._callNative('reloadSchema', schemaStr, contextStr, dataStr);
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to reload schema: ${errorMessage}`);
+      throw new Error(`Failed to reload schema: ${extractErrorMessage(error)}`);
     }
   }
 
@@ -917,16 +656,8 @@ export class JSONEval {
           ? Array.from(schemaMsgpack)
           : schemaMsgpack;
 
-      const contextStr = context
-        ? typeof context === 'string'
-          ? context
-          : JSONStringify(context)
-        : null;
-      const dataStr = data
-        ? typeof data === 'string'
-          ? data
-          : JSONStringify(data)
-        : null;
+      const contextStr = stringifyOrNull(context);
+      const dataStr = stringifyOrNull(data);
 
       await this._callNative(
         'reloadSchemaMsgpack',
@@ -935,10 +666,10 @@ export class JSONEval {
         dataStr
       );
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
       throw new Error(
-        `Failed to reload schema from MessagePack: ${errorMessage}`
+        `Failed to reload schema from MessagePack: ${extractErrorMessage(
+          error
+        )}`
       );
     }
   }
@@ -958,16 +689,8 @@ export class JSONEval {
     this.throwIfDisposed();
 
     try {
-      const contextStr = context
-        ? typeof context === 'string'
-          ? context
-          : JSONStringify(context)
-        : null;
-      const dataStr = data
-        ? typeof data === 'string'
-          ? data
-          : JSONStringify(data)
-        : null;
+      const contextStr = stringifyOrNull(context);
+      const dataStr = stringifyOrNull(data);
 
       await this._callNative(
         'reloadSchemaFromCache',
@@ -976,9 +699,9 @@ export class JSONEval {
         dataStr
       );
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to reload schema from cache: ${errorMessage}`);
+      throw new Error(
+        `Failed to reload schema from cache: ${extractErrorMessage(error)}`
+      );
     }
   }
 
@@ -1032,9 +755,9 @@ export class JSONEval {
   ): Promise<any> {
     this.throwIfDisposed();
 
-    const logic = this.toJsonString(logicStr);
-    const dataStr = data ? this.toJsonString(data) : null;
-    const contextStr = context ? this.toJsonString(context) : null;
+    const logic = stringifyValue(logicStr);
+    const dataStr = data ? stringifyValue(data) : null;
+    const contextStr = context ? stringifyValue(context) : null;
 
     return await this._callNativeJson(
       'compileAndRunLogic',
@@ -1053,7 +776,7 @@ export class JSONEval {
   async compileLogic(logicStr: string | object): Promise<number> {
     this.throwIfDisposed();
 
-    const logic = this.toJsonString(logicStr);
+    const logic = stringifyValue(logicStr);
     return await this._callNative('compileLogic', logic);
   }
 
@@ -1072,8 +795,8 @@ export class JSONEval {
   ): Promise<any> {
     this.throwIfDisposed();
 
-    const dataStr = data ? this.toJsonString(data) : null;
-    const contextStr = context ? this.toJsonString(context) : null;
+    const dataStr = data ? stringifyValue(data) : null;
+    const contextStr = context ? stringifyValue(context) : null;
 
     return await this._callNativeJson('runLogic', logicId, dataStr, contextStr);
   }
@@ -1089,10 +812,8 @@ export class JSONEval {
   ): Promise<ValidationResult> {
     this.throwIfDisposed();
 
-    const dataStr = this.toJsonString(options.data);
-    const contextStr = options.context
-      ? this.toJsonString(options.context)
-      : null;
+    const dataStr = stringifyValue(options.data);
+    const contextStr = options.context ? stringifyValue(options.context) : null;
     const paths = options.paths || null;
 
     return await this._callNativeJson(
@@ -1104,9 +825,10 @@ export class JSONEval {
   }
 
   /**
-   * Validate data against schema rules with optional path filtering (alias for validatePaths in RN)
+   * Validate data against schema rules with optional path filtering
+   * (alias for validatePaths in RN)
    * @param options - Validation options with optional path filtering
-   * @returns Promise resolving to ValidationResult (same as validatePaths for RN)
+   * @returns Promise resolving to ValidationResult
    * @throws {Error} If validation operation fails
    */
   async validatePathsOnly(options: ValidatePathsOptions): Promise<any> {
@@ -1126,10 +848,8 @@ export class JSONEval {
   async evaluateSubform(options: EvaluateSubformOptions): Promise<void> {
     this.throwIfDisposed();
 
-    const dataStr = this.toJsonString(options.data);
-    const contextStr = options.context
-      ? this.toJsonString(options.context)
-      : null;
+    const dataStr = stringifyValue(options.data);
+    const contextStr = options.context ? stringifyValue(options.context) : null;
 
     return await this._callNative(
       'evaluateSubform',
@@ -1151,10 +871,8 @@ export class JSONEval {
   ): Promise<ValidationResult> {
     this.throwIfDisposed();
 
-    const dataStr = this.toJsonString(options.data);
-    const contextStr = options.context
-      ? this.toJsonString(options.context)
-      : null;
+    const dataStr = stringifyValue(options.data);
+    const contextStr = options.context ? stringifyValue(options.context) : null;
 
     return await this._callNativeJson(
       'validateSubform',
@@ -1175,10 +893,8 @@ export class JSONEval {
   ): Promise<DependentChange[]> {
     this.throwIfDisposed();
 
-    const dataStr = options.data ? this.toJsonString(options.data) : null;
-    const contextStr = options.context
-      ? this.toJsonString(options.context)
-      : null;
+    const dataStr = options.data ? stringifyValue(options.data) : null;
+    const contextStr = options.context ? stringifyValue(options.context) : null;
 
     // For now, pass the first path since native bridge expects single path (wraps internally)
     const changedPath = options.changedPaths[0] || '';
@@ -1205,10 +921,8 @@ export class JSONEval {
   ): Promise<string> {
     this.throwIfDisposed();
 
-    const dataStr = options.data ? this.toJsonString(options.data) : null;
-    const contextStr = options.context
-      ? this.toJsonString(options.context)
-      : null;
+    const dataStr = options.data ? stringifyValue(options.data) : null;
+    const contextStr = options.context ? stringifyValue(options.context) : null;
 
     const changedPath = options.changedPaths[0] || '';
 
@@ -1364,7 +1078,7 @@ export class JSONEval {
     const pathsJson =
       typeof options.schemaPaths === 'string'
         ? options.schemaPaths
-        : JSONStringify(options.schemaPaths);
+        : JSON.stringify(options.schemaPaths);
 
     return await this._callNativeJson(
       'getEvaluatedSchemaByPathsSubform',
@@ -1418,7 +1132,7 @@ export class JSONEval {
     const pathsJson =
       typeof options.schemaPaths === 'string'
         ? options.schemaPaths
-        : JSONStringify(options.schemaPaths);
+        : JSON.stringify(options.schemaPaths);
 
     return await this._callNativeJson(
       'getSchemaByPathsSubform',

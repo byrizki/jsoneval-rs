@@ -23,9 +23,8 @@ pub use core::{get_version, init, version};
 pub(crate) fn to_value(
     value: &impl serde::Serialize,
 ) -> Result<JsValue, serde_wasm_bindgen::Error> {
-    let serializer = serde_wasm_bindgen::Serializer::new()
+    let serializer = serde_wasm_bindgen::Serializer::json_compatible()
         .serialize_maps_as_objects(true)
-        .serialize_missing_as_null(true)
-        .serialize_large_number_types_as_bigints(true);
+        .serialize_missing_as_null(true);
     value.serialize(&serializer)
 }

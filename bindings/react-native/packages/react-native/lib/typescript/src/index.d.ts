@@ -1,226 +1,6 @@
-/**
- * Item for get schema value array results
- */
-export interface SchemaValueItem {
-    /** Dotted path (e.g., "field1.field2") */
-    path: string;
-    /** Value at this path */
-    value: any;
-}
-/**
- * Return format for path-based methods
- */
-export declare enum ReturnFormat {
-    /** Nested object preserving the path hierarchy (default) */
-    Nested = 0,
-    /** Flat object with dotted keys */
-    Flat = 1,
-    /** Array of values in the order of requested paths */
-    Array = 2
-}
-/**
- * Validation error for a specific field
- */
-export interface ValidationError {
-    /** Field path with the error */
-    path: string;
-    /** Type of validation rule that failed (e.g., 'required', 'min', 'max', 'pattern') */
-    type: string;
-    /** Error message */
-    message: string;
-    /** Optional error code */
-    code?: string;
-    /** Optional regex pattern (for pattern validation errors) */
-    pattern?: string;
-    /** Optional field value that failed validation (as string) */
-    fieldValue?: string;
-    /** Optional additional data context for the error */
-    data?: any;
-}
-/**
- * Result of validation operation
- */
-export interface ValidationResult {
-    /** Whether any validation errors occurred */
-    hasError: boolean;
-    /** Map of validation errors keyed by field path */
-    error: Record<string, ValidationError>;
-}
-/**
- * Dependent field change from evaluateDependents
- */
-export interface DependentChange {
-    /** Path of the dependent field (in dot notation) */
-    $ref: string;
-    /** Schema definition of the changed field */
-    $field?: any;
-    /** Schema definition of the parent field */
-    $parentField: any;
-    /** Whether this is a transitive dependency */
-    transitive: boolean;
-    /** If true, the field was cleared */
-    clear?: boolean;
-    /** New value of the field (if changed) */
-    value?: any;
-}
-/**
- * Options for creating a JSONEval instance
- */
-export interface JSONEvalOptions {
-    /** JSON schema string or object */
-    schema: string | object;
-    /** Optional context data (string or object) */
-    context?: string | object;
-    /** Optional initial data (string or object) */
-    data?: string | object;
-}
-/**
- * Options for evaluation
- */
-export interface EvaluateOptions {
-    /** JSON data string or object */
-    data: string | object;
-    /** Optional context data (string or object) */
-    context?: string | object;
-    /** Optional array of paths for selective evaluation */
-    paths?: string[];
-}
-/**
- * Options for validation with path filtering
- */
-export interface ValidatePathsOptions {
-    /** JSON data string or object */
-    data: string | object;
-    /** Optional context data (string or object) */
-    context?: string | object;
-    /** Optional array of paths to validate (if not provided, validates all) */
-    paths?: string[];
-}
-/**
- * Options for evaluating dependents
- */
-export interface EvaluateDependentsOptions {
-    /** Array of field paths that changed */
-    changedPaths: string[];
-    /** Updated JSON data (string or object) */
-    data?: string | object;
-    /** Optional context data (string or object) */
-    context?: string | object;
-    /** If true, performs full evaluation after processing dependents */
-    reEvaluate?: boolean;
-    /** If true, includes subforms in the evaluation */
-    includeSubforms?: boolean;
-}
-/**
- * Options for evaluating a subform
- */
-export interface EvaluateSubformOptions {
-    /** Path to the subform (e.g., "#/riders") */
-    subformPath: string;
-    /** JSON data string or object */
-    data: string | object;
-    /** Optional context data (string or object) */
-    context?: string | object;
-    /** Optional array of paths for selective evaluation */
-    paths?: string[];
-}
-/**
- * Options for validating a subform
- */
-export interface ValidateSubformOptions {
-    /** Path to the subform */
-    subformPath: string;
-    /** JSON data string or object */
-    data: string | object;
-    /** Optional context data (string or object) */
-    context?: string | object;
-}
-/**
- * Options for evaluating dependents in a subform
- */
-export interface EvaluateDependentsSubformOptions {
-    /** Path to the subform */
-    subformPath: string;
-    /** Array of field paths that changed */
-    changedPaths: string[];
-    /** Optional updated JSON data (string or object) */
-    data?: string | object;
-    /** Optional context data (string or object) */
-    context?: string | object;
-    /** If true, performs full evaluation after processing dependents */
-    reEvaluate?: boolean;
-    /** If true, includes subforms in the evaluation */
-    includeSubforms?: boolean;
-}
-/**
- * Options for resolving layout in a subform
- */
-export interface ResolveLayoutSubformOptions {
-    /** Path to the subform */
-    subformPath: string;
-    /** If true, runs evaluation before resolving layout */
-    evaluate?: boolean;
-}
-/**
- * Options for getting evaluated schema from a subform
- */
-export interface GetEvaluatedSchemaSubformOptions {
-    /** Path to the subform */
-    subformPath: string;
-    /** Whether to resolve layout */
-    resolveLayout?: boolean;
-}
-/**
- * Options for getting schema value from a subform
- */
-export interface GetSchemaValueSubformOptions {
-    /** Path to the subform */
-    subformPath: string;
-}
-/**
- * Options for getting evaluated schema by path from a subform
- */
-export interface GetEvaluatedSchemaByPathSubformOptions {
-    /** Path to the subform */
-    subformPath: string;
-    /** Dotted path to the value within the subform */
-    schemaPath: string;
-    /** Whether to skip layout resolution */
-    skipLayout?: boolean;
-}
-/**
- * Options for getting evaluated schema by multiple paths from a subform
- */
-export interface GetEvaluatedSchemaByPathsSubformOptions {
-    /** Path to the subform */
-    subformPath: string;
-    /** Array of dotted paths to the values within the subform */
-    schemaPaths: string[];
-    /** Whether to skip layout resolution */
-    skipLayout?: boolean;
-    /** Return format (Nested, Flat, or Array) */
-    format?: ReturnFormat;
-}
-/**
- * Options for getting schema by path from a subform
- */
-export interface GetSchemaByPathSubformOptions {
-    /** Path to the subform */
-    subformPath: string;
-    /** Dotted path to the value within the subform */
-    schemaPath: string;
-}
-/**
- * Options for getting schema by multiple paths from a subform
- */
-export interface GetSchemaByPathsSubformOptions {
-    /** Path to the subform */
-    subformPath: string;
-    /** Array of dotted paths to the values within the subform */
-    schemaPaths: string[];
-    /** Return format (Nested, Flat, or Array) */
-    format?: ReturnFormat;
-}
+import { type JSONEvalOptions, type EvaluateOptions, type EvaluateDependentsOptions, type EvaluateSubformOptions, type ValidateSubformOptions, type EvaluateDependentsSubformOptions, type ResolveLayoutSubformOptions, type GetEvaluatedSchemaSubformOptions, type GetSchemaValueSubformOptions, type GetEvaluatedSchemaByPathSubformOptions, type GetEvaluatedSchemaByPathsSubformOptions, type GetSchemaByPathSubformOptions, type GetSchemaByPathsSubformOptions, type ValidationResult, type DependentChange, type SchemaValueItem, type ValidatePathsOptions, ReturnFormat } from '@json-eval-rs/common';
+export { ReturnFormat } from '@json-eval-rs/common';
+export type { SchemaValueItem, ValidationResult, DependentChange, ValidationError, JSONEvalOptions, EvaluateOptions, EvaluateDependentsOptions, EvaluateSubformOptions, ValidateSubformOptions, EvaluateDependentsSubformOptions, ResolveLayoutSubformOptions, GetEvaluatedSchemaSubformOptions, GetSchemaValueSubformOptions, GetEvaluatedSchemaByPathSubformOptions, GetEvaluatedSchemaByPathsSubformOptions, GetSchemaByPathSubformOptions, GetSchemaByPathsSubformOptions, } from '@json-eval-rs/common';
 /**
  * High-performance JSON Logic evaluator with schema validation for React Native
  *
@@ -263,7 +43,7 @@ export interface GetSchemaByPathsSubformOptions {
  * console.log(result);
  *
  * const validation = await eval.validate({ data });
- * if (validation.hasError) {
+ * if (validation.has_error) {
  *   console.error('Validation errors:', validation.errors);
  * }
  *
@@ -309,12 +89,6 @@ export declare class JSONEval {
     });
     private throwIfDisposed;
     /**
-     * Convert value to JSON string
-     * Performance note: If you have a pre-serialized JSON string, pass it directly
-     * instead of an object to avoid the JSONStringify overhead
-     */
-    private toJsonString;
-    /**
      * Internal helper to call native methods with JSI fallback.
      * Handles synchronous JSI calls and asynchronous bridge calls.
      */
@@ -329,8 +103,6 @@ export declare class JSONEval {
     private _callNativeJsonOrNull;
     /**
      * Cancel any running evaluation
-     * The generic auto-cancellation on new evaluation will still work,
-     * but this allows manual cancellation.
      */
     cancel(): Promise<void>;
     /**
@@ -518,9 +290,10 @@ export declare class JSONEval {
      */
     validatePaths(options: ValidatePathsOptions): Promise<ValidationResult>;
     /**
-     * Validate data against schema rules with optional path filtering (alias for validatePaths in RN)
+     * Validate data against schema rules with optional path filtering
+     * (alias for validatePaths in RN)
      * @param options - Validation options with optional path filtering
-     * @returns Promise resolving to ValidationResult (same as validatePaths for RN)
+     * @returns Promise resolving to ValidationResult
      * @throws {Error} If validation operation fails
      */
     validatePathsOnly(options: ValidatePathsOptions): Promise<any>;
