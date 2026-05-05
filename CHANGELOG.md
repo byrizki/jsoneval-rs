@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.0.91] - 2026-05-05
+
+- [RN] improve JSI performance
+
 ## [0.0.90] - 2026-05-04
 
 ### Added
