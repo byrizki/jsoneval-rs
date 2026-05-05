@@ -170,7 +170,9 @@ pub unsafe extern "C" fn json_eval_new_with_error(
 ) -> *mut JSONEvalHandle {
     if schema.is_null() {
         if !error_out.is_null() {
-            *error_out = CString::new("Schema pointer is null").unwrap().into_raw();
+            *error_out = CString::new("Schema pointer is null")
+                .unwrap_or_else(|_| CString::new("Null byte error").unwrap())
+                .into_raw();
         }
         return ptr::null_mut();
     }
@@ -180,7 +182,9 @@ pub unsafe extern "C" fn json_eval_new_with_error(
         Err(e) => {
             if !error_out.is_null() {
                 let msg = format!("Invalid UTF-8 in schema: {}", e);
-                *error_out = CString::new(msg).unwrap().into_raw();
+                *error_out = CString::new(msg)
+                    .unwrap_or_else(|_| CString::new("Invalid UTF-8 in schema").unwrap())
+                    .into_raw();
             }
             return ptr::null_mut();
         }
@@ -192,7 +196,9 @@ pub unsafe extern "C" fn json_eval_new_with_error(
             Err(e) => {
                 if !error_out.is_null() {
                     let msg = format!("Invalid UTF-8 in context: {}", e);
-                    *error_out = CString::new(msg).unwrap().into_raw();
+                    *error_out = CString::new(msg)
+                        .unwrap_or_else(|_| CString::new("Invalid UTF-8 in context").unwrap())
+                        .into_raw();
                 }
                 return ptr::null_mut();
             }
@@ -207,7 +213,9 @@ pub unsafe extern "C" fn json_eval_new_with_error(
             Err(e) => {
                 if !error_out.is_null() {
                     let msg = format!("Invalid UTF-8 in data: {}", e);
-                    *error_out = CString::new(msg).unwrap().into_raw();
+                    *error_out = CString::new(msg)
+                        .unwrap_or_else(|_| CString::new("Invalid UTF-8 in data").unwrap())
+                        .into_raw();
                 }
                 return ptr::null_mut();
             }
@@ -227,7 +235,9 @@ pub unsafe extern "C" fn json_eval_new_with_error(
         Err(e) => {
             if !error_out.is_null() {
                 let msg = format!("Failed to create JSONEval instance: {}", e);
-                *error_out = CString::new(msg).unwrap().into_raw();
+                *error_out = CString::new(msg)
+                    .unwrap_or_else(|_| CString::new("Failed to create JSONEval instance").unwrap())
+                    .into_raw();
             }
             ptr::null_mut()
         }
@@ -479,7 +489,7 @@ pub unsafe extern "C" fn json_eval_new_from_cache_with_error(
     if cache_key.is_null() {
         if !error_out.is_null() {
             *error_out = CString::new("cache_key pointer is null")
-                .unwrap()
+                .unwrap_or_else(|_| CString::new("Null byte error").unwrap())
                 .into_raw();
         }
         return ptr::null_mut();
@@ -490,7 +500,9 @@ pub unsafe extern "C" fn json_eval_new_from_cache_with_error(
         Err(e) => {
             if !error_out.is_null() {
                 let error_msg = format!("Invalid UTF-8 in cache_key: {}", e);
-                *error_out = CString::new(error_msg).unwrap().into_raw();
+                *error_out = CString::new(error_msg)
+                    .unwrap_or_else(|_| CString::new("Invalid UTF-8 in cache_key").unwrap())
+                    .into_raw();
             }
             return ptr::null_mut();
         }
@@ -502,7 +514,9 @@ pub unsafe extern "C" fn json_eval_new_from_cache_with_error(
             Err(e) => {
                 if !error_out.is_null() {
                     let error_msg = format!("Invalid UTF-8 in context: {}", e);
-                    *error_out = CString::new(error_msg).unwrap().into_raw();
+                    *error_out = CString::new(error_msg)
+                        .unwrap_or_else(|_| CString::new("Invalid UTF-8 in context").unwrap())
+                        .into_raw();
                 }
                 return ptr::null_mut();
             }
@@ -517,7 +531,9 @@ pub unsafe extern "C" fn json_eval_new_from_cache_with_error(
             Err(e) => {
                 if !error_out.is_null() {
                     let error_msg = format!("Invalid UTF-8 in data: {}", e);
-                    *error_out = CString::new(error_msg).unwrap().into_raw();
+                    *error_out = CString::new(error_msg)
+                        .unwrap_or_else(|_| CString::new("Invalid UTF-8 in data").unwrap())
+                        .into_raw();
                 }
                 return ptr::null_mut();
             }
@@ -532,7 +548,9 @@ pub unsafe extern "C" fn json_eval_new_from_cache_with_error(
         None => {
             if !error_out.is_null() {
                 let error_msg = format!("Schema '{}' not found in cache", key_str);
-                *error_out = CString::new(error_msg).unwrap().into_raw();
+                *error_out = CString::new(error_msg)
+                    .unwrap_or_else(|_| CString::new("Schema not found in cache").unwrap())
+                    .into_raw();
             }
             return ptr::null_mut();
         }
@@ -553,7 +571,9 @@ pub unsafe extern "C" fn json_eval_new_from_cache_with_error(
         Err(e) => {
             if !error_out.is_null() {
                 let error_msg = format!("Failed to create JSONEval from cache: {}", e);
-                *error_out = CString::new(error_msg).unwrap().into_raw();
+                *error_out = CString::new(error_msg)
+                    .unwrap_or_else(|_| CString::new("Failed to create JSONEval from cache").unwrap())
+                    .into_raw();
             }
             ptr::null_mut()
         }
@@ -664,5 +684,41 @@ pub unsafe extern "C" fn json_eval_cancel(handle: *mut JSONEvalHandle) {
     }
     if let Some(token) = &(*handle).current_token {
         token.cancel();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::CString;
+
+    #[test]
+    fn test_safe_cstring_handling() {
+        let mut error_out: *mut c_char = ptr::null_mut();
+
+        // This helper simulates the pattern used in the FFI functions
+        unsafe fn set_error(error_out: *mut *mut c_char, msg: String) {
+            if !error_out.is_null() {
+                *error_out = CString::new(msg)
+                    .unwrap_or_else(|_| CString::new("Fallback error message").unwrap())
+                    .into_raw();
+            }
+        }
+
+        // Test with safe string
+        unsafe {
+            set_error(&mut error_out, "Normal error".to_string());
+            assert!(!error_out.is_null());
+            let s = CString::from_raw(error_out);
+            assert_eq!(s.to_str().unwrap(), "Normal error");
+        }
+
+        // Test with string containing null byte (the vulnerability)
+        unsafe {
+            set_error(&mut error_out, "Error with\0 null byte".to_string());
+            assert!(!error_out.is_null());
+            let s = CString::from_raw(error_out);
+            assert_eq!(s.to_str().unwrap(), "Fallback error message");
+        }
     }
 }
