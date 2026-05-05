@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.0.92] - 2026-05-06
+
+- [RN] enable JSI on react native binding 
+
 ## [0.0.91] - 2026-05-05
 
 - [RN] improve JSI performance
