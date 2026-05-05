@@ -1036,7 +1036,7 @@ jobs:
 
           # Move web packages to root level for upload
           if [ -d "web-packages" ]; then
-            mv web-packages/**/*.tgz . 2>/dev/null || echo "No web packages to move"
+            find web-packages -name "*.tgz" -type f -exec mv {} . \;
           fi
 
           # Move NuGet package to root level for upload
