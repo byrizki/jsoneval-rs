@@ -10,10 +10,10 @@
 
 | File | Lines | Large |
 | ---- | ----- | ----- |
-| `src/parse_schema/common.rs` | 839 | 📊 |
-| `src/parse_schema/legacy.rs` | 191 |  |
+| `src/parse_schema/common.rs` | 841 | 📊 |
+| `src/parse_schema/legacy.rs` | 197 |  |
 | `src/parse_schema/mod.rs` | 8 |  |
-| `src/parse_schema/parsed.rs` | 193 |  |
+| `src/parse_schema/parsed.rs` | 199 |  |
 
 ## Documentation
 

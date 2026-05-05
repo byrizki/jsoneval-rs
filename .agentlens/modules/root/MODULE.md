@@ -9,8 +9,8 @@
 | File | Lines | Large |
 | ---- | ----- | ----- |
 | `bindings/csharp-example/Program.cs` | 618 | 📊 |
-| `bindings/react-native/packages/react-native/android/src/main/cpp/json-eval-rn.cpp` | 909 | 📊 |
-| `bindings/react-native/packages/react-native/cpp/json-eval-bridge.cpp` | 1466 | 📊 |
+| `bindings/react-native/packages/react-native/android/src/main/cpp/json-eval-rn.cpp` | 914 | 📊 |
+| `bindings/react-native/packages/react-native/cpp/json-eval-bridge.cpp` | 1253 | 📊 |
 | `bindings/react-native/packages/react-native/cpp/json-eval-bridge.h` | 648 | 📊 |
 | `bindings/react-native/packages/react-native/ios/JsonEvalRs.h` | 5 |  |
 | `bindings/react-native/packages/react-native/lib/typescript/index.d.ts` | 666 | 📊 |
@@ -57,7 +57,7 @@
 | `tests/math_tests.rs` | 343 |  |
 | `tests/operator_tests.rs` | 319 |  |
 | `tests/parsed_schema_tests.rs` | 146 |  |
-| `tests/path_utils_tests.rs` | 194 |  |
+| `tests/path_utils_tests.rs` | 216 |  |
 | `tests/repro_issue_82.rs` | 57 |  |
 | `tests/selective_eval.rs` | 153 |  |
 | `tests/selective_eval_advanced.rs` | 249 |  |

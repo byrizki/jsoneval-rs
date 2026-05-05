@@ -113,7 +113,7 @@ Symbol maps for 8 large files in this module.
 | 552 | fn | flatten_object | pub |
 | 574 | fn | convert_to_format | pub |
 
-## src/jsoneval/subform_methods.rs (860 lines)
+## src/jsoneval/subform_methods.rs (894 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -121,22 +121,22 @@ Symbol maps for 8 large files in this module.
 | 84 | fn | normalize_to_subform_key | (private) |
 | 104 | fn | resolve_subform_path_alias | pub |
 | 136 | fn | with_item_cache_swap | (private) |
-| 528 | fn | evaluate_subform | pub |
-| 549 | fn | evaluate_subform_item | (private) |
-| 577 | fn | validate_subform | pub |
-| 621 | fn | evaluate_dependents_subform | pub |
-| 684 | fn | resolve_layout_subform | pub |
-| 699 | fn | get_evaluated_schema_subform | pub |
-| 737 | fn | get_schema_value_subform | pub |
-| 747 | fn | get_schema_value_array_subform | pub |
-| 757 | fn | get_schema_value_object_subform | pub |
-| 767 | fn | get_evaluated_schema_without_params_subform | pub |
-| 781 | fn | get_evaluated_schema_by_path_subform | pub |
-| 798 | fn | get_evaluated_schema_by_paths_subform | pub |
-| 821 | fn | get_schema_by_path_subform | pub |
-| 833 | fn | get_schema_by_paths_subform | pub |
-| 851 | fn | get_subform_paths | pub |
-| 856 | fn | has_subform | pub |
+| 562 | fn | evaluate_subform | pub |
+| 583 | fn | evaluate_subform_item | (private) |
+| 611 | fn | validate_subform | pub |
+| 655 | fn | evaluate_dependents_subform | pub |
+| 718 | fn | resolve_layout_subform | pub |
+| 733 | fn | get_evaluated_schema_subform | pub |
+| 771 | fn | get_schema_value_subform | pub |
+| 781 | fn | get_schema_value_array_subform | pub |
+| 791 | fn | get_schema_value_object_subform | pub |
+| 801 | fn | get_evaluated_schema_without_params_subform | pub |
+| 815 | fn | get_evaluated_schema_by_path_subform | pub |
+| 832 | fn | get_evaluated_schema_by_paths_subform | pub |
+| 855 | fn | get_schema_by_path_subform | pub |
+| 867 | fn | get_schema_by_paths_subform | pub |
+| 885 | fn | get_subform_paths | pub |
+| 890 | fn | has_subform | pub |
 
 ## src/jsoneval/table_evaluate.rs (568 lines)
 

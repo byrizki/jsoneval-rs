@@ -33,7 +33,7 @@ Symbol maps for 12 large files in this module.
 | 538 | method | ParseDuration | (private) |
 | 557 | method | FindDifferences | (private) |
 
-## bindings/react-native/packages/react-native/android/src/main/cpp/json-eval-rn.cpp (909 lines)
+## bindings/react-native/packages/react-native/android/src/main/cpp/json-eval-rn.cpp (914 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -41,65 +41,66 @@ Symbol maps for 12 large files in this module.
 | 56 | fn | resolvePromise | pub |
 | 62 | fn | rejectPromise | pub |
 | 76 | fn | runAsyncWithPromise | pub |
-| 117 | method | stringToJstring | (internal) |
-| 165 | method | stringToJstring | (internal) |
-| 187 | method | stringToJstring | (internal) |
-| 620 | method | stringToJstring | (internal) |
+| 122 | method | stringToJstring | (internal) |
+| 170 | method | stringToJstring | (internal) |
+| 192 | method | stringToJstring | (internal) |
+| 625 | method | stringToJstring | (internal) |
 
-## bindings/react-native/packages/react-native/cpp/json-eval-bridge.cpp (1466 lines)
+## bindings/react-native/packages/react-native/cpp/json-eval-bridge.cpp (1253 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
-| 19 | method | json_eval_new | (internal) |
-| 21 | method | json_eval_new_from_msgpack | (internal) |
-| 22 | method | json_eval_evaluate | (internal) |
-| 23 | method | json_eval_get_evaluated_schema_msgpack | (internal) |
-| 24 | method | json_eval_validate | (internal) |
-| 25 | method | json_eval_evaluate_dependents | (internal) |
-| 26 | method | json_eval_get_evaluated_schema | (internal) |
-| 27 | method | json_eval_get_schema_value | (internal) |
-| 28 | method | json_eval_get_schema_value_array | (internal) |
-| 29 | method | json_eval_get_schema_value_object | (internal) |
-| 30 | method | json_eval_get_evaluated_schema_without_params | (internal) |
-| 31 | method | json_eval_get_evaluated_schema_by_path | (internal) |
-| 32 | method | json_eval_get_evaluated_schema_by_paths | (internal) |
-| 33 | method | json_eval_get_schema_by_path | (internal) |
-| 34 | method | json_eval_get_schema_by_paths | (internal) |
-| 35 | method | json_eval_resolve_layout | (internal) |
-| 36 | method | json_eval_compile_and_run_logic | (internal) |
-| 37 | method | json_eval_compile_logic | (internal) |
-| 38 | method | json_eval_run_logic | (internal) |
-| 39 | method | json_eval_reload_schema | (internal) |
-| 40 | method | json_eval_reload_schema_msgpack | (internal) |
-| 41 | method | json_eval_reload_schema_from_cache | (internal) |
-| 42 | method | json_eval_new_from_cache | (internal) |
-| 43 | method | json_eval_validate_paths | (internal) |
-| 44 | method | json_eval_evaluate_logic_pure | (internal) |
-| 47 | method | json_eval_evaluate_subform | (internal) |
-| 48 | method | json_eval_validate_subform | (internal) |
-| 49 | method | json_eval_evaluate_dependents_subform | (internal) |
-| 50 | method | json_eval_resolve_layout_subform | (internal) |
-| 51 | method | json_eval_get_evaluated_schema_subform | (internal) |
-| 52 | method | json_eval_get_schema_value_subform | (internal) |
-| 53 | method | json_eval_get_schema_value_array_subform | (internal) |
-| 54 | method | json_eval_get_schema_value_object_subform | (internal) |
-| 55 | method | json_eval_get_evaluated_schema_without_params_subform | (internal) |
-| 56 | method | json_eval_get_evaluated_schema_by_path_subform | (internal) |
-| 57 | method | json_eval_get_evaluated_schema_by_paths_subform | (internal) |
-| 58 | method | json_eval_get_schema_by_path_subform | (internal) |
-| 59 | method | json_eval_get_schema_by_paths_subform | (internal) |
-| 60 | method | json_eval_get_subform_paths | (internal) |
-| 61 | method | json_eval_has_subform | (internal) |
-| 62 | method | json_eval_set_timezone_offset | (internal) |
-| 64 | method | json_eval_free | (internal) |
-| 66 | method | json_eval_cancel | (internal) |
-| 67 | method | json_eval_free_result | (internal) |
-| 69 | method | json_eval_free_string | (internal) |
-| 72 | mod | jsoneval | pub |
-| 242 | method | JsonEvalBridge::compileLogic | pub |
-| 1411 | method | JsonEvalBridge::dispose | pub |
-| 1437 | method | JsonEvalBridge::setTimezoneOffset | pub |
-| 1452 | method | JsonEvalBridge::cancel | pub |
+| 12 | class | SimpleThreadPool | pub |
+| 77 | method | json_eval_new | (internal) |
+| 79 | method | json_eval_new_from_msgpack | (internal) |
+| 80 | method | json_eval_evaluate | (internal) |
+| 81 | method | json_eval_get_evaluated_schema_msgpack | (internal) |
+| 82 | method | json_eval_validate | (internal) |
+| 83 | method | json_eval_evaluate_dependents | (internal) |
+| 84 | method | json_eval_get_evaluated_schema | (internal) |
+| 85 | method | json_eval_get_schema_value | (internal) |
+| 86 | method | json_eval_get_schema_value_array | (internal) |
+| 87 | method | json_eval_get_schema_value_object | (internal) |
+| 88 | method | json_eval_get_evaluated_schema_without_params | (internal) |
+| 89 | method | json_eval_get_evaluated_schema_by_path | (internal) |
+| 90 | method | json_eval_get_evaluated_schema_by_paths | (internal) |
+| 91 | method | json_eval_get_schema_by_path | (internal) |
+| 92 | method | json_eval_get_schema_by_paths | (internal) |
+| 93 | method | json_eval_resolve_layout | (internal) |
+| 94 | method | json_eval_compile_and_run_logic | (internal) |
+| 95 | method | json_eval_compile_logic | (internal) |
+| 96 | method | json_eval_run_logic | (internal) |
+| 97 | method | json_eval_reload_schema | (internal) |
+| 98 | method | json_eval_reload_schema_msgpack | (internal) |
+| 99 | method | json_eval_reload_schema_from_cache | (internal) |
+| 100 | method | json_eval_new_from_cache | (internal) |
+| 101 | method | json_eval_validate_paths | (internal) |
+| 102 | method | json_eval_evaluate_logic_pure | (internal) |
+| 105 | method | json_eval_evaluate_subform | (internal) |
+| 106 | method | json_eval_validate_subform | (internal) |
+| 107 | method | json_eval_evaluate_dependents_subform | (internal) |
+| 108 | method | json_eval_resolve_layout_subform | (internal) |
+| 109 | method | json_eval_get_evaluated_schema_subform | (internal) |
+| 110 | method | json_eval_get_schema_value_subform | (internal) |
+| 111 | method | json_eval_get_schema_value_array_subform | (internal) |
+| 112 | method | json_eval_get_schema_value_object_subform | (internal) |
+| 113 | method | json_eval_get_evaluated_schema_without_params_subform | (internal) |
+| 114 | method | json_eval_get_evaluated_schema_by_path_subform | (internal) |
+| 115 | method | json_eval_get_evaluated_schema_by_paths_subform | (internal) |
+| 116 | method | json_eval_get_schema_by_path_subform | (internal) |
+| 117 | method | json_eval_get_schema_by_paths_subform | (internal) |
+| 118 | method | json_eval_get_subform_paths | (internal) |
+| 119 | method | json_eval_has_subform | (internal) |
+| 120 | method | json_eval_set_timezone_offset | (internal) |
+| 122 | method | json_eval_free | (internal) |
+| 124 | method | json_eval_cancel | (internal) |
+| 125 | method | json_eval_free_result | (internal) |
+| 127 | method | json_eval_free_string | (internal) |
+| 130 | mod | jsoneval | pub |
+| 328 | method | JsonEvalBridge::compileLogic | pub |
+| 1202 | method | JsonEvalBridge::dispose | pub |
+| 1231 | method | JsonEvalBridge::setTimezoneOffset | pub |
+| 1239 | method | JsonEvalBridge::cancel | pub |
 
 ## bindings/react-native/packages/react-native/cpp/json-eval-bridge.h (648 lines)
 

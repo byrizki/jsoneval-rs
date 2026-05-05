@@ -5,7 +5,7 @@
 ## Summary
 
 | High 🔴 | Medium 🟡 | Low 🟢 |
-| 0 | 0 | 14 |
+| 0 | 0 | 15 |
 
 ## 🟢 Low Priority
 
@@ -20,6 +20,10 @@
 ### `NOTE` (bindings/react-native/packages/react-native/android/src/main/cpp/json-eval-rn.cpp:74)
 
 > Template functions must have C++ linkage, not C linkage
+
+### `NOTE` (bindings/react-native/packages/react-native/cpp/json-eval-bridge.cpp:135)
+
+> std::mutex is non-movable in NDK libc++, so we keep two parallel maps
 
 ### `NOTE` (tests/array_tests.rs:359)
 

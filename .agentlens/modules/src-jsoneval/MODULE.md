@@ -23,9 +23,9 @@
 | `src/jsoneval/mod.rs` | 72 |  |
 | `src/jsoneval/parsed_schema.rs` | 193 |  |
 | `src/jsoneval/parsed_schema_cache.rs` | 243 |  |
-| `src/jsoneval/path_utils.rs` | 408 |  |
+| `src/jsoneval/path_utils.rs` | 433 |  |
 | `src/jsoneval/static_arrays.rs` | 39 |  |
-| `src/jsoneval/subform_methods.rs` | 860 | 📊 |
+| `src/jsoneval/subform_methods.rs` | 894 | 📊 |
 | `src/jsoneval/table_evaluate.rs` | 568 | 📊 |
 | `src/jsoneval/table_metadata.rs` | 83 |  |
 | `src/jsoneval/types.rs` | 50 |  |
