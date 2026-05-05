@@ -2,6 +2,7 @@
 #include <string>
 #include <functional>
 #include "json-eval-bridge.h"
+#include "jsi-bridge.h"
 
 using namespace jsoneval;
 
@@ -909,6 +910,29 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeHasSubformAsync(
     runAsyncWithPromise(env, promise, "HAS_SUBFORM_ERROR", [handleStr, subformPathStr](auto callback) {
         JsonEvalBridge::hasSubformAsync(handleStr, subformPathStr, callback);
     });
+}
+
+// ============================================================================
+// JSI Install
+// ============================================================================
+
+JNIEXPORT jboolean JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeInstallJSI(
+    JNIEnv* env,
+    jobject /* this */,
+    jlong jsiRuntimePtr
+) {
+    if (jsiRuntimePtr == 0) {
+        return JNI_FALSE;
+    }
+    
+    auto* runtime = reinterpret_cast<facebook::jsi::Runtime*>(jsiRuntimePtr);
+    if (!runtime) {
+        return JNI_FALSE;
+    }
+    
+    JsonEvalJSI::install(*runtime);
+    return JNI_TRUE;
 }
 
 } // extern "C"

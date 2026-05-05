@@ -315,6 +315,19 @@ export declare class JSONEval {
      */
     private toJsonString;
     /**
+     * Internal helper to call native methods with JSI fallback.
+     * Handles synchronous JSI calls and asynchronous bridge calls.
+     */
+    private _callNative;
+    /**
+     * Internal helper to call native methods and parse JSON result.
+     */
+    private _callNativeJson;
+    /**
+     * Internal helper to call native methods and parse JSON result, or return null if empty.
+     */
+    private _callNativeJsonOrNull;
+    /**
      * Cancel any running evaluation
      * The generic auto-cancellation on new evaluation will still work,
      * but this allows manual cancellation.

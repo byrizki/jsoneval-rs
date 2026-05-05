@@ -39,6 +39,7 @@ add_library(
   SHARED
   src/main/cpp/json-eval-rn.cpp
   ../cpp/json-eval-bridge.cpp
+  ../cpp/jsi-bridge.cpp
 )
 
 # Include directories

@@ -1,6 +1,7 @@
 import React from 'react';
 import { NativeModules, Platform } from 'react-native';
 import { JSONParse, JSONStringify } from 'json-with-bigint';
+import { getJSIGlobal, JsonEvalJSIGlobal } from './jsi-bridge';
 
 const LINKING_ERROR =
   `The package '@json-eval-rs/react-native' doesn't seem to be linked. Make sure: \n\n` +
@@ -18,6 +19,23 @@ const JsonEvalRs = NativeModules.JsonEvalRs
         },
       }
     );
+
+// JSI bootstrap: install sync host object at module load.
+// Uses blocking-synchronous bridge call once, then all
+// subsequent calls go through JSI (zero bridge overhead).
+let _jsi: JsonEvalJSIGlobal | null = null;
+try {
+  if (typeof JsonEvalRs.installJSI === 'function') {
+    const installed = JsonEvalRs.installJSI();
+    if (installed) {
+      _jsi = getJSIGlobal();
+      console.log('JSONEval is using JSI 🎉');
+    }
+  }
+} catch {
+  // JSI unavailable — fall back to bridge
+}
+const useJSI = _jsi !== null;
 
 /**
  * Item for get schema value array results
@@ -338,6 +356,11 @@ export class JSONEval {
         : JSONStringify(data)
       : null;
 
+    if (useJSI && _jsi?.createFromCache) {
+      const handle = _jsi.createFromCache(cacheKey, contextStr, dataStr);
+      return new JSONEval({ schema: {}, _handle: handle });
+    }
+
     const handle = JsonEvalRs.createFromCache(cacheKey, contextStr, dataStr);
     return new JSONEval({ schema: {}, _handle: handle });
   }
@@ -372,13 +395,19 @@ export class JSONEval {
         schemaMsgpack instanceof Uint8Array
           ? Array.from(schemaMsgpack)
           : schemaMsgpack;
-          
-      const handle = JsonEvalRs.createFromMsgpack(msgpackArray, contextStr, dataStr);
+
+      const handle = JsonEvalRs.createFromMsgpack(
+        msgpackArray,
+        contextStr,
+        dataStr
+      );
       return new JSONEval({ schema: {}, _handle: handle });
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to create JSONEval instance from MessagePack: ${errorMessage}`);
+      throw new Error(
+        `Failed to create JSONEval instance from MessagePack: ${errorMessage}`
+      );
     }
   }
 
@@ -406,6 +435,11 @@ export class JSONEval {
         ? context
         : JSONStringify(context)
       : null;
+
+    if (useJSI && (_jsi as any).evaluateLogic) {
+      const resultStr = (_jsi as any).evaluateLogic(logic, dataStr, contextStr);
+      return JSONParse(resultStr);
+    }
 
     const resultStr = await JsonEvalRs.evaluateLogic(
       logic,
@@ -443,7 +477,11 @@ export class JSONEval {
           : JSONStringify(data)
         : null;
 
-      this.handle = JsonEvalRs.create(schemaStr, contextStr, dataStr);
+      if (useJSI) {
+        this.handle = _jsi!.create(schemaStr, contextStr, dataStr);
+      } else {
+        this.handle = JsonEvalRs.create(schemaStr, contextStr, dataStr);
+      }
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -467,13 +505,43 @@ export class JSONEval {
   }
 
   /**
+   * Internal helper to call native methods with JSI fallback.
+   * Handles synchronous JSI calls and asynchronous bridge calls.
+   */
+  private async _callNative(methodName: string, ...args: any[]): Promise<any> {
+    if (useJSI && (_jsi as any)[methodName]) {
+      return (_jsi as any)[methodName](this.handle, ...args);
+    }
+    return await JsonEvalRs[methodName](this.handle, ...args);
+  }
+
+  /**
+   * Internal helper to call native methods and parse JSON result.
+   */
+  private async _callNativeJson(methodName: string, ...args: any[]): Promise<any> {
+    const result = await this._callNative(methodName, ...args);
+    return typeof result === 'string' ? JSONParse(result) : result;
+  }
+
+  /**
+   * Internal helper to call native methods and parse JSON result, or return null if empty.
+   */
+  private async _callNativeJsonOrNull(
+    methodName: string,
+    ...args: any[]
+  ): Promise<any | null> {
+    const result = await this._callNative(methodName, ...args);
+    return result ? JSONParse(result) : null;
+  }
+
+  /**
    * Cancel any running evaluation
    * The generic auto-cancellation on new evaluation will still work,
    * but this allows manual cancellation.
    */
   async cancel(): Promise<void> {
     this.throwIfDisposed();
-    JsonEvalRs.cancel(this.handle);
+    await this._callNative('cancel');
   }
 
   /**
@@ -490,15 +558,18 @@ export class JSONEval {
       const contextStr = options.context
         ? this.toJsonString(options.context)
         : null;
-      const pathsJson = options.paths ? typeof options.paths === 'string' ? options.paths : JSONStringify(options.paths) : null;
+      const pathsJson = options.paths
+        ? typeof options.paths === 'string'
+          ? options.paths
+          : JSONStringify(options.paths)
+        : null;
 
-      const resultStr = await JsonEvalRs.evaluate(
-        this.handle,
+      return await this._callNativeJson(
+        'evaluate',
         dataStr,
         contextStr,
         pathsJson
       );
-      return JSONParse(resultStr);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -520,15 +591,13 @@ export class JSONEval {
       const contextStr = options.context
         ? this.toJsonString(options.context)
         : null;
-      const pathsJson = options.paths ? typeof options.paths === 'string' ? options.paths : JSONStringify(options.paths) : null;
+      const pathsJson = options.paths
+        ? typeof options.paths === 'string'
+          ? options.paths
+          : JSONStringify(options.paths)
+        : null;
 
-      // Call optimized native method that returns void/empty string
-      await JsonEvalRs.evaluateOnly(
-        this.handle,
-        dataStr,
-        contextStr,
-        pathsJson
-      );
+      await this._callNative('evaluateOnly', dataStr, contextStr, pathsJson);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -551,20 +620,13 @@ export class JSONEval {
         ? this.toJsonString(options.context)
         : null;
 
-      const resultStr = await JsonEvalRs.validate(
-        this.handle,
-        dataStr,
-        contextStr
-      );
-      return JSONParse(resultStr);
+      return await this._callNativeJson('validate', dataStr, contextStr);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       throw new Error(`Validation failed: ${errorMessage}`);
     }
   }
-
-
 
   /**
    * Re-evaluate fields that depend on a changed path
@@ -578,20 +640,28 @@ export class JSONEval {
     this.throwIfDisposed();
 
     try {
-      const { changedPaths, data, context, reEvaluate = true, includeSubforms = true } = options;
-      const changedPathsJson = typeof changedPaths === 'string' ? changedPaths : JSONStringify(changedPaths);
+      const {
+        changedPaths,
+        data,
+        context,
+        reEvaluate = true,
+        includeSubforms = true,
+      } = options;
+      const changedPathsJson =
+        typeof changedPaths === 'string'
+          ? changedPaths
+          : JSONStringify(changedPaths);
       const dataStr = data ? this.toJsonString(data) : null;
       const contextStr = context ? this.toJsonString(context) : null;
 
-      const resultStr = await JsonEvalRs.evaluateDependents(
-        this.handle,
+      return await this._callNativeJson(
+        'evaluateDependents',
         changedPathsJson,
         dataStr,
         contextStr,
         reEvaluate,
         includeSubforms
       );
-      return JSONParse(resultStr);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -611,13 +681,22 @@ export class JSONEval {
     this.throwIfDisposed();
 
     try {
-      const { changedPaths, data, context, reEvaluate = true, includeSubforms = true } = options;
-      const changedPathsJson = typeof changedPaths === 'string' ? changedPaths : JSONStringify(changedPaths);
+      const {
+        changedPaths,
+        data,
+        context,
+        reEvaluate = true,
+        includeSubforms = true,
+      } = options;
+      const changedPathsJson =
+        typeof changedPaths === 'string'
+          ? changedPaths
+          : JSONStringify(changedPaths);
       const dataStr = data ? this.toJsonString(data) : null;
       const contextStr = context ? this.toJsonString(context) : null;
 
-      return await JsonEvalRs.evaluateDependents(
-        this.handle,
+      return await this._callNative(
+        'evaluateDependents',
         changedPathsJson,
         dataStr,
         contextStr,
@@ -639,11 +718,7 @@ export class JSONEval {
    */
   async getEvaluatedSchema(skipLayout: boolean = false): Promise<any> {
     this.throwIfDisposed();
-    const resultStr = await JsonEvalRs.getEvaluatedSchema(
-      this.handle,
-      skipLayout
-    );
-    return JSONParse(resultStr);
+    return await this._callNativeJson('getEvaluatedSchema', skipLayout);
   }
 
   /**
@@ -653,8 +728,7 @@ export class JSONEval {
    */
   async getSchemaValue(): Promise<Record<string, any>> {
     this.throwIfDisposed();
-    const resultStr = await JsonEvalRs.getSchemaValue(this.handle);
-    return JSONParse(resultStr);
+    return await this._callNativeJson('getSchemaValue');
   }
 
   /**
@@ -665,8 +739,7 @@ export class JSONEval {
    */
   async getSchemaValueArray(): Promise<SchemaValueItem[]> {
     this.throwIfDisposed();
-    const resultStr = await JsonEvalRs.getSchemaValueArray(this.handle);
-    return JSONParse(resultStr);
+    return await this._callNativeJson('getSchemaValueArray');
   }
 
   /**
@@ -677,8 +750,7 @@ export class JSONEval {
    */
   async getSchemaValueObject(): Promise<Record<string, any>> {
     this.throwIfDisposed();
-    const resultStr = await JsonEvalRs.getSchemaValueObject(this.handle);
-    return JSONParse(resultStr);
+    return await this._callNativeJson('getSchemaValueObject');
   }
 
   /**
@@ -691,11 +763,10 @@ export class JSONEval {
     skipLayout: boolean = false
   ): Promise<any> {
     this.throwIfDisposed();
-    const resultStr = await JsonEvalRs.getEvaluatedSchemaWithoutParams(
-      this.handle,
+    return await this._callNativeJson(
+      'getEvaluatedSchemaWithoutParams',
       skipLayout
     );
-    return JSONParse(resultStr);
   }
 
   /**
@@ -710,12 +781,11 @@ export class JSONEval {
     skipLayout: boolean = false
   ): Promise<any | null> {
     this.throwIfDisposed();
-    const resultStr = await JsonEvalRs.getEvaluatedSchemaByPath(
-      this.handle,
+    return await this._callNativeJsonOrNull(
+      'getEvaluatedSchemaByPath',
       path,
       skipLayout
     );
-    return resultStr ? JSONParse(resultStr) : null;
   }
 
   /**
@@ -734,13 +804,12 @@ export class JSONEval {
   ): Promise<any> {
     this.throwIfDisposed();
     const pathsJson = typeof paths === 'string' ? paths : JSONStringify(paths);
-    const resultStr = await JsonEvalRs.getEvaluatedSchemaByPaths(
-      this.handle,
+    return await this._callNativeJson(
+      'getEvaluatedSchemaByPaths',
       pathsJson,
       skipLayout,
       format
     );
-    return JSONParse(resultStr);
   }
 
   /**
@@ -751,8 +820,7 @@ export class JSONEval {
    */
   async getSchemaByPath(path: string): Promise<any | null> {
     this.throwIfDisposed();
-    const resultStr = await JsonEvalRs.getSchemaByPath(this.handle, path);
-    return resultStr ? JSONParse(resultStr) : null;
+    return await this._callNativeJsonOrNull('getSchemaByPath', path);
   }
 
   /**
@@ -769,12 +837,7 @@ export class JSONEval {
   ): Promise<any> {
     this.throwIfDisposed();
     const pathsJson = typeof paths === 'string' ? paths : JSONStringify(paths);
-    const resultStr = await JsonEvalRs.getSchemaByPaths(
-      this.handle,
-      pathsJson,
-      format
-    );
-    return JSONParse(resultStr);
+    return await this._callNativeJson('getSchemaByPaths', pathsJson, format);
   }
 
   /**
@@ -800,12 +863,7 @@ export class JSONEval {
           : JSONStringify(data)
         : null;
 
-      await JsonEvalRs.reloadSchema(
-        this.handle,
-        schemaStr,
-        contextStr,
-        dataStr
-      );
+      await this._callNative('reloadSchema', schemaStr, contextStr, dataStr);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -845,8 +903,8 @@ export class JSONEval {
           : JSONStringify(data)
         : null;
 
-      await JsonEvalRs.reloadSchemaMsgpack(
-        this.handle,
+      await this._callNative(
+        'reloadSchemaMsgpack',
         msgpackArray,
         contextStr,
         dataStr
@@ -886,8 +944,8 @@ export class JSONEval {
           : JSONStringify(data)
         : null;
 
-      await JsonEvalRs.reloadSchemaFromCache(
-        this.handle,
+      await this._callNative(
+        'reloadSchemaFromCache',
         cacheKey,
         contextStr,
         dataStr
@@ -907,7 +965,7 @@ export class JSONEval {
    */
   async resolveLayout(evaluate: boolean = false): Promise<void> {
     this.throwIfDisposed();
-    await JsonEvalRs.resolveLayout(this.handle, evaluate);
+    await this._callNative('resolveLayout', evaluate);
   }
 
   /**
@@ -931,7 +989,7 @@ export class JSONEval {
    */
   async setTimezoneOffset(offsetMinutes: number | null): Promise<void> {
     this.throwIfDisposed();
-    await JsonEvalRs.setTimezoneOffset(this.handle, offsetMinutes);
+    await this._callNative('setTimezoneOffset', offsetMinutes);
   }
 
   /**
@@ -953,13 +1011,12 @@ export class JSONEval {
     const dataStr = data ? this.toJsonString(data) : null;
     const contextStr = context ? this.toJsonString(context) : null;
 
-    const resultStr = await JsonEvalRs.compileAndRunLogic(
-      this.handle,
+    return await this._callNativeJson(
+      'compileAndRunLogic',
       logic,
       dataStr,
       contextStr
     );
-    return JSONParse(resultStr);
   }
 
   /**
@@ -972,7 +1029,7 @@ export class JSONEval {
     this.throwIfDisposed();
 
     const logic = this.toJsonString(logicStr);
-    return await JsonEvalRs.compileLogic(this.handle, logic);
+    return await this._callNative('compileLogic', logic);
   }
 
   /**
@@ -993,13 +1050,7 @@ export class JSONEval {
     const dataStr = data ? this.toJsonString(data) : null;
     const contextStr = context ? this.toJsonString(context) : null;
 
-    const resultStr = await JsonEvalRs.runLogic(
-      this.handle,
-      logicId,
-      dataStr,
-      contextStr
-    );
-    return JSONParse(resultStr);
+    return await this._callNativeJson('runLogic', logicId, dataStr, contextStr);
   }
 
   /**
@@ -1019,13 +1070,12 @@ export class JSONEval {
       : null;
     const paths = options.paths || null;
 
-    const resultStr = await JsonEvalRs.validatePaths(
-      this.handle,
+    return await this._callNativeJson(
+      'validatePaths',
       dataStr,
       contextStr,
       paths
     );
-    return JSONParse(resultStr);
   }
 
   /**
@@ -1034,9 +1084,7 @@ export class JSONEval {
    * @returns Promise resolving to ValidationResult (same as validatePaths for RN)
    * @throws {Error} If validation operation fails
    */
-  async validatePathsOnly(
-    options: ValidatePathsOptions
-  ): Promise<any> {
+  async validatePathsOnly(options: ValidatePathsOptions): Promise<any> {
     return this.validatePaths(options);
   }
 
@@ -1058,8 +1106,8 @@ export class JSONEval {
       ? this.toJsonString(options.context)
       : null;
 
-    return JsonEvalRs.evaluateSubform(
-      this.handle,
+    return await this._callNative(
+      'evaluateSubform',
       options.subformPath,
       dataStr,
       contextStr,
@@ -1083,13 +1131,12 @@ export class JSONEval {
       ? this.toJsonString(options.context)
       : null;
 
-    const resultStr = await JsonEvalRs.validateSubform(
-      this.handle,
+    return await this._callNativeJson(
+      'validateSubform',
       options.subformPath,
       dataStr,
       contextStr
     );
-    return JSONParse(resultStr);
   }
 
   /**
@@ -1111,8 +1158,8 @@ export class JSONEval {
     // For now, pass the first path since native bridge expects single path (wraps internally)
     const changedPath = options.changedPaths[0] || '';
 
-    const resultStr = await JsonEvalRs.evaluateDependentsSubform(
-      this.handle,
+    return await this._callNativeJson(
+      'evaluateDependentsSubform',
       options.subformPath,
       changedPath,
       dataStr,
@@ -1120,7 +1167,6 @@ export class JSONEval {
       options.reEvaluate ?? true,
       options.includeSubforms ?? true
     );
-    return JSONParse(resultStr);
   }
 
   /**
@@ -1141,8 +1187,8 @@ export class JSONEval {
 
     const changedPath = options.changedPaths[0] || '';
 
-    return await JsonEvalRs.evaluateDependentsSubform(
-      this.handle,
+    return await this._callNative(
+      'evaluateDependentsSubform',
       options.subformPath,
       changedPath,
       dataStr,
@@ -1163,8 +1209,8 @@ export class JSONEval {
   ): Promise<void> {
     this.throwIfDisposed();
 
-    return JsonEvalRs.resolveLayoutSubform(
-      this.handle,
+    await this._callNative(
+      'resolveLayoutSubform',
       options.subformPath,
       options.evaluate || false
     );
@@ -1181,12 +1227,11 @@ export class JSONEval {
   ): Promise<any> {
     this.throwIfDisposed();
 
-    const resultStr = await JsonEvalRs.getEvaluatedSchemaSubform(
-      this.handle,
+    return await this._callNativeJson(
+      'getEvaluatedSchemaSubform',
       options.subformPath,
       options.resolveLayout || false
     );
-    return JSONParse(resultStr);
   }
 
   /**
@@ -1200,11 +1245,10 @@ export class JSONEval {
   ): Promise<any> {
     this.throwIfDisposed();
 
-    const resultStr = await JsonEvalRs.getSchemaValueSubform(
-      this.handle,
+    return await this._callNativeJson(
+      'getSchemaValueSubform',
       options.subformPath
     );
-    return JSONParse(resultStr);
   }
 
   /**
@@ -1219,11 +1263,10 @@ export class JSONEval {
   ): Promise<SchemaValueItem[]> {
     this.throwIfDisposed();
 
-    const resultStr = await JsonEvalRs.getSchemaValueArraySubform(
-      this.handle,
+    return await this._callNativeJson(
+      'getSchemaValueArraySubform',
       options.subformPath
     );
-    return JSONParse(resultStr);
   }
 
   /**
@@ -1238,11 +1281,10 @@ export class JSONEval {
   ): Promise<Record<string, any>> {
     this.throwIfDisposed();
 
-    const resultStr = await JsonEvalRs.getSchemaValueObjectSubform(
-      this.handle,
+    return await this._callNativeJson(
+      'getSchemaValueObjectSubform',
       options.subformPath
     );
-    return JSONParse(resultStr);
   }
 
   /**
@@ -1256,12 +1298,11 @@ export class JSONEval {
   ): Promise<any> {
     this.throwIfDisposed();
 
-    const resultStr = await JsonEvalRs.getEvaluatedSchemaWithoutParamsSubform(
-      this.handle,
+    return await this._callNativeJson(
+      'getEvaluatedSchemaWithoutParamsSubform',
       options.subformPath,
       options.resolveLayout || false
     );
-    return JSONParse(resultStr);
   }
 
   /**
@@ -1275,13 +1316,12 @@ export class JSONEval {
   ): Promise<any | null> {
     this.throwIfDisposed();
 
-    const resultStr = await JsonEvalRs.getEvaluatedSchemaByPathSubform(
-      this.handle,
+    return await this._callNativeJsonOrNull(
+      'getEvaluatedSchemaByPathSubform',
       options.subformPath,
       options.schemaPath,
       options.skipLayout || false
     );
-    return resultStr ? JSONParse(resultStr) : null;
   }
 
   /**
@@ -1296,15 +1336,18 @@ export class JSONEval {
   ): Promise<any> {
     this.throwIfDisposed();
 
-    const pathsJson = typeof options.schemaPaths === 'string' ? options.schemaPaths : JSONStringify(options.schemaPaths);
-    const resultStr = await JsonEvalRs.getEvaluatedSchemaByPathsSubform(
-      this.handle,
+    const pathsJson =
+      typeof options.schemaPaths === 'string'
+        ? options.schemaPaths
+        : JSONStringify(options.schemaPaths);
+
+    return await this._callNativeJson(
+      'getEvaluatedSchemaByPathsSubform',
       options.subformPath,
       pathsJson,
       options.skipLayout || false,
       options.format !== undefined ? options.format : ReturnFormat.Nested
     );
-    return JSONParse(resultStr);
   }
 
   /**
@@ -1314,9 +1357,7 @@ export class JSONEval {
    */
   async getSubformPaths(): Promise<string[]> {
     this.throwIfDisposed();
-
-    const resultStr = await JsonEvalRs.getSubformPaths(this.handle);
-    return JSONParse(resultStr);
+    return await this._callNativeJson('getSubformPaths');
   }
 
   /**
@@ -1330,12 +1371,11 @@ export class JSONEval {
   ): Promise<any | null> {
     this.throwIfDisposed();
 
-    const resultStr = await JsonEvalRs.getSchemaByPathSubform(
-      this.handle,
+    return await this._callNativeJsonOrNull(
+      'getSchemaByPathSubform',
       options.subformPath,
       options.schemaPath
     );
-    return resultStr ? JSONParse(resultStr) : null;
   }
 
   /**
@@ -1350,14 +1390,17 @@ export class JSONEval {
   ): Promise<any> {
     this.throwIfDisposed();
 
-    const pathsJson = typeof options.schemaPaths === 'string' ? options.schemaPaths : JSONStringify(options.schemaPaths);
-    const resultStr = await JsonEvalRs.getSchemaByPathsSubform(
-      this.handle,
+    const pathsJson =
+      typeof options.schemaPaths === 'string'
+        ? options.schemaPaths
+        : JSONStringify(options.schemaPaths);
+
+    return await this._callNativeJson(
+      'getSchemaByPathsSubform',
       options.subformPath,
       pathsJson,
       options.format !== undefined ? options.format : ReturnFormat.Nested
     );
-    return JSONParse(resultStr);
   }
 
   /**
@@ -1368,8 +1411,7 @@ export class JSONEval {
    */
   async hasSubform(subformPath: string): Promise<boolean> {
     this.throwIfDisposed();
-
-    return JsonEvalRs.hasSubform(this.handle, subformPath);
+    return await this._callNative('hasSubform', subformPath);
   }
 
   /**
@@ -1380,7 +1422,7 @@ export class JSONEval {
   async dispose(): Promise<void> {
     if (this.disposed) return;
 
-    await JsonEvalRs.dispose(this.handle);
+    await this._callNative('dispose');
     this.disposed = true;
   }
 
@@ -1389,6 +1431,9 @@ export class JSONEval {
    * @returns Promise resolving to version string
    */
   static async version(): Promise<string> {
+    if (useJSI && _jsi?.version) {
+      return _jsi.version();
+    }
     return JsonEvalRs.version();
   }
 }

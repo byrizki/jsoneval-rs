@@ -1,12 +1,39 @@
 #import "JsonEvalRs.h"
 #import <React/RCTLog.h>
+#import <React/RCTBridge+Private.h>
 #include "json-eval-bridge.h"
+#include "jsi-bridge.h"
 
 using namespace jsoneval;
 
 @implementation JsonEvalRs
 
 RCT_EXPORT_MODULE()
+
+/**
+ * Install JSI host object onto the JS runtime global.
+ * Called once from JS at module init. Falls back gracefully if JSI
+ * runtime is unavailable (old RN or Hermes not loaded).
+ * Returns YES on success, NO to signal bridge fallback.
+ */
+RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(installJSI)
+{
+    RCTCxxBridge *cxxBridge = (RCTCxxBridge *)self.bridge;
+    if (!cxxBridge || !cxxBridge.runtime) {
+        RCTLogWarn(@"[json-eval-rs] JSI runtime not available — fallback to bridge");
+        return @NO;
+    }
+    
+    auto* jsiRuntime = reinterpret_cast<facebook::jsi::Runtime*>(cxxBridge.runtime);
+    if (!jsiRuntime) {
+        RCTLogWarn(@"[json-eval-rs] JSI runtime null — fallback to bridge");
+        return @NO;
+    }
+    
+    JsonEvalJSI::install(*jsiRuntime);
+    RCTLogInfo(@"[json-eval-rs] JSI installed on global.jsonEval");
+    return @YES;
+}
 
 // Helper methods
 // Note: These conversions are required by React Native bridge architecture
