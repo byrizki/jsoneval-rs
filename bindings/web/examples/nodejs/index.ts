@@ -42,7 +42,7 @@ test("Node.js Binding Example Test", async (t) => {
   await je.evaluate({ data, context: {} });
 
   console.log("Calling getEvaluatedSchema()...");
-  const evaluatedSchema = await je.getEvaluatedSchema({ skipLayout: false });
+  const evaluatedSchema = await je.getEvaluatedSchema();
 
   console.log("Result type:", typeof evaluatedSchema);
 

@@ -87,7 +87,9 @@ pub unsafe extern "C" fn json_eval_validate_paths(
     }
 }
 
-/// Resolve layout with optional evaluation
+/// Resolve layout and return overlay entries
+///
+/// Returns JSON array of LayoutOverlayEntry objects
 ///
 /// # Safety
 ///
@@ -103,6 +105,7 @@ pub unsafe extern "C" fn json_eval_resolve_layout(
     }
 
     let eval = &mut (*handle).inner;
-    let _ = eval.resolve_layout(evaluate);
-    FFIResult::success(Vec::new())
+    let result = eval.resolve_layout(evaluate);
+    let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
+    FFIResult::success(result_bytes)
 }

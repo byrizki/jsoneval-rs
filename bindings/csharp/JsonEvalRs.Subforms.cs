@@ -132,11 +132,12 @@ namespace JsonEvalRs
         }
 
         /// <summary>
-        /// Resolve layout for subform
+        /// Resolve layout for subform, returning overlay entries
         /// </summary>
         /// <param name="subformPath">Path to the subform</param>
         /// <param name="evaluate">If true, runs evaluation before resolving layout</param>
-        public void ResolveLayoutSubform(string subformPath, bool evaluate = false)
+        /// <returns>LayoutOverlayEntry array as JArray</returns>
+        public JArray ResolveLayoutSubform(string subformPath, bool evaluate = false)
         {
             ThrowIfDisposed();
             if (string.IsNullOrEmpty(subformPath))
@@ -148,40 +149,64 @@ namespace JsonEvalRs
             var result = Native.json_eval_resolve_layout_subform(_handle, Native.ToUTF8Bytes(subformPath)!, evaluate);
 #endif
             
-            if (!result.Success)
-            {
-#if NETCOREAPP || NET5_0_OR_GREATER
-                string error = result.Error != IntPtr.Zero
-                    ? Marshal.PtrToStringUTF8(result.Error) ?? "Unknown error"
-                    : "Unknown error";
-#else
-                string error = result.Error != IntPtr.Zero
-                    ? Native.PtrToStringUTF8(result.Error) ?? "Unknown error"
-                    : "Unknown error";
-#endif
-                Native.json_eval_free_result(result);
-                throw new JsonEvalException(error);
-            }
-            
-            Native.json_eval_free_result(result);
+            return ProcessResultAsArray(result);
         }
 
         /// <summary>
-        /// Get evaluated schema from subform
+        /// Get evaluated schema from subform (compact, no $layout resolution)
         /// </summary>
         /// <param name="subformPath">Path to the subform</param>
-        /// <param name="resolveLayout">Whether to resolve layout</param>
         /// <returns>Evaluated schema as JObject</returns>
-        public JObject GetEvaluatedSchemaSubform(string subformPath, bool resolveLayout = false)
+        public JObject GetEvaluatedSchemaSubform(string subformPath)
         {
             ThrowIfDisposed();
             if (string.IsNullOrEmpty(subformPath))
                 throw new ArgumentNullException(nameof(subformPath));
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_get_evaluated_schema_subform(_handle, subformPath, resolveLayout);
+            var result = Native.json_eval_get_evaluated_schema_subform(_handle, subformPath);
 #else
-            var result = Native.json_eval_get_evaluated_schema_subform(_handle, Native.ToUTF8Bytes(subformPath)!, resolveLayout);
+            var result = Native.json_eval_get_evaluated_schema_subform(_handle, Native.ToUTF8Bytes(subformPath)!);
+#endif
+            
+            return ProcessResult(result);
+        }
+
+        /// <summary>
+        /// Get resolved layout overlay entries for subform
+        /// </summary>
+        /// <param name="subformPath">Path to the subform</param>
+        /// <returns>Layout overlay as JArray</returns>
+        public JArray GetResolvedLayoutSubform(string subformPath)
+        {
+            ThrowIfDisposed();
+            if (string.IsNullOrEmpty(subformPath))
+                throw new ArgumentNullException(nameof(subformPath));
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+            var result = Native.json_eval_get_resolved_layout_subform(_handle, subformPath);
+#else
+            var result = Native.json_eval_get_resolved_layout_subform(_handle, Native.ToUTF8Bytes(subformPath)!);
+#endif
+            
+            return ProcessResultAsArray(result);
+        }
+
+        /// <summary>
+        /// Get evaluated schema with layout fully resolved for subform
+        /// </summary>
+        /// <param name="subformPath">Path to the subform</param>
+        /// <returns>Evaluated schema with resolved layout as JObject</returns>
+        public JObject GetEvaluatedSchemaResolvedSubform(string subformPath)
+        {
+            ThrowIfDisposed();
+            if (string.IsNullOrEmpty(subformPath))
+                throw new ArgumentNullException(nameof(subformPath));
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+            var result = Native.json_eval_get_evaluated_schema_resolved_subform(_handle, subformPath);
+#else
+            var result = Native.json_eval_get_evaluated_schema_resolved_subform(_handle, Native.ToUTF8Bytes(subformPath)!);
 #endif
             
             return ProcessResult(result);
@@ -251,34 +276,32 @@ namespace JsonEvalRs
         }
 
         /// <summary>
-        /// Get evaluated schema without $params from subform
+        /// Get evaluated schema without $params from subform (compact)
         /// </summary>
         /// <param name="subformPath">Path to the subform</param>
-        /// <param name="resolveLayout">Whether to resolve layout</param>
         /// <returns>Evaluated schema as JObject</returns>
-        public JObject GetEvaluatedSchemaWithoutParamsSubform(string subformPath, bool resolveLayout = false)
+        public JObject GetEvaluatedSchemaWithoutParamsSubform(string subformPath)
         {
             ThrowIfDisposed();
             if (string.IsNullOrEmpty(subformPath))
                 throw new ArgumentNullException(nameof(subformPath));
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_get_evaluated_schema_without_params_subform(_handle, subformPath, resolveLayout);
+            var result = Native.json_eval_get_evaluated_schema_without_params_subform(_handle, subformPath);
 #else
-            var result = Native.json_eval_get_evaluated_schema_without_params_subform(_handle, Native.ToUTF8Bytes(subformPath)!, resolveLayout);
+            var result = Native.json_eval_get_evaluated_schema_without_params_subform(_handle, Native.ToUTF8Bytes(subformPath)!);
 #endif
             
             return ProcessResult(result);
         }
 
         /// <summary>
-        /// Get evaluated schema by specific path from subform
+        /// Get evaluated schema by specific path from subform (compact)
         /// </summary>
         /// <param name="subformPath">Path to the subform</param>
         /// <param name="schemaPath">Dotted path to the value within the subform</param>
-        /// <param name="skipLayout">Whether to skip layout resolution</param>
         /// <returns>Value as JObject or null if not found</returns>
-        public JObject? GetEvaluatedSchemaByPathSubform(string subformPath, string schemaPath, bool skipLayout = false)
+        public JObject? GetEvaluatedSchemaByPathSubform(string subformPath, string schemaPath)
         {
             ThrowIfDisposed();
             if (string.IsNullOrEmpty(subformPath))
@@ -287,9 +310,9 @@ namespace JsonEvalRs
                 throw new ArgumentNullException(nameof(schemaPath));
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_get_evaluated_schema_by_path_subform(_handle, subformPath, schemaPath, skipLayout);
+            var result = Native.json_eval_get_evaluated_schema_by_path_subform(_handle, subformPath, schemaPath);
 #else
-            var result = Native.json_eval_get_evaluated_schema_by_path_subform(_handle, Native.ToUTF8Bytes(subformPath)!, Native.ToUTF8Bytes(schemaPath)!, skipLayout);
+            var result = Native.json_eval_get_evaluated_schema_by_path_subform(_handle, Native.ToUTF8Bytes(subformPath)!, Native.ToUTF8Bytes(schemaPath)!);
 #endif
             
             try
@@ -320,15 +343,14 @@ namespace JsonEvalRs
         }
 
         /// <summary>
-        /// Gets evaluated schema values by multiple paths from subform
+        /// Gets evaluated schema values by multiple paths from subform (compact)
         /// Returns data in the specified format. Skips paths that are not found.
         /// </summary>
         /// <param name="subformPath">Path to the subform</param>
         /// <param name="schemaPaths">Array of dotted paths to retrieve within the subform</param>
-        /// <param name="skipLayout">Whether to skip layout resolution</param>
         /// <param name="format">Return format: Nested (default), Flat, or Array</param>
         /// <returns>Data in the specified format (JObject for Nested/Flat, JArray for Array)</returns>
-        public JToken GetEvaluatedSchemaByPathsSubform(string subformPath, string[] schemaPaths, bool skipLayout = false, ReturnFormat format = ReturnFormat.Nested)
+        public JToken GetEvaluatedSchemaByPathsSubform(string subformPath, string[] schemaPaths, ReturnFormat format = ReturnFormat.Nested)
         {
             ThrowIfDisposed();
             if (string.IsNullOrEmpty(subformPath))
@@ -339,9 +361,9 @@ namespace JsonEvalRs
             string pathsJson = JsonConvert.SerializeObject(schemaPaths);
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_get_evaluated_schema_by_paths_subform(_handle, subformPath, pathsJson, skipLayout, (byte)format);
+            var result = Native.json_eval_get_evaluated_schema_by_paths_subform(_handle, subformPath, pathsJson, (byte)format);
 #else
-            var result = Native.json_eval_get_evaluated_schema_by_paths_subform(_handle, Native.ToUTF8Bytes(subformPath)!, Native.ToUTF8Bytes(pathsJson)!, skipLayout, (byte)format);
+            var result = Native.json_eval_get_evaluated_schema_by_paths_subform(_handle, Native.ToUTF8Bytes(subformPath)!, Native.ToUTF8Bytes(pathsJson)!, (byte)format);
 #endif
             
             if (!result.Success)

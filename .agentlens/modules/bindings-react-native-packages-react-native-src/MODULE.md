@@ -2,7 +2,7 @@
 
 [← Back to INDEX](../../INDEX.md)
 
-**Type:** js/ts | **Files:** 1
+**Type:** js/ts | **Files:** 2
 
 **Entry point:** `bindings/react-native/packages/react-native/src/index.tsx`
 
@@ -10,28 +10,20 @@
 
 | File | Lines | Large |
 | ---- | ----- | ----- |
-| `bindings/react-native/packages/react-native/src/index.tsx` | 1440 | 📊 |
+| `bindings/react-native/packages/react-native/src/index.tsx` | 1257 | 📊 |
+| `bindings/react-native/packages/react-native/src/jsi-bridge.ts` | 227 |  |
 
 ## Documentation
 
-- [outline.md](outline.md) - Symbol maps for large files
+- [imports.md](imports.md) - Dependencies
 
 ---
 
-```mermaid
-graph TD
-    bindings_react_native_packages_react_native_src[bindings-react-native-packages-react-native-src] --> json_with_bigint[json-with-bigint]
-```
+Symbol maps for 1 large files in this module.
 
-## Internal Dependencies
+## bindings/react-native/packages/react-native/src/index.tsx (1257 lines)
 
-Dependencies within this module:
-
-- `react`
-- `react-native`
-
-## External Dependencies
-
-Dependencies from other modules:
-
-- `json-with-bigint`
+| Line | Kind | Name | Visibility |
+| ---- | ---- | ---- | ---------- |
+| 134 | class | JSONEval | pub |
+| 1235 | fn | useJSONEval | pub |

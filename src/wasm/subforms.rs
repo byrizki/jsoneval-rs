@@ -210,19 +210,20 @@ impl JSONEvalWasm {
         }
     }
 
-    /// Resolve layout for subform
+    /// Resolve layout for subform, returning overlay entries
     ///
     /// @param subformPath - Path to the subform
     /// @param evaluate - If true, runs evaluation before resolving layout
-    /// @throws Error if resolve fails
+    /// @returns LayoutOverlayEntry array as JavaScript object
     #[wasm_bindgen(js_name = resolveLayoutSubform)]
     pub fn resolve_layout_subform(
         &mut self,
         subform_path: &str,
         evaluate: bool,
-    ) -> Result<(), JsValue> {
+    ) -> Result<JsValue, JsValue> {
         self.inner
             .resolve_layout_subform(subform_path, evaluate)
+            .map(|overlay| super::to_value(&overlay).unwrap_or(JsValue::NULL))
             .map_err(|e| {
                 let error_msg = format!("Failed to resolve subform layout: {}", e);
                 console_log(&format!("[WASM ERROR] {}", error_msg));
@@ -230,37 +231,59 @@ impl JSONEvalWasm {
             })
     }
 
-    /// Get evaluated schema from subform
+    /// Get resolved layout overlay entries for subform
     ///
     /// @param subformPath - Path to the subform
-    /// @param resolveLayout - Whether to resolve layout
+    /// @returns LayoutOverlayEntry array as JavaScript object
+    #[wasm_bindgen(js_name = getResolvedLayoutSubform)]
+    pub fn get_resolved_layout_subform(
+        &mut self,
+        subform_path: &str,
+    ) -> Result<JsValue, JsValue> {
+        let result = self.inner.get_resolved_layout_subform(subform_path);
+        super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Get evaluated schema with layout fully resolved for subform
+    ///
+    /// @param subformPath - Path to the subform
+    /// @returns Evaluated schema as JavaScript object
+    #[wasm_bindgen(js_name = getEvaluatedSchemaResolvedSubform)]
+    pub fn get_evaluated_schema_resolved_subform(
+        &mut self,
+        subform_path: &str,
+    ) -> Result<JsValue, JsValue> {
+        let result = self.inner.get_evaluated_schema_resolved_subform(subform_path);
+        super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Get evaluated schema from subform (compact, without $layout resolution)
+    ///
+    /// @param subformPath - Path to the subform
     /// @returns Evaluated schema as JSON string
     #[wasm_bindgen(js_name = getEvaluatedSchemaSubform)]
     pub fn get_evaluated_schema_subform(
         &mut self,
         subform_path: &str,
-        resolve_layout: bool,
     ) -> String {
         let result = self
             .inner
-            .get_evaluated_schema_subform(subform_path, resolve_layout);
+            .get_evaluated_schema_subform(subform_path);
         serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
     }
 
-    /// Get evaluated schema from subform as JavaScript object
+    /// Get evaluated schema from subform as JavaScript object (compact)
     ///
     /// @param subformPath - Path to the subform
-    /// @param resolveLayout - Whether to resolve layout
     /// @returns Evaluated schema as JavaScript object
     #[wasm_bindgen(js_name = getEvaluatedSchemaSubformJS)]
     pub fn get_evaluated_schema_subform_js(
         &mut self,
         subform_path: &str,
-        resolve_layout: bool,
     ) -> Result<JsValue, JsValue> {
         let result = self
             .inner
-            .get_evaluated_schema_subform(subform_path, resolve_layout);
+            .get_evaluated_schema_subform(subform_path);
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
@@ -303,85 +326,75 @@ impl JSONEvalWasm {
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
-    /// Get evaluated schema without $params from subform
+    /// Get evaluated schema without $params from subform (compact)
     ///
     /// @param subformPath - Path to the subform
-    /// @param resolveLayout - Whether to resolve layout
     /// @returns Evaluated schema as JSON string
     #[wasm_bindgen(js_name = getEvaluatedSchemaWithoutParamsSubform)]
     pub fn get_evaluated_schema_without_params_subform(
         &mut self,
         subform_path: &str,
-        resolve_layout: bool,
     ) -> String {
         let result = self
             .inner
-            .get_evaluated_schema_without_params_subform(subform_path, resolve_layout);
+            .get_evaluated_schema_without_params_subform(subform_path);
         serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
     }
 
-    /// Get evaluated schema without $params from subform as JavaScript object
+    /// Get evaluated schema without $params from subform as JavaScript object (compact)
     ///
     /// @param subformPath - Path to the subform
-    /// @param resolveLayout - Whether to resolve layout
     /// @returns Evaluated schema as JavaScript object
     #[wasm_bindgen(js_name = getEvaluatedSchemaWithoutParamsSubformJS)]
     pub fn get_evaluated_schema_without_params_subform_js(
         &mut self,
         subform_path: &str,
-        resolve_layout: bool,
     ) -> Result<JsValue, JsValue> {
         let result = self
             .inner
-            .get_evaluated_schema_without_params_subform(subform_path, resolve_layout);
+            .get_evaluated_schema_without_params_subform(subform_path);
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
-    /// Get evaluated schema by specific path from subform
+    /// Get evaluated schema by specific path from subform (compact)
     ///
     /// @param subformPath - Path to the subform
     /// @param schemaPath - Dotted path to the value within the subform
-    /// @param skipLayout - Whether to skip layout resolution
     /// @returns Value as JSON string or null if not found
     #[wasm_bindgen(js_name = getEvaluatedSchemaByPathSubform)]
     pub fn get_evaluated_schema_by_path_subform(
         &mut self,
         subform_path: &str,
         schema_path: &str,
-        skip_layout: bool,
     ) -> Option<String> {
         self.inner
-            .get_evaluated_schema_by_path_subform(subform_path, schema_path, skip_layout)
+            .get_evaluated_schema_by_path_subform(subform_path, schema_path)
             .map(|v| serde_json::to_string(&v).unwrap_or_else(|_| "null".to_string()))
     }
 
-    /// Get evaluated schema by specific path from subform as JavaScript object
+    /// Get evaluated schema by specific path from subform as JavaScript object (compact)
     ///
     /// @param subformPath - Path to the subform
     /// @param schemaPath - Dotted path to the value within the subform
-    /// @param skipLayout - Whether to skip layout resolution
     /// @returns Value as JavaScript object or null if not found
     #[wasm_bindgen(js_name = getEvaluatedSchemaByPathSubformJS)]
     pub fn get_evaluated_schema_by_path_subform_js(
         &mut self,
         subform_path: &str,
         schema_path: &str,
-        skip_layout: bool,
     ) -> Result<JsValue, JsValue> {
         match self.inner.get_evaluated_schema_by_path_subform(
             subform_path,
             schema_path,
-            skip_layout,
         ) {
             Some(value) => super::to_value(&value).map_err(|e| JsValue::from_str(&e.to_string())),
             None => Ok(JsValue::NULL),
         }
     }
 
-    /// Get values from the evaluated schema of a subform using multiple dotted path notations (returns JSON string)
+    /// Get values from the evaluated schema of a subform using multiple dotted path notations (compact)
     /// @param subformPath - Path to the subform
     /// @param pathsJson - JSON array of dotted paths
-    /// @param skipLayout - Whether to skip layout resolution
     /// @param format - Return format (0=Nested, 1=Flat, 2=Array)
     /// @returns Data in specified format as JSON string
     #[wasm_bindgen(js_name = getEvaluatedSchemaByPathsSubform)]
@@ -389,7 +402,6 @@ impl JSONEvalWasm {
         &mut self,
         subform_path: &str,
         paths_json: &str,
-        skip_layout: bool,
         format: u8,
     ) -> Result<String, JsValue> {
         // Parse JSON array of paths
@@ -405,16 +417,14 @@ impl JSONEvalWasm {
         let result = self.inner.get_evaluated_schema_by_paths_subform(
             subform_path,
             &paths,
-            skip_layout,
             Some(return_format),
         );
         serde_json::to_string(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
-    /// Get values from the evaluated schema of a subform using multiple dotted path notations (returns JS object)
+    /// Get values from the evaluated schema of a subform using multiple dotted path notations (compact, JS object)
     /// @param subformPath - Path to the subform
     /// @param paths - Array of dotted paths
-    /// @param skipLayout - Whether to skip layout resolution
     /// @param format - Return format (0=Nested, 1=Flat, 2=Array)
     /// @returns Data in specified format as JavaScript object
     #[wasm_bindgen(js_name = getEvaluatedSchemaByPathsSubformJS)]
@@ -422,7 +432,6 @@ impl JSONEvalWasm {
         &mut self,
         subform_path: &str,
         paths_json: &str,
-        skip_layout: bool,
         format: u8,
     ) -> Result<JsValue, JsValue> {
         // Parse JSON array of paths
@@ -438,7 +447,6 @@ impl JSONEvalWasm {
         let result = self.inner.get_evaluated_schema_by_paths_subform(
             subform_path,
             &paths,
-            skip_layout,
             Some(return_format),
         );
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))

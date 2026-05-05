@@ -13,7 +13,7 @@ fn test_minimal_form_path_conversion() {
     let data_str = serde_json::to_string(&data).unwrap();
     eval.evaluate(&data_str, None, None, None).unwrap();
 
-    let evaluated = eval.get_evaluated_schema(false);
+    let evaluated = eval.get_evaluated_schema_resolved();
 
     // Test 1: Check the insured element (original ref: "#/illustration/properties/insured")
     let insured_element = evaluated

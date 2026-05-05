@@ -53,28 +53,28 @@ export interface JsonEvalJSIGlobal {
     includeSubforms: boolean
   ): string;
 
-  // Schema getters
-  getEvaluatedSchema(handle: string, skipLayout: boolean): string;
+  // Schema getters (compact, without $layout)
+  getEvaluatedSchema(handle: string): string;
   getSchemaValue(handle: string): string;
   getSchemaValueArray(handle: string): string;
   getSchemaValueObject(handle: string): string;
-  getEvaluatedSchemaWithoutParams(handle: string, skipLayout: boolean): string;
+  getEvaluatedSchemaWithoutParams(handle: string): string;
   getEvaluatedSchemaByPath(
     handle: string,
-    path: string,
-    skipLayout: boolean
+    path: string
   ): string;
   getEvaluatedSchemaByPaths(
     handle: string,
     pathsJson: string,
-    skipLayout: boolean,
     format: number
   ): string;
   getSchemaByPath(handle: string, path: string): string;
   getSchemaByPaths(handle: string, pathsJson: string, format: number): string;
 
-  // Operations
-  resolveLayout(handle: string, evaluate: boolean): void;
+  // Layout resolution (returns overlay JSON string)
+  resolveLayout(handle: string, evaluate: boolean): string;
+  getResolvedLayout(handle: string): string;
+  getEvaluatedSchemaResolved(handle: string): string;
   reloadSchema(
     handle: string,
     schema: string,
@@ -138,31 +138,35 @@ export interface JsonEvalJSIGlobal {
     handle: string,
     subformPath: string,
     evaluate: boolean
-  ): void;
+  ): string;
+  getResolvedLayoutSubform(
+    handle: string,
+    subformPath: string
+  ): string;
+  getEvaluatedSchemaResolvedSubform(
+    handle: string,
+    subformPath: string
+  ): string;
   getEvaluatedSchemaSubform(
     handle: string,
-    subformPath: string,
-    resolveLayout: boolean
+    subformPath: string
   ): string;
   getSchemaValueSubform(handle: string, subformPath: string): string;
   getSchemaValueArraySubform(handle: string, subformPath: string): string;
   getSchemaValueObjectSubform(handle: string, subformPath: string): string;
   getEvaluatedSchemaWithoutParamsSubform(
     handle: string,
-    subformPath: string,
-    resolveLayout: boolean
+    subformPath: string
   ): string;
   getEvaluatedSchemaByPathSubform(
     handle: string,
     subformPath: string,
-    schemaPath: string,
-    skipLayout: boolean
+    schemaPath: string
   ): string;
   getEvaluatedSchemaByPathsSubform(
     handle: string,
     subformPath: string,
     schemaPathsJson: string,
-    skipLayout: boolean,
     format: number
   ): string;
   getSchemaByPathSubform(

@@ -10,35 +10,37 @@
 
 | File | Lines | Large |
 | ---- | ----- | ----- |
-| `bindings/web/packages/core/src/index.ts` | 1247 | 📊 |
-
-## Documentation
-
-- [outline.md](outline.md) - Symbol maps for large files
+| `bindings/web/packages/core/src/index.ts` | 961 | 📊 |
 
 ---
 
+Symbol maps for 1 large files in this module.
+
+## bindings/web/packages/core/src/index.ts (961 lines)
+
+| Line | Kind | Name | Visibility |
+| ---- | ---- | ---- | ---------- |
+| 75 | fn | getVersion | pub |
+| 102 | class | JSONEvalCore | pub |
+---
+
 | High 🔴 | Medium 🟡 | Low 🟢 |
-| 0 | 0 | 2 |
+| 0 | 0 | 1 |
 
 ## 🟢 Low Priority
 
-### `NOTE` (bindings/web/packages/core/src/index.ts:862)
-
-> schema is not updated as we don't have access to it from the cache key
-
-### `NOTE` (bindings/web/packages/core/src/index.ts:957)
+### `NOTE` (bindings/web/packages/core/src/index.ts:661)
 
 > You must call .free() on the returned object when done.
 ---
 
 ```mermaid
 graph TD
-    bindings_web_packages_core_src[bindings-web-packages-core-src] --> json_with_bigint[json-with-bigint]
+    bindings_web_packages_core_src[bindings-web-packages-core-src] --> _json_eval_rs[@json-eval-rs]
 ```
 
 ## External Dependencies
 
 Dependencies from other modules:
 
-- `json-with-bigint`
+- `@json-eval-rs/common`

@@ -28,7 +28,7 @@ fn test_jsoneval_with_timezone_offset() {
         .expect("Evaluation failed");
 
     // Get results
-    let result = eval.get_evaluated_schema(false);
+    let result = eval.get_evaluated_schema();
 
     // Verify that current_date and current_time are strings
     assert!(
@@ -75,7 +75,7 @@ fn test_jsoneval_default_utc() {
         .expect("Evaluation failed");
 
     // Get results
-    let result = eval.get_evaluated_schema(false);
+    let result = eval.get_evaluated_schema();
 
     // Verify that current_date is a string
     assert!(result["properties"]["current_date"].is_string());
@@ -105,7 +105,7 @@ fn test_set_timezone_offset() {
     eval.evaluate(&json!({}).to_string(), None, None, None)
         .expect("Evaluation failed");
 
-    let result_utc = eval.get_evaluated_schema(false);
+    let result_utc = eval.get_evaluated_schema();
     let date_utc = result_utc["properties"]["current_date"].as_str().unwrap();
     let time_utc = result_utc["properties"]["current_time"].as_str().unwrap();
 
@@ -120,7 +120,7 @@ fn test_set_timezone_offset() {
     eval.evaluate(&json!({}).to_string(), None, None, None)
         .expect("Evaluation failed");
 
-    let result_utc7 = eval.get_evaluated_schema(false);
+    let result_utc7 = eval.get_evaluated_schema();
     let date_utc7 = result_utc7["properties"]["current_date"].as_str().unwrap();
     let time_utc7 = result_utc7["properties"]["current_time"].as_str().unwrap();
 
@@ -138,7 +138,7 @@ fn test_set_timezone_offset() {
     eval.evaluate(&json!({}).to_string(), None, None, None)
         .expect("Evaluation failed");
 
-    let result_reset = eval.get_evaluated_schema(false);
+    let result_reset = eval.get_evaluated_schema();
     let date_reset = result_reset["properties"]["current_date"].as_str().unwrap();
 
     // Should match original UTC date (assuming test runs quickly)

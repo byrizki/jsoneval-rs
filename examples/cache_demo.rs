@@ -72,7 +72,7 @@ fn demo_local_cache() -> Result<(), Box<dyn std::error::Error>> {
         let mut eval = JSONEval::with_parsed_schema(cached_schema, Some(r#"{"rate": 1.5}"#), None)?;
         eval.evaluate("{}", None, None, None)?;
 
-        let evaluated = eval.get_evaluated_schema(false);
+        let evaluated = eval.get_evaluated_schema();
         let result = evaluated
             .pointer("/result")
             .and_then(|v| v.as_f64())
@@ -135,7 +135,7 @@ fn simulate_another_function() -> Result<(), Box<dyn std::error::Error>> {
         let mut eval = JSONEval::with_parsed_schema(cached, Some(r#"{"x": 10, "y": 20}"#), None)?;
         eval.evaluate("{}", None, None, None)?;
 
-        let evaluated = eval.get_evaluated_schema(false);
+        let evaluated = eval.get_evaluated_schema();
         let sum = evaluated
             .pointer("/sum")
             .and_then(|v| v.as_f64())

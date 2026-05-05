@@ -101,9 +101,7 @@ self.addEventListener('message', async (event: MessageEvent<WorkerMessage>) => {
           throw new Error('WASM not initialized. Call init() first.');
         }
         
-        const result = await wasmInstance.getEvaluatedSchema({
-          skipLayout: payload.skipLayout || false,
-        });
+        const result = await wasmInstance.getEvaluatedSchema();
         
         self.postMessage({ id, type: 'GET_EVALUATED_SCHEMA_SUCCESS', result } as WorkerResponse);
         break;

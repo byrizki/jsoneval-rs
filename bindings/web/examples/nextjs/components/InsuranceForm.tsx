@@ -182,29 +182,17 @@ export default function InsuranceForm() {
       await instance.evaluate({ data });
       
       // Get evaluated schema WITHOUT $params
-      const schemaWithoutParams = await instance.getEvaluatedSchemaWithoutParams({ skipLayout: true });
+      const schemaWithoutParams = await instance.getEvaluatedSchemaWithoutParams();
       setEvaluatedSchema(schemaWithoutParams);
 
       // Get $params by path using dot notation
-      const params = await instance.getValueByPath({ 
-        path: '$params', 
-        skipLayout: true 
-      });
+      const params = await instance.getEvaluatedSchemaByPath({ path: '$params' });
       setProductInfo(params);
 
       // Get calculated values
-      const ageValue = await instance.getValueByPath({ 
-        path: 'illustration.properties.insured.properties.age.value',
-        skipLayout: true 
-      });
-      const classValue = await instance.getValueByPath({ 
-        path: 'illustration.properties.insured.properties.occupation_class.value',
-        skipLayout: true 
-      });
-      const riskValue = await instance.getValueByPath({ 
-        path: 'illustration.properties.insured.properties.risk_category.value',
-        skipLayout: true 
-      });
+      const ageValue = await instance.getEvaluatedSchemaByPath({ path: 'illustration.properties.insured.properties.age.value' });
+      const classValue = await instance.getEvaluatedSchemaByPath({ path: 'illustration.properties.insured.properties.occupation_class.value' });
+      const riskValue = await instance.getEvaluatedSchemaByPath({ path: 'illustration.properties.insured.properties.risk_category.value' });
 
       setAge(ageValue);
       setOccupationClass(classValue || '');
@@ -543,7 +531,7 @@ export default function InsuranceForm() {
           </div>
           <div className="flex items-start space-x-2">
             <span className="text-green-500">✅</span>
-            <span>getValueByPath() for $params access</span>
+            <span>getEvaluatedSchemaByPath() for $params access</span>
           </div>
           <div className="flex items-start space-x-2">
             <span className="text-green-500">✅</span>

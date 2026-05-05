@@ -276,7 +276,7 @@ namespace JsonEvalBenchmark
             Console.WriteLine();
             
             // Get the result for file output (not included in performance timing)
-            JObject result = eval.GetEvaluatedSchema(skipLayout: true);
+            JObject result = eval.GetEvaluatedSchema();
 
             // Save results
             Console.WriteLine("💾 Saving results...");

@@ -39,8 +39,17 @@ namespace JsonEvalRs
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_get_evaluated_schema(
-            IntPtr handle,
-            [MarshalAs(UnmanagedType.I1)] bool skipLayout
+            IntPtr handle
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_get_resolved_layout(
+            IntPtr handle
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_get_evaluated_schema_resolved(
+            IntPtr handle
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
@@ -54,14 +63,12 @@ namespace JsonEvalRs
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_get_evaluated_schema_without_params(
-            IntPtr handle,
-            [MarshalAs(UnmanagedType.I1)] bool skipLayout
+            IntPtr handle
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_get_evaluated_schema_msgpack(
-            IntPtr handle,
-            [MarshalAs(UnmanagedType.I1)] bool skipLayout
+            IntPtr handle
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]

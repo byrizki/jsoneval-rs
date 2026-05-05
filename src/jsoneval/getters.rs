@@ -1,9 +1,10 @@
 use super::JSONEval;
 use crate::jsoneval::path_utils;
-use crate::jsoneval::types::ReturnFormat;
+use crate::jsoneval::types::{ResolvedLayoutResult, ReturnFormat};
 
 use crate::time_block;
-use serde_json::Value;
+use serde_json::Value; 
+use std::sync::Arc;
 
 impl JSONEval {
     /// Check if a field is effectively hidden by checking its condition and all parents
@@ -118,27 +119,149 @@ impl JSONEval {
     }
 
 
-    /// Get the evaluated schema with optional layout resolution.
-    ///
-    /// # Arguments
-    ///
-    /// * `skip_layout` - Whether to skip layout resolution.
+    /// Get the evaluated schema (compact — $ref intact, no layout expansion).
     ///
     /// # Returns
     ///
     /// The evaluated schema as a JSON value, with all `$static_array` markers resolved
     /// to their actual evaluated data.
-    pub fn get_evaluated_schema(&mut self, skip_layout: bool) -> Value {
+    pub fn get_evaluated_schema(&mut self) -> Value {
         time_block!("get_evaluated_schema()", {
-            if !skip_layout {
-                if let Err(e) = self.resolve_layout(false) {
-                    eprintln!(
-                        "Warning: Layout resolution failed in get_evaluated_schema: {}",
-                        e
-                    );
+            let mut schema = self.evaluated_schema.clone();
+            self.resolve_static_markers_in_value(&mut schema);
+            schema
+        })
+    }
+
+    /// Get layout overlay entries — the delta properties per layout element.
+    /// Consumer merges these into compact schema to get fully resolved layout.
+    pub fn get_resolved_layout(&mut self) -> ResolvedLayoutResult {
+        time_block!("get_resolved_layout()", {
+            // Check cache
+            if let Some(ref cached) = self.resolved_layout_cache {
+                return cached.as_ref().clone();
+            }
+            // Resolve and cache
+            let result = match self.resolve_layout(false) {
+                Ok(entries) => entries,
+                Err(e) => {
+                    eprintln!("Warning: Layout resolution failed: {}", e);
+                    Vec::new()
+                }
+            };
+            self.resolved_layout_cache = Some(Arc::new(result.clone()));
+            result
+        })
+    }
+
+    /// Get evaluated schema with layout overlays already applied.
+    /// Convenience: returns compact schema + overlays merged.
+    ///
+    /// Two-pass approach to handle nested elements:
+    /// 1. First pass: resolve $ref and apply overlay for entries whose target
+    ///    path exists in the compact schema (top-level elements).
+    /// 2. Second pass: apply overlay-only for entries whose path appears
+    ///    after parent $ref resolution (nested elements).
+    pub fn get_evaluated_schema_resolved(&mut self) -> Value {
+        time_block!("get_evaluated_schema_resolved()", {
+            let mut schema = self.evaluated_schema.clone();
+            let overlays = self.get_resolved_layout();
+
+            struct ResolveEntry {
+                layout_path: String,
+                element_idx: usize,
+                overlay: indexmap::IndexMap<String, Value>,
+            }
+
+            let mut entries: Vec<ResolveEntry> = overlays.iter().map(|entry| {
+                let layout_path = path_utils::normalize_to_json_pointer(&entry.layout_path).into_owned();
+                ResolveEntry {
+                    layout_path,
+                    element_idx: entry.element_idx,
+                    overlay: entry.overlay.clone(),
+                }
+            }).collect();
+            drop(overlays);
+
+            // Sort entries shallow-first so parent elements are expanded before their children.
+            // Child entries (e.g. layout_path = ".../elements/1/elements") depend on the parent
+            // ("…/elements") being resolved first so the nested `elements` array exists in `schema`.
+            entries.sort_by(|a, b| {
+                let depth_a = a.layout_path.matches('/').count();
+                let depth_b = b.layout_path.matches('/').count();
+                depth_a.cmp(&depth_b).then_with(|| a.element_idx.cmp(&b.element_idx))
+            });
+
+            // ── Phase 2 (mutable): resolve $ref + apply overlays (parent-first order) ──
+            // Entries are sorted shallowest layout_path first, so parent elements are
+            // expanded before any child entries that path through them.
+            for entry in entries {
+                // Resolve $ref from the current (already partially mutated) schema so that
+                // parent expansions are visible when we process child entries.
+                let resolved_value: Option<Value> = (|| -> Option<Value> {
+                    let arr = schema.pointer(&entry.layout_path)?.as_array()?;
+                    let element = arr.get(entry.element_idx)?;
+                    let ref_str = element.get("$ref")?.as_str()?;
+
+                    let ref_pointer = if ref_str.starts_with('#') || ref_str.starts_with('/') {
+                        path_utils::normalize_to_json_pointer(ref_str).into_owned()
+                    } else {
+                        let schema_pointer = path_utils::dot_notation_to_schema_pointer(ref_str);
+                        let normalized = path_utils::normalize_to_json_pointer(&schema_pointer).into_owned();
+                        if schema.pointer(&normalized).is_some() {
+                            normalized
+                        } else {
+                            format!("/properties/{}", ref_str.replace('.', "/properties/"))
+                        }
+                    };
+
+                    let mut resolved = schema.pointer(&ref_pointer)?.clone();
+
+                    // Flatten $layout into top level
+                    if let Value::Object(ref mut resolved_map) = resolved {
+                        if let Some(Value::Object(layout_obj)) = resolved_map.remove("$layout") {
+                            let mut result = layout_obj;
+                            for (key, value) in resolved_map.clone().into_iter() {
+                                if key != "type" || !result.contains_key("type") {
+                                    result.insert(key, value);
+                                }
+                            }
+                            resolved = Value::Object(result);
+                        }
+                    }
+
+                    Some(resolved)
+                })();
+
+                if let Some(Value::Array(arr)) = schema.pointer_mut(&entry.layout_path) {
+                    if entry.element_idx < arr.len() {
+                        let element = &mut arr[entry.element_idx];
+
+                        // Apply $ref resolution
+                        if let Some(resolved) = resolved_value {
+                            if let Value::Object(mut resolved_map) = resolved {
+                                if let Value::Object(mut map) = element.take() {
+                                    map.remove("$ref");
+                                    for (key, value) in map {
+                                        resolved_map.insert(key, value);
+                                    }
+                                }
+                                *element = Value::Object(resolved_map);
+                            } else {
+                                *element = resolved;
+                            }
+                        }
+
+                        // Apply overlay on top
+                        if let Value::Object(ref mut map) = element {
+                            for (k, v) in &entry.overlay {
+                                map.insert(k.clone(), v.clone());
+                            }
+                        }
+                    }
                 }
             }
-            let mut schema = self.evaluated_schema.clone();
+
             self.resolve_static_markers_in_value(&mut schema);
             schema
         })
@@ -397,8 +520,8 @@ impl JSONEval {
     }
 
     /// Get evaluated schema without $params
-    pub fn get_evaluated_schema_without_params(&mut self, skip_layout: bool) -> Value {
-        let mut schema = self.get_evaluated_schema(skip_layout);
+    pub fn get_evaluated_schema_without_params(&mut self) -> Value {
+        let mut schema = self.get_evaluated_schema();
         if let Value::Object(ref mut map) = schema {
             map.remove("$params");
         }
@@ -406,21 +529,13 @@ impl JSONEval {
     }
 
     /// Get evaluated schema as MessagePack bytes
-    pub fn get_evaluated_schema_msgpack(&mut self, skip_layout: bool) -> Result<Vec<u8>, String> {
-        let schema = self.get_evaluated_schema(skip_layout);
+    pub fn get_evaluated_schema_msgpack(&mut self) -> Result<Vec<u8>, String> {
+        let schema = self.get_evaluated_schema();
         rmp_serde::to_vec(&schema).map_err(|e| format!("MessagePack serialization failed: {}", e))
     }
 
     /// Get value from evaluated schema by path
-    pub fn get_evaluated_schema_by_path(&mut self, path: &str, skip_layout: bool) -> Option<Value> {
-        if !skip_layout {
-            if let Err(e) = self.resolve_layout(false) {
-                eprintln!(
-                    "Warning: Layout resolution failed in get_evaluated_schema_by_path: {}",
-                    e
-                );
-            }
-        }
+    pub fn get_evaluated_schema_by_path(&mut self, path: &str) -> Option<Value> {
         self.get_schema_value_by_path(path)
     }
 
@@ -428,18 +543,8 @@ impl JSONEval {
     pub fn get_evaluated_schema_by_paths(
         &mut self,
         paths: &[String],
-        skip_layout: bool,
         format: Option<ReturnFormat>,
     ) -> Value {
-        if !skip_layout {
-            if let Err(e) = self.resolve_layout(false) {
-                eprintln!(
-                    "Warning: Layout resolution failed in get_evaluated_schema_by_paths: {}",
-                    e
-                );
-            }
-        }
-
         match format.unwrap_or(ReturnFormat::Nested) {
             ReturnFormat::Nested => {
                 let mut result = Value::Object(serde_json::Map::new());

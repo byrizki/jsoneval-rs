@@ -40,7 +40,7 @@ fn test_selective_eval_subforms() {
     eval.evaluate_subform("#/items", &data_initial, None, None, None)
         .expect("Initial evaluation failed");
 
-    let schema_v1 = eval.get_evaluated_schema_subform("#/items", true);
+    let schema_v1 = eval.get_evaluated_schema_subform("#/items");
     println!("Schema V1: {}", schema_v1);
 
     // Assert tax value directly from schema
@@ -68,7 +68,7 @@ fn test_selective_eval_subforms() {
     eval.evaluate_subform("#/items", &data_updated, None, Some(&selective_paths), None)
         .expect("Selective evaluation failed");
 
-    let schema_v2 = eval.get_evaluated_schema_subform("#/items", true);
+    let schema_v2 = eval.get_evaluated_schema_subform("#/items");
     println!("Schema V2: {}", schema_v2);
     let v2 = get_tax_from_schema(&schema_v2);
 
@@ -87,7 +87,7 @@ fn test_selective_eval_subforms() {
     eval.evaluate_subform("#/items", &data_updated, None, Some(&target_paths), None)
         .expect("Selective evaluation failed 2");
 
-    let schema_v3 = eval.get_evaluated_schema_subform("#/items", true);
+    let schema_v3 = eval.get_evaluated_schema_subform("#/items");
     println!("Schema V3: {}", schema_v3);
     let v3 = get_tax_from_schema(&schema_v3);
 

@@ -4,20 +4,20 @@
 
 Symbol maps for 8 large files in this module.
 
-## src/jsoneval/core.rs (630 lines)
+## src/jsoneval/core.rs (646 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
 | 18 | fn | clone | (private) |
-| 53 | fn | new | pub |
-| 133 | fn | new_subform | pub |
-| 203 | fn | new_from_msgpack | pub |
-| 297 | fn | with_parsed_schema | pub |
-| 356 | fn | reload_schema | pub |
-| 441 | fn | set_timezone_offset | pub |
-| 468 | fn | reload_schema_msgpack | pub |
-| 546 | fn | reload_schema_parsed | pub |
-| 616 | fn | reload_schema_from_cache | pub |
+| 55 | fn | new | pub |
+| 137 | fn | new_subform | pub |
+| 209 | fn | new_from_msgpack | pub |
+| 305 | fn | with_parsed_schema | pub |
+| 366 | fn | reload_schema | pub |
+| 453 | fn | set_timezone_offset | pub |
+| 480 | fn | reload_schema_msgpack | pub |
+| 560 | fn | reload_schema_parsed | pub |
+| 632 | fn | reload_schema_from_cache | pub |
 
 ## src/jsoneval/dependents.rs (1596 lines)
 
@@ -76,7 +76,7 @@ Symbol maps for 8 large files in this module.
 | 578 | fn | diff_and_update_versions_internal | (private) |
 | 654 | fn | traverse_and_bump | (private) |
 
-## src/jsoneval/evaluate.rs (860 lines)
+## src/jsoneval/evaluate.rs (865 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -87,33 +87,36 @@ Symbol maps for 8 large files in this module.
 | 277 | fn | evaluate_internal_pre_diffed | pub |
 | 301 | fn | evaluate_internal | pub |
 | 666 | fn | evaluate_others | pub |
-| 812 | fn | evaluate_options_templates | (private) |
-| 842 | fn | evaluate_template | (private) |
+| 817 | fn | evaluate_options_templates | (private) |
+| 847 | fn | evaluate_template | (private) |
 
-## src/jsoneval/getters.rs (596 lines)
+## src/jsoneval/getters.rs (701 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
-| 11 | fn | is_effective_hidden | pub |
-| 60 | fn | prune_hidden_values | (private) |
-| 103 | fn | resolve_static_markers_in_value | (private) |
-| 131 | fn | get_evaluated_schema | pub |
-| 157 | fn | resolve_static_markers_at_path | (private) |
-| 194 | fn | get_schema_value_by_path | pub |
-| 202 | fn | get_schema_value | pub |
-| 303 | fn | get_schema_value_array | pub |
-| 356 | fn | get_schema_value_object | pub |
-| 400 | fn | get_evaluated_schema_without_params | pub |
-| 409 | fn | get_evaluated_schema_msgpack | pub |
-| 415 | fn | get_evaluated_schema_by_path | pub |
-| 428 | fn | get_evaluated_schema_by_paths | pub |
-| 478 | fn | get_schema_by_path | pub |
-| 486 | fn | get_schema_by_paths | pub |
-| 521 | fn | insert_at_path | pub |
-| 552 | fn | flatten_object | pub |
-| 574 | fn | convert_to_format | pub |
+| 12 | fn | is_effective_hidden | pub |
+| 61 | fn | prune_hidden_values | (private) |
+| 104 | fn | resolve_static_markers_in_value | (private) |
+| 128 | fn | get_evaluated_schema | pub |
+| 138 | fn | get_resolved_layout | pub |
+| 165 | fn | get_evaluated_schema_resolved | pub |
+| 170 | struct | ResolveEntry | (private) |
+| 280 | fn | resolve_static_markers_at_path | (private) |
+| 317 | fn | get_schema_value_by_path | pub |
+| 325 | fn | get_schema_value | pub |
+| 426 | fn | get_schema_value_array | pub |
+| 479 | fn | get_schema_value_object | pub |
+| 523 | fn | get_evaluated_schema_without_params | pub |
+| 532 | fn | get_evaluated_schema_msgpack | pub |
+| 538 | fn | get_evaluated_schema_by_path | pub |
+| 543 | fn | get_evaluated_schema_by_paths | pub |
+| 583 | fn | get_schema_by_path | pub |
+| 591 | fn | get_schema_by_paths | pub |
+| 626 | fn | insert_at_path | pub |
+| 657 | fn | flatten_object | pub |
+| 679 | fn | convert_to_format | pub |
 
-## src/jsoneval/subform_methods.rs (894 lines)
+## src/jsoneval/subform_methods.rs (904 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -126,17 +129,19 @@ Symbol maps for 8 large files in this module.
 | 611 | fn | validate_subform | pub |
 | 655 | fn | evaluate_dependents_subform | pub |
 | 718 | fn | resolve_layout_subform | pub |
-| 733 | fn | get_evaluated_schema_subform | pub |
-| 771 | fn | get_schema_value_subform | pub |
-| 781 | fn | get_schema_value_array_subform | pub |
-| 791 | fn | get_schema_value_object_subform | pub |
-| 801 | fn | get_evaluated_schema_without_params_subform | pub |
-| 815 | fn | get_evaluated_schema_by_path_subform | pub |
-| 832 | fn | get_evaluated_schema_by_paths_subform | pub |
-| 855 | fn | get_schema_by_path_subform | pub |
-| 867 | fn | get_schema_by_paths_subform | pub |
-| 885 | fn | get_subform_paths | pub |
-| 890 | fn | has_subform | pub |
+| 732 | fn | get_evaluated_schema_subform | pub |
+| 760 | fn | get_schema_value_subform | pub |
+| 770 | fn | get_schema_value_array_subform | pub |
+| 780 | fn | get_schema_value_object_subform | pub |
+| 790 | fn | get_evaluated_schema_without_params_subform | pub |
+| 803 | fn | get_evaluated_schema_by_path_subform | pub |
+| 818 | fn | get_evaluated_schema_by_paths_subform | pub |
+| 839 | fn | get_schema_by_path_subform | pub |
+| 851 | fn | get_schema_by_paths_subform | pub |
+| 869 | fn | get_resolved_layout_subform | pub |
+| 882 | fn | get_evaluated_schema_resolved_subform | pub |
+| 895 | fn | get_subform_paths | pub |
+| 900 | fn | has_subform | pub |
 
 ## src/jsoneval/table_evaluate.rs (568 lines)
 

@@ -51,7 +51,7 @@ impl JSONEval {
             self.evaluate_others(paths, token, true);
 
             // Update evaluated_schema with fresh evaluations
-            self.evaluated_schema = self.get_evaluated_schema(false);
+            self.evaluated_schema = self.get_evaluated_schema();
 
             let mut errors: IndexMap<String, ValidationError> = IndexMap::new();
 
@@ -96,7 +96,7 @@ impl JSONEval {
     ) -> Result<crate::ValidationResult, String> {
         // Re-evaluate rule evaluations with the current (already-set) data.
         self.evaluate_others(paths, token, true);
-        self.evaluated_schema = self.get_evaluated_schema(false);
+        self.evaluated_schema = self.get_evaluated_schema();
 
         let mut errors: IndexMap<String, ValidationError> = IndexMap::new();
 

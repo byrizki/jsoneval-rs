@@ -10,7 +10,6 @@ graph TD
     src_jsoneval[src-jsoneval] --> JSONEval[JSONEval]
     src_jsoneval[src-jsoneval] --> LogicId[LogicId]
     src_jsoneval[src-jsoneval] --> ParsedSchema[ParsedSchema]
-    src_jsoneval[src-jsoneval] --> ReturnFormat[ReturnFormat]
     src_jsoneval[src-jsoneval] --> crate[crate]
     src_jsoneval[src-jsoneval] --> indexmap[indexmap]
     src_jsoneval[src-jsoneval] --> once_cell[once_cell]
@@ -57,7 +56,6 @@ Dependencies from other modules:
 - `JSONEval`
 - `LogicId`
 - `ParsedSchema`
-- `ReturnFormat`
 - `crate`
 - `indexmap`
 - `once_cell`

@@ -274,7 +274,7 @@ fn main() {
                             eval_instance
                                 .evaluate(&data_str_clone, Some("{}"), None, None)
                                 .unwrap();
-                            last_schema = eval_instance.get_evaluated_schema(false);
+                            last_schema = eval_instance.get_evaluated_schema();
                             thread_times.push(iter_start.elapsed());
                         }
 
@@ -341,7 +341,7 @@ fn main() {
                     eval_instance
                         .evaluate(&data_str, Some("{}"), None, None)
                         .unwrap_or_else(|e| panic!("evaluation failed: {}", e));
-                    evaluated_schema = eval_instance.get_evaluated_schema(false);
+                    evaluated_schema = eval_instance.get_evaluated_schema();
                     iteration_times.push(iter_start.elapsed());
 
                     if iterations > 1 && (iter + 1) % 10 == 0 {
@@ -423,7 +423,7 @@ fn main() {
 
                 eval.evaluate(&data_str, Some("{}"), None, None)
                     .unwrap_or_else(|e| panic!("evaluation failed: {}", e));
-                evaluated_schema = eval.get_evaluated_schema(false);
+                evaluated_schema = eval.get_evaluated_schema();
                 iteration_times.push(iter_start.elapsed());
 
                 if iterations > 1 && (iter + 1) % 10 == 0 {

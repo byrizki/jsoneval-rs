@@ -146,7 +146,7 @@ export declare class JSONEval {
      * @returns Promise resolving to evaluated schema object
      * @throws {Error} If operation fails
      */
-    getEvaluatedSchema(skipLayout?: boolean): Promise<any>;
+    getEvaluatedSchema(): Promise<any>;
     /**
      * Get all schema values (evaluations ending with .value)
      * @returns Promise resolving to map of path -> value
@@ -173,7 +173,7 @@ export declare class JSONEval {
      * @returns Promise resolving to evaluated schema object
      * @throws {Error} If operation fails
      */
-    getEvaluatedSchemaWithoutParams(skipLayout?: boolean): Promise<any>;
+    getEvaluatedSchemaWithoutParams(): Promise<any>;
     /**
      * Get a value from the evaluated schema using dotted path notation
      * @param path - Dotted path to the value (e.g., "properties.field.value")
@@ -181,7 +181,7 @@ export declare class JSONEval {
      * @returns Promise resolving to the value at the path, or null if not found
      * @throws {Error} If operation fails
      */
-    getEvaluatedSchemaByPath(path: string, skipLayout?: boolean): Promise<any | null>;
+    getEvaluatedSchemaByPath(path: string): Promise<any | null>;
     /**
      * Get values from the evaluated schema using multiple dotted path notations
      * Returns data in the specified format (skips paths that are not found)
@@ -191,7 +191,7 @@ export declare class JSONEval {
      * @returns Promise resolving to data in the specified format
      * @throws {Error} If operation fails
      */
-    getEvaluatedSchemaByPaths(paths: string[], skipLayout?: boolean, format?: ReturnFormat): Promise<any>;
+    getEvaluatedSchemaByPaths(paths: string[], format?: ReturnFormat): Promise<any>;
     /**
      * Get a value from the schema using dotted path notation
      * @param path - Dotted path to the value (e.g., "properties.field.value")
@@ -236,7 +236,7 @@ export declare class JSONEval {
      * @returns Promise that resolves when layout resolution is complete
      * @throws {Error} If operation fails
      */
-    resolveLayout(evaluate?: boolean): Promise<void>;
+    resolveLayout(evaluate?: boolean): Promise<LayoutOverlayEntry[]>;
     /**
      * Set timezone offset for datetime operations (TODAY, NOW)
      * @param offsetMinutes - Timezone offset in minutes from UTC (e.g., 420 for UTC+7, -300 for UTC-5)

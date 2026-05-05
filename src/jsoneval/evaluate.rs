@@ -806,6 +806,11 @@ impl JSONEval {
                 let _ = self.resolve_layout(false);
             });
         }
+
+        // Always clear layout cache on re-evaluate, regardless of had_cache_miss.
+        // When data changes but formulas all cache-hit, had_cache_miss=false skips
+        // resolve_layout — but the cached overlays are stale (from prior state).
+        self.resolved_layout_cache = None;
     }
 
     /// Evaluate options URL templates (handles {variable} patterns)

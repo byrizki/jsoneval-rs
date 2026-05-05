@@ -20,7 +20,7 @@ fn test_evaluate_basic() {
         .expect("Evaluation failed");
 
     // Check that schema was evaluated successfully
-    let result = eval.get_evaluated_schema(false);
+    let result = eval.get_evaluated_schema();
     assert!(result.is_object(), "Result should be an object");
     // The evaluated_schema contains the schema structure
     assert!(
@@ -51,7 +51,7 @@ fn test_evaluate_with_context() {
         .expect("Evaluation failed");
 
     // Verify evaluation completes successfully
-    let result = eval.get_evaluated_schema(false);
+    let result = eval.get_evaluated_schema();
     assert!(result.is_object(), "Result should be an object");
 }
 

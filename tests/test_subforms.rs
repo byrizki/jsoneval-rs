@@ -87,7 +87,7 @@ fn test_subform_schema_structure() {
     let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
 
     // Get subform schema
-    let subform_schema = eval.get_evaluated_schema_subform("#/benefits", false);
+    let subform_schema = eval.get_evaluated_schema_subform("#/benefits");
 
     // Verify $params are copied
     assert!(
@@ -161,7 +161,7 @@ fn test_evaluate_subform() {
         .unwrap();
 
     // Get evaluated schema
-    let result = eval.get_evaluated_schema_subform("#/items", false);
+    let result = eval.get_evaluated_schema_subform("#/items");
 
     // Check that tax was calculated
     assert_eq!(
@@ -336,7 +336,7 @@ fn test_resolve_layout_subform() {
     assert!(result.is_ok(), "Should successfully resolve layout");
 
     // Get schema with resolved layout
-    let schema = eval.get_evaluated_schema_subform("#/form_items", true);
+    let schema = eval.get_evaluated_schema_subform("#/form_items");
 
     // Verify layout elements are resolved
     assert!(schema.pointer("/form_items/$layout/elements").is_some());
@@ -418,7 +418,7 @@ fn test_subform_isolation() {
     let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
 
     // Get subform schema
-    let subform_schema = eval.get_evaluated_schema_subform("#/subform_field", false);
+    let subform_schema = eval.get_evaluated_schema_subform("#/subform_field");
 
     // Verify subform only has $params and its own field
     assert!(subform_schema.get("$params").is_some());
@@ -485,7 +485,7 @@ fn test_get_evaluated_schema_without_params_subform() {
     let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
 
     // Get schema without $params
-    let schema_without_params = eval.get_evaluated_schema_without_params_subform("#/data", false);
+    let schema_without_params = eval.get_evaluated_schema_without_params_subform("#/data");
 
     assert!(
         schema_without_params.get("$params").is_none(),
@@ -545,7 +545,7 @@ fn test_nested_subform_key() {
 
     // Get schema without params
     let schema_without_params = eval
-        .get_evaluated_schema_without_params_subform("#/properties/form/properties/riders", false);
+        .get_evaluated_schema_without_params_subform("#/properties/form/properties/riders");
 
     // Should have "riders" key instead of "properties/form/properties/riders"
     assert!(
@@ -608,7 +608,7 @@ fn test_evaluate_dependents_subform_array_iteration() {
     });
     let data_str = serde_json::to_string(&data).unwrap();
 
-    let subform_schema = eval.get_evaluated_schema_subform("#/riders", false);
+    let subform_schema = eval.get_evaluated_schema_subform("#/riders");
     println!(
         "Subform schema: {}",
         serde_json::to_string_pretty(&subform_schema).unwrap()

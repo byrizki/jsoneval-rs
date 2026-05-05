@@ -37,7 +37,7 @@ fn test_selective_eval_params_root() {
     // Initial full evaluation
     eval.evaluate(&data_str, None, None, None).unwrap();
 
-    let result = eval.get_evaluated_schema(false);
+    let result = eval.get_evaluated_schema();
     println!("value_evaluations count: {}", eval.value_evaluations.len());
     println!("value_evaluations: {:?}", eval.value_evaluations);
     println!(
@@ -86,7 +86,7 @@ fn test_selective_eval_params_root() {
     // First do a full evaluation to process the $evaluation objects
     eval2.evaluate(&data_str, None, None, None).unwrap();
 
-    let result2 = eval2.get_evaluated_schema(false);
+    let result2 = eval2.get_evaluated_schema();
     assert_eq!(
         *result2
             .pointer("/$params/othersr/HAS_BEEN_PAID/value")
@@ -149,7 +149,7 @@ fn test_selective_eval_explicit_properties() {
     // Initial evaluation
     eval.evaluate(&data_str, None, None, None).unwrap();
 
-    let result = eval.get_evaluated_schema(false);
+    let result = eval.get_evaluated_schema();
     assert_eq!(
         *result
             .pointer("/properties/illustration/properties/user/properties/fullname/value")
@@ -169,7 +169,7 @@ fn test_selective_eval_explicit_properties() {
     eval.evaluate(&updated_data_str, None, Some(&paths_dot), None)
         .unwrap();
 
-    let result2 = eval.get_evaluated_schema(false);
+    let result2 = eval.get_evaluated_schema();
     let fullname = result2
         .pointer("/properties/illustration/properties/user/properties/fullname/value")
         .unwrap();
@@ -241,7 +241,7 @@ fn test_selective_eval_explicit_properties_path() {
     eval.evaluate(&updated_data_str, None, Some(&paths), None)
         .unwrap();
 
-    let result = eval.get_evaluated_schema(false);
+    let result = eval.get_evaluated_schema();
     let fullname = result
         .pointer("/properties/illustration/properties/user/properties/fullname/value")
         .unwrap();

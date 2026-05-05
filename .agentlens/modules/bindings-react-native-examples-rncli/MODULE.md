@@ -20,7 +20,7 @@
 | `bindings/react-native/examples/rncli/react-native.config.js` | 10 |  |
 | `bindings/react-native/examples/rncli/src/screens/DependentFieldsScreen.tsx` | 250 |  |
 | `bindings/react-native/examples/rncli/src/screens/FormValidationScreen.tsx` | 223 |  |
-| `bindings/react-native/examples/rncli/src/screens/InsuranceFormScreen.tsx` | 631 | 📊 |
+| `bindings/react-native/examples/rncli/src/screens/InsuranceFormScreen.tsx` | 619 | 📊 |
 
 ## Documentation
 
@@ -30,14 +30,14 @@
 
 Symbol maps for 1 large files in this module.
 
-## bindings/react-native/examples/rncli/src/screens/InsuranceFormScreen.tsx (631 lines)
+## bindings/react-native/examples/rncli/src/screens/InsuranceFormScreen.tsx (619 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
 | 173 | fn | initialize | (private) |
-| 225 | fn | handleDateChange | (private) |
-| 261 | fn | handleSmokerChange | (private) |
-| 300 | fn | handleOccupationChange | (private) |
+| 213 | fn | handleDateChange | (private) |
+| 249 | fn | handleSmokerChange | (private) |
+| 288 | fn | handleOccupationChange | (private) |
 ---
 
 | High 🔴 | Medium 🟡 | Low 🟢 |

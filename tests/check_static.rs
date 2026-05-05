@@ -32,7 +32,7 @@ fn test_get_evaluated_schema_resolves_all_static_arrays_minimal() {
         .expect("Should evaluate successfully");
 
     // Fetch the evaluated schema (which includes resolving $static_array markers)
-    let full_schema = eval.get_evaluated_schema(false);
+    let full_schema = eval.get_evaluated_schema();
 
     // minimal_form.json has a static array extracted during initialization
     // Let's verify it gets properly put back into the evaluated_schema output

@@ -186,29 +186,17 @@ export default function InsuranceFormScreen() {
         await evalInstance.evaluate({ data });
         
         // Get evaluated schema WITHOUT $params
-        const schemaWithoutParams = await evalInstance.getEvaluatedSchemaWithoutParams({ skipLayout: true });
+        const schemaWithoutParams = await evalInstance.getEvaluatedSchemaWithoutParams();
         setEvaluatedSchema(schemaWithoutParams);
 
         // Get $params by path using dot notation
-        const params = await evalInstance.getValueByPath({ 
-          path: '$params', 
-          skipLayout: true 
-        });
+        const params = await evalInstance.getEvaluatedSchemaByPath('$params');
         setProductInfo(params);
 
         // Get calculated values
-        const ageValue = await evalInstance.getValueByPath({ 
-          path: 'illustration.properties.insured.properties.age.value',
-          skipLayout: true 
-        });
-        const classValue = await evalInstance.getValueByPath({ 
-          path: 'illustration.properties.insured.properties.occupation_class.value',
-          skipLayout: true 
-        });
-        const riskValue = await evalInstance.getValueByPath({ 
-          path: 'illustration.properties.insured.properties.risk_category.value',
-          skipLayout: true 
-        });
+        const ageValue = await evalInstance.getEvaluatedSchemaByPath('illustration.properties.insured.properties.age.value');
+        const classValue = await evalInstance.getEvaluatedSchemaByPath('illustration.properties.insured.properties.occupation_class.value');
+        const riskValue = await evalInstance.getEvaluatedSchemaByPath('illustration.properties.insured.properties.risk_category.value');
 
         setAge(ageValue);
         setOccupationClass(classValue || '');
@@ -509,7 +497,7 @@ export default function InsuranceFormScreen() {
           <Text style={[styles.demoText, { color: isDarkMode ? '#aaa' : '#666' }]}>
             ✅ Dot notation paths: "illustration.insured.name"{'\n'}
             ✅ getEvaluatedSchemaWithoutParams(){'\n'}
-            ✅ getValueByPath() for $params access{'\n'}
+            ✅ getEvaluatedSchemaByPath() for $params access{'\n'}
             ✅ Transitive dependencies (auto-processed){'\n'}
             ✅ Clear and value dependents{'\n'}
             ✅ Real-time field calculations

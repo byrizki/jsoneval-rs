@@ -40,7 +40,7 @@ interface UseJSONEvalWorkerReturn {
     context?: any,
     nested?: boolean
   ) => Promise<any>;
-  getEvaluatedSchema: (skipLayout?: boolean) => Promise<any>;
+  getEvaluatedSchema: () => Promise<any>;
   getSchemaValue: () => Promise<any>;
   reloadSchema: (schema: any, context?: any, data?: any) => Promise<void>;
   cacheStats: () => Promise<CacheStats>;
@@ -189,8 +189,8 @@ export function useJSONEvalWorker({
   );
 
   const getEvaluatedSchema = useCallback(
-    async (skipLayout: boolean = false): Promise<any> => {
-      return sendMessage('GET_EVALUATED_SCHEMA', { skipLayout });
+    async (): Promise<any> => {
+      return sendMessage('GET_EVALUATED_SCHEMA', {});
     },
     [sendMessage]
   );

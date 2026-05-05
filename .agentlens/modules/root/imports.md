@@ -7,6 +7,7 @@
 ```mermaid
 graph TD
     root[root] --> hooks[hooks]
+    root[root] --> _json_eval_rs[@json-eval-rs]
     root[root] --> chrono[chrono]
     root[root] --> common[common]
     root[root] --> json_eval_rs[json_eval_rs]
@@ -26,6 +27,7 @@ Dependencies within this module:
 Dependencies from other modules:
 
 - `@/hooks/useJSONEvalWorker`
+- `@json-eval-rs/common`
 - `chrono`
 - `common`
 - `json_eval_rs`

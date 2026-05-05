@@ -176,7 +176,7 @@ fn main() {
         eval.evaluate(&data_str, Some("{}"), None, None)
             .unwrap_or_else(|e| panic!("evaluation failed: {}", e));
 
-        let evaluated_schema = eval.get_evaluated_schema(false);
+        let evaluated_schema = eval.get_evaluated_schema();
         let eval_time = eval_start.elapsed();
 
         println!("  ⚡ Eval: {:?}", eval_time);

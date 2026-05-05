@@ -5,25 +5,21 @@
 ## Summary
 
 | High 🔴 | Medium 🟡 | Low 🟢 |
-| 0 | 0 | 15 |
+| 0 | 0 | 14 |
 
 ## 🟢 Low Priority
 
-### `NOTE` (bindings/react-native/packages/react-native/android/src/main/cpp/json-eval-rn.cpp:15)
+### `NOTE` (bindings/react-native/packages/react-native/android/src/main/cpp/json-eval-rn.cpp:16)
 
 > GetStringUTFChars provides a pinned pointer (minimal copy), but we must
 
-### `NOTE` (bindings/react-native/packages/react-native/android/src/main/cpp/json-eval-rn.cpp:29)
+### `NOTE` (bindings/react-native/packages/react-native/android/src/main/cpp/json-eval-rn.cpp:30)
 
 > NewStringUTF copies C string to create Java String object (unavoidable)
 
-### `NOTE` (bindings/react-native/packages/react-native/android/src/main/cpp/json-eval-rn.cpp:74)
+### `NOTE` (bindings/react-native/packages/react-native/android/src/main/cpp/json-eval-rn.cpp:75)
 
 > Template functions must have C++ linkage, not C linkage
-
-### `NOTE` (bindings/react-native/packages/react-native/cpp/json-eval-bridge.cpp:135)
-
-> std::mutex is non-movable in NDK libc++, so we keep two parallel maps
 
 ### `NOTE` (tests/array_tests.rs:359)
 
@@ -53,7 +49,7 @@
 
 > implementation details might vary. The key requirement is DATA PRESERVATION.
 
-### `NOTE` (tests/test_evaluate_others.rs:700)
+### `NOTE` (tests/test_evaluate_others.rs:876)
 
 > paths are normalized to JSON pointer format during parsing
 

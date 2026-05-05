@@ -5,7 +5,7 @@
 ## Summary
 
 | High 🔴 | Medium 🟡 | Low 🟢 |
-| 59 | 0 | 0 |
+| 61 | 0 | 0 |
 
 ## 🔴 High Priority
 
@@ -33,43 +33,43 @@
 
 > ///
 
-### `SAFETY` (src/ffi/core.rs:239)
+### `SAFETY` (src/ffi/core.rs:249)
 
 > ///
 
-### `SAFETY` (src/ffi/core.rs:255)
+### `SAFETY` (src/ffi/core.rs:265)
 
 > ///
 
-### `SAFETY` (src/ffi/core.rs:267)
+### `SAFETY` (src/ffi/core.rs:277)
 
 > ///
 
-### `SAFETY` (src/ffi/core.rs:280)
+### `SAFETY` (src/ffi/core.rs:290)
 
 > ///
 
-### `SAFETY` (src/ffi/core.rs:329)
+### `SAFETY` (src/ffi/core.rs:339)
 
 > ///
 
-### `SAFETY` (src/ffi/core.rs:377)
+### `SAFETY` (src/ffi/core.rs:387)
 
 > ///
 
-### `SAFETY` (src/ffi/core.rs:466)
+### `SAFETY` (src/ffi/core.rs:476)
 
 > ///
 
-### `SAFETY` (src/ffi/core.rs:565)
+### `SAFETY` (src/ffi/core.rs:585)
 
 > ///
 
-### `SAFETY` (src/ffi/core.rs:614)
+### `SAFETY` (src/ffi/core.rs:634)
 
 > ///
 
-### `SAFETY` (src/ffi/core.rs:657)
+### `SAFETY` (src/ffi/core.rs:677)
 
 > ///
 
@@ -93,7 +93,7 @@
 
 > ///
 
-### `SAFETY` (src/ffi/layout.rs:92)
+### `SAFETY` (src/ffi/layout.rs:94)
 
 > ///
 
@@ -153,39 +153,47 @@
 
 > ///
 
-### `SAFETY` (src/ffi/schema.rs:31)
+### `SAFETY` (src/ffi/schema.rs:30)
 
 > ///
 
-### `SAFETY` (src/ffi/schema.rs:64)
+### `SAFETY` (src/ffi/schema.rs:62)
 
 > ///
 
-### `SAFETY` (src/ffi/schema.rs:84)
+### `SAFETY` (src/ffi/schema.rs:82)
 
 > ///
 
-### `SAFETY` (src/ffi/schema.rs:106)
+### `SAFETY` (src/ffi/schema.rs:104)
 
 > ///
 
-### `SAFETY` (src/ffi/schema.rs:127)
+### `SAFETY` (src/ffi/schema.rs:125)
 
 > ///
 
-### `SAFETY` (src/ffi/schema.rs:149)
+### `SAFETY` (src/ffi/schema.rs:146)
 
 > ///
 
-### `SAFETY` (src/ffi/schema.rs:183)
+### `SAFETY` (src/ffi/schema.rs:180)
 
 > ///
 
-### `SAFETY` (src/ffi/schema.rs:226)
+### `SAFETY` (src/ffi/schema.rs:222)
 
 > ///
 
-### `SAFETY` (src/ffi/schema.rs:259)
+### `SAFETY` (src/ffi/schema.rs:255)
+
+> ///
+
+### `SAFETY` (src/ffi/schema.rs:298)
+
+> ///
+
+### `SAFETY` (src/ffi/schema.rs:319)
 
 > ///
 
@@ -201,47 +209,47 @@
 
 > ///
 
-### `SAFETY` (src/ffi/subforms.rs:243)
+### `SAFETY` (src/ffi/subforms.rs:246)
 
 > ///
 
-### `SAFETY` (src/ffi/subforms.rs:271)
+### `SAFETY` (src/ffi/subforms.rs:273)
 
 > /// Get schema value from subform in nested object format
 
-### `SAFETY` (src/ffi/subforms.rs:300)
+### `SAFETY` (src/ffi/subforms.rs:302)
 
 > ///
 
-### `SAFETY` (src/ffi/subforms.rs:329)
+### `SAFETY` (src/ffi/subforms.rs:331)
 
 > ///
 
-### `SAFETY` (src/ffi/subforms.rs:356)
+### `SAFETY` (src/ffi/subforms.rs:358)
 
 > ///
 
-### `SAFETY` (src/ffi/subforms.rs:384)
+### `SAFETY` (src/ffi/subforms.rs:385)
 
 > ///
 
-### `SAFETY` (src/ffi/subforms.rs:424)
+### `SAFETY` (src/ffi/subforms.rs:425)
 
 > ///
 
-### `SAFETY` (src/ffi/subforms.rs:478)
+### `SAFETY` (src/ffi/subforms.rs:477)
 
 > ///
 
-### `SAFETY` (src/ffi/subforms.rs:517)
+### `SAFETY` (src/ffi/subforms.rs:516)
 
 > ///
 
-### `SAFETY` (src/ffi/subforms.rs:565)
+### `SAFETY` (src/ffi/subforms.rs:564)
 
 > ///
 
-### `SAFETY` (src/ffi/subforms.rs:582)
+### `SAFETY` (src/ffi/subforms.rs:581)
 
 > ///
 

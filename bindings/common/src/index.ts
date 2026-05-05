@@ -34,7 +34,8 @@ export {
   GetEvaluatedSchemaByPathsSubformOptions,
   GetSchemaByPathSubformOptions,
   GetSchemaByPathsSubformOptions,
+  LayoutOverlayEntry,
 } from './types.js';
 
 // Re-export utilities
-export { stringifyValue, parseValue, stringifyOrNull, extractErrorMessage } from './utils.js';
+export { stringifyValue, parseValue, stringifyOrNull, extractErrorMessage, mergeLayoutOverlay, resolveEvaluatedLayout } from './utils.js';

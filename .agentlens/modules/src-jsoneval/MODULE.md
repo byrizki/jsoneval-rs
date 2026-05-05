@@ -11,24 +11,24 @@
 | File | Lines | Large |
 | ---- | ----- | ----- |
 | `src/jsoneval/cancellation.rs` | 62 |  |
-| `src/jsoneval/core.rs` | 630 | 📊 |
+| `src/jsoneval/core.rs` | 646 | 📊 |
 | `src/jsoneval/dependents.rs` | 1596 | 📊 |
 | `src/jsoneval/eval_cache.rs` | 682 | 📊 |
 | `src/jsoneval/eval_data.rs` | 351 |  |
-| `src/jsoneval/evaluate.rs` | 860 | 📊 |
-| `src/jsoneval/getters.rs` | 596 | 📊 |
+| `src/jsoneval/evaluate.rs` | 865 | 📊 |
+| `src/jsoneval/getters.rs` | 701 | 📊 |
 | `src/jsoneval/json_parser.rs` | 33 |  |
-| `src/jsoneval/layout.rs` | 415 |  |
+| `src/jsoneval/layout.rs` | 400 |  |
 | `src/jsoneval/logic.rs` | 123 |  |
-| `src/jsoneval/mod.rs` | 72 |  |
+| `src/jsoneval/mod.rs` | 74 |  |
 | `src/jsoneval/parsed_schema.rs` | 193 |  |
 | `src/jsoneval/parsed_schema_cache.rs` | 243 |  |
 | `src/jsoneval/path_utils.rs` | 433 |  |
 | `src/jsoneval/static_arrays.rs` | 39 |  |
-| `src/jsoneval/subform_methods.rs` | 894 | 📊 |
+| `src/jsoneval/subform_methods.rs` | 904 | 📊 |
 | `src/jsoneval/table_evaluate.rs` | 568 | 📊 |
 | `src/jsoneval/table_metadata.rs` | 83 |  |
-| `src/jsoneval/types.rs` | 50 |  |
+| `src/jsoneval/types.rs` | 67 |  |
 | `src/jsoneval/validation.rs` | 601 | 📊 |
 
 ## Documentation

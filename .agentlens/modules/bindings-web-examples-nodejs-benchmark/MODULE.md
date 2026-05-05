@@ -10,7 +10,7 @@
 
 | File | Lines | Large |
 | ---- | ----- | ----- |
-| `bindings/web/examples/nodejs-benchmark/index.ts` | 382 |  |
+| `bindings/web/examples/nodejs-benchmark/index.ts` | 381 |  |
 | `bindings/web/examples/nodejs-benchmark/simulate_cache_miss.js` | 43 |  |
 
 ## Documentation

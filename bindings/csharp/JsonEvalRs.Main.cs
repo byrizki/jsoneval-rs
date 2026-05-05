@@ -431,26 +431,46 @@ namespace JsonEvalRs
         }
 
         /// <summary>
-        /// Gets the evaluated schema with optional layout resolution
+        /// Gets the evaluated schema (compact, without $layout resolution)
         /// </summary>
-        /// <param name="skipLayout">Whether to skip layout resolution</param>
         /// <returns>Evaluated schema as JObject</returns>
-        public JObject GetEvaluatedSchema(bool skipLayout = false)
+        public JObject GetEvaluatedSchema()
         {
             ThrowIfDisposed();
-            var result = Native.json_eval_get_evaluated_schema(_handle, skipLayout);
+            var result = Native.json_eval_get_evaluated_schema(_handle);
             return ProcessResult(result);
         }
 
         /// <summary>
-        /// Gets the evaluated schema as MessagePack binary data
+        /// Gets the resolved layout overlay entries
         /// </summary>
-        /// <param name="skipLayout">Whether to skip layout resolution</param>
-        /// <returns>Evaluated schema as MessagePack bytes</returns>
-        public byte[] GetEvaluatedSchemaMsgpack(bool skipLayout = false)
+        /// <returns>Layout overlay as JArray</returns>
+        public JArray GetResolvedLayout()
         {
             ThrowIfDisposed();
-            var result = Native.json_eval_get_evaluated_schema_msgpack(_handle, skipLayout);
+            var result = Native.json_eval_get_resolved_layout(_handle);
+            return ProcessResultAsArray(result);
+        }
+
+        /// <summary>
+        /// Gets the evaluated schema with layout fully resolved
+        /// </summary>
+        /// <returns>Evaluated schema with resolved layout as JObject</returns>
+        public JObject GetEvaluatedSchemaResolved()
+        {
+            ThrowIfDisposed();
+            var result = Native.json_eval_get_evaluated_schema_resolved(_handle);
+            return ProcessResult(result);
+        }
+
+        /// <summary>
+        /// Gets the evaluated schema as MessagePack binary data (compact)
+        /// </summary>
+        /// <returns>Evaluated schema as MessagePack bytes</returns>
+        public byte[] GetEvaluatedSchemaMsgpack()
+        {
+            ThrowIfDisposed();
+            var result = Native.json_eval_get_evaluated_schema_msgpack(_handle);
             return ProcessResultAsBytes(result);
         }
 
@@ -488,24 +508,22 @@ namespace JsonEvalRs
         }
 
         /// <summary>
-        /// Gets the evaluated schema without $params field
+        /// Gets the evaluated schema without $params field (compact)
         /// </summary>
-        /// <param name="skipLayout">Whether to skip layout resolution</param>
         /// <returns>Evaluated schema as JObject</returns>
-        public JObject GetEvaluatedSchemaWithoutParams(bool skipLayout = false)
+        public JObject GetEvaluatedSchemaWithoutParams()
         {
             ThrowIfDisposed();
-            var result = Native.json_eval_get_evaluated_schema_without_params(_handle, skipLayout);
+            var result = Native.json_eval_get_evaluated_schema_without_params(_handle);
             return ProcessResult(result);
         }
 
         /// <summary>
-        /// Gets a value from the evaluated schema using dotted path notation
+        /// Gets a value from the evaluated schema using dotted path notation (compact)
         /// </summary>
         /// <param name="path">Dotted path to the value (e.g., "properties.field.value")</param>
-        /// <param name="skipLayout">Whether to skip layout resolution</param>
         /// <returns>Value as JToken, or null if not found</returns>
-        public JToken? GetEvaluatedSchemaByPath(string path, bool skipLayout = false)
+        public JToken? GetEvaluatedSchemaByPath(string path)
         {
             ThrowIfDisposed();
 
@@ -513,9 +531,9 @@ namespace JsonEvalRs
                 throw new ArgumentNullException(nameof(path));
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_get_evaluated_schema_by_path(_handle, path, skipLayout);
+            var result = Native.json_eval_get_evaluated_schema_by_path(_handle, path);
 #else
-            var result = Native.json_eval_get_evaluated_schema_by_path(_handle, Native.ToUTF8Bytes(path), skipLayout);
+            var result = Native.json_eval_get_evaluated_schema_by_path(_handle, Native.ToUTF8Bytes(path));
 #endif
             
             if (!result.Success)
@@ -552,10 +570,9 @@ namespace JsonEvalRs
         /// Returns data in the specified format. Skips paths that are not found.
         /// </summary>
         /// <param name="paths">Array of dotted paths to retrieve (e.g., ["properties.field1", "properties.field2"])</param>
-        /// <param name="skipLayout">Whether to skip layout resolution</param>
         /// <param name="format">Return format: Nested (default), Flat, or Array</param>
         /// <returns>Data in the specified format (JObject for Nested/Flat, JArray for Array)</returns>
-        public JToken GetEvaluatedSchemaByPaths(string[] paths, bool skipLayout = false, ReturnFormat format = ReturnFormat.Nested)
+        public JToken GetEvaluatedSchemaByPaths(string[] paths, ReturnFormat format = ReturnFormat.Nested)
         {
             ThrowIfDisposed();
 
@@ -565,9 +582,9 @@ namespace JsonEvalRs
             string pathsJson = JsonConvert.SerializeObject(paths);
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_get_evaluated_schema_by_paths(_handle, pathsJson, skipLayout, (byte)format);
+            var result = Native.json_eval_get_evaluated_schema_by_paths(_handle, pathsJson, (byte)format);
 #else
-            var result = Native.json_eval_get_evaluated_schema_by_paths(_handle, Native.ToUTF8Bytes(pathsJson)!, skipLayout, (byte)format);
+            var result = Native.json_eval_get_evaluated_schema_by_paths(_handle, Native.ToUTF8Bytes(pathsJson)!, (byte)format);
 #endif
             
             if (!result.Success)

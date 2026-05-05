@@ -209,7 +209,7 @@ pub unsafe extern "C" fn json_eval_evaluate_dependents_subform(
     }
 }
 
-/// Resolve layout for subform
+/// Resolve layout for subform, returning overlay entries
 ///
 /// # Safety
 ///
@@ -233,12 +233,15 @@ pub unsafe extern "C" fn json_eval_resolve_layout_subform(
     };
 
     match eval.resolve_layout_subform(path_str, evaluate) {
-        Ok(_) => FFIResult::success(Vec::new()),
+        Ok(overlay) => {
+            let result_bytes = serde_json::to_vec(&overlay).unwrap_or_default();
+            FFIResult::success(result_bytes)
+        }
         Err(e) => FFIResult::error(e),
     }
 }
 
-/// Get evaluated schema from subform
+/// Get evaluated schema from subform (compact, without $layout resolution)
 ///
 /// # Safety
 ///
@@ -248,7 +251,6 @@ pub unsafe extern "C" fn json_eval_resolve_layout_subform(
 pub unsafe extern "C" fn json_eval_get_evaluated_schema_subform(
     handle: *mut JSONEvalHandle,
     subform_path: *const c_char,
-    resolve_layout: bool,
 ) -> FFIResult {
     if handle.is_null() || subform_path.is_null() {
         return FFIResult::error("Invalid pointer".to_string());
@@ -261,7 +263,7 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_subform(
         Err(_) => return FFIResult::error("Invalid UTF-8 in subform_path".to_string()),
     };
 
-    let result = eval.get_evaluated_schema_subform(path_str, resolve_layout);
+    let result = eval.get_evaluated_schema_subform(path_str);
     let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
     FFIResult::success(result_bytes)
 }
@@ -351,7 +353,7 @@ pub unsafe extern "C" fn json_eval_get_schema_value_object_subform(
     FFIResult::success(result_bytes)
 }
 
-/// Get evaluated schema without $params from subform
+/// Get evaluated schema without $params from subform (compact)
 ///
 /// # Safety
 ///
@@ -361,7 +363,6 @@ pub unsafe extern "C" fn json_eval_get_schema_value_object_subform(
 pub unsafe extern "C" fn json_eval_get_evaluated_schema_without_params_subform(
     handle: *mut JSONEvalHandle,
     subform_path: *const c_char,
-    resolve_layout: bool,
 ) -> FFIResult {
     if handle.is_null() || subform_path.is_null() {
         return FFIResult::error("Invalid pointer".to_string());
@@ -374,12 +375,12 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_without_params_subform(
         Err(_) => return FFIResult::error("Invalid UTF-8 in subform_path".to_string()),
     };
 
-    let result = eval.get_evaluated_schema_without_params_subform(path_str, resolve_layout);
+    let result = eval.get_evaluated_schema_without_params_subform(path_str);
     let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
     FFIResult::success(result_bytes)
 }
 
-/// Get evaluated schema by specific path from subform
+/// Get evaluated schema by specific path from subform (compact)
 ///
 /// # Safety
 ///
@@ -391,7 +392,6 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_by_path_subform(
     handle: *mut JSONEvalHandle,
     subform_path: *const c_char,
     schema_path: *const c_char,
-    skip_layout: bool,
 ) -> FFIResult {
     if handle.is_null() || subform_path.is_null() || schema_path.is_null() {
         return FFIResult::error("Invalid pointer".to_string());
@@ -409,7 +409,7 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_by_path_subform(
         Err(_) => return FFIResult::error("Invalid UTF-8 in schema_path".to_string()),
     };
 
-    match eval.get_evaluated_schema_by_path_subform(subform_str, path_str, skip_layout) {
+    match eval.get_evaluated_schema_by_path_subform(subform_str, path_str) {
         Some(value) => {
             let result_bytes = serde_json::to_vec(&value).unwrap_or_default();
             FFIResult::success(result_bytes)
@@ -420,6 +420,7 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_by_path_subform(
 
 /// Get values from the evaluated schema of a subform using multiple dotted path notations
 /// Returns data in the specified format (skips paths that are not found)
+/// (compact, without $layout resolution)
 ///
 /// # Safety
 ///
@@ -432,7 +433,6 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_by_paths_subform(
     handle: *mut JSONEvalHandle,
     subform_path: *const c_char,
     schema_paths_json: *const c_char,
-    skip_layout: bool,
     format: u8,
 ) -> FFIResult {
     if handle.is_null() || subform_path.is_null() || schema_paths_json.is_null() {
@@ -466,7 +466,6 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_by_paths_subform(
     let result = eval.get_evaluated_schema_by_paths_subform(
         subform_str,
         &paths,
-        skip_layout,
         Some(return_format),
     );
     let result_bytes = serde_json::to_vec(&result).unwrap_or_default();

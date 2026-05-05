@@ -4,7 +4,7 @@ use super::types::{FFIResult, JSONEvalHandle};
 use std::ffi::CStr;
 use std::os::raw::c_char;
 
-/// Get the evaluated schema with optional layout resolution
+/// Get the evaluated schema (compact, without $layout resolution)
 ///
 /// # Safety
 ///
@@ -13,20 +13,19 @@ use std::os::raw::c_char;
 #[no_mangle]
 pub unsafe extern "C" fn json_eval_get_evaluated_schema(
     handle: *mut JSONEvalHandle,
-    skip_layout: bool,
 ) -> FFIResult {
     if handle.is_null() {
         return FFIResult::error("Invalid handle pointer".to_string());
     }
 
     let eval = &mut (*handle).inner;
-    let result = eval.get_evaluated_schema(skip_layout);
+    let result = eval.get_evaluated_schema();
     let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
 
     FFIResult::success(result_bytes)
 }
 
-/// Get the evaluated schema in MessagePack format with optional layout resolution
+/// Get the evaluated schema in MessagePack format (compact, without $layout resolution)
 ///
 /// # Safety
 ///
@@ -46,14 +45,13 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema(
 #[no_mangle]
 pub unsafe extern "C" fn json_eval_get_evaluated_schema_msgpack(
     handle: *mut JSONEvalHandle,
-    skip_layout: bool,
 ) -> FFIResult {
     if handle.is_null() {
         return FFIResult::error("Invalid handle pointer".to_string());
     }
 
     let eval = &mut (*handle).inner;
-    match eval.get_evaluated_schema_msgpack(skip_layout) {
+    match eval.get_evaluated_schema_msgpack() {
         Ok(msgpack_bytes) => FFIResult::success(msgpack_bytes),
         Err(e) => FFIResult::error(e),
     }
@@ -122,7 +120,7 @@ pub unsafe extern "C" fn json_eval_get_schema_value_object(
     FFIResult::success(result_bytes)
 }
 
-/// Get the evaluated schema without $params field
+/// Get the evaluated schema without $params field (compact, without $layout resolution)
 ///
 /// # Safety
 ///
@@ -131,20 +129,19 @@ pub unsafe extern "C" fn json_eval_get_schema_value_object(
 #[no_mangle]
 pub unsafe extern "C" fn json_eval_get_evaluated_schema_without_params(
     handle: *mut JSONEvalHandle,
-    skip_layout: bool,
 ) -> FFIResult {
     if handle.is_null() {
         return FFIResult::error("Invalid handle pointer".to_string());
     }
 
     let eval = &mut (*handle).inner;
-    let result = eval.get_evaluated_schema_without_params(skip_layout);
+    let result = eval.get_evaluated_schema_without_params();
     let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
 
     FFIResult::success(result_bytes)
 }
 
-/// Get a value from the evaluated schema using dotted path notation
+/// Get a value from the evaluated schema using dotted path notation (compact, without $layout resolution)
 ///
 /// # Safety
 ///
@@ -155,7 +152,6 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_without_params(
 pub unsafe extern "C" fn json_eval_get_evaluated_schema_by_path(
     handle: *mut JSONEvalHandle,
     path: *const c_char,
-    skip_layout: bool,
 ) -> FFIResult {
     if handle.is_null() || path.is_null() {
         return FFIResult::error("Invalid handle or path pointer".to_string());
@@ -168,7 +164,7 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_by_path(
         Err(_) => return FFIResult::error("Invalid UTF-8 in path".to_string()),
     };
 
-    match eval.get_evaluated_schema_by_path(path_str, skip_layout) {
+    match eval.get_evaluated_schema_by_path(path_str) {
         Some(value) => {
             let result_bytes = serde_json::to_vec(&value).unwrap_or_default();
             FFIResult::success(result_bytes)
@@ -179,6 +175,7 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_by_path(
 
 /// Get values from the evaluated schema using multiple dotted path notations
 /// Returns a merged object containing all requested paths (skips paths that are not found)
+/// (compact, without $layout resolution)
 ///
 /// # Safety
 ///
@@ -190,7 +187,6 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_by_path(
 pub unsafe extern "C" fn json_eval_get_evaluated_schema_by_paths(
     handle: *mut JSONEvalHandle,
     paths_json: *const c_char,
-    skip_layout: bool,
     format: u8,
 ) -> FFIResult {
     if handle.is_null() || paths_json.is_null() {
@@ -216,7 +212,7 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_by_paths(
         _ => crate::ReturnFormat::Nested,
     };
 
-    let result = eval.get_evaluated_schema_by_paths(&paths, skip_layout, Some(return_format));
+    let result = eval.get_evaluated_schema_by_paths(&paths, Some(return_format));
     let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
     FFIResult::success(result_bytes)
 }
@@ -292,6 +288,48 @@ pub unsafe extern "C" fn json_eval_get_schema_by_paths(
     };
 
     let result = eval.get_schema_by_paths(&paths, Some(return_format));
+    let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
+    FFIResult::success(result_bytes)
+}
+
+/// Get the resolved layout overlays (separate from evaluated schema)
+/// Returns JSON array of LayoutOverlayEntry objects
+///
+/// # Safety
+///
+/// - handle must be a valid pointer from json_eval_new
+/// - Caller must call json_eval_free_result when done
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_get_resolved_layout(
+    handle: *mut JSONEvalHandle,
+) -> FFIResult {
+    if handle.is_null() {
+        return FFIResult::error("Invalid handle pointer".to_string());
+    }
+
+    let eval = &mut (*handle).inner;
+    let result = eval.get_resolved_layout();
+    let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
+    FFIResult::success(result_bytes)
+}
+
+/// Get the evaluated schema with $layout resolution merged in
+/// Convenience function — merges compact schema + overlay
+///
+/// # Safety
+///
+/// - handle must be a valid pointer from json_eval_new
+/// - Caller must call json_eval_free_result when done
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_get_evaluated_schema_resolved(
+    handle: *mut JSONEvalHandle,
+) -> FFIResult {
+    if handle.is_null() {
+        return FFIResult::error("Invalid handle pointer".to_string());
+    }
+
+    let eval = &mut (*handle).inner;
+    let result = eval.get_evaluated_schema_resolved();
     let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
     FFIResult::success(result_bytes)
 }

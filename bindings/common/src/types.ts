@@ -170,8 +170,7 @@ export interface EvaluateDependentsOptions {
  * Options for getting evaluated schema
  */
 export interface GetEvaluatedSchemaOptions {
-  /** Whether to skip layout resolution */
-  skipLayout?: boolean;
+  /** Empty — layout is always unresolved (use getResolvedLayout() separately) */
 }
 
 /**
@@ -180,8 +179,6 @@ export interface GetEvaluatedSchemaOptions {
 export interface GetValueByPathOptions {
   /** Dotted path to the value */
   path: string;
-  /** Whether to skip layout resolution */
-  skipLayout?: boolean;
 }
 
 /**
@@ -190,8 +187,6 @@ export interface GetValueByPathOptions {
 export interface GetValueByPathsOptions {
   /** Array of dotted paths to retrieve */
   paths: string[];
-  /** Whether to skip layout resolution */
-  skipLayout?: boolean;
   /** Return format (Nested, Flat, or Array) */
   format?: ReturnFormat;
 }
@@ -292,7 +287,7 @@ export interface EvaluateDependentsSubformOptions {
 export interface ResolveLayoutSubformOptions {
   /** Path to the subform */
   subformPath: string;
-  /** Whether to evaluate after resolving layout */
+  /** If true, evaluates before resolving layout */
   evaluate?: boolean;
 }
 
@@ -302,8 +297,6 @@ export interface ResolveLayoutSubformOptions {
 export interface GetEvaluatedSchemaSubformOptions {
   /** Path to the subform */
   subformPath: string;
-  /** Whether to resolve layout */
-  resolveLayout?: boolean;
 }
 
 /**
@@ -322,8 +315,6 @@ export interface GetEvaluatedSchemaByPathSubformOptions {
   subformPath: string;
   /** Dotted path to the value within the subform */
   schemaPath: string;
-  /** Whether to skip layout resolution */
-  skipLayout?: boolean;
 }
 
 /**
@@ -334,8 +325,6 @@ export interface GetEvaluatedSchemaByPathsSubformOptions {
   subformPath: string;
   /** Array of dotted paths to retrieve within the subform */
   schemaPaths: string[];
-  /** Whether to skip layout resolution */
-  skipLayout?: boolean;
   /** Return format (Nested, Flat, or Array) */
   format?: ReturnFormat;
 }
@@ -360,4 +349,23 @@ export interface GetSchemaByPathsSubformOptions {
   schemaPaths: string[];
   /** Return format (Nested, Flat, or Array) */
   format?: ReturnFormat;
+}
+
+// ============================================================================
+// Layout types
+// ============================================================================
+
+/**
+ * A single overlay entry produced by the layout resolution engine.
+ * Each entry describes properties to apply on top of the compact $layout element.
+ */
+export interface LayoutOverlayEntry {
+  /** Path to the $layout.elements array (e.g. "#/form/$layout/elements") */
+  layout_path: string;
+  /** Index within that elements array */
+  element_idx: number;
+  /** Dotted path to $ref target in schema (empty if no $ref) */
+  schema_ref_path: string;
+  /** Delta properties to overlay onto the element */
+  overlay: Record<string, any>;
 }

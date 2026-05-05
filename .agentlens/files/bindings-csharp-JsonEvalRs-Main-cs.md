@@ -4,10 +4,10 @@
 
 ## Overview
 
-- **Lines:** 1272
+- **Lines:** 1289
 - **Language:** CSharp
-- **Symbols:** 130
-- **Public symbols:** 31
+- **Symbols:** 136
+- **Public symbols:** 33
 
 ## Symbol Table
 
@@ -54,95 +54,101 @@
 | 418 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
 | 421 | method | ArgumentNullException | (private) | `throw new ArgumentNullException(...)` |
 | 430 | method | ProcessResultAsString | (private) | `return ProcessResultAsString(...)` |
-| 438 | method | GetEvaluatedSchema | pub | `public JObject GetEvaluatedSchema(...)` |
-| 440 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
-| 442 | method | ProcessResult | (private) | `return ProcessResult(...)` |
-| 450 | method | GetEvaluatedSchemaMsgpack | pub | `public byte[] GetEvaluatedSchemaMsgpack(...)` |
-| 452 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
-| 454 | method | ProcessResultAsBytes | (private) | `return ProcessResultAsBytes(...)` |
-| 461 | method | GetSchemaValue | pub | `public JObject GetSchemaValue(...)` |
-| 463 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
-| 465 | method | ProcessResult | (private) | `return ProcessResult(...)` |
-| 472 | method | GetSchemaValueArray | pub | `public JArray GetSchemaValueArray(...)` |
-| 474 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
-| 476 | method | ProcessResultAsArray | (private) | `return ProcessResultAsArray(...)` |
-| 483 | method | GetSchemaValueObject | pub | `public JObject GetSchemaValueObject(...)` |
-| 485 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
-| 487 | method | ProcessResult | (private) | `return ProcessResult(...)` |
-| 495 | method | GetEvaluatedSchemaWithoutParams | pub | `public JObject GetEvaluatedSchemaWithoutParams(...` |
-| 497 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
-| 499 | method | ProcessResult | (private) | `return ProcessResult(...)` |
-| 510 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
-| 513 | method | ArgumentNullException | (private) | `throw new ArgumentNullException(...)` |
-| 558 | method | GetEvaluatedSchemaByPaths | pub | `public JToken GetEvaluatedSchemaByPaths(...)` |
-| 560 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
-| 563 | method | ArgumentNullException | (private) | `throw new ArgumentNullException(...)` |
-| 585 | method | InvalidOperationException | (private) | `throw new InvalidOperationException(...)` |
-| 617 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
-| 620 | method | ArgumentNullException | (private) | `throw new ArgumentNullException(...)` |
-| 662 | method | GetSchemaByPath | (private) | `return GetSchemaByPath(...)` |
-| 672 | method | GetSchemaByPaths | pub | `public JToken GetSchemaByPaths(...)` |
-| 674 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
-| 677 | method | ArgumentNullException | (private) | `throw new ArgumentNullException(...)` |
-| 699 | method | InvalidOperationException | (private) | `throw new InvalidOperationException(...)` |
-| 730 | method | ReloadSchema | pub | `public void ReloadSchema(...)` |
-| 732 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
-| 735 | method | ArgumentNullException | (private) | `throw new ArgumentNullException(...)` |
-| 754 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 765 | method | ReloadSchemaMsgpack | pub | `public void ReloadSchemaMsgpack(...)` |
-| 767 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
-| 770 | method | ArgumentNullException | (private) | `throw new ArgumentNullException(...)` |
-| 795 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 811 | method | ReloadSchemaFromCache | pub | `public void ReloadSchemaFromCache(...)` |
-| 813 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
-| 816 | method | ArgumentNullException | (private) | `throw new ArgumentNullException(...)` |
-| 835 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 843 | method | SetTimezoneOffset | pub | `public void SetTimezoneOffset(...)` |
-| 845 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
-| 857 | method | ResolveLayout | pub | `public void ResolveLayout(...)` |
-| 859 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
-| 873 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 886 | method | CompileAndRunLogic | pub | `public JToken CompileAndRunLogic(...)` |
-| 888 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
-| 891 | method | ArgumentNullException | (private) | `throw new ArgumentNullException(...)` |
-| 918 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 922 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 926 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 947 | method | CompileLogic | pub | `public ulong CompileLogic(...)` |
-| 949 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
-| 952 | method | ArgumentNullException | (private) | `throw new ArgumentNullException(...)` |
-| 964 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 978 | method | RunLogic | pub | `public JToken RunLogic(...)` |
-| 980 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
-| 1001 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 1005 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 1009 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 1031 | method | ValidatePaths | pub | `public ValidationResult ValidatePaths(...)` |
-| 1033 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
-| 1036 | method | ArgumentNullException | (private) | `throw new ArgumentNullException(...)` |
-| 1050 | method | ValidatePathsOnly | pub | `public ValidationResult ValidatePathsOnly(...)` |
-| 1052 | method | ValidatePaths | (private) | `return ValidatePaths(...)` |
-| 1056 | method | ProcessResult | (private) | `private JObject ProcessResult(...)` |
-| 1071 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 1075 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 1079 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 1093 | method | ProcessResultAsArray | (private) | `private JArray ProcessResultAsArray(...)` |
-| 1109 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 1113 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 1117 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 1131 | method | ProcessResultAsString | (private) | `private string ProcessResultAsString(...)` |
-| 1147 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 1182 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 1186 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 1190 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 1205 | method | ProcessResultAsBytes | (private) | `private byte[] ProcessResultAsBytes(...)` |
-| 1221 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 1225 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 1229 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
-| 1242 | method | ThrowIfDisposed | (private) | `private void ThrowIfDisposed(...)` |
-| 1246 | method | ObjectDisposedException | (private) | `throw new ObjectDisposedException(...)` |
-| 1252 | method | Dispose | pub | `public void Dispose(...)` |
-| 1269 | method | Dispose | (private) | `Dispose(...)` |
+| 437 | method | GetEvaluatedSchema | pub | `public JObject GetEvaluatedSchema(...)` |
+| 439 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
+| 441 | method | ProcessResult | (private) | `return ProcessResult(...)` |
+| 448 | method | GetResolvedLayout | pub | `public JArray GetResolvedLayout(...)` |
+| 450 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
+| 452 | method | ProcessResultAsArray | (private) | `return ProcessResultAsArray(...)` |
+| 459 | method | GetEvaluatedSchemaResolved | pub | `public JObject GetEvaluatedSchemaResolved(...)` |
+| 461 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
+| 463 | method | ProcessResult | (private) | `return ProcessResult(...)` |
+| 470 | method | GetEvaluatedSchemaMsgpack | pub | `public byte[] GetEvaluatedSchemaMsgpack(...)` |
+| 472 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
+| 474 | method | ProcessResultAsBytes | (private) | `return ProcessResultAsBytes(...)` |
+| 481 | method | GetSchemaValue | pub | `public JObject GetSchemaValue(...)` |
+| 483 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
+| 485 | method | ProcessResult | (private) | `return ProcessResult(...)` |
+| 492 | method | GetSchemaValueArray | pub | `public JArray GetSchemaValueArray(...)` |
+| 494 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
+| 496 | method | ProcessResultAsArray | (private) | `return ProcessResultAsArray(...)` |
+| 503 | method | GetSchemaValueObject | pub | `public JObject GetSchemaValueObject(...)` |
+| 505 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
+| 507 | method | ProcessResult | (private) | `return ProcessResult(...)` |
+| 514 | method | GetEvaluatedSchemaWithoutParams | pub | `public JObject GetEvaluatedSchemaWithoutParams(...` |
+| 516 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
+| 518 | method | ProcessResult | (private) | `return ProcessResult(...)` |
+| 528 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
+| 531 | method | ArgumentNullException | (private) | `throw new ArgumentNullException(...)` |
+| 575 | method | GetEvaluatedSchemaByPaths | pub | `public JToken GetEvaluatedSchemaByPaths(...)` |
+| 577 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
+| 580 | method | ArgumentNullException | (private) | `throw new ArgumentNullException(...)` |
+| 602 | method | InvalidOperationException | (private) | `throw new InvalidOperationException(...)` |
+| 634 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
+| 637 | method | ArgumentNullException | (private) | `throw new ArgumentNullException(...)` |
+| 679 | method | GetSchemaByPath | (private) | `return GetSchemaByPath(...)` |
+| 689 | method | GetSchemaByPaths | pub | `public JToken GetSchemaByPaths(...)` |
+| 691 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
+| 694 | method | ArgumentNullException | (private) | `throw new ArgumentNullException(...)` |
+| 716 | method | InvalidOperationException | (private) | `throw new InvalidOperationException(...)` |
+| 747 | method | ReloadSchema | pub | `public void ReloadSchema(...)` |
+| 749 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
+| 752 | method | ArgumentNullException | (private) | `throw new ArgumentNullException(...)` |
+| 771 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 782 | method | ReloadSchemaMsgpack | pub | `public void ReloadSchemaMsgpack(...)` |
+| 784 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
+| 787 | method | ArgumentNullException | (private) | `throw new ArgumentNullException(...)` |
+| 812 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 828 | method | ReloadSchemaFromCache | pub | `public void ReloadSchemaFromCache(...)` |
+| 830 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
+| 833 | method | ArgumentNullException | (private) | `throw new ArgumentNullException(...)` |
+| 852 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 860 | method | SetTimezoneOffset | pub | `public void SetTimezoneOffset(...)` |
+| 862 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
+| 874 | method | ResolveLayout | pub | `public void ResolveLayout(...)` |
+| 876 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
+| 890 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 903 | method | CompileAndRunLogic | pub | `public JToken CompileAndRunLogic(...)` |
+| 905 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
+| 908 | method | ArgumentNullException | (private) | `throw new ArgumentNullException(...)` |
+| 935 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 939 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 943 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 964 | method | CompileLogic | pub | `public ulong CompileLogic(...)` |
+| 966 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
+| 969 | method | ArgumentNullException | (private) | `throw new ArgumentNullException(...)` |
+| 981 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 995 | method | RunLogic | pub | `public JToken RunLogic(...)` |
+| 997 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
+| 1018 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 1022 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 1026 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 1048 | method | ValidatePaths | pub | `public ValidationResult ValidatePaths(...)` |
+| 1050 | method | ThrowIfDisposed | (private) | `ThrowIfDisposed(...)` |
+| 1053 | method | ArgumentNullException | (private) | `throw new ArgumentNullException(...)` |
+| 1067 | method | ValidatePathsOnly | pub | `public ValidationResult ValidatePathsOnly(...)` |
+| 1069 | method | ValidatePaths | (private) | `return ValidatePaths(...)` |
+| 1073 | method | ProcessResult | (private) | `private JObject ProcessResult(...)` |
+| 1088 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 1092 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 1096 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 1110 | method | ProcessResultAsArray | (private) | `private JArray ProcessResultAsArray(...)` |
+| 1126 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 1130 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 1134 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 1148 | method | ProcessResultAsString | (private) | `private string ProcessResultAsString(...)` |
+| 1164 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 1199 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 1203 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 1207 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 1222 | method | ProcessResultAsBytes | (private) | `private byte[] ProcessResultAsBytes(...)` |
+| 1238 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 1242 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 1246 | method | JsonEvalException | (private) | `throw new JsonEvalException(...)` |
+| 1259 | method | ThrowIfDisposed | (private) | `private void ThrowIfDisposed(...)` |
+| 1263 | method | ObjectDisposedException | (private) | `throw new ObjectDisposedException(...)` |
+| 1269 | method | Dispose | pub | `public void Dispose(...)` |
+| 1286 | method | Dispose | (private) | `Dispose(...)` |
 
 ## Public API
 
@@ -240,7 +246,23 @@ public string EvaluateDependentsString(...)
 public JObject GetEvaluatedSchema(...)
 ```
 
-**Line:** 438 | **Kind:** method
+**Line:** 437 | **Kind:** method
+
+### `GetResolvedLayout`
+
+```
+public JArray GetResolvedLayout(...)
+```
+
+**Line:** 448 | **Kind:** method
+
+### `GetEvaluatedSchemaResolved`
+
+```
+public JObject GetEvaluatedSchemaResolved(...)
+```
+
+**Line:** 459 | **Kind:** method
 
 ### `GetEvaluatedSchemaMsgpack`
 
@@ -248,7 +270,7 @@ public JObject GetEvaluatedSchema(...)
 public byte[] GetEvaluatedSchemaMsgpack(...)
 ```
 
-**Line:** 450 | **Kind:** method
+**Line:** 470 | **Kind:** method
 
 ### `GetSchemaValue`
 
@@ -256,7 +278,7 @@ public byte[] GetEvaluatedSchemaMsgpack(...)
 public JObject GetSchemaValue(...)
 ```
 
-**Line:** 461 | **Kind:** method
+**Line:** 481 | **Kind:** method
 
 ### `GetSchemaValueArray`
 
@@ -264,7 +286,7 @@ public JObject GetSchemaValue(...)
 public JArray GetSchemaValueArray(...)
 ```
 
-**Line:** 472 | **Kind:** method
+**Line:** 492 | **Kind:** method
 
 ### `GetSchemaValueObject`
 
@@ -272,7 +294,7 @@ public JArray GetSchemaValueArray(...)
 public JObject GetSchemaValueObject(...)
 ```
 
-**Line:** 483 | **Kind:** method
+**Line:** 503 | **Kind:** method
 
 ### `GetEvaluatedSchemaWithoutParams`
 
@@ -280,7 +302,7 @@ public JObject GetSchemaValueObject(...)
 public JObject GetEvaluatedSchemaWithoutParams(...)
 ```
 
-**Line:** 495 | **Kind:** method
+**Line:** 514 | **Kind:** method
 
 ### `GetEvaluatedSchemaByPaths`
 
@@ -288,7 +310,7 @@ public JObject GetEvaluatedSchemaWithoutParams(...)
 public JToken GetEvaluatedSchemaByPaths(...)
 ```
 
-**Line:** 558 | **Kind:** method
+**Line:** 575 | **Kind:** method
 
 ### `GetSchemaByPaths`
 
@@ -296,7 +318,7 @@ public JToken GetEvaluatedSchemaByPaths(...)
 public JToken GetSchemaByPaths(...)
 ```
 
-**Line:** 672 | **Kind:** method
+**Line:** 689 | **Kind:** method
 
 ### `ReloadSchema`
 
@@ -304,7 +326,7 @@ public JToken GetSchemaByPaths(...)
 public void ReloadSchema(...)
 ```
 
-**Line:** 730 | **Kind:** method
+**Line:** 747 | **Kind:** method
 
 ### `ReloadSchemaMsgpack`
 
@@ -312,7 +334,7 @@ public void ReloadSchema(...)
 public void ReloadSchemaMsgpack(...)
 ```
 
-**Line:** 765 | **Kind:** method
+**Line:** 782 | **Kind:** method
 
 ### `ReloadSchemaFromCache`
 
@@ -320,7 +342,7 @@ public void ReloadSchemaMsgpack(...)
 public void ReloadSchemaFromCache(...)
 ```
 
-**Line:** 811 | **Kind:** method
+**Line:** 828 | **Kind:** method
 
 ### `SetTimezoneOffset`
 
@@ -328,7 +350,7 @@ public void ReloadSchemaFromCache(...)
 public void SetTimezoneOffset(...)
 ```
 
-**Line:** 843 | **Kind:** method
+**Line:** 860 | **Kind:** method
 
 ### `ResolveLayout`
 
@@ -336,7 +358,7 @@ public void SetTimezoneOffset(...)
 public void ResolveLayout(...)
 ```
 
-**Line:** 857 | **Kind:** method
+**Line:** 874 | **Kind:** method
 
 ### `CompileAndRunLogic`
 
@@ -344,7 +366,7 @@ public void ResolveLayout(...)
 public JToken CompileAndRunLogic(...)
 ```
 
-**Line:** 886 | **Kind:** method
+**Line:** 903 | **Kind:** method
 
 ### `CompileLogic`
 
@@ -352,7 +374,7 @@ public JToken CompileAndRunLogic(...)
 public ulong CompileLogic(...)
 ```
 
-**Line:** 947 | **Kind:** method
+**Line:** 964 | **Kind:** method
 
 ### `RunLogic`
 
@@ -360,7 +382,7 @@ public ulong CompileLogic(...)
 public JToken RunLogic(...)
 ```
 
-**Line:** 978 | **Kind:** method
+**Line:** 995 | **Kind:** method
 
 ### `ValidatePaths`
 
@@ -368,7 +390,7 @@ public JToken RunLogic(...)
 public ValidationResult ValidatePaths(...)
 ```
 
-**Line:** 1031 | **Kind:** method
+**Line:** 1048 | **Kind:** method
 
 ### `ValidatePathsOnly`
 
@@ -376,7 +398,7 @@ public ValidationResult ValidatePaths(...)
 public ValidationResult ValidatePathsOnly(...)
 ```
 
-**Line:** 1050 | **Kind:** method
+**Line:** 1067 | **Kind:** method
 
 ### `Dispose`
 
@@ -384,5 +406,5 @@ public ValidationResult ValidatePathsOnly(...)
 public void Dispose(...)
 ```
 
-**Line:** 1252 | **Kind:** method
+**Line:** 1269 | **Kind:** method
 

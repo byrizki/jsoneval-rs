@@ -12,10 +12,10 @@
 | ---- | ----- | ----- |
 | `src/wasm/core.rs` | 150 |  |
 | `src/wasm/evaluation.rs` | 279 |  |
-| `src/wasm/layout.rs` | 17 |  |
-| `src/wasm/mod.rs` | 31 |  |
-| `src/wasm/schema.rs` | 323 |  |
-| `src/wasm/subforms.rs` | 601 | 📊 |
+| `src/wasm/layout.rs` | 18 |  |
+| `src/wasm/mod.rs` | 30 |  |
+| `src/wasm/schema.rs` | 326 |  |
+| `src/wasm/subforms.rs` | 609 | 📊 |
 | `src/wasm/types.rs` | 134 |  |
 | `src/wasm/validation.rs` | 172 |  |
 

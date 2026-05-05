@@ -145,7 +145,7 @@ async function runNodeBenchmark(
   console.log();
 
   // Get evaluated schema (not included in timing)
-  const evaluatedSchema = await je.getEvaluatedSchema({ skipLayout: true });
+  const evaluatedSchema = await je.getEvaluatedSchema();
 
   // Save results
   console.log("💾 Saving results...");

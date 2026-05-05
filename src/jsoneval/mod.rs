@@ -68,5 +68,7 @@ pub struct JSONEval {
     pub eval_cache: eval_cache::EvalCache,
     pub(crate) eval_lock: Mutex<()>,
     pub(crate) cached_msgpack_schema: Option<Vec<u8>>,
+    pub(crate) resolved_layout_cache: Option<Arc<Vec<crate::jsoneval::types::LayoutOverlayEntry>>>,
+    pub(crate) layout_synced_paths: Vec<String>,
     pub(crate) regex_cache: std::sync::RwLock<HashMap<String, regex::Regex>>,
 }

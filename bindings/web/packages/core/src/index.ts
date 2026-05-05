@@ -5,9 +5,6 @@ import {
   type EvaluateDependentsSubformOptions,
   type EvaluateOptions,
   type EvaluateSubformOptions,
-  type GetEvaluatedSchemaByPathSubformOptions,
-  type GetEvaluatedSchemaByPathsSubformOptions,
-  type GetEvaluatedSchemaOptions,
   type GetEvaluatedSchemaSubformOptions,
   type GetSchemaByPathOptions,
   type GetSchemaByPathSubformOptions,
@@ -30,7 +27,6 @@ import {
 
 // Re-export shared types for downstream consumers
 export {
-  CompileAndRunLogicOptions,
   DependentChange,
   EvaluateDependentsOptions,
   EvaluateDependentsSubformOptions,
@@ -38,7 +34,6 @@ export {
   EvaluateSubformOptions,
   GetEvaluatedSchemaByPathSubformOptions,
   GetEvaluatedSchemaByPathsSubformOptions,
-  GetEvaluatedSchemaOptions,
   GetEvaluatedSchemaSubformOptions,
   GetSchemaByPathOptions,
   GetSchemaByPathSubformOptions,
@@ -48,17 +43,19 @@ export {
   GetValueByPathOptions,
   GetValueByPathsOptions,
   JSONEvalOptions,
+  LayoutOverlayEntry,
   ReloadSchemaOptions,
   ResolveLayoutSubformOptions,
   ReturnFormat,
   SchemaValueItem,
   ValidateOptions,
-  ValidatePathsOptions,
   ValidateSubformOptions,
   ValidationError,
   ValidationResult,
   extractErrorMessage,
+  mergeLayoutOverlay,
   parseValue,
+  resolveEvaluatedLayout,
   stringifyOrNull,
   stringifyValue,
 } from "@json-eval-rs/common";
@@ -368,23 +365,35 @@ export class JSONEvalCore {
   }
 
   /**
-   * Get evaluated schema
+   * Get evaluated schema (compact, without $layout resolution)
    */
-  async getEvaluatedSchema({
-    skipLayout = false,
-  }: GetEvaluatedSchemaOptions = {}): Promise<any> {
+  async getEvaluatedSchema(): Promise<any> {
     await this.init();
-    return this._instance.getEvaluatedSchemaJS(skipLayout);
+    return this._instance.getEvaluatedSchemaJS();
+  }
+
+  /**
+   * Get resolved layout overlay entries
+   */
+  async getResolvedLayout(): Promise<any[]> {
+    await this.init();
+    return this._instance.getResolvedLayout();
+  }
+
+  /**
+   * Get evaluated schema with layout fully resolved
+   */
+  async getEvaluatedSchemaResolved(): Promise<any> {
+    await this.init();
+    return this._instance.getEvaluatedSchemaResolved();
   }
 
   /**
    * Get evaluated schema as MessagePack binary data
    */
-  async getEvaluatedSchemaMsgpack({
-    skipLayout = false,
-  }: GetEvaluatedSchemaOptions = {}): Promise<Uint8Array> {
+  async getEvaluatedSchemaMsgpack(): Promise<Uint8Array> {
     await this.init();
-    return this._instance.getEvaluatedSchemaMsgpack(skipLayout);
+    return this._instance.getEvaluatedSchemaMsgpack();
   }
 
   /**
@@ -412,38 +421,33 @@ export class JSONEvalCore {
   }
 
   /**
-   * Get evaluated schema without $params field
+   * Get evaluated schema without $params field (compact)
    */
-  async getEvaluatedSchemaWithoutParams({
-    skipLayout = false,
-  }: GetEvaluatedSchemaOptions = {}): Promise<any> {
+  async getEvaluatedSchemaWithoutParams(): Promise<any> {
     await this.init();
-    return this._instance.getEvaluatedSchemaWithoutParamsJS(skipLayout);
+    return this._instance.getEvaluatedSchemaWithoutParamsJS();
   }
 
   /**
-   * Get a value from the evaluated schema using dotted path notation
+   * Get a value from the evaluated schema using dotted path notation (compact)
    */
   async getEvaluatedSchemaByPath({
     path,
-    skipLayout = false,
   }: GetValueByPathOptions): Promise<any | null> {
     await this.init();
-    return this._instance.getEvaluatedSchemaByPathJS(path, skipLayout);
+    return this._instance.getEvaluatedSchemaByPathJS(path);
   }
 
   /**
-   * Get values from the evaluated schema using multiple dotted path notations
+   * Get values from the evaluated schema using multiple dotted path notations (compact)
    */
   async getEvaluatedSchemaByPaths({
     paths,
-    skipLayout = false,
     format = 0,
   }: GetValueByPathsOptions): Promise<any> {
     await this.init();
     return this._instance.getEvaluatedSchemaByPathsJS(
       typeof paths === "string" ? paths : stringifyValue(paths),
-      skipLayout,
       format,
     );
   }
@@ -572,9 +576,9 @@ export class JSONEvalCore {
   }
 
   /**
-   * Resolve layout with optional evaluation
+   * Resolve layout with optional evaluation, returning overlay entries
    */
-  async resolveLayout(options: { evaluate?: boolean } = {}): Promise<void> {
+  async resolveLayout(options: { evaluate?: boolean } = {}): Promise<any[]> {
     const { evaluate = false } = options;
     await this.init();
     return this._instance.resolveLayout(evaluate);
@@ -774,28 +778,46 @@ export class JSONEvalCore {
   }
 
   /**
-   * Resolve layout for subform
+   * Resolve layout for subform, returning overlay entries
    */
   async resolveLayoutSubform({
     subformPath,
     evaluate = false,
-  }: ResolveLayoutSubformOptions): Promise<void> {
+  }: ResolveLayoutSubformOptions): Promise<any[]> {
     await this.init();
     return this._instance.resolveLayoutSubform(subformPath, evaluate);
   }
 
   /**
-   * Get evaluated schema from subform
+   * Get evaluated schema from subform (compact, without $layout resolution)
    */
   async getEvaluatedSchemaSubform({
     subformPath,
-    resolveLayout = false,
   }: GetEvaluatedSchemaSubformOptions): Promise<any> {
     await this.init();
     return this._instance.getEvaluatedSchemaSubformJS(
       subformPath,
-      resolveLayout,
     );
+  }
+
+  /**
+   * Get resolved layout overlay entries for subform
+   */
+  async getResolvedLayoutSubform({
+    subformPath,
+  }: GetEvaluatedSchemaSubformOptions): Promise<any[]> {
+    await this.init();
+    return this._instance.getResolvedLayoutSubform(subformPath);
+  }
+
+  /**
+   * Get evaluated schema with layout fully resolved for subform
+   */
+  async getEvaluatedSchemaResolvedSubform({
+    subformPath,
+  }: GetEvaluatedSchemaSubformOptions): Promise<any> {
+    await this.init();
+    return this._instance.getEvaluatedSchemaResolvedSubform(subformPath);
   }
 
   /**
@@ -829,42 +851,37 @@ export class JSONEvalCore {
   }
 
   /**
-   * Get evaluated schema without $params from subform
+   * Get evaluated schema without $params from subform (compact)
    */
   async getEvaluatedSchemaWithoutParamsSubform({
     subformPath,
-    resolveLayout = false,
   }: GetEvaluatedSchemaSubformOptions): Promise<any> {
     await this.init();
     return this._instance.getEvaluatedSchemaWithoutParamsSubformJS(
       subformPath,
-      resolveLayout,
     );
   }
 
   /**
-   * Get evaluated schema by specific path from subform
+   * Get evaluated schema by specific path from subform (compact)
    */
   async getEvaluatedSchemaByPathSubform({
     subformPath,
     schemaPath,
-    skipLayout = false,
   }: GetEvaluatedSchemaByPathSubformOptions): Promise<any | null> {
     await this.init();
     return this._instance.getEvaluatedSchemaByPathSubformJS(
       subformPath,
       schemaPath,
-      skipLayout,
     );
   }
 
   /**
-   * Get evaluated schema by multiple paths from subform
+   * Get evaluated schema by multiple paths from subform (compact)
    */
   async getEvaluatedSchemaByPathsSubform({
     subformPath,
     schemaPaths,
-    skipLayout = false,
     format = 0,
   }: GetEvaluatedSchemaByPathsSubformOptions): Promise<any> {
     await this.init();
@@ -873,7 +890,6 @@ export class JSONEvalCore {
       typeof schemaPaths === "string"
         ? schemaPaths
         : stringifyValue(schemaPaths),
-      skipLayout,
       format,
     );
   }

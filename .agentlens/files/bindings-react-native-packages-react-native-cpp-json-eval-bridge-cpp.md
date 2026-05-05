@@ -1,6 +1,6 @@
 # bindings/react-native/packages/react-native/cpp/json-eval-bridge.cpp
 
-[← Back to Module](../modules/root/MODULE.md) | [← Back to INDEX](../INDEX.md)
+[← Back to Module](../modules/bindings-react-native-packages-react-native-cpp/MODULE.md) | [← Back to INDEX](../INDEX.md)
 
 ## Overview
 

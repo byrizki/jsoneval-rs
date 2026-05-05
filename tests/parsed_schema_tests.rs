@@ -29,7 +29,7 @@ fn test_parsed_schema_basic() {
     eval.evaluate("{}", None, None, None)
         .expect("Failed to evaluate");
 
-    let result = eval.get_evaluated_schema(false);
+    let result = eval.get_evaluated_schema();
 
     assert_eq!(result.pointer("/properties/age"), Some(&json!(30)));
 }
@@ -84,7 +84,7 @@ fn test_parsed_schema_static_arrays() {
 
     eval.evaluate("{}", None, None, None)
         .expect("Failed to evaluate");
-    let result = eval.get_evaluated_schema(false);
+    let result = eval.get_evaluated_schema();
 
     // The result should have successfully evaluated VALUEAT which looks up index 5 of large array
     assert_eq!(result.pointer("/$params/others/COMPUTED"), Some(&json!(5)));
@@ -132,14 +132,14 @@ fn test_parsed_schema_reuse_multiple_evaluators() {
 
     assert_eq!(
         eval1
-            .get_evaluated_schema(false)
+            .get_evaluated_schema()
             .pointer("/properties/result"),
         Some(&json!(20)) // 10 * 2
     );
 
     assert_eq!(
         eval2
-            .get_evaluated_schema(false)
+            .get_evaluated_schema()
             .pointer("/properties/result"),
         Some(&json!(50)) // 25 * 2
     );

@@ -1,9 +1,9 @@
 // Subform methods for isolated array field evaluation
 
+use super::JSONEval;
 use crate::jsoneval::cancellation::CancellationToken;
 use crate::jsoneval::eval_data::EvalData;
-use crate::JSONEval;
-use crate::ReturnFormat;
+use crate::jsoneval::types::{ResolvedLayoutResult, ReturnFormat};
 use serde_json::Value;
 
 /// Decomposes a subform path that may optionally include a trailing item index,
@@ -714,38 +714,28 @@ impl JSONEval {
         }
     }
 
-    /// Resolve layout for subform.
+    /// Resolve layout for subform, returning overlay entries.
     pub fn resolve_layout_subform(
         &mut self,
         subform_path: &str,
         evaluate: bool,
-    ) -> Result<(), String> {
+    ) -> Result<ResolvedLayoutResult, String> {
         let (base_path, _) = self.resolve_subform_path_alias(subform_path);
         let subform = self
             .subforms
             .get_mut(base_path.as_ref() as &str)
             .ok_or_else(|| format!("Subform not found: {}", base_path))?;
-        let _ = subform.resolve_layout(evaluate);
-        Ok(())
+        subform.resolve_layout(evaluate)
     }
 
     /// Get evaluated schema from subform.
     pub fn get_evaluated_schema_subform(
         &mut self,
         subform_path: &str,
-        resolve_layout: bool,
     ) -> Value {
         let (base_path, idx_opt) = self.resolve_subform_path_alias(subform_path);
 
         if let Some(idx) = idx_opt {
-            // Read the per-item evaluated_schema snapshot stored by the most recent
-            // evaluate_subform_item call for this index (Step 6 in with_item_cache_swap).
-            //
-            // This is the correct approach: the subform's evaluated_schema is a single
-            // shared object that is overwritten by every evaluate_subform call. Trying to
-            // re-run evaluate_internal in a shared context is fragile and ordering-dependent.
-            // Instead, we capture the schema snapshot immediately after each item evaluates
-            // and store it in SubformItemCache.evaluated_schema for O(1) retrieval here.
             if let Some(schema) = self
                 .eval_cache
                 .subform_caches
@@ -754,14 +744,13 @@ impl JSONEval {
             {
                 return schema;
             }
-            // Fallback: no snapshot yet — run the evaluation now.
             if let Some(subform) = self.subforms.get_mut(base_path.as_ref() as &str) {
-                subform.get_evaluated_schema(resolve_layout)
+                subform.get_evaluated_schema()
             } else {
                 Value::Null
             }
         } else if let Some(subform) = self.subforms.get_mut(base_path.as_ref() as &str) {
-            subform.get_evaluated_schema(resolve_layout)
+            subform.get_evaluated_schema()
         } else {
             Value::Null
         }
@@ -801,11 +790,10 @@ impl JSONEval {
     pub fn get_evaluated_schema_without_params_subform(
         &mut self,
         subform_path: &str,
-        resolve_layout: bool,
     ) -> Value {
         let (base_path, _) = self.resolve_subform_path_alias(subform_path);
         if let Some(subform) = self.subforms.get_mut(base_path.as_ref() as &str) {
-            subform.get_evaluated_schema_without_params(resolve_layout)
+            subform.get_evaluated_schema_without_params()
         } else {
             Value::Null
         }
@@ -816,13 +804,11 @@ impl JSONEval {
         &mut self,
         subform_path: &str,
         schema_path: &str,
-        skip_layout: bool,
     ) -> Option<Value> {
         let (base_path, _) = self.resolve_subform_path_alias(subform_path);
         self.subforms.get_mut(base_path.as_ref() as &str).map(|sf| {
             sf.get_evaluated_schema_by_paths(
                 &[schema_path.to_string()],
-                skip_layout,
                 Some(ReturnFormat::Nested),
             )
         })
@@ -833,14 +819,12 @@ impl JSONEval {
         &mut self,
         subform_path: &str,
         schema_paths: &[String],
-        skip_layout: bool,
         format: Option<crate::ReturnFormat>,
     ) -> Value {
         let (base_path, _) = self.resolve_subform_path_alias(subform_path);
         if let Some(subform) = self.subforms.get_mut(base_path.as_ref() as &str) {
             subform.get_evaluated_schema_by_paths(
                 schema_paths,
-                skip_layout,
                 Some(format.unwrap_or(ReturnFormat::Flat)),
             )
         } else {
@@ -878,6 +862,32 @@ impl JSONEval {
                 crate::ReturnFormat::Array => Value::Array(vec![]),
                 _ => Value::Object(serde_json::Map::new()),
             }
+        }
+    }
+
+    /// Get resolved layout overlay entries for subform.
+    pub fn get_resolved_layout_subform(
+        &mut self,
+        subform_path: &str,
+    ) -> ResolvedLayoutResult {
+        let (base_path, _) = self.resolve_subform_path_alias(subform_path);
+        if let Some(subform) = self.subforms.get_mut(base_path.as_ref() as &str) {
+            subform.get_resolved_layout()
+        } else {
+            ResolvedLayoutResult::default()
+        }
+    }
+
+    /// Get evaluated schema with layout fully resolved for subform.
+    pub fn get_evaluated_schema_resolved_subform(
+        &mut self,
+        subform_path: &str,
+    ) -> Value {
+        let (base_path, _) = self.resolve_subform_path_alias(subform_path);
+        if let Some(subform) = self.subforms.get_mut(base_path.as_ref() as &str) {
+            subform.get_evaluated_schema_resolved()
+        } else {
+            Value::Null
         }
     }
 

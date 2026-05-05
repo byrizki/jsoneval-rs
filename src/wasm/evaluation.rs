@@ -58,7 +58,7 @@ impl JSONEvalWasm {
             .evaluate(data, ctx, paths_refs.as_deref(), token.as_ref())
         {
             Ok(_) => {
-                let result = self.inner.get_evaluated_schema(false);
+                let result = self.inner.get_evaluated_schema();
                 super::to_value(&result).map_err(|e| {
                     let error_msg =
                         format!("Failed to convert evaluation result to JsValue: {}", e);

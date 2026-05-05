@@ -395,7 +395,7 @@ fn main() {
                     std::process::exit(1);
                 });
 
-            result_schema = eval.get_evaluated_schema(false);
+            result_schema = eval.get_evaluated_schema_resolved();
 
             if iterations > 1 && (iter + 1) % 10 == 0 {
                 print!(".");
@@ -448,7 +448,7 @@ fn main() {
                     std::process::exit(1);
                 });
 
-            result_schema = eval.get_evaluated_schema(false);
+            result_schema = eval.get_evaluated_schema_resolved();
 
             if iterations > 1 && (iter + 1) % 10 == 0 {
                 print!(".");

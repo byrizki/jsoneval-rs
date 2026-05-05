@@ -99,7 +99,7 @@ fn test_selective_evaluation_basic() {
         .unwrap();
 
     // Check results
-    let evaluated = eval.get_evaluated_schema(false);
+    let evaluated = eval.get_evaluated_schema();
     assert_eq!(
         *evaluated.pointer("/$params/accessList").unwrap(),
         json!(["AG", "AP"])
@@ -122,7 +122,7 @@ fn test_selective_evaluation_basic() {
     .unwrap();
 
     // Check results
-    let evaluated = eval.get_evaluated_schema(false);
+    let evaluated = eval.get_evaluated_schema();
     assert_eq!(
         *evaluated.pointer("/$params/accessList").unwrap(),
         json!(["AG", "AP"])
@@ -145,7 +145,7 @@ fn test_selective_evaluation_basic() {
     .unwrap();
 
     // Check results
-    let evaluated = eval.get_evaluated_schema(false);
+    let evaluated = eval.get_evaluated_schema();
     assert_eq!(
         *evaluated.pointer("/$params/accessList").unwrap(),
         json!([])

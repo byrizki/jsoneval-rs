@@ -28,8 +28,8 @@ Follow this protocol to understand the codebase efficiently:
 
 ## Freshness Check
 
-**Generated:** 2026-05-05T04:55:21Z
-**Git HEAD:** `4e13fc3`
+**Generated:** 2026-05-05T21:18:07Z
+**Git HEAD:** `910976a`
 
 ### How to verify freshness
 
@@ -41,12 +41,14 @@ Follow this protocol to understand the codebase efficiently:
 
 | Module | Files | Type | Description |
 | ------ | ----- | ---- | ----------- |
-| `` | 68 | root | Module |
+| `` | 67 | root | Module |
+| `bindings/common/src` | 3 | js/ts | Source root |
 | `bindings/csharp` | 10 | implicit | Module |
 | `bindings/react-native/examples/rncli` | 11 | js/ts | Module |
-| `bindings/react-native/packages/react-native/lib/commonjs` | 1 | js/ts | Module |
-| `bindings/react-native/packages/react-native/lib/module` | 1 | js/ts | Module |
-| `bindings/react-native/packages/react-native/src` | 1 | js/ts | Source root |
+| `bindings/react-native/packages/react-native/cpp` | 5 | implicit | Module |
+| `bindings/react-native/packages/react-native/lib/commonjs` | 2 | js/ts | Module |
+| `bindings/react-native/packages/react-native/lib/module` | 2 | js/ts | Module |
+| `bindings/react-native/packages/react-native/src` | 2 | js/ts | Source root |
 | `bindings/web/examples/nextjs/pages` | 2 | js/ts | Page/view components |
 | `bindings/web/examples/nodejs` | 1 | js/ts | Module |
 | `bindings/web/examples/nodejs-benchmark` | 2 | js/ts | Module |
@@ -94,9 +96,9 @@ If documentation seems outdated or inconsistent with the code:
 
 | Metric | Value |
 | ------ | ----- |
-| Total files | 168 |
-| Modules | 24 |
-| Warnings | 74 |
+| Total files | 178 |
+| Modules | 26 |
+| Warnings | 76 |
 
 ---
 

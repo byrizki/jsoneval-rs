@@ -4,6 +4,7 @@ import {
   type JSONEvalOptions,
   type EvaluateOptions,
   type EvaluateDependentsOptions,
+  type LayoutOverlayEntry,
   type EvaluateSubformOptions,
   type ValidateSubformOptions,
   type EvaluateDependentsSubformOptions,
@@ -29,6 +30,7 @@ import { getJSIGlobal, JsonEvalJSIGlobal } from './jsi-bridge';
 // Re-export shared types for downstream consumers
 export { ReturnFormat } from '@json-eval-rs/common';
 export type {
+  LayoutOverlayEntry,
   SchemaValueItem,
   ValidationResult,
   DependentChange,
@@ -486,14 +488,33 @@ export class JSONEval {
   }
 
   /**
-   * Get the evaluated schema with optional layout resolution
-   * @param skipLayout - Whether to skip layout resolution (default: false)
+   * Get the evaluated schema (compact, without $layout resolution)
    * @returns Promise resolving to evaluated schema object
    * @throws {Error} If operation fails
    */
-  async getEvaluatedSchema(skipLayout: boolean = false): Promise<any> {
+  async getEvaluatedSchema(): Promise<any> {
     this.throwIfDisposed();
-    return await this._callNativeJson('getEvaluatedSchema', skipLayout);
+    return await this._callNativeJson('getEvaluatedSchema');
+  }
+
+  /**
+   * Get resolved layout overlay entries
+   * @returns Promise resolving to array of overlay entries
+   * @throws {Error} If operation fails
+   */
+  async getResolvedLayout(): Promise<LayoutOverlayEntry[]> {
+    this.throwIfDisposed();
+    return await this._callNativeJson('getResolvedLayout');
+  }
+
+  /**
+   * Get evaluated schema with layout fully resolved
+   * @returns Promise resolving to evaluated schema with layout applied
+   * @throws {Error} If operation fails
+   */
+  async getEvaluatedSchemaResolved(): Promise<any> {
+    this.throwIfDisposed();
+    return await this._callNativeJson('getEvaluatedSchemaResolved');
   }
 
   /**
@@ -529,52 +550,43 @@ export class JSONEval {
   }
 
   /**
-   * Get the evaluated schema without $params field
-   * @param skipLayout - Whether to skip layout resolution (default: false)
+   * Get the evaluated schema without $params field (compact)
    * @returns Promise resolving to evaluated schema object
    * @throws {Error} If operation fails
    */
-  async getEvaluatedSchemaWithoutParams(
-    skipLayout: boolean = false
-  ): Promise<any> {
+  async getEvaluatedSchemaWithoutParams(): Promise<any> {
     this.throwIfDisposed();
     return await this._callNativeJson(
-      'getEvaluatedSchemaWithoutParams',
-      skipLayout
+      'getEvaluatedSchemaWithoutParams'
     );
   }
 
   /**
-   * Get a value from the evaluated schema using dotted path notation
+   * Get a value from the evaluated schema using dotted path notation (compact)
    * @param path - Dotted path to the value (e.g., "properties.field.value")
-   * @param skipLayout - Whether to skip layout resolution
    * @returns Promise resolving to the value at the path, or null if not found
    * @throws {Error} If operation fails
    */
   async getEvaluatedSchemaByPath(
-    path: string,
-    skipLayout: boolean = false
+    path: string
   ): Promise<any | null> {
     this.throwIfDisposed();
     return await this._callNativeJsonOrNull(
       'getEvaluatedSchemaByPath',
-      path,
-      skipLayout
+      path
     );
   }
 
   /**
-   * Get values from the evaluated schema using multiple dotted path notations
+   * Get values from the evaluated schema using multiple dotted path notations (compact)
    * Returns data in the specified format (skips paths that are not found)
    * @param paths - Array of dotted paths to retrieve
-   * @param skipLayout - Whether to skip layout resolution
    * @param format - Return format (Nested, Flat, or Array)
    * @returns Promise resolving to data in the specified format
    * @throws {Error} If operation fails
    */
   async getEvaluatedSchemaByPaths(
     paths: string[],
-    skipLayout: boolean = false,
     format: ReturnFormat = ReturnFormat.Nested
   ): Promise<any> {
     this.throwIfDisposed();
@@ -582,7 +594,6 @@ export class JSONEval {
     return await this._callNativeJson(
       'getEvaluatedSchemaByPaths',
       pathsJson,
-      skipLayout,
       format
     );
   }
@@ -708,12 +719,12 @@ export class JSONEval {
   /**
    * Resolve layout with optional evaluation
    * @param evaluate - If true, runs evaluation before resolving layout (default: false)
-   * @returns Promise that resolves when layout resolution is complete
+   * @returns Promise resolving to array of layout overlay entries
    * @throws {Error} If operation fails
    */
-  async resolveLayout(evaluate: boolean = false): Promise<void> {
+  async resolveLayout(evaluate: boolean = false): Promise<LayoutOverlayEntry[]> {
     this.throwIfDisposed();
-    await this._callNative('resolveLayout', evaluate);
+    return await this._callNativeJson('resolveLayout', evaluate);
   }
 
   /**
@@ -940,15 +951,14 @@ export class JSONEval {
   /**
    * Resolve layout for subform
    * @param options - Options including subform path and evaluate flag
-   * @returns Promise that resolves when layout is resolved
+   * @returns Promise resolving to array of layout overlay entries
    * @throws {Error} If layout resolution fails
    */
   async resolveLayoutSubform(
     options: ResolveLayoutSubformOptions
-  ): Promise<void> {
+  ): Promise<LayoutOverlayEntry[]> {
     this.throwIfDisposed();
-
-    await this._callNative(
+    return await this._callNativeJson(
       'resolveLayoutSubform',
       options.subformPath,
       options.evaluate || false
@@ -956,8 +966,40 @@ export class JSONEval {
   }
 
   /**
-   * Get evaluated schema from subform
-   * @param options - Options including subform path and resolveLayout flag
+   * Get resolved layout overlay entries for subform
+   * @param options - Options including subform path
+   * @returns Promise resolving to array of layout overlay entries
+   * @throws {Error} If operation fails
+   */
+  async getResolvedLayoutSubform(
+    options: GetEvaluatedSchemaSubformOptions
+  ): Promise<LayoutOverlayEntry[]> {
+    this.throwIfDisposed();
+    return await this._callNativeJson(
+      'getResolvedLayoutSubform',
+      options.subformPath
+    );
+  }
+
+  /**
+   * Get evaluated schema with layout fully resolved for subform
+   * @param options - Options including subform path
+   * @returns Promise resolving to evaluated schema with layout applied
+   * @throws {Error} If operation fails
+   */
+  async getEvaluatedSchemaResolvedSubform(
+    options: GetEvaluatedSchemaSubformOptions
+  ): Promise<any> {
+    this.throwIfDisposed();
+    return await this._callNativeJson(
+      'getEvaluatedSchemaResolvedSubform',
+      options.subformPath
+    );
+  }
+
+  /**
+   * Get evaluated schema from subform (compact, without $layout resolution)
+   * @param options - Options including subform path
    * @returns Promise resolving to evaluated schema
    * @throws {Error} If operation fails
    */
@@ -965,11 +1007,9 @@ export class JSONEval {
     options: GetEvaluatedSchemaSubformOptions
   ): Promise<any> {
     this.throwIfDisposed();
-
     return await this._callNativeJson(
       'getEvaluatedSchemaSubform',
-      options.subformPath,
-      options.resolveLayout || false
+      options.subformPath
     );
   }
 
@@ -1027,8 +1067,8 @@ export class JSONEval {
   }
 
   /**
-   * Get evaluated schema without $params from subform
-   * @param options - Options including subform path and resolveLayout flag
+   * Get evaluated schema without $params from subform (compact)
+   * @param options - Options including subform path
    * @returns Promise resolving to evaluated schema without $params
    * @throws {Error} If operation fails
    */
@@ -1036,17 +1076,15 @@ export class JSONEval {
     options: GetEvaluatedSchemaSubformOptions
   ): Promise<any> {
     this.throwIfDisposed();
-
     return await this._callNativeJson(
       'getEvaluatedSchemaWithoutParamsSubform',
-      options.subformPath,
-      options.resolveLayout || false
+      options.subformPath
     );
   }
 
   /**
-   * Get evaluated schema by specific path from subform
-   * @param options - Options including subform path, schema path, and skipLayout flag
+   * Get evaluated schema by specific path from subform (compact)
+   * @param options - Options including subform path and schema path
    * @returns Promise resolving to value at path or null if not found
    * @throws {Error} If operation fails
    */
@@ -1054,19 +1092,17 @@ export class JSONEval {
     options: GetEvaluatedSchemaByPathSubformOptions
   ): Promise<any | null> {
     this.throwIfDisposed();
-
     return await this._callNativeJsonOrNull(
       'getEvaluatedSchemaByPathSubform',
       options.subformPath,
-      options.schemaPath,
-      options.skipLayout || false
+      options.schemaPath
     );
   }
 
   /**
-   * Get evaluated schema by multiple paths from subform
+   * Get evaluated schema by multiple paths from subform (compact)
    * Returns data in the specified format (skips paths that are not found)
-   * @param options - Options including subform path, array of schema paths, skipLayout flag, and format
+   * @param options - Options including subform path, array of schema paths, and format
    * @returns Promise resolving to data in the specified format
    * @throws {Error} If operation fails
    */
@@ -1074,17 +1110,14 @@ export class JSONEval {
     options: GetEvaluatedSchemaByPathsSubformOptions
   ): Promise<any> {
     this.throwIfDisposed();
-
     const pathsJson =
       typeof options.schemaPaths === 'string'
         ? options.schemaPaths
         : JSON.stringify(options.schemaPaths);
-
     return await this._callNativeJson(
       'getEvaluatedSchemaByPathsSubform',
       options.subformPath,
       pathsJson,
-      options.skipLayout || false,
       options.format !== undefined ? options.format : ReturnFormat.Nested
     );
   }

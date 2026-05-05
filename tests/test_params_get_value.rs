@@ -39,7 +39,7 @@ fn test_get_schema_value_params_product_name() {
     // Evaluate
     eval.evaluate(&data_str, None, None, None).unwrap();
 
-    let result = eval.get_evaluated_schema(false);
+    let result = eval.get_evaluated_schema();
 
     // Verify that $params.productName was correctly referenced
     let item_value = result.pointer("/properties/order/properties/item/value");
@@ -106,7 +106,7 @@ fn test_get_schema_value_params_nested() {
     // Evaluate
     eval.evaluate(&data_str, None, None, None).unwrap();
 
-    let result = eval.get_evaluated_schema(false);
+    let result = eval.get_evaluated_schema();
 
     // Verify nested $params references
     let rate_value = result.pointer("/properties/calculation/properties/rate/value");
@@ -176,7 +176,7 @@ fn test_selective_eval_params_product_name() {
     // Initial evaluation
     eval.evaluate(&data_str, None, None, None).unwrap();
 
-    let result = eval.get_evaluated_schema(false);
+    let result = eval.get_evaluated_schema();
     let product_value = result
         .pointer("/properties/details/properties/product/value")
         .unwrap();
@@ -219,7 +219,7 @@ fn test_selective_eval_params_product_name() {
     // Re-evaluate with updated schema
     eval2.evaluate(&data_str, None, None, None).unwrap();
 
-    let result2 = eval2.get_evaluated_schema(false);
+    let result2 = eval2.get_evaluated_schema();
     let updated_product_value = result2
         .pointer("/properties/details/properties/product/value")
         .unwrap();

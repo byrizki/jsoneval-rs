@@ -6,29 +6,26 @@ use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 impl JSONEvalWasm {
-    /// Get the evaluated schema with optional layout resolution
+    /// Get the evaluated schema (compact, without $layout resolution)
     ///
-    /// @param skipLayout - Whether to skip layout resolution
     /// @returns Evaluated schema as JSON string
     #[wasm_bindgen(js_name = getEvaluatedSchema)]
-    pub fn get_evaluated_schema(&mut self, skip_layout: bool) -> String {
-        let result = self.inner.get_evaluated_schema(skip_layout);
+    pub fn get_evaluated_schema(&mut self) -> String {
+        let result = self.inner.get_evaluated_schema();
         serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
     }
 
     /// Get the evaluated schema as JavaScript object
     ///
-    /// @param skipLayout - Whether to skip layout resolution
     /// @returns Evaluated schema as JavaScript object
     #[wasm_bindgen(js_name = getEvaluatedSchemaJS)]
-    pub fn get_evaluated_schema_js(&mut self, skip_layout: bool) -> Result<JsValue, JsValue> {
-        let result = self.inner.get_evaluated_schema(skip_layout);
+    pub fn get_evaluated_schema_js(&mut self) -> Result<JsValue, JsValue> {
+        let result = self.inner.get_evaluated_schema();
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
     /// Get the evaluated schema in MessagePack format
     ///
-    /// @param skipLayout - Whether to skip layout resolution
     /// @returns Evaluated schema as MessagePack bytes (Uint8Array)
     ///
     /// # Zero-Copy Optimization
@@ -40,9 +37,9 @@ impl JSONEvalWasm {
     ///
     /// MessagePack format is 20-50% smaller than JSON, ideal for web/WASM.
     #[wasm_bindgen(js_name = getEvaluatedSchemaMsgpack)]
-    pub fn get_evaluated_schema_msgpack(&mut self, skip_layout: bool) -> Result<Vec<u8>, JsValue> {
+    pub fn get_evaluated_schema_msgpack(&mut self) -> Result<Vec<u8>, JsValue> {
         self.inner
-            .get_evaluated_schema_msgpack(skip_layout)
+            .get_evaluated_schema_msgpack()
             .map_err(|e| JsValue::from_str(&e))
     }
 
@@ -76,57 +73,48 @@ impl JSONEvalWasm {
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
-    /// Get the evaluated schema without $params field
+    /// Get the evaluated schema without $params field (compact)
     ///
-    /// @param skipLayout - Whether to skip layout resolution
     /// @returns Evaluated schema as JSON string
     #[wasm_bindgen(js_name = getEvaluatedSchemaWithoutParams)]
-    pub fn get_evaluated_schema_without_params(&mut self, skip_layout: bool) -> String {
-        let result = self.inner.get_evaluated_schema_without_params(skip_layout);
+    pub fn get_evaluated_schema_without_params(&mut self) -> String {
+        let result = self.inner.get_evaluated_schema_without_params();
         serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
     }
 
     /// Get the evaluated schema without $params as JavaScript object
     ///
-    /// @param skipLayout - Whether to skip layout resolution
     /// @returns Evaluated schema as JavaScript object
     #[wasm_bindgen(js_name = getEvaluatedSchemaWithoutParamsJS)]
-    pub fn get_evaluated_schema_without_params_js(
-        &mut self,
-        skip_layout: bool,
-    ) -> Result<JsValue, JsValue> {
-        let result = self.inner.get_evaluated_schema_without_params(skip_layout);
+    pub fn get_evaluated_schema_without_params_js(&mut self) -> Result<JsValue, JsValue> {
+        let result = self.inner.get_evaluated_schema_without_params();
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
     /// Get a value from the evaluated schema using dotted path notation
     ///
     /// @param path - Dotted path to the value (e.g., "properties.field.value")
-    /// @param skipLayout - Whether to skip layout resolution
     /// @returns Value as JSON string or null if not found
     #[wasm_bindgen(js_name = getEvaluatedSchemaByPath)]
     pub fn get_evaluated_schema_by_path(
         &mut self,
         path: &str,
-        skip_layout: bool,
     ) -> Option<String> {
         self.inner
-            .get_evaluated_schema_by_path(path, skip_layout)
+            .get_evaluated_schema_by_path(path)
             .map(|v| serde_json::to_string(&v).unwrap_or_else(|_| "null".to_string()))
     }
 
     /// Get a value from the evaluated schema using dotted path notation as JavaScript object
     ///
     /// @param path - Dotted path to the value (e.g., "properties.field.value")
-    /// @param skipLayout - Whether to skip layout resolution
     /// @returns Value as JavaScript object or null if not found
     #[wasm_bindgen(js_name = getEvaluatedSchemaByPathJS)]
     pub fn get_evaluated_schema_by_path_js(
         &mut self,
         path: &str,
-        skip_layout: bool,
     ) -> Result<JsValue, JsValue> {
-        match self.inner.get_evaluated_schema_by_path(path, skip_layout) {
+        match self.inner.get_evaluated_schema_by_path(path) {
             Some(value) => super::to_value(&value).map_err(|e| JsValue::from_str(&e.to_string())),
             None => Ok(JsValue::NULL),
         }
@@ -134,14 +122,12 @@ impl JSONEvalWasm {
 
     /// Get values from evaluated schema using multiple dotted paths
     /// @param pathsJson - JSON array of dotted paths
-    /// @param skipLayout - Whether to skip layout resolution
     /// @param format - Return format (0=Nested, 1=Flat, 2=Array)
     /// @returns Data in specified format as JSON string
     #[wasm_bindgen(js_name = getEvaluatedSchemaByPaths)]
     pub fn get_evaluated_schema_by_paths(
         &mut self,
         paths_json: &str,
-        skip_layout: bool,
         format: u8,
     ) -> Result<String, JsValue> {
         // Parse JSON array of paths
@@ -156,20 +142,18 @@ impl JSONEvalWasm {
 
         let result =
             self.inner
-                .get_evaluated_schema_by_paths(&paths, skip_layout, Some(return_format));
+                .get_evaluated_schema_by_paths(&paths, Some(return_format));
         serde_json::to_string(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
     /// Get values from evaluated schema using multiple dotted paths (JS object)
     /// @param pathsJson - JSON array of dotted paths
-    /// @param skipLayout - Whether to skip layout resolution
     /// @param format - Return format (0=Nested, 1=Flat, 2=Array)
     /// @returns Data in specified format as JavaScript object
     #[wasm_bindgen(js_name = getEvaluatedSchemaByPathsJS)]
     pub fn get_evaluated_schema_by_paths_js(
         &mut self,
         paths_json: &str,
-        skip_layout: bool,
         format: u8,
     ) -> Result<JsValue, JsValue> {
         // Parse JSON array of paths
@@ -184,7 +168,7 @@ impl JSONEvalWasm {
 
         let result =
             self.inner
-                .get_evaluated_schema_by_paths(&paths, skip_layout, Some(return_format));
+                .get_evaluated_schema_by_paths(&paths, Some(return_format));
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
@@ -319,5 +303,24 @@ impl JSONEvalWasm {
                 console_log(&format!("[WASM ERROR] {}", error_msg));
                 JsValue::from_str(&error_msg)
             })
+    }
+
+    /// Get the resolved layout overlays (separate from evaluated schema)
+    ///
+    /// @returns LayoutOverlayEntry array as JavaScript object
+    #[wasm_bindgen(js_name = getResolvedLayout)]
+    pub fn get_resolved_layout(&mut self) -> Result<JsValue, JsValue> {
+        let result = self.inner.get_resolved_layout();
+        super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Get the evaluated schema with $layout resolution merged in
+    /// Convenience method — equivalent to compact schema + overlay merge
+    ///
+    /// @returns Fully resolved evaluated schema as JavaScript object
+    #[wasm_bindgen(js_name = getEvaluatedSchemaResolved)]
+    pub fn get_evaluated_schema_resolved(&mut self) -> Result<JsValue, JsValue> {
+        let result = self.inner.get_evaluated_schema_resolved();
+        super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 }

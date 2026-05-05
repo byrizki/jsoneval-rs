@@ -48,3 +48,20 @@ pub struct ValidationResult {
     pub has_error: bool,
     pub errors: IndexMap<String, ValidationError>,
 }
+
+/// One resolved element overlay produced by the layout resolver.
+/// Each entry describes properties to apply on top of the compact schema.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LayoutOverlayEntry {
+    /// Which $layout.elements array (e.g. "#/form/$layout/elements")
+    pub layout_path: String,
+    /// Index within that elements array
+    pub element_idx: usize,
+    /// Dotted path to $ref target in schema (empty if no $ref)
+    pub schema_ref_path: String,
+    /// Delta properties to overlay onto the element
+    pub overlay: IndexMap<String, Value>,
+}
+
+/// Result of get_resolved_layout()
+pub type ResolvedLayoutResult = Vec<LayoutOverlayEntry>;

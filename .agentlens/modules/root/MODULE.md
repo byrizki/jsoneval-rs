@@ -2,27 +2,26 @@
 
 [← Back to INDEX](../../INDEX.md)
 
-**Type:** root | **Files:** 68
+**Type:** root | **Files:** 67
 
 ## Files
 
 | File | Lines | Large |
 | ---- | ----- | ----- |
 | `bindings/csharp-example/Program.cs` | 618 | 📊 |
-| `bindings/react-native/packages/react-native/android/src/main/cpp/json-eval-rn.cpp` | 914 | 📊 |
-| `bindings/react-native/packages/react-native/cpp/json-eval-bridge.cpp` | 1253 | 📊 |
-| `bindings/react-native/packages/react-native/cpp/json-eval-bridge.h` | 648 | 📊 |
+| `bindings/react-native/packages/react-native/android/src/main/cpp/json-eval-rn.cpp` | 938 | 📊 |
 | `bindings/react-native/packages/react-native/ios/JsonEvalRs.h` | 5 |  |
-| `bindings/react-native/packages/react-native/lib/typescript/index.d.ts` | 666 | 📊 |
+| `bindings/react-native/packages/react-native/lib/typescript/src/index.d.ts` | 452 |  |
+| `bindings/react-native/packages/react-native/lib/typescript/src/jsi-bridge.d.ts` | 67 |  |
 | `bindings/web/examples/nextjs/components/DependentFields.tsx` | 190 |  |
 | `bindings/web/examples/nextjs/components/FormValidator.tsx` | 196 |  |
-| `bindings/web/examples/nextjs/components/InsuranceForm.tsx` | 577 | 📊 |
+| `bindings/web/examples/nextjs/components/InsuranceForm.tsx` | 565 | 📊 |
 | `bindings/web/examples/nextjs/components/WorkerExample.tsx` | 257 |  |
 | `bindings/web/examples/nextjs/hooks/useJSONEvalWorker.ts` | 239 |  |
 | `bindings/web/examples/nextjs/next.config.js` | 20 |  |
 | `bindings/web/examples/nextjs/postcss.config.js` | 6 |  |
 | `bindings/web/examples/nextjs/tailwind.config.js` | 12 |  |
-| `bindings/web/examples/nextjs/workers/json-eval.worker.ts` | 162 |  |
+| `bindings/web/examples/nextjs/workers/json-eval.worker.ts` | 160 |  |
 | `bindings/web/examples/web-benchmark/worker.js` | 223 |  |
 | `build.rs` | 55 |  |
 | `docs/app.config.ts` | 21 |  |
@@ -58,7 +57,7 @@
 | `tests/operator_tests.rs` | 319 |  |
 | `tests/parsed_schema_tests.rs` | 146 |  |
 | `tests/path_utils_tests.rs` | 216 |  |
-| `tests/repro_issue_82.rs` | 57 |  |
+| `tests/repro_issue_82.rs` | 62 |  |
 | `tests/selective_eval.rs` | 153 |  |
 | `tests/selective_eval_advanced.rs` | 249 |  |
 | `tests/selective_eval_subforms.rs` | 95 |  |
@@ -68,7 +67,7 @@
 | `tests/test_cancellation.rs` | 110 |  |
 | `tests/test_dependents_null_and_subform.rs` | 202 |  |
 | `tests/test_evaluate_dependents_features.rs` | 273 |  |
-| `tests/test_evaluate_others.rs` | 704 | 📊 |
+| `tests/test_evaluate_others.rs` | 880 | 📊 |
 | `tests/test_evaluation_rules.rs` | 387 |  |
 | `tests/test_layout_sync.rs` | 200 |  |
 | `tests/test_params_get_value.rs` | 227 |  |

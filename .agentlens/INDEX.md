@@ -11,26 +11,28 @@
 
 ## Entry Points
 
+- `bindings/common/src/index.ts`
 - `bindings/react-native/examples/rncli/index.js`
 - `bindings/react-native/packages/react-native/lib/commonjs/index.js`
 - `bindings/react-native/packages/react-native/lib/module/index.js`
 - `bindings/react-native/packages/react-native/src/index.tsx`
-- `bindings/web/examples/nextjs/pages/index.tsx`
 
 ## ⚠️ Critical Alerts
 
-**74** high-priority warnings across 3 modules. Check each module's `memory.md` for details.
+**76** high-priority warnings across 3 modules. Check each module's `memory.md` for details.
 
 ## Modules
 
 | Module | Type | Files | Warnings | Hub |
 | ------ | ---- | ----- | -------- | --- |
-| [root](modules/root/MODULE.md) | root | 68 | - |  |
+| [root](modules/root/MODULE.md) | root | 67 | - |  |
+| [bindings/common/src](modules/bindings-common-src/MODULE.md) | js/ts | 3 | - |  |
 | [bindings/csharp](modules/bindings-csharp/MODULE.md) | implicit | 10 | - |  |
 | [bindings/react-native/examples/rncli](modules/bindings-react-native-examples-rncli/MODULE.md) | js/ts | 11 | - |  |
-| [bindings/react-native/packages/react-native/lib/commonjs](modules/bindings-react-native-packages-react-native-lib-commonjs/MODULE.md) | js/ts | 1 | - |  |
-| [bindings/react-native/packages/react-native/lib/module](modules/bindings-react-native-packages-react-native-lib-module/MODULE.md) | js/ts | 1 | - |  |
-| [bindings/react-native/packages/react-native/src](modules/bindings-react-native-packages-react-native-src/MODULE.md) | js/ts | 1 | - |  |
+| [bindings/react-native/packages/react-native/cpp](modules/bindings-react-native-packages-react-native-cpp/MODULE.md) | implicit | 5 | - |  |
+| [bindings/react-native/packages/react-native/lib/commonjs](modules/bindings-react-native-packages-react-native-lib-commonjs/MODULE.md) | js/ts | 2 | - |  |
+| [bindings/react-native/packages/react-native/lib/module](modules/bindings-react-native-packages-react-native-lib-module/MODULE.md) | js/ts | 2 | - |  |
+| [bindings/react-native/packages/react-native/src](modules/bindings-react-native-packages-react-native-src/MODULE.md) | js/ts | 2 | - |  |
 | [bindings/web/examples/nextjs/pages](modules/bindings-web-examples-nextjs-pages/MODULE.md) | js/ts | 2 | - |  |
 | [bindings/web/examples/nodejs](modules/bindings-web-examples-nodejs/MODULE.md) | js/ts | 1 | - |  |
 | [bindings/web/examples/nodejs-benchmark](modules/bindings-web-examples-nodejs-benchmark/MODULE.md) | js/ts | 2 | - |  |
@@ -40,7 +42,7 @@
 | [bindings/web/packages/vanilla/src](modules/bindings-web-packages-vanilla-src/MODULE.md) | js/ts | 1 | - |  |
 | [examples/common](modules/examples-common/MODULE.md) | rust | 1 | - |  |
 | [src](modules/src/MODULE.md) | rust | 2 | - |  |
-| [src/ffi](modules/src-ffi/MODULE.md) | rust | 9 | 59 |  |
+| [src/ffi](modules/src-ffi/MODULE.md) | rust | 9 | 61 |  |
 | [src/jsoneval](modules/src-jsoneval/MODULE.md) | rust | 20 | - |  |
 | [src/parse_schema](modules/src-parse_schema/MODULE.md) | rust | 4 | - |  |
 | [src/rlogic](modules/src-rlogic/MODULE.md) | rust | 4 | 2 |  |

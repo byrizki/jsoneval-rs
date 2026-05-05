@@ -2,7 +2,7 @@
 
 [← Back to MODULE](MODULE.md) | [← Back to INDEX](../../INDEX.md)
 
-Symbol maps for 12 large files in this module.
+Symbol maps for 9 large files in this module.
 
 ## bindings/csharp-example/Program.cs (618 lines)
 
@@ -33,116 +33,26 @@ Symbol maps for 12 large files in this module.
 | 538 | method | ParseDuration | (private) |
 | 557 | method | FindDifferences | (private) |
 
-## bindings/react-native/packages/react-native/android/src/main/cpp/json-eval-rn.cpp (914 lines)
+## bindings/react-native/packages/react-native/android/src/main/cpp/json-eval-rn.cpp (938 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
-| 30 | fn | stringToJstring | (private) |
-| 56 | fn | resolvePromise | pub |
-| 62 | fn | rejectPromise | pub |
-| 76 | fn | runAsyncWithPromise | pub |
-| 122 | method | stringToJstring | (internal) |
-| 170 | method | stringToJstring | (internal) |
-| 192 | method | stringToJstring | (internal) |
-| 625 | method | stringToJstring | (internal) |
+| 31 | fn | stringToJstring | (private) |
+| 57 | fn | resolvePromise | pub |
+| 63 | fn | rejectPromise | pub |
+| 77 | fn | runAsyncWithPromise | pub |
+| 123 | method | stringToJstring | (internal) |
+| 171 | method | stringToJstring | (internal) |
+| 193 | method | stringToJstring | (internal) |
+| 626 | method | stringToJstring | (internal) |
 
-## bindings/react-native/packages/react-native/cpp/json-eval-bridge.cpp (1253 lines)
-
-| Line | Kind | Name | Visibility |
-| ---- | ---- | ---- | ---------- |
-| 12 | class | SimpleThreadPool | pub |
-| 77 | method | json_eval_new | (internal) |
-| 79 | method | json_eval_new_from_msgpack | (internal) |
-| 80 | method | json_eval_evaluate | (internal) |
-| 81 | method | json_eval_get_evaluated_schema_msgpack | (internal) |
-| 82 | method | json_eval_validate | (internal) |
-| 83 | method | json_eval_evaluate_dependents | (internal) |
-| 84 | method | json_eval_get_evaluated_schema | (internal) |
-| 85 | method | json_eval_get_schema_value | (internal) |
-| 86 | method | json_eval_get_schema_value_array | (internal) |
-| 87 | method | json_eval_get_schema_value_object | (internal) |
-| 88 | method | json_eval_get_evaluated_schema_without_params | (internal) |
-| 89 | method | json_eval_get_evaluated_schema_by_path | (internal) |
-| 90 | method | json_eval_get_evaluated_schema_by_paths | (internal) |
-| 91 | method | json_eval_get_schema_by_path | (internal) |
-| 92 | method | json_eval_get_schema_by_paths | (internal) |
-| 93 | method | json_eval_resolve_layout | (internal) |
-| 94 | method | json_eval_compile_and_run_logic | (internal) |
-| 95 | method | json_eval_compile_logic | (internal) |
-| 96 | method | json_eval_run_logic | (internal) |
-| 97 | method | json_eval_reload_schema | (internal) |
-| 98 | method | json_eval_reload_schema_msgpack | (internal) |
-| 99 | method | json_eval_reload_schema_from_cache | (internal) |
-| 100 | method | json_eval_new_from_cache | (internal) |
-| 101 | method | json_eval_validate_paths | (internal) |
-| 102 | method | json_eval_evaluate_logic_pure | (internal) |
-| 105 | method | json_eval_evaluate_subform | (internal) |
-| 106 | method | json_eval_validate_subform | (internal) |
-| 107 | method | json_eval_evaluate_dependents_subform | (internal) |
-| 108 | method | json_eval_resolve_layout_subform | (internal) |
-| 109 | method | json_eval_get_evaluated_schema_subform | (internal) |
-| 110 | method | json_eval_get_schema_value_subform | (internal) |
-| 111 | method | json_eval_get_schema_value_array_subform | (internal) |
-| 112 | method | json_eval_get_schema_value_object_subform | (internal) |
-| 113 | method | json_eval_get_evaluated_schema_without_params_subform | (internal) |
-| 114 | method | json_eval_get_evaluated_schema_by_path_subform | (internal) |
-| 115 | method | json_eval_get_evaluated_schema_by_paths_subform | (internal) |
-| 116 | method | json_eval_get_schema_by_path_subform | (internal) |
-| 117 | method | json_eval_get_schema_by_paths_subform | (internal) |
-| 118 | method | json_eval_get_subform_paths | (internal) |
-| 119 | method | json_eval_has_subform | (internal) |
-| 120 | method | json_eval_set_timezone_offset | (internal) |
-| 122 | method | json_eval_free | (internal) |
-| 124 | method | json_eval_cancel | (internal) |
-| 125 | method | json_eval_free_result | (internal) |
-| 127 | method | json_eval_free_string | (internal) |
-| 130 | mod | jsoneval | pub |
-| 328 | method | JsonEvalBridge::compileLogic | pub |
-| 1202 | method | JsonEvalBridge::dispose | pub |
-| 1231 | method | JsonEvalBridge::setTimezoneOffset | pub |
-| 1239 | method | JsonEvalBridge::cancel | pub |
-
-## bindings/react-native/packages/react-native/cpp/json-eval-bridge.h (648 lines)
+## bindings/web/examples/nextjs/components/InsuranceForm.tsx (565 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
-| 8 | mod | jsoneval | pub |
-| 14 | class | JsonEvalBridge | pub |
-| 327 | method | compileLogic | (internal) |
-| 619 | method | setTimezoneOffset | (internal) |
-| 628 | method | dispose | (internal) |
-| 634 | method | cancel | (internal) |
-
-## bindings/react-native/packages/react-native/lib/typescript/index.d.ts (666 lines)
-
-| Line | Kind | Name | Visibility |
-| ---- | ---- | ---- | ---------- |
-| 4 | interface | SchemaValueItem | pub |
-| 24 | interface | ValidationError | pub |
-| 43 | interface | ValidationResult | pub |
-| 52 | interface | DependentChange | pub |
-| 69 | interface | JSONEvalOptions | pub |
-| 80 | interface | EvaluateOptions | pub |
-| 91 | interface | ValidatePathsOptions | pub |
-| 102 | interface | EvaluateDependentsOptions | pub |
-| 117 | interface | EvaluateSubformOptions | pub |
-| 130 | interface | ValidateSubformOptions | pub |
-| 141 | interface | EvaluateDependentsSubformOptions | pub |
-| 158 | interface | ResolveLayoutSubformOptions | pub |
-| 167 | interface | GetEvaluatedSchemaSubformOptions | pub |
-| 176 | interface | GetSchemaValueSubformOptions | pub |
-| 183 | interface | GetEvaluatedSchemaByPathSubformOptions | pub |
-| 194 | interface | GetEvaluatedSchemaByPathsSubformOptions | pub |
-| 207 | interface | GetSchemaByPathSubformOptions | pub |
-| 216 | interface | GetSchemaByPathsSubformOptions | pub |
-
-## bindings/web/examples/nextjs/components/InsuranceForm.tsx (577 lines)
-
-| Line | Kind | Name | Visibility |
-| ---- | ---- | ---- | ---------- |
-| 226 | fn | handleDateChange | (private) |
-| 265 | fn | handleSmokerChange | (private) |
-| 308 | fn | handleOccupationChange | (private) |
+| 214 | fn | handleDateChange | (private) |
+| 253 | fn | handleSmokerChange | (private) |
+| 296 | fn | handleOccupationChange | (private) |
 
 ## examples/benchmark.rs (544 lines)
 
@@ -219,21 +129,24 @@ Symbol maps for 12 large files in this module.
 | 614 | fn | test_mapoptionsif_with_ref | (private) |
 | 649 | fn | test_mapoptionsif_with_evaluation_blocks | (private) |
 
-## tests/test_evaluate_others.rs (704 lines)
+## tests/test_evaluate_others.rs (880 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
-| 5 | fn | test_options_url_dynamic_template_evaluation | (private) |
-| 60 | fn | test_options_url_template_evaluation | (private) |
-| 107 | fn | test_options_url_template_with_number_params | (private) |
-| 146 | fn | test_options_url_without_template_unchanged | (private) |
-| 185 | fn | test_layout_metadata_injection | (private) |
-| 263 | fn | test_layout_metadata_parent_hidden | (private) |
-| 349 | fn | test_hide_layout_propagation | (private) |
-| 470 | fn | test_direct_layout_elements_have_metadata | (private) |
-| 556 | fn | test_json_pointer_ref_conversion | (private) |
-| 617 | fn | test_multiple_options_templates_in_schema | (private) |
-| 676 | fn | test_options_template_collected_at_parse_time | (private) |
+| 6 | fn | get_by_pointer | (private) |
+| 17 | fn | set_by_pointer | (private) |
+| 27 | fn | merge_layout_overlay | (private) |
+| 82 | fn | test_options_url_dynamic_template_evaluation | (private) |
+| 147 | fn | test_options_url_template_evaluation | (private) |
+| 203 | fn | test_options_url_template_with_number_params | (private) |
+| 252 | fn | test_options_url_without_template_unchanged | (private) |
+| 301 | fn | test_layout_metadata_injection | (private) |
+| 389 | fn | test_layout_metadata_parent_hidden | (private) |
+| 485 | fn | test_hide_layout_propagation | (private) |
+| 616 | fn | test_direct_layout_elements_have_metadata | (private) |
+| 712 | fn | test_json_pointer_ref_conversion | (private) |
+| 783 | fn | test_multiple_options_templates_in_schema | (private) |
+| 852 | fn | test_options_template_collected_at_parse_time | (private) |
 
 ## tests/test_subforms.rs (659 lines)
 
