@@ -8,6 +8,10 @@
 
 #include "json-eval-bridge.h"
 
+// Forward declarations for C FFI types (defined in jsi-bridge.cpp extern "C" block)
+struct JSONEvalHandle;
+struct FFIResult;
+
 namespace jsoneval {
 
 namespace jsi = facebook::jsi;
@@ -37,10 +41,6 @@ public:
 private:
   // Helper: extract std::string from jsi::Value (string or null → "")
   static std::string stringFromValue(jsi::Runtime& runtime, const jsi::Value& val);
-  
-  // Helper: extract handle and lock it for FFI access
-  static std::pair<JSONEvalHandle*, std::unique_lock<std::mutex>> lockHandle(
-      jsi::Runtime& runtime, const jsi::Value& handleVal);
   
   // Helper: throw JSError based on FFIResult
   static void checkResult(jsi::Runtime& runtime, const FFIResult& result);

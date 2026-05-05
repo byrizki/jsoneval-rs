@@ -396,11 +396,16 @@ export class JSONEval {
           ? Array.from(schemaMsgpack)
           : schemaMsgpack;
 
-      const handle = JsonEvalRs.createFromMsgpack(
-        msgpackArray,
-        contextStr,
-        dataStr
-      );
+      let handle: string;
+      if (useJSI && _jsi?.createFromMsgpack) {
+        handle = _jsi.createFromMsgpack(msgpackArray, contextStr, dataStr);
+      } else {
+        handle = JsonEvalRs.createFromMsgpack(
+          msgpackArray,
+          contextStr,
+          dataStr
+        );
+      }
       return new JSONEval({ schema: {}, _handle: handle });
     } catch (error) {
       const errorMessage =
@@ -518,7 +523,10 @@ export class JSONEval {
   /**
    * Internal helper to call native methods and parse JSON result.
    */
-  private async _callNativeJson(methodName: string, ...args: any[]): Promise<any> {
+  private async _callNativeJson(
+    methodName: string,
+    ...args: any[]
+  ): Promise<any> {
     const result = await this._callNative(methodName, ...args);
     return typeof result === 'string' ? JSONParse(result) : result;
   }

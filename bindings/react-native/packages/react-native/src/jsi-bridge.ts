@@ -19,6 +19,11 @@ export interface JsonEvalJSIGlobal {
     context: string | null,
     data: string | null
   ): string;
+  createFromMsgpack(
+    msgpack: number[],
+    context: string | null,
+    data: string | null
+  ): string;
   dispose(handle: string): void;
 
   // Evaluation
@@ -81,6 +86,12 @@ export interface JsonEvalJSIGlobal {
   reloadSchemaFromCache(
     handle: string,
     cacheKey: string,
+    context: string | null,
+    data: string | null
+  ): void;
+  reloadSchemaMsgpack(
+    handle: string,
+    msgpack: number[],
     context: string | null,
     data: string | null
   ): void;
@@ -169,6 +180,12 @@ export interface JsonEvalJSIGlobal {
   ): string;
   getSubformPaths(handle: string): string;
   hasSubform(handle: string, subformPath: string): boolean;
+
+  evaluateLogic(
+    logic: string,
+    data: string | null,
+    context: string | null
+  ): string;
 
   version(): string;
 }

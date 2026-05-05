@@ -36,6 +36,7 @@ extern "C" {
     uint64_t json_eval_compile_logic(JSONEvalHandle* handle, const char* logic_str);
     FFIResult json_eval_run_logic(JSONEvalHandle* handle, uint64_t logic_id, const char* data, const char* context);
     FFIResult json_eval_reload_schema(JSONEvalHandle* handle, const char* schema, const char* context, const char* data);
+    FFIResult json_eval_reload_schema_msgpack(JSONEvalHandle* handle, const uint8_t* schema_msgpack, size_t schema_len, const char* context, const char* data);
     FFIResult json_eval_reload_schema_from_cache(JSONEvalHandle* handle, const char* cache_key, const char* context, const char* data);
     void json_eval_set_timezone_offset(JSONEvalHandle* handle, int32_t offset_minutes);
     void json_eval_free(JSONEvalHandle* handle);
@@ -59,6 +60,7 @@ extern "C" {
     FFIResult json_eval_get_schema_by_paths_subform(JSONEvalHandle* handle, const char* subform_path, const char* schema_paths_json, uint8_t format);
     FFIResult json_eval_get_subform_paths(JSONEvalHandle* handle);
     FFIResult json_eval_has_subform(JSONEvalHandle* handle, const char* subform_path);
+    FFIResult json_eval_evaluate_logic_pure(const char* logic_str, const char* data, const char* context);
 }
 
 namespace jsoneval {
@@ -134,7 +136,7 @@ void JsonEvalJSI::checkArgCount(jsi::Runtime& runtime, size_t actual, size_t exp
 // Helper: converts FFI result data_ptr+data_len → jsi::String (JSON)
 // ---------------------------------------------------------------------------
 static jsi::Value ffiResultToJsiString(jsi::Runtime& runtime, FFIResult& result, const char* fallback) {
-    checkResult(runtime, result);
+    JsonEvalJSI::checkResult(runtime, result);
     std::string str;
     if (result.data_ptr && result.data_len > 0) {
         str.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
@@ -154,7 +156,7 @@ static jsi::Value createJsiFn(jsi::Runtime& runtime, const char* name, Fn&& fn) 
         runtime,
         jsi::PropNameID::forAscii(runtime, name),
         0,
-        [fn = std::forward<Fn>(fn)](jsi::Runtime& rt, const jsi::Value&, const jsi::Value* args, size_t count) -> jsi::Value {
+        [fn = std::forward<Fn>(fn), name](jsi::Runtime& rt, const jsi::Value&, const jsi::Value* args, size_t count) -> jsi::Value {
             try {
                 return fn(rt, args, count);
             } catch (const jsi::JSError&) {
@@ -186,6 +188,44 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                     data.empty() ? nullptr : data.c_str()
                 );
                 if (!handle) throw jsi::JSError(rt, "Failed to create JSONEval instance");
+                auto id = createHandleId();
+                storeHandle(id, handle);
+                return jsi::String::createFromUtf8(rt, id);
+            }
+        );
+    }
+
+    // ---- createFromMsgpack ----
+    if (prop == "createFromMsgpack") {
+        return createJsiFn(runtime, "createFromMsgpack",
+            [](jsi::Runtime& rt, const jsi::Value* args, size_t count) -> jsi::Value {
+                checkArgCount(rt, count, 1);
+                // First arg: JSI Array of uint8 bytes or ArrayBuffer
+                std::vector<uint8_t> msgpackBytes;
+                if (args[0].isObject()) {
+                    auto obj = args[0].asObject(rt);
+                    if (obj.isArray(rt)) {
+                        auto arr = obj.asArray(rt);
+                        size_t len = arr.size(rt);
+                        msgpackBytes.reserve(len);
+                        for (size_t i = 0; i < len; i++) {
+                            msgpackBytes.push_back(static_cast<uint8_t>(
+                                arr.getValueAtIndex(rt, i).asNumber()));
+                        }
+                    } else if (obj.isArrayBuffer(rt)) {
+                        auto buf = obj.getArrayBuffer(rt);
+                        auto* data = buf.data(rt);
+                        msgpackBytes.assign(data, data + buf.length(rt));
+                    }
+                }
+                auto ctx = count > 1 ? stringFromValue(rt, args[1]) : "";
+                auto data = count > 2 ? stringFromValue(rt, args[2]) : "";
+                JSONEvalHandle* handle = json_eval_new_from_msgpack(
+                    msgpackBytes.data(), msgpackBytes.size(),
+                    ctx.empty() ? nullptr : ctx.c_str(),
+                    data.empty() ? nullptr : data.c_str()
+                );
+                if (!handle) throw jsi::JSError(rt, "Failed to create JSONEval from msgpack");
                 auto id = createHandleId();
                 storeHandle(id, handle);
                 return jsi::String::createFromUtf8(rt, id);
@@ -557,6 +597,46 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
         );
     }
 
+    // ---- reloadSchemaMsgpack ----
+    if (prop == "reloadSchemaMsgpack") {
+        return createJsiFn(runtime, "reloadSchemaMsgpack",
+            [](jsi::Runtime& rt, const jsi::Value* args, size_t count) -> jsi::Value {
+                checkArgCount(rt, count, 4);
+                auto handleId = stringFromValue(rt, args[0]);
+                std::vector<uint8_t> msgpackBytes;
+                if (args[1].isObject()) {
+                    auto obj = args[1].asObject(rt);
+                    if (obj.isArray(rt)) {
+                        auto arr = obj.asArray(rt);
+                        size_t len = arr.size(rt);
+                        msgpackBytes.reserve(len);
+                        for (size_t i = 0; i < len; i++) {
+                            msgpackBytes.push_back(static_cast<uint8_t>(
+                                arr.getValueAtIndex(rt, i).asNumber()));
+                        }
+                    } else if (obj.isArrayBuffer(rt)) {
+                        auto buf = obj.getArrayBuffer(rt);
+                        auto* data = buf.data(rt);
+                        msgpackBytes.assign(data, data + buf.length(rt));
+                    }
+                }
+                auto ctx = count > 2 ? stringFromValue(rt, args[2]) : "";
+                auto data = count > 3 ? stringFromValue(rt, args[3]) : "";
+                
+                auto [handle, lock] = lockHandleById(handleId);
+                FFIResult result = json_eval_reload_schema_msgpack(
+                    handle,
+                    msgpackBytes.data(), msgpackBytes.size(),
+                    ctx.empty() ? nullptr : ctx.c_str(),
+                    data.empty() ? nullptr : data.c_str()
+                );
+                checkResult(rt, result);
+                json_eval_free_result(result);
+                return jsi::Value::undefined();
+            }
+        );
+    }
+
     // ---- reloadSchema ----
     if (prop == "reloadSchema") {
         return createJsiFn(runtime, "reloadSchema",
@@ -642,6 +722,24 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                     json_eval_free(nativeHandle);
                 }
                 return jsi::Value::undefined();
+            }
+        );
+    }
+
+    // ---- evaluateLogic (static, no handle) ----
+    if (prop == "evaluateLogic") {
+        return createJsiFn(runtime, "evaluateLogic",
+            [](jsi::Runtime& rt, const jsi::Value* args, size_t count) -> jsi::Value {
+                checkArgCount(rt, count, 1);
+                auto logic = stringFromValue(rt, args[0]);
+                auto data = count > 1 ? stringFromValue(rt, args[1]) : "";
+                auto ctx = count > 2 ? stringFromValue(rt, args[2]) : "";
+                FFIResult result = json_eval_evaluate_logic_pure(
+                    logic.c_str(),
+                    data.empty() ? nullptr : data.c_str(),
+                    ctx.empty() ? nullptr : ctx.c_str()
+                );
+                return ffiResultToJsiString(rt, result, "null");
             }
         );
     }
@@ -939,7 +1037,7 @@ void JsonEvalJSI::set(jsi::Runtime& runtime, const jsi::PropNameID& name, const 
 
 std::vector<jsi::PropNameID> JsonEvalJSI::getPropertyNames(jsi::Runtime& runtime) {
     std::vector<const char*> names = {
-        "create", "createFromCache",
+        "create", "createFromMsgpack", "createFromCache",
         "evaluateOnly", "evaluate",
         "validate", "validatePaths",
         "evaluateDependents",
@@ -949,9 +1047,9 @@ std::vector<jsi::PropNameID> JsonEvalJSI::getPropertyNames(jsi::Runtime& runtime
         "getEvaluatedSchemaWithoutParams",
         "resolveLayout",
         "compileAndRunLogic", "compileLogic", "runLogic",
-        "reloadSchema", "reloadSchemaFromCache",
+        "reloadSchema", "reloadSchemaMsgpack", "reloadSchemaFromCache",
         "setTimezoneOffset",
-        "dispose", "version",
+        "dispose", "evaluateLogic", "version",
         // Subform
         "evaluateSubform", "validateSubform", "evaluateDependentsSubform",
         "resolveLayoutSubform",
