@@ -496,7 +496,7 @@ jobs:
             bindings/web/packages/node/*.tgz
             bindings/web/packages/vanilla/*.tgz
             bindings/common/*.tgz
-          if-no-files-found: true
+          if-no-files-found: warn
 
       - name: Upload WASM artifacts
         uses: actions/upload-artifact@v7
