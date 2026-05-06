@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.0.95] - 2026-05-06
+
+- [RN] [core] Fix broken release 0.0.94
+
 ## [0.0.94] - 2026-05-06
 
 - [core] [RN] [C#] [WASM] implement delta evaluated schema
