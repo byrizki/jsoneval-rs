@@ -90,6 +90,9 @@ extern "C" {
     FFIResult json_eval_get_evaluated_schema_by_paths(JSONEvalHandle* handle, const char* paths_json, uint8_t format);
     FFIResult json_eval_get_schema_by_path(JSONEvalHandle* handle, const char* path);
     FFIResult json_eval_get_schema_by_paths(JSONEvalHandle* handle, const char* paths_json, uint8_t format);
+    FFIResult json_eval_get_field_options(JSONEvalHandle* handle, const char* field_path);
+    FFIResult json_eval_get_resolved_layout(JSONEvalHandle* handle);
+    FFIResult json_eval_get_evaluated_schema_resolved(JSONEvalHandle* handle);
     FFIResult json_eval_resolve_layout(JSONEvalHandle* handle, bool evaluate);
     FFIResult json_eval_compile_and_run_logic(JSONEvalHandle* handle, const char* logic_str, const char* data, const char* context);
     uint64_t json_eval_compile_logic(JSONEvalHandle* handle, const char* logic_str);
@@ -115,6 +118,8 @@ extern "C" {
     FFIResult json_eval_get_evaluated_schema_by_paths_subform(JSONEvalHandle* handle, const char* subform_path, const char* schema_paths_json, uint8_t format);
     FFIResult json_eval_get_schema_by_path_subform(JSONEvalHandle* handle, const char* subform_path, const char* schema_path);
     FFIResult json_eval_get_schema_by_paths_subform(JSONEvalHandle* handle, const char* subform_path, const char* schema_paths_json, uint8_t format);
+    FFIResult json_eval_get_evaluated_schema_resolved_subform(JSONEvalHandle* handle, const char* subform_path);
+    FFIResult json_eval_get_resolved_layout_subform(JSONEvalHandle* handle, const char* subform_path);
     FFIResult json_eval_get_subform_paths(JSONEvalHandle* handle);
     FFIResult json_eval_has_subform(JSONEvalHandle* handle, const char* subform_path);
     
