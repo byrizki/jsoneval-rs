@@ -603,3 +603,30 @@ pub unsafe extern "C" fn json_eval_has_subform(
     let result_bytes = result.as_bytes().to_vec();
     FFIResult::success(result_bytes)
 }
+
+/// Get evaluated schema with layout resolution for subform
+///
+/// # Safety
+///
+/// - handle must be a valid pointer from json_eval_new
+/// - subform_path must be a valid null-terminated UTF-8 string
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_get_evaluated_schema_resolved_subform(
+    handle: *mut JSONEvalHandle,
+    subform_path: *const c_char,
+) -> FFIResult {
+    if handle.is_null() || subform_path.is_null() {
+        return FFIResult::error("Invalid pointer".to_string());
+    }
+
+    let eval = &mut (*handle).inner;
+
+    let path_str = match CStr::from_ptr(subform_path).to_str() {
+        Ok(s) => s,
+        Err(_) => return FFIResult::error("Invalid UTF-8 in subform_path".to_string()),
+    };
+
+    let result = eval.get_evaluated_schema_resolved_subform(path_str);
+    let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
+    FFIResult::success(result_bytes)
+}

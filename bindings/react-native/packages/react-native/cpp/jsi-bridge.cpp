@@ -8,18 +8,18 @@ extern "C" {
     JSONEvalHandle* json_eval_new_from_msgpack(const uint8_t* schema_msgpack, size_t schema_len, const char* context, const char* data);
     JSONEvalHandle* json_eval_new_from_cache(const char* cache_key, const char* context, const char* data);
     FFIResult json_eval_evaluate(JSONEvalHandle* handle, const char* data, const char* context, const char* paths_json);
-    FFIResult json_eval_get_evaluated_schema(JSONEvalHandle* handle, bool skip_layout);
+    FFIResult json_eval_get_evaluated_schema(JSONEvalHandle* handle);
     FFIResult json_eval_get_schema_value(JSONEvalHandle* handle);
     FFIResult json_eval_get_schema_value_array(JSONEvalHandle* handle);
     FFIResult json_eval_get_schema_value_object(JSONEvalHandle* handle);
     FFIResult json_eval_validate(JSONEvalHandle* handle, const char* data, const char* context);
     FFIResult json_eval_validate_paths(JSONEvalHandle* handle, const char* data, const char* context, const char* paths_json);
     FFIResult json_eval_evaluate_dependents(JSONEvalHandle* handle, const char* changed_path, const char* data, const char* context, int re_evaluate, int include_subforms);
-    FFIResult json_eval_get_evaluated_schema_by_path(JSONEvalHandle* handle, const char* path, bool skip_layout);
-    FFIResult json_eval_get_evaluated_schema_by_paths(JSONEvalHandle* handle, const char* paths_json, bool skip_layout, uint8_t format);
+    FFIResult json_eval_get_evaluated_schema_by_path(JSONEvalHandle* handle, const char* path);
+    FFIResult json_eval_get_evaluated_schema_by_paths(JSONEvalHandle* handle, const char* paths_json, uint8_t format);
     FFIResult json_eval_get_schema_by_path(JSONEvalHandle* handle, const char* path);
     FFIResult json_eval_get_schema_by_paths(JSONEvalHandle* handle, const char* paths_json, uint8_t format);
-    FFIResult json_eval_get_evaluated_schema_without_params(JSONEvalHandle* handle, bool skip_layout);
+    FFIResult json_eval_get_evaluated_schema_without_params(JSONEvalHandle* handle);
     FFIResult json_eval_resolve_layout(JSONEvalHandle* handle, bool evaluate);
     FFIResult json_eval_compile_and_run_logic(JSONEvalHandle* handle, const char* logic_str, const char* data, const char* context);
     uint64_t json_eval_compile_logic(JSONEvalHandle* handle, const char* logic_str);
@@ -38,19 +38,24 @@ extern "C" {
     FFIResult json_eval_validate_subform(JSONEvalHandle* handle, const char* subform_path, const char* data, const char* context);
     FFIResult json_eval_evaluate_dependents_subform(JSONEvalHandle* handle, const char* subform_path, const char* changed_path, const char* data, const char* context, int re_evaluate, int include_subforms);
     FFIResult json_eval_resolve_layout_subform(JSONEvalHandle* handle, const char* subform_path, bool evaluate);
-    FFIResult json_eval_get_evaluated_schema_subform(JSONEvalHandle* handle, const char* subform_path, bool resolve_layout);
+    FFIResult json_eval_get_evaluated_schema_subform(JSONEvalHandle* handle, const char* subform_path);
     FFIResult json_eval_get_schema_value_subform(JSONEvalHandle* handle, const char* subform_path);
     FFIResult json_eval_get_schema_value_array_subform(JSONEvalHandle* handle, const char* subform_path);
     FFIResult json_eval_get_schema_value_object_subform(JSONEvalHandle* handle, const char* subform_path);
-    FFIResult json_eval_get_evaluated_schema_without_params_subform(JSONEvalHandle* handle, const char* subform_path, bool resolve_layout);
-    FFIResult json_eval_get_evaluated_schema_by_path_subform(JSONEvalHandle* handle, const char* subform_path, const char* schema_path, bool skip_layout);
-    FFIResult json_eval_get_evaluated_schema_by_paths_subform(JSONEvalHandle* handle, const char* subform_path, const char* schema_paths_json, bool skip_layout, uint8_t format);
+    FFIResult json_eval_get_evaluated_schema_without_params_subform(JSONEvalHandle* handle, const char* subform_path);
+    FFIResult json_eval_get_evaluated_schema_by_path_subform(JSONEvalHandle* handle, const char* subform_path, const char* schema_path);
+    FFIResult json_eval_get_evaluated_schema_by_paths_subform(JSONEvalHandle* handle, const char* subform_path, const char* schema_paths_json, uint8_t format);
     FFIResult json_eval_get_schema_by_path_subform(JSONEvalHandle* handle, const char* subform_path, const char* schema_path);
     FFIResult json_eval_get_schema_by_paths_subform(JSONEvalHandle* handle, const char* subform_path, const char* schema_paths_json, uint8_t format);
     FFIResult json_eval_get_subform_paths(JSONEvalHandle* handle);
     FFIResult json_eval_has_subform(JSONEvalHandle* handle, const char* subform_path);
     FFIResult json_eval_evaluate_logic_pure(const char* logic_str, const char* data, const char* context);
     FFIResult json_eval_get_field_options(JSONEvalHandle* handle, const char* field_path);
+    FFIResult json_eval_get_resolved_layout(JSONEvalHandle* handle);
+    FFIResult json_eval_get_resolved_layout_subform(JSONEvalHandle* handle, const char* subform_path);
+    FFIResult json_eval_get_evaluated_schema_resolved(JSONEvalHandle* handle);
+    FFIResult json_eval_get_evaluated_schema_resolved_subform(JSONEvalHandle* handle, const char* subform_path);
+    void json_eval_cancel(JSONEvalHandle* handle);
 }
 
 namespace jsoneval {
@@ -301,7 +306,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 json_eval_free_result(evalResult);
                 
                 // Step 2: Get evaluated schema
-                FFIResult schemaResult = json_eval_get_evaluated_schema(handle, true);
+                FFIResult schemaResult = json_eval_get_evaluated_schema(handle);
                 return ffiResultToJsiBuffer(rt, schemaResult);
             }
         );
@@ -381,10 +386,22 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
             [](jsi::Runtime& rt, const jsi::Value* args, size_t count) -> jsi::Value {
                 checkArgCount(rt, count, 1);
                 auto handleId = stringFromValue(rt, args[0]);
-                bool skipLayout = count > 1 ? args[1].asBool() : false;
                 
                 auto [handle, lock] = lockHandleById(handleId);
-                FFIResult result = json_eval_get_evaluated_schema(handle, skipLayout);
+                FFIResult result = json_eval_get_evaluated_schema(handle);
+                return ffiResultToJsiBuffer(rt, result);
+            }
+        );
+    }
+
+    // ---- getEvaluatedSchemaResolved ----
+    if (prop == "getEvaluatedSchemaResolved") {
+        return createJsiFn(runtime, "getEvaluatedSchemaResolved",
+            [](jsi::Runtime& rt, const jsi::Value* args, size_t count) -> jsi::Value {
+                checkArgCount(rt, count, 1);
+                auto handleId = stringFromValue(rt, args[0]);
+                auto [handle, lock] = lockHandleById(handleId);
+                FFIResult result = json_eval_get_evaluated_schema_resolved(handle);
                 return ffiResultToJsiBuffer(rt, result);
             }
         );
@@ -436,10 +453,9 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 checkArgCount(rt, count, 2);
                 auto handleId = stringFromValue(rt, args[0]);
                 auto path = stringFromValue(rt, args[1]);
-                bool skipLayout = count > 2 ? args[2].asBool() : false;
                 
                 auto [handle, lock] = lockHandleById(handleId);
-                FFIResult result = json_eval_get_evaluated_schema_by_path(handle, path.c_str(), skipLayout);
+                FFIResult result = json_eval_get_evaluated_schema_by_path(handle, path.c_str());
                 return ffiResultToJsiBuffer(rt, result);
             }
         );
@@ -452,11 +468,10 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 checkArgCount(rt, count, 2);
                 auto handleId = stringFromValue(rt, args[0]);
                 auto pathsJson = stringFromValue(rt, args[1]);
-                bool skipLayout = count > 2 ? args[2].asBool() : false;
-                uint8_t format = count > 3 ? static_cast<uint8_t>(args[3].asNumber()) : 0;
+                uint8_t format = count > 2 ? static_cast<uint8_t>(args[2].asNumber()) : 0;
                 
                 auto [handle, lock] = lockHandleById(handleId);
-                FFIResult result = json_eval_get_evaluated_schema_by_paths(handle, pathsJson.c_str(), skipLayout, format);
+                FFIResult result = json_eval_get_evaluated_schema_by_paths(handle, pathsJson.c_str(), format);
                 return ffiResultToJsiBuffer(rt, result);
             }
         );
@@ -519,10 +534,23 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
             [](jsi::Runtime& rt, const jsi::Value* args, size_t count) -> jsi::Value {
                 checkArgCount(rt, count, 1);
                 auto handleId = stringFromValue(rt, args[0]);
-                bool skipLayout = count > 1 ? args[1].asBool() : false;
                 
                 auto [handle, lock] = lockHandleById(handleId);
-                FFIResult result = json_eval_get_evaluated_schema_without_params(handle, skipLayout);
+                FFIResult result = json_eval_get_evaluated_schema_without_params(handle);
+                return ffiResultToJsiBuffer(rt, result);
+            }
+        );
+    }
+
+    // ---- getResolvedLayout ----
+    if (prop == "getResolvedLayout") {
+        return createJsiFn(runtime, "getResolvedLayout",
+            [](jsi::Runtime& rt, const jsi::Value* args, size_t count) -> jsi::Value {
+                checkArgCount(rt, count, 1);
+                auto handleId = stringFromValue(rt, args[0]);
+
+                auto [handle, lock] = lockHandleById(handleId);
+                FFIResult result = json_eval_get_resolved_layout(handle);
                 return ffiResultToJsiBuffer(rt, result);
             }
         );
@@ -535,7 +563,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 checkArgCount(rt, count, 1);
                 auto handleId = stringFromValue(rt, args[0]);
                 bool evaluate = count > 1 ? args[1].asBool() : false;
-                
+
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_resolve_layout(handle, evaluate);
                 checkResult(rt, result);
@@ -710,6 +738,19 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
         );
     }
 
+    // ---- cancel ----
+    if (prop == "cancel") {
+        return createJsiFn(runtime, "cancel",
+            [](jsi::Runtime& rt, const jsi::Value* args, size_t count) -> jsi::Value {
+                checkArgCount(rt, count, 1);
+                auto handleId = stringFromValue(rt, args[0]);
+                auto [handle, lock] = lockHandleById(handleId);
+                json_eval_cancel(handle);
+                return jsi::Value::undefined();
+            }
+        );
+    }
+
     // ---- dispose ----
     if (prop == "dispose") {
         return createJsiFn(runtime, "dispose",
@@ -878,6 +919,21 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
         );
     }
 
+    // ---- getResolvedLayoutSubform ----
+    if (prop == "getResolvedLayoutSubform") {
+        return createJsiFn(runtime, "getResolvedLayoutSubform",
+            [](jsi::Runtime& rt, const jsi::Value* args, size_t count) -> jsi::Value {
+                checkArgCount(rt, count, 2);
+                auto handleId = stringFromValue(rt, args[0]);
+                auto subformPath = stringFromValue(rt, args[1]);
+                
+                auto [handle, lock] = lockHandleById(handleId);
+                FFIResult result = json_eval_get_resolved_layout_subform(handle, subformPath.c_str());
+                return ffiResultToJsiBuffer(rt, result);
+            }
+        );
+    }
+
     // ---- getEvaluatedSchemaSubform ----
     if (prop == "getEvaluatedSchemaSubform") {
         return createJsiFn(runtime, "getEvaluatedSchemaSubform",
@@ -885,10 +941,24 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 checkArgCount(rt, count, 2);
                 auto handleId = stringFromValue(rt, args[0]);
                 auto subformPath = stringFromValue(rt, args[1]);
-                bool resolveLayout = count > 2 ? args[2].asBool() : false;
                 
                 auto [handle, lock] = lockHandleById(handleId);
-                FFIResult result = json_eval_get_evaluated_schema_subform(handle, subformPath.c_str(), resolveLayout);
+                FFIResult result = json_eval_get_evaluated_schema_subform(handle, subformPath.c_str());
+                return ffiResultToJsiBuffer(rt, result);
+            }
+        );
+    }
+
+    // ---- getEvaluatedSchemaResolvedSubform ----
+    if (prop == "getEvaluatedSchemaResolvedSubform") {
+        return createJsiFn(runtime, "getEvaluatedSchemaResolvedSubform",
+            [](jsi::Runtime& rt, const jsi::Value* args, size_t count) -> jsi::Value {
+                checkArgCount(rt, count, 2);
+                auto handleId = stringFromValue(rt, args[0]);
+                auto subformPath = stringFromValue(rt, args[1]);
+                
+                auto [handle, lock] = lockHandleById(handleId);
+                FFIResult result = json_eval_get_evaluated_schema_resolved_subform(handle, subformPath.c_str());
                 return ffiResultToJsiBuffer(rt, result);
             }
         );
@@ -946,10 +1016,9 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 checkArgCount(rt, count, 2);
                 auto handleId = stringFromValue(rt, args[0]);
                 auto subformPath = stringFromValue(rt, args[1]);
-                bool resolveLayout = count > 2 ? args[2].asBool() : false;
                 
                 auto [handle, lock] = lockHandleById(handleId);
-                FFIResult result = json_eval_get_evaluated_schema_without_params_subform(handle, subformPath.c_str(), resolveLayout);
+                FFIResult result = json_eval_get_evaluated_schema_without_params_subform(handle, subformPath.c_str());
                 return ffiResultToJsiBuffer(rt, result);
             }
         );
@@ -963,10 +1032,9 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 auto handleId = stringFromValue(rt, args[0]);
                 auto subformPath = stringFromValue(rt, args[1]);
                 auto schemaPath = stringFromValue(rt, args[2]);
-                bool skipLayout = count > 3 ? args[3].asBool() : false;
                 
                 auto [handle, lock] = lockHandleById(handleId);
-                FFIResult result = json_eval_get_evaluated_schema_by_path_subform(handle, subformPath.c_str(), schemaPath.c_str(), skipLayout);
+                FFIResult result = json_eval_get_evaluated_schema_by_path_subform(handle, subformPath.c_str(), schemaPath.c_str());
                 return ffiResultToJsiBuffer(rt, result);
             }
         );
@@ -980,11 +1048,10 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 auto handleId = stringFromValue(rt, args[0]);
                 auto subformPath = stringFromValue(rt, args[1]);
                 auto schemaPathsJson = stringFromValue(rt, args[2]);
-                bool skipLayout = count > 3 ? args[3].asBool() : false;
-                uint8_t format = count > 4 ? static_cast<uint8_t>(args[4].asNumber()) : 0;
+                uint8_t format = count > 3 ? static_cast<uint8_t>(args[3].asNumber()) : 0;
                 
                 auto [handle, lock] = lockHandleById(handleId);
-                FFIResult result = json_eval_get_evaluated_schema_by_paths_subform(handle, subformPath.c_str(), schemaPathsJson.c_str(), skipLayout, format);
+                FFIResult result = json_eval_get_evaluated_schema_by_paths_subform(handle, subformPath.c_str(), schemaPathsJson.c_str(), format);
                 return ffiResultToJsiBuffer(rt, result);
             }
         );
@@ -1072,19 +1139,20 @@ std::vector<jsi::PropNameID> JsonEvalJSI::getPropertyNames(jsi::Runtime& runtime
         "evaluateOnly", "evaluate",
         "validate", "validatePaths",
         "evaluateDependents",
-        "getEvaluatedSchema", "getSchemaValue", "getSchemaValueArray", "getSchemaValueObject",
+        "getEvaluatedSchema", "getEvaluatedSchemaResolved", "getSchemaValue", "getSchemaValueArray", "getSchemaValueObject",
         "getEvaluatedSchemaByPath", "getEvaluatedSchemaByPaths",
         "getSchemaByPath", "getSchemaByPaths",
         "getEvaluatedSchemaWithoutParams",
-        "resolveLayout",
+        "resolveLayout", "getResolvedLayout",
         "compileAndRunLogic", "compileLogic", "runLogic",
         "reloadSchema", "reloadSchemaMsgpack", "reloadSchemaFromCache",
         "setTimezoneOffset",
-        "dispose", "evaluateLogic", "version", "decodeArrayBuffer",
+        "dispose", "cancel", "evaluateLogic", "version", "decodeArrayBuffer",
         // Subform
         "evaluateSubform", "validateSubform", "evaluateDependentsSubform",
         "resolveLayoutSubform",
-        "getEvaluatedSchemaSubform",
+        "getResolvedLayoutSubform",
+        "getEvaluatedSchemaSubform", "getEvaluatedSchemaResolvedSubform",
         "getSchemaValueSubform", "getSchemaValueArraySubform", "getSchemaValueObjectSubform",
         "getEvaluatedSchemaWithoutParamsSubform",
         "getEvaluatedSchemaByPathSubform", "getEvaluatedSchemaByPathsSubform",

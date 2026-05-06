@@ -303,6 +303,38 @@ public:
     );
 
     /**
+     * Get resolved layout overlay (async)
+     * @param handle Instance handle
+     * @param callback Result callback
+     */
+    static void getResolvedLayoutAsync(
+        const std::string& handle,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Get evaluated schema with resolved layout (async)
+     * @param handle Instance handle
+     * @param callback Result callback
+     */
+    static void getEvaluatedSchemaResolvedAsync(
+        const std::string& handle,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Get evaluated schema with resolved layout for subform (async)
+     * @param handle Instance handle
+     * @param subformPath Path to the subform
+     * @param callback Result callback
+     */
+    static void getEvaluatedSchemaResolvedSubformAsync(
+        const std::string& handle,
+        const std::string& subformPath,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
      * Compile and run JSON logic expression
      * @param handle JSONEval instance handle
      * @param logicStr JSON logic expression
@@ -595,6 +627,30 @@ public:
     static void hasSubformAsync(
         const std::string& handleId,
         const std::string& subformPath,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Get resolved layout overlay for subform (async)
+     * @param handle Instance handle
+     * @param subformPath Subform path
+     * @param callback Result callback
+     */
+    static void getResolvedLayoutSubformAsync(
+        const std::string& handle,
+        const std::string& subformPath,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Get field options (async)
+     * @param handle Instance handle
+     * @param fieldPath Path to field
+     * @param callback Result callback
+     */
+    static void getFieldOptionsAsync(
+        const std::string& handle,
+        const std::string& fieldPath,
         std::function<void(const std::string&, const std::string&)> callback
     );
 
