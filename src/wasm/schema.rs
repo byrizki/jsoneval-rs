@@ -355,3 +355,10 @@ impl JSONEvalWasm {
         }
     }
 }
+
+impl JSONEvalWasm {
+    /// Rust-only helper to get resolved schema (testable)
+    pub fn get_evaluated_schema_resolved_to_value(&mut self) -> serde_json::Value {
+        self.inner.get_evaluated_schema_resolved()
+    }
+}

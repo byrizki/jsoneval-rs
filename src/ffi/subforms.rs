@@ -241,6 +241,20 @@ pub unsafe extern "C" fn json_eval_resolve_layout_subform(
     }
 }
 
+/// Get already resolved layout for subform
+///
+/// # Safety
+///
+/// - handle must be a valid pointer from json_eval_new
+/// - subform_path must be a valid null-terminated UTF-8 string
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_get_resolved_layout_subform(
+    handle: *mut JSONEvalHandle,
+    subform_path: *const c_char,
+) -> FFIResult {
+    json_eval_resolve_layout_subform(handle, subform_path, false)
+}
+
 /// Get evaluated schema from subform (compact, without $layout resolution)
 ///
 /// # Safety

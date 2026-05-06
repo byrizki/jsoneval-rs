@@ -606,4 +606,12 @@ impl JSONEvalWasm {
             Err(e) => Err(e.to_string()),
         }
     }
+
+    /// Rust-only helper to get resolved subform schema (testable)
+    pub fn get_evaluated_schema_resolved_subform_to_value(
+        &mut self,
+        subform_path: &str,
+    ) -> serde_json::Value {
+        self.inner.get_evaluated_schema_resolved_subform(subform_path)
+    }
 }
