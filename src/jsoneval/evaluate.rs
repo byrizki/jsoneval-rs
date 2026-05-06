@@ -712,12 +712,12 @@ impl JSONEval {
                             }
                         }
 
-                        // Defer options array evaluation — only the root /options field,
-                        // not its children (e.g. /options/0/label are still evaluated normally).
-                        // Call get_field_options() to resolve on demand.
-                        if eval_key.ends_with("/options") {
-                            continue;
-                        }
+                        // // Defer options array evaluation — only the root /options field,
+                        // // not its children (e.g. /options/0/label are still evaluated normally).
+                        // // Call get_field_options() to resolve on demand.
+                        // if eval_key.ends_with("/options") {
+                        //     continue;
+                        // }
 
                         // Filter items if paths are provided
                         if let Some(filter_paths) = normalized_paths.as_ref() {
