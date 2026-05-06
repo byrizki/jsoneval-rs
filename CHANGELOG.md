@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.0.96] - 2026-05-06
+
+- [core] revert deferred schema options
+
 ## [0.0.95] - 2026-05-06
 
 - [RN] [core] Fix broken release 0.0.94
