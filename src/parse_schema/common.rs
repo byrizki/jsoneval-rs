@@ -370,7 +370,10 @@ pub fn walk_schema(
             // Recurse into children
             Ok(for (key, val) in map {
                 // Skip special evaluation and dependents keys from recursion (already processed above)
-                if key == "$evaluation" || key == "dependents" || (key == "items" && map.get("type").and_then(Value::as_str) == Some("array")) {
+                if key == "$evaluation"
+                    || key == "dependents"
+                    || (key == "items" && map.get("type").and_then(Value::as_str) == Some("array"))
+                {
                     continue;
                 }
 

@@ -24,7 +24,12 @@ impl VersionTracker {
     pub fn bump(&mut self, path: &str, source: &str) {
         let current = self.get(path);
         if crate::utils::is_debug_cache_enabled() {
-            println!("[store_cache] BUMPING for {} -> {} ({})", path, current + 1, source);
+            println!(
+                "[store_cache] BUMPING for {} -> {} ({})",
+                path,
+                current + 1,
+                source
+            );
         }
         // We use actual data pointers here
         self.versions.insert(path.to_string(), current + 1);
@@ -180,7 +185,8 @@ impl EvalCache {
         // Bump params_versions so T2 global entries for these tables are stale.
         for key in table_keys {
             let data_path = crate::jsoneval::path_utils::schema_path_to_data_pointer(key);
-            self.params_versions.bump(&data_path, "invalidate_params_tables_for_item");
+            self.params_versions
+                .bump(&data_path, "invalidate_params_tables_for_item");
             self.eval_generation += 1;
         }
 
@@ -222,10 +228,22 @@ impl EvalCache {
         if let Some(idx) = self.active_item_index {
             self.ensure_active_item_cache(idx);
             let sub_cache = self.subform_caches.get_mut(&idx).unwrap();
-            diff_and_update_versions(&mut sub_cache.data_versions, "", old, new, "subform store_snapshot_and_diff_versions");
+            diff_and_update_versions(
+                &mut sub_cache.data_versions,
+                "",
+                old,
+                new,
+                "subform store_snapshot_and_diff_versions",
+            );
             sub_cache.item_snapshot = new.clone();
         } else {
-            diff_and_update_versions(&mut self.data_versions, "", old, new, "store_snapshot_and_diff_versions");
+            diff_and_update_versions(
+                &mut self.data_versions,
+                "",
+                old,
+                new,
+                "store_snapshot_and_diff_versions",
+            );
         }
     }
 
@@ -587,7 +605,10 @@ fn diff_and_update_versions_internal(
     }
 
     if crate::utils::is_debug_cache_enabled() {
-        println!("[diff_and_update_versions_internal] {} pointer={}, old={:?}, new={:?}", source, pointer, old, new);
+        println!(
+            "[diff_and_update_versions_internal] {} pointer={}, old={:?}, new={:?}",
+            source, pointer, old, new
+        );
     }
 
     match (old, new) {
@@ -633,7 +654,29 @@ fn diff_and_update_versions_internal(
         }
         (old_val, new_val) => {
             if old_val != new_val {
-                if crate::utils::is_debug_cache_enabled() { println!("[store_cache] Catch-all for {}: old={}, new={}", pointer, match old_val { Value::Null => "Null", Value::Bool(_) => "Bool", Value::Number(_) => "Number", Value::String(_) => "String", Value::Array(_) => "Array", Value::Object(_) => "Object" }, match new_val { Value::Null => "Null", Value::Bool(_) => "Bool", Value::Number(_) => "Number", Value::String(_) => "String", Value::Array(_) => "Array", Value::Object(_) => "Object" }); } tracker.bump(pointer, "diff_and_update_versions_internal");
+                if crate::utils::is_debug_cache_enabled() {
+                    println!(
+                        "[store_cache] Catch-all for {}: old={}, new={}",
+                        pointer,
+                        match old_val {
+                            Value::Null => "Null",
+                            Value::Bool(_) => "Bool",
+                            Value::Number(_) => "Number",
+                            Value::String(_) => "String",
+                            Value::Array(_) => "Array",
+                            Value::Object(_) => "Object",
+                        },
+                        match new_val {
+                            Value::Null => "Null",
+                            Value::Bool(_) => "Bool",
+                            Value::Number(_) => "Number",
+                            Value::String(_) => "String",
+                            Value::Array(_) => "Array",
+                            Value::Object(_) => "Object",
+                        }
+                    );
+                }
+                tracker.bump(pointer, "diff_and_update_versions_internal");
 
                 // If either side contains nested structures (e.g. Object replaced by Null, or vice versa)
                 // we must recursively bump all paths inside them so targeted cache entries invalidate.

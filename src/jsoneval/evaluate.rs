@@ -181,12 +181,11 @@ impl JSONEval {
         old_data: &Value,
         new_data: &Value,
     ) {
-
-
         for (subform_path, _) in &self.subforms {
             // Resolve the data pointer for this subform
             // (e.g., `/illustration/product_benefit/riders`)
-            let subform_ptr = crate::jsoneval::path_utils::schema_path_to_data_pointer(subform_path).to_string();
+            let subform_ptr =
+                crate::jsoneval::path_utils::schema_path_to_data_pointer(subform_path).to_string();
 
             let old_items = old_data.pointer(&subform_ptr).and_then(Value::as_array);
             let new_items = new_data.pointer(&subform_ptr).and_then(Value::as_array);
@@ -228,7 +227,8 @@ impl JSONEval {
                     .any(|dep| dep.starts_with(&subform_dep_prefix));
 
                 if has_subform_dep {
-                    let normalized = crate::jsoneval::path_utils::schema_path_to_data_pointer(eval_key);
+                    let normalized =
+                        crate::jsoneval::path_utils::schema_path_to_data_pointer(eval_key);
                     evicted_paths.push(normalized.into_owned());
                     false // remove entry
                 } else {
@@ -239,7 +239,9 @@ impl JSONEval {
             // Bump params_versions for every evicted T2 entry so downstream $params formulas
             // (SA_WOP_RIDER, TOTAL_WOP_SA, etc.) correctly miss their caches.
             for path in &evicted_paths {
-                self.eval_cache.params_versions.bump(path, "invalidate_subform_caches_on_structural_change");
+                self.eval_cache
+                    .params_versions
+                    .bump(path, "invalidate_subform_caches_on_structural_change");
             }
 
             // Clear T1 per-item caches for indices where item identity has shifted.
@@ -400,12 +402,9 @@ impl JSONEval {
                             Err(_) => {
                                 // Formula failed — ensure no raw $evaluation object leaks.
                                 // Write null only if the node still holds the unevaluated formula.
-                                if let Some(node) =
-                                    self.evaluated_schema.pointer_mut(&pointer_path)
+                                if let Some(node) = self.evaluated_schema.pointer_mut(&pointer_path)
                                 {
-                                    if node.is_object()
-                                        && node.get("$evaluation").is_some()
-                                    {
+                                    if node.is_object() && node.get("$evaluation").is_some() {
                                         *node = Value::Null;
                                     }
                                 }
@@ -621,7 +620,8 @@ impl JSONEval {
                                                     self.eval_cache.bump_data_version(&data_path);
                                                 }
 
-                                                self.eval_data.set(&pointer_path, cleaned_val.clone());
+                                                self.eval_data
+                                                    .set(&pointer_path, cleaned_val.clone());
                                                 if let Some(schema_value) =
                                                     self.evaluated_schema.pointer_mut(&pointer_path)
                                                 {
@@ -760,8 +760,11 @@ impl JSONEval {
                             match self.engine.run(logic_id, eval_data_snapshot.data()) {
                                 Ok(val) => {
                                     let cleaned_val = clean_float_noise_scalar(val);
-                                    self.eval_cache
-                                        .store_cache(eval_key, &deps, cleaned_val.clone());
+                                    self.eval_cache.store_cache(
+                                        eval_key,
+                                        &deps,
+                                        cleaned_val.clone(),
+                                    );
 
                                     if let Some(pointer_value) =
                                         self.evaluated_schema.pointer_mut(&pointer_path)
@@ -849,7 +852,11 @@ impl JSONEval {
     }
 
     /// Evaluate a template string like "api/users/{id}" with params
-    pub(crate) fn evaluate_template(&self, template: &str, params: &Value) -> Result<String, String> {
+    pub(crate) fn evaluate_template(
+        &self,
+        template: &str,
+        params: &Value,
+    ) -> Result<String, String> {
         let mut result = template.to_string();
 
         // Simple template evaluation: replace {key} with params.key

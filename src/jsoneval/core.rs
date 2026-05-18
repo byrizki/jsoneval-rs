@@ -122,7 +122,7 @@ impl JSONEval {
                     conditional_readonly_fields: Arc::new(Vec::new()),
                     static_arrays,
                     regex_cache: RwLock::new(HashMap::new()),
-            layout_synced_paths: Vec::new(),
+                    layout_synced_paths: Vec::new(),
                 }
             });
             time_block!("  parse_schema", {
@@ -184,7 +184,7 @@ impl JSONEval {
                     conditional_readonly_fields: Arc::new(Vec::new()),
                     static_arrays,
                     regex_cache: RwLock::new(HashMap::new()),
-            layout_synced_paths: Vec::new(),
+                    layout_synced_paths: Vec::new(),
                 }
             });
             time_block!("  parse_schema", {

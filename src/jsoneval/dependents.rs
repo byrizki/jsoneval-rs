@@ -184,7 +184,6 @@ impl JSONEval {
             }
         }
 
-
         // Deduplicate by $ref — keep the last entry for each path.
         // Multiple passes (dependents queue, re-evaluate, subform) may independently emit
         // the same $ref when cache versions cause overlapping detections. The subform pass
@@ -332,8 +331,7 @@ impl JSONEval {
             .collect();
 
         for (path, schema_value) in readonly_changes {
-            let data_path = path_utils::schema_path_to_data_pointer(&path)
-                .replace("/value/", "/");
+            let data_path = path_utils::schema_path_to_data_pointer(&path).replace("/value/", "/");
 
             if subform_data_paths.contains(&data_path) {
                 // Per-item scalar merge: propagate input fields without touching computed objects.
@@ -371,8 +369,7 @@ impl JSONEval {
             to_process.push((path, true, None));
         }
         for (path, schema_value) in readonly_values {
-            let data_path = path_utils::schema_path_to_data_pointer(&path)
-                .replace("/value/", "/");
+            let data_path = path_utils::schema_path_to_data_pointer(&path).replace("/value/", "/");
             let mut obj = serde_json::Map::new();
             obj.insert(
                 "$ref".to_string(),
@@ -727,7 +724,7 @@ impl JSONEval {
                         .get(&idx)
                         .map(|c| c.item_snapshot.clone())
                         .unwrap_or(Value::Null);
-                    
+
                     if snapshot == Value::Null {
                         if let Some(main_snap) = &self.eval_cache.main_form_snapshot {
                             get_value_by_pointer_without_properties(main_snap, &subform_ptr)
@@ -742,7 +739,6 @@ impl JSONEval {
                         snapshot
                     }
                 };
-
 
                 subform.eval_data.replace_data_and_context(
                     merged_data,
@@ -783,7 +779,7 @@ impl JSONEval {
                         &format!("/{}", field_key),
                         &old_item_val,
                         &new_item_val,
-                        "run_subform_pass_diff_and_update_versions"
+                        "run_subform_pass_diff_and_update_versions",
                     );
                     c.item_snapshot = new_item_val;
                 }
@@ -804,7 +800,9 @@ impl JSONEval {
                         .collect();
                     if !newly_bumped.is_empty() {
                         for k in newly_bumped {
-                            parent_cache.data_versions.bump(&k, "propagate_newly_bumped");
+                            parent_cache
+                                .data_versions
+                                .bump(&k, "propagate_newly_bumped");
                         }
                         parent_cache.eval_generation += 1;
                     }
@@ -817,31 +815,28 @@ impl JSONEval {
                 // only resolve correctly when the active item is injected under the riders key.
                 {
                     let field_prefix_slash = format!("/{}/", field_key);
-                    let newly_bumped_schema_paths: Vec<String> =
-                        if let (Some(ref pre), Some(c)) = (
-                            &pre_diff_item_versions,
-                            parent_cache.subform_caches.get(&idx),
-                        ) {
-                            c.data_versions
-                                .versions()
-                                .filter(|(k, &v)| {
-                                    k.starts_with(&field_prefix_slash) && v > pre.get(k)
-                                })
-                                .map(|(k, _)| {
-                                    // Convert data-version path (e.g. /riders/sa) to schema dep
-                                    // format (e.g. /riders/properties/sa) for dep matching against
-                                    // self.dependencies, which stores paths WITHOUT the '#' prefix.
-                                    let sub = k.trim_start_matches(&field_prefix_slash);
-                                    format!(
-                                        "/{}/properties/{}",
-                                        field_key,
-                                        sub.replace('/', "/properties/")
-                                    )
-                                })
-                                .collect()
-                        } else {
-                            Vec::new()
-                        };
+                    let newly_bumped_schema_paths: Vec<String> = if let (Some(ref pre), Some(c)) = (
+                        &pre_diff_item_versions,
+                        parent_cache.subform_caches.get(&idx),
+                    ) {
+                        c.data_versions
+                            .versions()
+                            .filter(|(k, &v)| k.starts_with(&field_prefix_slash) && v > pre.get(k))
+                            .map(|(k, _)| {
+                                // Convert data-version path (e.g. /riders/sa) to schema dep
+                                // format (e.g. /riders/properties/sa) for dep matching against
+                                // self.dependencies, which stores paths WITHOUT the '#' prefix.
+                                let sub = k.trim_start_matches(&field_prefix_slash);
+                                format!(
+                                    "/{}/properties/{}",
+                                    field_key,
+                                    sub.replace('/', "/properties/")
+                                )
+                            })
+                            .collect()
+                    } else {
+                        Vec::new()
+                    };
 
                     if !newly_bumped_schema_paths.is_empty() {
                         let params_table_keys: Vec<String> = self
@@ -864,8 +859,7 @@ impl JSONEval {
                             .collect();
 
                         if !params_table_keys.is_empty() {
-                            parent_cache
-                                .invalidate_params_tables_for_item(idx, &params_table_keys);
+                            parent_cache.invalidate_params_tables_for_item(idx, &params_table_keys);
                             any_table_invalidated = true;
                         }
                     }
@@ -1412,7 +1406,8 @@ impl JSONEval {
             processed.insert(current_path.clone(), new_processed_state);
 
             // Get the value of the changed field for $value context
-            let current_data_path = path_utils::schema_path_to_data_pointer(&current_path).into_owned();
+            let current_data_path =
+                path_utils::schema_path_to_data_pointer(&current_path).into_owned();
             let mut current_value = eval_data
                 .data()
                 .pointer(&current_data_path)
@@ -1453,7 +1448,9 @@ impl JSONEval {
                     let ref_path = &dep_item.ref_path;
                     let pointer_path = path_utils::normalize_to_json_pointer(ref_path);
                     // Data paths don't include /properties/, strip it for data access
-                    let data_path = crate::jsoneval::path_utils::schema_path_to_data_pointer(&pointer_path).into_owned();
+                    let data_path =
+                        crate::jsoneval::path_utils::schema_path_to_data_pointer(&pointer_path)
+                            .into_owned();
 
                     let current_ref_value = eval_data
                         .data()

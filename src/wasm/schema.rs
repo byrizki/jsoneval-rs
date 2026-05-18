@@ -96,10 +96,7 @@ impl JSONEvalWasm {
     /// @param path - Dotted path to the value (e.g., "properties.field.value")
     /// @returns Value as JSON string or null if not found
     #[wasm_bindgen(js_name = getEvaluatedSchemaByPath)]
-    pub fn get_evaluated_schema_by_path(
-        &mut self,
-        path: &str,
-    ) -> Option<String> {
+    pub fn get_evaluated_schema_by_path(&mut self, path: &str) -> Option<String> {
         self.inner
             .get_evaluated_schema_by_path(path)
             .map(|v| serde_json::to_string(&v).unwrap_or_else(|_| "null".to_string()))
@@ -110,10 +107,7 @@ impl JSONEvalWasm {
     /// @param path - Dotted path to the value (e.g., "properties.field.value")
     /// @returns Value as JavaScript object or null if not found
     #[wasm_bindgen(js_name = getEvaluatedSchemaByPathJS)]
-    pub fn get_evaluated_schema_by_path_js(
-        &mut self,
-        path: &str,
-    ) -> Result<JsValue, JsValue> {
+    pub fn get_evaluated_schema_by_path_js(&mut self, path: &str) -> Result<JsValue, JsValue> {
         match self.inner.get_evaluated_schema_by_path(path) {
             Some(value) => super::to_value(&value).map_err(|e| JsValue::from_str(&e.to_string())),
             None => Ok(JsValue::NULL),
@@ -140,9 +134,9 @@ impl JSONEvalWasm {
             _ => crate::ReturnFormat::Nested,
         };
 
-        let result =
-            self.inner
-                .get_evaluated_schema_by_paths(&paths, Some(return_format));
+        let result = self
+            .inner
+            .get_evaluated_schema_by_paths(&paths, Some(return_format));
         serde_json::to_string(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
@@ -166,9 +160,9 @@ impl JSONEvalWasm {
             _ => crate::ReturnFormat::Nested,
         };
 
-        let result =
-            self.inner
-                .get_evaluated_schema_by_paths(&paths, Some(return_format));
+        let result = self
+            .inner
+            .get_evaluated_schema_by_paths(&paths, Some(return_format));
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 

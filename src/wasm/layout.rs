@@ -20,6 +20,7 @@ impl JSONEvalWasm {
 impl JSONEvalWasm {
     /// Rust-only helper to resolve layout (testable)
     pub fn resolve_layout_to_value(&mut self, evaluate: bool) -> serde_json::Value {
-        serde_json::to_value(self.inner.resolve_layout(evaluate).unwrap_or_default()).unwrap_or(serde_json::Value::Null)
+        serde_json::to_value(self.inner.resolve_layout(evaluate).unwrap_or_default())
+            .unwrap_or(serde_json::Value::Null)
     }
 }

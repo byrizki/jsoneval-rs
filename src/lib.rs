@@ -10,7 +10,7 @@
 //! - [`rlogic`] owns the JSON Logic compiler/evaluator used by schema evaluation.
 //! - [`parse_schema`] and [`topo_sort`] preserve legacy parsing/sorting entry points.
 //! - [`utils`] contains crate-wide timing/debug helpers and numeric cleanup utilities.
-//! - [`ffi`] and [`wasm`] expose binding layers behind feature flags.
+//! - `ffi` and `wasm` expose binding layers behind feature flags.
 
 // Use mimalloc allocator on Windows for better performance
 #[cfg(windows)]
