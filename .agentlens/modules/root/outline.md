@@ -4,7 +4,7 @@
 
 Symbol maps for 9 large files in this module.
 
-## bindings/csharp-example/Program.cs (618 lines)
+## bindings/csharp/examples/benchmark/Program.cs (618 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |

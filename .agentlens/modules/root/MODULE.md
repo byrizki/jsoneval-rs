@@ -8,11 +8,12 @@
 
 | File | Lines | Large |
 | ---- | ----- | ----- |
-| `bindings/csharp-example/Program.cs` | 618 | 📊 |
+
+| `bindings/csharp/examples/benchmark/Program.cs` | 618 | 📊 |
 | `bindings/npm/packages/react-native/android/src/main/cpp/json-eval-rn.cpp` | 938 | 📊 |
 | `bindings/npm/packages/react-native/ios/JsonEvalRs.h` | 5 |  |
-| `bindings/npm/packages/react-native/lib/typescript/src/index.d.ts` | 452 |  |
-| `bindings/npm/packages/react-native/lib/typescript/src/jsi-bridge.d.ts` | 67 |  |
+| `bindings/npm/packages/react-native/lib/typescript/index.d.ts` | 452 |  |
+| `bindings/npm/packages/react-native/lib/typescript/jsi-bridge.d.ts` | 67 |  |
 | `bindings/npm/examples/nextjs/components/DependentFields.tsx` | 190 |  |
 | `bindings/npm/examples/nextjs/components/FormValidator.tsx` | 196 |  |
 | `bindings/npm/examples/nextjs/components/InsuranceForm.tsx` | 565 | 📊 |
@@ -23,6 +24,7 @@
 | `bindings/npm/examples/nextjs/tailwind.config.js` | 12 |  |
 | `bindings/npm/examples/nextjs/workers/json-eval.worker.ts` | 160 |  |
 | `bindings/npm/examples/web-benchmark/worker.js` | 223 |  |
+
 | `build.rs` | 55 |  |
 | `docs/app.config.ts` | 21 |  |
 | `docs/nuxt.config.ts` | 50 |  |

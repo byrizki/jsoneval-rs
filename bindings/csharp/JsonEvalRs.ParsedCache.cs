@@ -1,3 +1,4 @@
+// Managed ParsedSchemaCache API and cache-only result handling.
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;

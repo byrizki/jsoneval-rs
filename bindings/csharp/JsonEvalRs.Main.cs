@@ -1,3 +1,4 @@
+// Public JSONEval API surface and shared instance helpers.
 using System;
 using System.Runtime.InteropServices;
 using System.Text;

@@ -1,3 +1,4 @@
+// Return-format enum for path-based schema/evaluation APIs.
 namespace JsonEvalRs
 {
     /// <summary>

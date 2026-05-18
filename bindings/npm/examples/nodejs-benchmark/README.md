@@ -1,6 +1,6 @@
 # Node.js WASM Benchmark Example
 
-A Node.js benchmark for JSON Eval RS using the WASM binding — mirroring the [C# FFI benchmark](../../../csharp-example).
+A Node.js benchmark for JSON Eval RS using the WASM binding — mirroring the [C# FFI benchmark](../../../csharp/examples/benchmark).
 
 ## Overview
 

@@ -1,3 +1,4 @@
+// Native ParsedSchemaCache P/Invoke declarations only.
 using System;
 using System.Runtime.InteropServices;
 

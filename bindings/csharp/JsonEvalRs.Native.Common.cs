@@ -1,3 +1,4 @@
+// Native P/Invoke declarations shared by all target frameworks.
 using System;
 using System.Runtime.InteropServices;
 
