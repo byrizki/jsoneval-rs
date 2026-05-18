@@ -25,3 +25,5 @@ tests/z*.rs
 products
 .pi-lens
 plans
+
+progress.md

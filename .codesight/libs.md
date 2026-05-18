@@ -1,0 +1,101 @@
+# Libraries
+
+- `bindings/csharp/JsonEvalRs.DependencyInjection.cs`
+  - class JsonEvalRsServiceCollectionExtensions
+  - interface IStartupCacheInitializer
+  - class JsonEvalRsApplicationBuilderExtensions
+  - function AddJsonEvalRsCache
+  - function AddJsonEvalRsLocalCache
+  - function Initialize
+- `bindings/csharp/JsonEvalRs.Main.cs`
+  - class JSONEval
+  - function EvaluateLogic
+  - function FromCache
+  - function FromMsgpack
+  - function Cancel
+  - function EvaluateOnly
+  - _...25 more_
+- `bindings/csharp/JsonEvalRs.ParsedCache.cs`
+  - class ParsedSchemaCache
+  - class ParsedCacheStats
+  - function Insert
+  - function InsertMsgpack
+  - function Contains
+  - function Remove
+  - _...5 more_
+- `bindings/csharp/JsonEvalRs.Shared.cs`
+  - class ValidationError
+  - class ValidationResult
+  - class SchemaValueItem
+  - class JsonEvalException
+- `bindings/csharp/JsonEvalRs.Subforms.cs`
+  - class JSONEval
+  - function EvaluateSubform
+  - function ValidateSubform
+  - function EvaluateDependentsSubform
+  - function EvaluateDependentsSubformString
+  - function ResolveLayoutSubform
+  - _...11 more_
+- `bindings/npm/examples/nextjs/hooks/useJSONEvalWorker.ts` — function useJSONEvalWorker: ({...}, context, data, }) => UseJSONEvalWorkerReturn
+- `bindings/npm/packages/bundler/src/index.ts` — function version: () => string, class JSONEval
+- `bindings/npm/packages/common/src/utils.ts`
+  - function stringifyValue: (value) => string
+  - function parseValue: (value) => any
+  - function stringifyOrNull: (value) => string | null
+  - function extractErrorMessage: (error) => string
+  - function mergeLayoutOverlay: (schema, overlayEntries) => any
+  - function resolveEvaluatedLayout: (getSchema) => void
+- `bindings/npm/packages/node/src/index.ts` — function version: () => string, class JSONEval
+- `bindings/npm/packages/react-native/lib/module/index.js`
+  - function useJSONEval: (options) => void
+  - function multiply
+  - class JSONEval
+- `bindings/npm/packages/react-native/lib/module/jsi-bridge.js` — function getJSIGlobal: () => void, function isJSIAvailable: () => void
+- `bindings/npm/packages/react-native/src/jsi-bridge.ts`
+  - function getJSIGlobal: () => JsonEvalJSIGlobal | null
+  - function isJSIAvailable: () => boolean
+  - interface JsonEvalJSIGlobal
+- `bindings/npm/packages/vanilla/src/index.ts` — function version: () => string, class JSONEval
+- `bindings/npm/packages/webcore/src/index.ts` — function getVersion: (wasmModule) => string, class JSONEvalCore
+- `bindings/web/packages/bundler/pkg/json_eval_rs_bg.js`
+  - function __wbg_set_wasm: (val) => void
+  - function getVersion: () => void
+  - function version: () => void
+  - function init: () => void
+  - function __wbg_Error_e17e777aac105295: (arg0, arg1) => void
+  - function __wbg_String_8f0eb39a4a4c2f66: (arg0, arg1) => void
+  - _...25 more_
+- `bindings/web/packages/vanilla/pkg/json_eval_rs.js`
+  - function getVersion: () => void
+  - function init: () => void
+  - function version: () => void
+  - class JSONEvalWasm
+  - class ValidationError
+  - class ValidationResult
+- `generate_parity_table.py`
+  - function get_matches: (file_paths, pattern, group)
+  - function snake_to_camel: (s)
+  - function check: (method, method_set)
+- `products/apps/riplay-viewer/src/app.js` — function initApp: () => void
+- `products/apps/riplay-viewer/src/services/assets.js`
+  - function getTemplate: (env, folder, file) => void
+  - function getStyle: (env, folder, file) => void
+  - function getSchema: (env, schemaKey) => void
+  - function getSample: (productCode) => void
+  - const TEMPLATES
+  - const STYLES
+  - _...2 more_
+- `products/apps/riplay-viewer/src/services/evaluator.js` — function evaluateSchema: (schema, formData, context) => void, function disposeEvaluator: () => void
+- `products/apps/riplay-viewer/src/services/renderer.js` — function renderTemplate: (templateStr, context) => void, function buildIframeDocument: (renderedHtml, templateCss, pagedCss, polyfillRaw) => void
+- `products/apps/riplay-viewer/src/store.js`
+  - function subscribe: (fn) => void
+  - function getState: () => void
+  - function setState: (patch) => void
+  - function buildDefaultFormData: (product) => void
+- `products/apps/riplay-viewer/src/ui/editor.js` — function mountEditor: (onRenderRequest) => void, function syncEditorFromState: (textarea) => void
+- `products/apps/riplay-viewer/src/ui/preview.js`
+  - function mountPreview: () => void
+  - function showPreviewLoading: (phase) => void
+  - function showPreviewContent: (html, badgeLabel) => void
+  - function showPreviewError: (message) => void
+- `products/apps/riplay-viewer/src/ui/sidebar.js` — function mountSidebar: (onRenderRequest) => void, function updateSidebarStatus: (status, message) => void
