@@ -1,3 +1,8 @@
+//! Crate-wide utility helpers.
+//!
+//! Includes cross-platform debug logging, optional timing instrumentation, and
+//! JSON number cleanup helpers used by schema and logic evaluation.
+
 use serde_json::Value;
 use std::cell::RefCell;
 
