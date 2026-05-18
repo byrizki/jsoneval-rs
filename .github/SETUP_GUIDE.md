@@ -212,7 +212,7 @@ categories = ["parser-implementations", "data-structures"]
 </PropertyGroup>
 ```
 
-**bindings/web/package.json:**
+**bindings/npm/package.json:**
 ```json
 {
   "name": "@json-eval-rs/web",
@@ -225,7 +225,7 @@ categories = ["parser-implementations", "data-structures"]
 }
 ```
 
-**bindings/react-native/package.json:**
+**bindings/npm/package.json:**
 ```json
 {
   "name": "@json-eval-rs/react-native",
@@ -317,8 +317,8 @@ Create PR on GitHub.
 # Update all these files to version 0.0.1
 vim Cargo.toml
 vim bindings/csharp/JsonEvalRs.csproj
-vim bindings/web/package.json
-vim bindings/react-native/package.json
+vim bindings/npm/package.json
+vim bindings/npm/package.json
 ```
 
 **2. Create CHANGELOG.md:**
@@ -450,12 +450,12 @@ updates:
       interval: "weekly"
   
   - package-ecosystem: "npm"
-    directory: "/bindings/web"
+    directory: "/bindings/npm"
     schedule:
       interval: "weekly"
   
   - package-ecosystem: "npm"
-    directory: "/bindings/react-native"
+    directory: "/bindings/npm"
     schedule:
       interval: "weekly"
   

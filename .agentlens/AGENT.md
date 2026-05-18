@@ -42,20 +42,20 @@ Follow this protocol to understand the codebase efficiently:
 | Module | Files | Type | Description |
 | ------ | ----- | ---- | ----------- |
 | `` | 67 | root | Module |
-| `bindings/common/src` | 3 | js/ts | Source root |
+| `bindings/npm/packages/common/src` | 3 | js/ts | Source root |
 | `bindings/csharp` | 10 | implicit | Module |
-| `bindings/react-native/examples/rncli` | 11 | js/ts | Module |
-| `bindings/react-native/packages/react-native/cpp` | 5 | implicit | Module |
-| `bindings/react-native/packages/react-native/lib/commonjs` | 2 | js/ts | Module |
-| `bindings/react-native/packages/react-native/lib/module` | 2 | js/ts | Module |
-| `bindings/react-native/packages/react-native/src` | 2 | js/ts | Source root |
-| `bindings/web/examples/nextjs/pages` | 2 | js/ts | Page/view components |
-| `bindings/web/examples/nodejs` | 1 | js/ts | Module |
-| `bindings/web/examples/nodejs-benchmark` | 2 | js/ts | Module |
-| `bindings/web/packages/bundler/src` | 1 | js/ts | Source root |
-| `bindings/web/packages/core/src` | 1 | js/ts | Source root |
-| `bindings/web/packages/node/src` | 1 | js/ts | Source root |
-| `bindings/web/packages/vanilla/src` | 1 | js/ts | Source root |
+| `bindings/npm/examples/rncli` | 11 | js/ts | Module |
+| `bindings/npm/packages/react-native/cpp` | 5 | implicit | Module |
+| `bindings/npm/packages/react-native/lib/commonjs` | 2 | js/ts | Module |
+| `bindings/npm/packages/react-native/lib/module` | 2 | js/ts | Module |
+| `bindings/npm/packages/react-native/src` | 2 | js/ts | Source root |
+| `bindings/npm/examples/nextjs/pages` | 2 | js/ts | Page/view components |
+| `bindings/npm/examples/nodejs` | 1 | js/ts | Module |
+| `bindings/npm/examples/nodejs-benchmark` | 2 | js/ts | Module |
+| `bindings/npm/packages/bundler/src` | 1 | js/ts | Source root |
+| `bindings/npm/packages/webcore/src` | 1 | js/ts | Source root |
+| `bindings/npm/packages/node/src` | 1 | js/ts | Source root |
+| `bindings/npm/packages/vanilla/src` | 1 | js/ts | Source root |
 | `examples/common` | 1 | rust | Utility functions |
 | `src` | 2 | rust | Source root |
 | `src/ffi` | 9 | rust | Module |

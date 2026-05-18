@@ -7,7 +7,7 @@ dist
 samples
 pkg
 node_modules
-!bindings/web/packages/bundler/*
+!bindings/npm/packages/bundler/*
 bin
 obj
 .next
@@ -24,3 +24,4 @@ dist
 tests/z*.rs
 products
 .pi-lens
+plans

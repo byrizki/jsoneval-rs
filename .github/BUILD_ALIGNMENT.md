@@ -13,16 +13,16 @@ All build scripts and workflows have been aligned with the actual code structure
 **Previous (WRONG):**
 ```bash
 # build-bindings.sh & workflows
-wasm-pack build --target web --out-dir bindings/web/pkg
-wasm-pack build --target bundler --out-dir bindings/web/pkg-bundler
-wasm-pack build --target nodejs --out-dir bindings/web/pkg-node
+wasm-pack build --target web --out-dir bindings/npm/packages/vanilla/pkg
+wasm-pack build --target bundler --out-dir bindings/npm/packages/bundler/pkg
+wasm-pack build --target nodejs --out-dir bindings/npm/packages/node/pkg
 ```
 
 **Current (CORRECT):**
 ```bash
 # build-bindings.sh & workflows
-wasm-pack build --target bundler --out-dir bindings/web/packages/bundler/pkg
-wasm-pack build --target nodejs --out-dir bindings/web/packages/node/pkg
+wasm-pack build --target bundler --out-dir bindings/npm/packages/bundler/pkg
+wasm-pack build --target nodejs --out-dir bindings/npm/packages/node/pkg
 ```
 
 ### Verification
@@ -36,7 +36,7 @@ import * as wasm from './pkg/json_eval_rs.js';  // ✅ Matches build output
 
 ### Package Structure
 ```
-bindings/web/
+bindings/npm/
 ├── packages/
 │   ├── core/          # Internal API wrapper (no WASM build needed)
 │   ├── bundler/       # ✅ WASM built to pkg/
@@ -53,13 +53,13 @@ bindings/web/
 
 **Build Command:**
 ```bash
-cargo ndk -t ${ARCH} -o bindings/react-native/android/src/main/jniLibs build --release --features ffi
+cargo ndk -t ${ARCH} -o bindings/npm/packages/react-native/android/src/main/jniLibs build --release --features ffi
 ```
 
 **Output Locations:**
 1. **CMake linking** (build-time): `/target/${ANDROID_ABI}/release/libjson_eval_rs.so`
    - Used by CMakeLists.txt line 13-16
-2. **APK packaging** (runtime): `bindings/react-native/android/src/main/jniLibs/${ANDROID_ABI}/libjson_eval_rs.so`
+2. **APK packaging** (runtime): `bindings/npm/packages/react-native/android/src/main/jniLibs/${ANDROID_ABI}/libjson_eval_rs.so`
    - Used by build.gradle line 59
 
 **Architectures:**
@@ -146,12 +146,12 @@ s.vendored_libraries = "../../target/aarch64-apple-ios/release/libjson_eval_rs.a
 ```bash
 # Test web build
 ./build-bindings.sh web
-ls -la bindings/web/packages/bundler/pkg/
-ls -la bindings/web/packages/node/pkg/
+ls -la bindings/npm/packages/bundler/pkg/
+ls -la bindings/npm/packages/node/pkg/
 
 # Test React Native build (requires cargo-ndk and NDK)
 ./build-bindings.sh react-native
-ls -la bindings/react-native/android/src/main/jniLibs/
+ls -la bindings/npm/packages/react-native/android/src/main/jniLibs/
 ls -la target/aarch64-apple-ios/release/
 
 # Test all

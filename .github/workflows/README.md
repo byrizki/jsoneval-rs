@@ -86,8 +86,8 @@ git push origin main
 # 1. Update version in all package files
 #    - Cargo.toml
 #    - bindings/csharp/JsonEvalRs.csproj
-#    - bindings/web/package.json
-#    - bindings/react-native/package.json
+#    - bindings/npm/package.json
+#    - bindings/npm/package.json
 
 # 2. Create and push tag
 git tag v0.0.1
@@ -156,8 +156,8 @@ Before publishing, configure these secrets in your GitHub repository:
    # Update version numbers
    vim Cargo.toml
    vim bindings/csharp/JsonEvalRs.csproj
-   vim bindings/web/package.json
-   vim bindings/react-native/package.json
+   vim bindings/npm/package.json
+   vim bindings/npm/package.json
    
    # Update CHANGELOG.md
    vim CHANGELOG.md

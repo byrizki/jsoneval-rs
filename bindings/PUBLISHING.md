@@ -19,8 +19,8 @@ Before publishing any package, ensure:
 All packages should maintain the same version number:
 - Rust crate: `Cargo.toml`
 - C# package: `JsonEvalRs.csproj`
-- Web package: `bindings/web/package.json`
-- React Native package: `bindings/react-native/package.json`
+- npm workspace root: `bindings/npm/package.json` (private; never published)
+- npm packages: `bindings/npm/packages/*/package.json`
 
 Update all simultaneously when releasing.
 
@@ -120,18 +120,24 @@ dotnet nuget push bin/Release/JsonEvalRs.0.0.1.snupkg \
 
 ```bash
 # Build for web
-wasm-pack build --target web --out-dir bindings/web/pkg --features wasm
+wasm-pack build --target web --out-dir bindings/npm/packages/vanilla/pkg --features wasm
 
 # Build for Node.js
-wasm-pack build --target nodejs --out-dir bindings/web/pkg-node --features wasm
+wasm-pack build --target nodejs --out-dir bindings/npm/packages/node/pkg --features wasm
 
 # Build for bundlers
-wasm-pack build --target bundler --out-dir bindings/web/pkg-bundler --features wasm
+wasm-pack build --target bundler --out-dir bindings/npm/packages/bundler/pkg --features wasm
 ```
 
 #### 2.2. Update Package Metadata
 
-Edit `bindings/web/package.json`:
+Edit the relevant package metadata under `bindings/npm/packages/<package>/package.json`. `bindings/npm/package.json` is a private workspace root and must not be published.
+
+Examples:
+- `bindings/npm/packages/common/package.json`
+- `bindings/npm/packages/vanilla/package.json`
+- `bindings/npm/packages/node/package.json`
+- `bindings/npm/packages/bundler/package.json`
 
 ```json
 {
@@ -144,17 +150,23 @@ Edit `bindings/web/package.json`:
 #### 2.3. Test Package Locally
 
 ```bash
-cd bindings/web
+cd bindings/npm
 
-# Run local tests
-npm test
+# Run workspace tests/builds
+yarn test
+yarn workspace @json-eval-rs/common build
+yarn workspace @json-eval-rs/webcore build
+yarn workspace @json-eval-rs/bundler build
+yarn workspace @json-eval-rs/node build
+yarn workspace @json-eval-rs/vanilla build
 
-# Test packaging
+# Test packaging from the package workspace, not the private root
+cd packages/bundler
 npm pack
 
 # Install locally in test project
 cd /path/to/test/project
-yarn install /path/to/json-eval-rs/bindings/web/json-eval-rs-web-0.0.1.tgz
+yarn install /path/to/json-eval-rs/bindings/npm/packages/bundler/json-eval-rs-bundler-0.0.1.tgz
 ```
 
 #### 2.4. Login to npm
@@ -168,10 +180,13 @@ Enter your credentials.
 #### 2.5. Publish to npm
 
 ```bash
-cd bindings/web
-
-# Publish with public access
-npm publish --access public
+# The bindings/npm root is private and must not be published.
+# Publish each public package from its workspace directory.
+cd bindings/npm/packages/common && npm publish --access public
+cd ../webcore && npm publish --access public
+cd ../bundler && npm publish --access public
+cd ../node && npm publish --access public
+cd ../vanilla && npm publish --access public
 ```
 
 #### 2.6. Verify Publication
@@ -180,17 +195,12 @@ Visit https://www.npmjs.com/package/@json-eval-rs/vanilla
 
 ### Publishing Different Builds
 
-If you want separate packages for different targets:
+Publish target-specific packages from their package roots after generating WASM into each package's `pkg/` directory:
 
 ```bash
-# Publish web version
-cd bindings/web/pkg
-npm publish --access public
-
-# Publish Node.js version
-cd ../pkg-node
-# Update package.json name to @json-eval-rs/vanilla-node
-npm publish --access public
+cd bindings/npm/packages/vanilla && npm publish --access public
+cd ../node && npm publish --access public
+cd ../bundler && npm publish --access public
 ```
 
 ## 3. Publishing React Native Package to npm
@@ -209,7 +219,7 @@ npm publish --access public
 # Android (requires cargo-ndk)
 cargo install cargo-ndk
 cargo ndk -t arm64-v8a -t armeabi-v7a -t x86 -t x86_64 \
-  -o bindings/react-native/android/src/main/jniLibs \
+  -o bindings/npm/packages/react-native/android/src/main/jniLibs \
   build --release --features ffi
 
 # iOS (requires macOS)
@@ -221,12 +231,12 @@ cargo build --release --features ffi --target aarch64-apple-ios-sim
 lipo -create \
   target/x86_64-apple-ios/release/libjson_eval_rs.a \
   target/aarch64-apple-ios-sim/release/libjson_eval_rs.a \
-  -output bindings/react-native/ios/libjson_eval_rs.a
+  -output bindings/npm/packages/react-native/ios/libjson_eval_rs.a
 ```
 
 #### 3.2. Update Package Metadata
 
-Edit `bindings/react-native/package.json`:
+Edit `bindings/npm/packages/react-native/package.json`:
 
 ```json
 {
@@ -238,22 +248,25 @@ Edit `bindings/react-native/package.json`:
 #### 3.3. Test Package
 
 ```bash
-cd bindings/react-native
+cd bindings/npm
 
 # Install dependencies
 yarn install
 
-# Build TypeScript
+# Build React Native package
+cd packages/react-native
 npm run prepare
 
-# Test in example app
-npm run example
+# Test in example app from workspace root
+cd ../..
+yarn workspace rncli android
 ```
 
 #### 3.4. Publish to npm
 
 ```bash
-cd bindings/react-native
+# bindings/npm is a private workspace root; publish only the package workspace.
+cd bindings/npm/packages/react-native
 npm publish --access public
 ```
 
@@ -409,9 +422,11 @@ jobs:
       - run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
       - run: ./build-bindings.sh web
       - run: |
-          cd bindings/web
+          cd bindings/npm
           echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
-          npm publish --access public
+          for pkg in packages/common packages/webcore packages/bundler packages/node packages/vanilla; do
+            (cd "$pkg" && npm publish --access public)
+          done
 
   publish-react-native:
     runs-on: ubuntu-latest
@@ -420,8 +435,9 @@ jobs:
       - uses: actions/setup-node@v3
       - run: ./build-bindings.sh react-native
       - run: |
-          cd bindings/react-native
+          cd bindings/npm
           echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
+          cd packages/react-native
           npm publish --access public
 ```
 

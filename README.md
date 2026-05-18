@@ -553,9 +553,9 @@ cargo run --bin json-eval-cli
 
 - **[API Documentation](https://docs.rs/json-eval-rs)** - Complete Rust API reference
 - **[C# Documentation](bindings/csharp/README.md)** - .NET integration guide
-- **[Web Documentation](bindings/web/README.md)** - JavaScript/TypeScript usage
-- **[React Native Documentation](bindings/react-native/README.md)** - Mobile development guide
-- **[Architecture Guide](bindings/react-native/ARCHITECTURE.md)** - Deep dive into internals
+- **[Web Documentation](bindings/npm/README.md)** - JavaScript/TypeScript usage
+- **[React Native Documentation](bindings/npm/README.md)** - Mobile development guide
+- **[Architecture Guide](bindings/npm/docs/react-native-ARCHITECTURE.md)** - Deep dive into internals
 
 ## 🤝 Contributing
 
