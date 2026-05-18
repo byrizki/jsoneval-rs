@@ -4,15 +4,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: publish-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag || github.run_id }}
+  group: publish-${{ github.event.inputs.release_tag }}
   cancel-in-progress: false
 
 on:
-  # Trigger after Release and Build workflow completes successfully
-  workflow_run:
-    workflows: ["Release and Build"]
-    types:
-      - completed
   workflow_dispatch:
     inputs:
       release_tag:
@@ -50,63 +45,37 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # Check if workflow_run was successful before proceeding
+  # Validate the manually selected release before publishing packages.
   check-workflow:
-    if: github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
       release_tag: ${{ steps.get-tag.outputs.tag }}
-      should_run: ${{ steps.check.outputs.should_run }}
+      should_run: ${{ steps.get-tag.outputs.should_run }}
 
     steps:
-      - name: Check workflow_run conclusion
-        id: check
+      - name: Validate release tag
+        id: get-tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
-              echo "Release and Build workflow did not succeed. Skipping publish."
-              echo "should_run=false" >> $GITHUB_OUTPUT
-              exit 0
-            fi
-            echo "should_run=true" >> $GITHUB_OUTPUT
-          else
-            echo "should_run=true" >> $GITHUB_OUTPUT
+          TAG="${{ github.event.inputs.release_tag }}"
+          if [ -z "$TAG" ]; then
+            echo "❌ ERROR: release_tag is required"
+            exit 1
           fi
 
-      - name: Get release tag
-        id: get-tag
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ github.event.inputs.release_tag }}"
-            echo "tag=$TAG" >> $GITHUB_OUTPUT
-            echo "📦 Using manually specified release tag: $TAG"
-          else
-            # For workflow_run, get the latest release tag
-            echo "🔍 Looking for latest release..."
-            TAG=$(curl -fsSL \
-              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-              -H "Accept: application/vnd.github+json" \
-              https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r .tag_name)
-            if [ "$TAG" = "null" ] || [ -z "$TAG" ]; then
-              echo "❌ ERROR: No release found in the repository"
-              echo ""
-              echo "To publish packages, you need to:"
-              echo "1. Create a GitHub Release (e.g., v0.0.96)"
-              echo "2. Run the 'Release and Build' workflow to upload packages to that release"
-              echo "3. Then run this publish workflow"
-              echo ""
-              echo "Or use workflow_dispatch and manually specify the release tag."
-              exit 1
-            fi
-            echo "tag=$TAG" >> $GITHUB_OUTPUT
-            echo "📦 Found latest release: $TAG"
-          fi
+          echo "🔍 Validating release exists: $TAG"
+          gh release view "$TAG" --repo "${{ github.repository }}" > /dev/null
+
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "should_run=true" >> $GITHUB_OUTPUT
+          echo "📦 Publishing packages from release: $TAG"
 
   # Publish C# NuGet package (download directly from release)
   publish-csharp:
     if: |
       needs.check-workflow.outputs.should_run == 'true' &&
-      (github.event_name == 'workflow_run' || github.event.inputs.publish_csharp == 'true')
+      github.event.inputs.publish_csharp == 'true'
     needs: [check-workflow]
     runs-on: ubuntu-latest
 
@@ -155,7 +124,7 @@ jobs:
   publish-common:
     if: |
       needs.check-workflow.outputs.should_run == 'true' &&
-      (github.event_name == 'workflow_run' || github.event.inputs.publish_common == 'true')
+      github.event.inputs.publish_common == 'true'
     needs: [check-workflow]
     runs-on: ubuntu-latest
 
@@ -202,7 +171,7 @@ jobs:
       always() &&
       needs.check-workflow.outputs.should_run == 'true' &&
       (needs.publish-common.result == 'success' || needs.publish-common.result == 'skipped') &&
-      (github.event_name == 'workflow_run' || github.event.inputs.publish_web == 'true')
+      github.event.inputs.publish_web == 'true'
     needs: [check-workflow, publish-common]
     runs-on: ubuntu-latest
 
@@ -307,7 +276,7 @@ jobs:
       always() &&
       needs.check-workflow.outputs.should_run == 'true' &&
       (needs.publish-common.result == 'success' || needs.publish-common.result == 'skipped') &&
-      (github.event_name == 'workflow_run' || github.event.inputs.publish_react_native == 'true')
+      github.event.inputs.publish_react_native == 'true'
     needs: [check-workflow, publish-common]
     runs-on: ubuntu-latest
 
@@ -383,7 +352,7 @@ jobs:
   publish-crates-io:
     if: |
       needs.check-workflow.outputs.should_run == 'true' &&
-      (github.event_name == 'workflow_run' || github.event.inputs.publish_crates_io == 'true')
+      github.event.inputs.publish_crates_io == 'true'
     needs: [check-workflow]
     runs-on: ubuntu-latest
 

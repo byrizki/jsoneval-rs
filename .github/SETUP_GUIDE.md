@@ -75,8 +75,8 @@ cargo test --all-features --lib --bins --examples
 ```
 
 3. Commit version/changelog changes and push to `main`.
-4. `release.yml` creates/replaces tag `v<version>` based on `Cargo.toml` and uploads release assets.
-5. `publish.yml` starts after successful Release and Build run. Use manual dispatch for selective publishing or re-publishing duplicates safely.
+4. `release.yml` creates tag `v<version>` based on `Cargo.toml` and uploads release assets. Existing tags/releases fail; bump `Cargo.toml` before each release.
+5. Run `publish.yml` manually after verifying release assets. Use package toggles for selective publishing.
 
 ## Manual publish
 
@@ -106,7 +106,7 @@ yarn nuxt build --extends docus --preset github_pages
 
 ### Release workflow did not publish packages
 
-Check `release.yml` first. `publish.yml` runs only after Release and Build completes successfully, or by manual dispatch.
+Expected. `release.yml` only builds and uploads release assets. Run `publish.yml` manually after checking the release assets.
 
 ### Missing release asset
 

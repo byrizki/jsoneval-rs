@@ -7,7 +7,7 @@ Current workflows for `json-eval-rs` release, publish, and docs deployment.
 | Workflow | File | Trigger | Responsibility |
 | --- | --- | --- | --- |
 | Release and Build | `release.yml` | push to `main`, manual dispatch | Build Rust native libraries, Web/WASM npm packages, React Native packages, C# NuGet package, test Rust, attach artifacts to GitHub Release. |
-| Publish Packages | `publish.yml` | successful Release and Build run, manual dispatch | Download pre-built release assets and publish NuGet, npm, and crates.io packages. |
+| Publish Packages | `publish.yml` | manual dispatch | Download pre-built release assets and publish NuGet, npm, and crates.io packages. |
 | Deploy docs to GitHub Pages | `deploy-docs.yml` | docs changes on `main`, manual dispatch | Build Nuxt/Docus docs from `docs/` and deploy GitHub Pages. |
 
 ## Package layout
@@ -26,7 +26,7 @@ bindings/
 
 ## Release and Build
 
-`release.yml` creates or replaces release tag `v<version>` from `Cargo.toml`, creates GitHub Release, then builds artifacts.
+`release.yml` creates release tag `v<version>` from `Cargo.toml`, creates GitHub Release, then builds artifacts. Existing tags/releases fail fast; bump `Cargo.toml` before each release.
 
 Main jobs:
 
