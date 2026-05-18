@@ -9,20 +9,20 @@
 | File | Lines | Large |
 | ---- | ----- | ----- |
 | `bindings/csharp-example/Program.cs` | 618 | 📊 |
-| `bindings/react-native/packages/react-native/android/src/main/cpp/json-eval-rn.cpp` | 938 | 📊 |
-| `bindings/react-native/packages/react-native/ios/JsonEvalRs.h` | 5 |  |
-| `bindings/react-native/packages/react-native/lib/typescript/src/index.d.ts` | 452 |  |
-| `bindings/react-native/packages/react-native/lib/typescript/src/jsi-bridge.d.ts` | 67 |  |
-| `bindings/web/examples/nextjs/components/DependentFields.tsx` | 190 |  |
-| `bindings/web/examples/nextjs/components/FormValidator.tsx` | 196 |  |
-| `bindings/web/examples/nextjs/components/InsuranceForm.tsx` | 565 | 📊 |
-| `bindings/web/examples/nextjs/components/WorkerExample.tsx` | 257 |  |
-| `bindings/web/examples/nextjs/hooks/useJSONEvalWorker.ts` | 239 |  |
-| `bindings/web/examples/nextjs/next.config.js` | 20 |  |
-| `bindings/web/examples/nextjs/postcss.config.js` | 6 |  |
-| `bindings/web/examples/nextjs/tailwind.config.js` | 12 |  |
-| `bindings/web/examples/nextjs/workers/json-eval.worker.ts` | 160 |  |
-| `bindings/web/examples/web-benchmark/worker.js` | 223 |  |
+| `bindings/npm/packages/react-native/android/src/main/cpp/json-eval-rn.cpp` | 938 | 📊 |
+| `bindings/npm/packages/react-native/ios/JsonEvalRs.h` | 5 |  |
+| `bindings/npm/packages/react-native/lib/typescript/src/index.d.ts` | 452 |  |
+| `bindings/npm/packages/react-native/lib/typescript/src/jsi-bridge.d.ts` | 67 |  |
+| `bindings/npm/examples/nextjs/components/DependentFields.tsx` | 190 |  |
+| `bindings/npm/examples/nextjs/components/FormValidator.tsx` | 196 |  |
+| `bindings/npm/examples/nextjs/components/InsuranceForm.tsx` | 565 | 📊 |
+| `bindings/npm/examples/nextjs/components/WorkerExample.tsx` | 257 |  |
+| `bindings/npm/examples/nextjs/hooks/useJSONEvalWorker.ts` | 239 |  |
+| `bindings/npm/examples/nextjs/next.config.js` | 20 |  |
+| `bindings/npm/examples/nextjs/postcss.config.js` | 6 |  |
+| `bindings/npm/examples/nextjs/tailwind.config.js` | 12 |  |
+| `bindings/npm/examples/nextjs/workers/json-eval.worker.ts` | 160 |  |
+| `bindings/npm/examples/web-benchmark/worker.js` | 223 |  |
 | `build.rs` | 55 |  |
 | `docs/app.config.ts` | 21 |  |
 | `docs/nuxt.config.ts` | 50 |  |

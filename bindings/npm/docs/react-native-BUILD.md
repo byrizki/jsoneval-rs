@@ -49,44 +49,14 @@ rustup target add x86_64-apple-ios
 rustup target add aarch64-apple-ios-sim
 ```
 
-### 2. Install cargo-ndk (for Android)
+### 2. Build for Android
 
 ```bash
-cargo install cargo-ndk
-```
+# From the React Native package directory
+cd /path/to/json-eval-rs/bindings/npm/packages/react-native
 
-### 3. Build for Android
-
-```bash
-# From the root of the repository
-cd /path/to/json-eval-rs
-
-# Set Android NDK path
-export ANDROID_NDK_HOME=/path/to/android-ndk
-
-# Build for all Android architectures
-cargo ndk --platform 21 --target aarch64-linux-android build --release --features ffi
-cargo ndk --platform 21 --target armv7-linux-androideabi build --release --features ffi
-cargo ndk --platform 21 --target x86_64-linux-android build --release --features ffi
-cargo ndk --platform 21 --target i686-linux-android build --release --features ffi
-
-# Copy libraries to React Native jniLibs
-mkdir -p bindings/npm/packages/react-native/android/src/main/jniLibs/arm64-v8a
-mkdir -p bindings/npm/packages/react-native/android/src/main/jniLibs/armeabi-v7a
-mkdir -p bindings/npm/packages/react-native/android/src/main/jniLibs/x86_64
-mkdir -p bindings/npm/packages/react-native/android/src/main/jniLibs/x86
-
-cp target/aarch64-linux-android/release/libjson_eval_rs.so \
-   bindings/npm/packages/react-native/android/src/main/jniLibs/arm64-v8a/
-
-cp target/armv7-linux-androideabi/release/libjson_eval_rs.so \
-   bindings/npm/packages/react-native/android/src/main/jniLibs/armeabi-v7a/
-
-cp target/x86_64-linux-android/release/libjson_eval_rs.so \
-   bindings/npm/packages/react-native/android/src/main/jniLibs/x86_64/
-
-cp target/i686-linux-android/release/libjson_eval_rs.so \
-   bindings/npm/packages/react-native/android/src/main/jniLibs/x86/
+# Build and copy all Android architectures into android/src/main/jniLibs
+./build-android.sh all
 ```
 
 ### 4. Build for iOS

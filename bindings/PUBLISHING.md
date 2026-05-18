@@ -19,8 +19,8 @@ Before publishing any package, ensure:
 All packages should maintain the same version number:
 - Rust crate: `Cargo.toml`
 - C# package: `JsonEvalRs.csproj`
-- Web package: `bindings/npm/package.json`
-- React Native package: `bindings/npm/package.json`
+- npm workspace root: `bindings/npm/package.json` (private; never published)
+- npm packages: `bindings/npm/packages/*/package.json`
 
 Update all simultaneously when releasing.
 
@@ -131,7 +131,13 @@ wasm-pack build --target bundler --out-dir bindings/npm/packages/bundler/pkg --f
 
 #### 2.2. Update Package Metadata
 
-Edit `bindings/npm/package.json`:
+Edit the relevant package metadata under `bindings/npm/packages/<package>/package.json`. `bindings/npm/package.json` is a private workspace root and must not be published.
+
+Examples:
+- `bindings/npm/packages/common/package.json`
+- `bindings/npm/packages/vanilla/package.json`
+- `bindings/npm/packages/node/package.json`
+- `bindings/npm/packages/bundler/package.json`
 
 ```json
 {
@@ -146,10 +152,16 @@ Edit `bindings/npm/package.json`:
 ```bash
 cd bindings/npm
 
-# Run local tests
-npm test
+# Run workspace tests/builds
+yarn test
+yarn workspace @json-eval-rs/common build
+yarn workspace @json-eval-rs/webcore build
+yarn workspace @json-eval-rs/bundler build
+yarn workspace @json-eval-rs/node build
+yarn workspace @json-eval-rs/vanilla build
 
-# Test packaging
+# Test packaging from the package workspace, not the private root
+cd packages/bundler
 npm pack
 
 # Install locally in test project
@@ -168,10 +180,13 @@ Enter your credentials.
 #### 2.5. Publish to npm
 
 ```bash
-cd bindings/npm
-
-# Publish with public access
-npm publish --access public
+# The bindings/npm root is private and must not be published.
+# Publish each public package from its workspace directory.
+cd bindings/npm/packages/common && npm publish --access public
+cd ../webcore && npm publish --access public
+cd ../bundler && npm publish --access public
+cd ../node && npm publish --access public
+cd ../vanilla && npm publish --access public
 ```
 
 #### 2.6. Verify Publication
@@ -180,17 +195,12 @@ Visit https://www.npmjs.com/package/@json-eval-rs/vanilla
 
 ### Publishing Different Builds
 
-If you want separate packages for different targets:
+Publish target-specific packages from their package roots after generating WASM into each package's `pkg/` directory:
 
 ```bash
-# Publish web version
-cd bindings/npm/packages/vanilla/pkg
-npm publish --access public
-
-# Publish Node.js version
-cd ../pkg-node
-# Update package.json name to @json-eval-rs/vanilla-node
-npm publish --access public
+cd bindings/npm/packages/vanilla && npm publish --access public
+cd ../node && npm publish --access public
+cd ../bundler && npm publish --access public
 ```
 
 ## 3. Publishing React Native Package to npm
@@ -226,7 +236,7 @@ lipo -create \
 
 #### 3.2. Update Package Metadata
 
-Edit `bindings/npm/package.json`:
+Edit `bindings/npm/packages/react-native/package.json`:
 
 ```json
 {
@@ -243,17 +253,20 @@ cd bindings/npm
 # Install dependencies
 yarn install
 
-# Build TypeScript
+# Build React Native package
+cd packages/react-native
 npm run prepare
 
-# Test in example app
-npm run example
+# Test in example app from workspace root
+cd ../..
+yarn workspace rncli android
 ```
 
 #### 3.4. Publish to npm
 
 ```bash
-cd bindings/npm
+# bindings/npm is a private workspace root; publish only the package workspace.
+cd bindings/npm/packages/react-native
 npm publish --access public
 ```
 
@@ -411,7 +424,9 @@ jobs:
       - run: |
           cd bindings/npm
           echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
-          npm publish --access public
+          for pkg in packages/common packages/webcore packages/bundler packages/node packages/vanilla; do
+            (cd "$pkg" && npm publish --access public)
+          done
 
   publish-react-native:
     runs-on: ubuntu-latest
@@ -422,6 +437,7 @@ jobs:
       - run: |
           cd bindings/npm
           echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
+          cd packages/react-native
           npm publish --access public
 ```
 

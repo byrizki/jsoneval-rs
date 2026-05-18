@@ -9,15 +9,15 @@
 
 ## 🟢 Low Priority
 
-### `NOTE` (bindings/react-native/packages/react-native/android/src/main/cpp/json-eval-rn.cpp:16)
+### `NOTE` (bindings/npm/packages/react-native/android/src/main/cpp/json-eval-rn.cpp:16)
 
 > GetStringUTFChars provides a pinned pointer (minimal copy), but we must
 
-### `NOTE` (bindings/react-native/packages/react-native/android/src/main/cpp/json-eval-rn.cpp:30)
+### `NOTE` (bindings/npm/packages/react-native/android/src/main/cpp/json-eval-rn.cpp:30)
 
 > NewStringUTF copies C string to create Java String object (unavoidable)
 
-### `NOTE` (bindings/react-native/packages/react-native/android/src/main/cpp/json-eval-rn.cpp:75)
+### `NOTE` (bindings/npm/packages/react-native/android/src/main/cpp/json-eval-rn.cpp:75)
 
 > Template functions must have C++ linkage, not C linkage
 

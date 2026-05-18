@@ -33,7 +33,7 @@ Symbol maps for 9 large files in this module.
 | 538 | method | ParseDuration | (private) |
 | 557 | method | FindDifferences | (private) |
 
-## bindings/react-native/packages/react-native/android/src/main/cpp/json-eval-rn.cpp (938 lines)
+## bindings/npm/packages/react-native/android/src/main/cpp/json-eval-rn.cpp (938 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |
@@ -46,7 +46,7 @@ Symbol maps for 9 large files in this module.
 | 193 | method | stringToJstring | (internal) |
 | 626 | method | stringToJstring | (internal) |
 
-## bindings/web/examples/nextjs/components/InsuranceForm.tsx (565 lines)
+## bindings/npm/examples/nextjs/components/InsuranceForm.tsx (565 lines)
 
 | Line | Kind | Name | Visibility |
 | ---- | ---- | ---- | ---------- |

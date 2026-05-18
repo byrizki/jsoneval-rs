@@ -21,7 +21,7 @@ if(NOT EXISTS ${RUST_LIB_PATH})
         "Pre-built Rust library not found at: ${RUST_LIB_PATH}\n"
         "\nThis package requires pre-built native libraries.\n"
         "If you're developing this package, build the libraries first:\n"
-        "  cd ${CMAKE_SOURCE_DIR}/../..\n"
+        "  cd ${CMAKE_SOURCE_DIR}/..\n"
         "  ./build-android.sh all\n"
         "\nIf you're a user and seeing this error, the package may be corrupted.\n"
         "Try reinstalling: npm install @json-eval-rs/react-native\n"
