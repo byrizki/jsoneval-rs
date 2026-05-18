@@ -1,10 +1,16 @@
-//! JSON Eval RS - High-performance JSON Logic evaluation library
+//! JSON Eval RS - high-performance JSON Logic and schema evaluation.
 //!
-//! This library provides a complete implementation of JSON Logic with advanced features:
-//! - Pre-compilation of logic expressions for optimal performance
-//! - Mutation tracking via proxy-like data wrapper (EvalData)
-//! - All data mutations gated through EvalData for thread safety
-//! - Zero external logic dependencies (built from scratch)
+//! Main public entry points are re-exported from this crate root:
+//! [`JSONEval`] for schema evaluation, [`ParsedSchema`] for reusable parsed schemas,
+//! [`ParsedSchemaCache`] for cache-backed reuse, and [`RLogic`] for lower-level JSON
+//! Logic compilation/evaluation.
+//!
+//! Module map:
+//! - [`jsoneval`] owns schema parsing, evaluation, layout resolution, validation, and caches.
+//! - [`rlogic`] owns the JSON Logic compiler/evaluator used by schema evaluation.
+//! - [`parse_schema`] and [`topo_sort`] preserve legacy parsing/sorting entry points.
+//! - [`utils`] contains crate-wide timing/debug helpers and numeric cleanup utilities.
+//! - `ffi` and `wasm` expose binding layers behind feature flags.
 
 // Use mimalloc allocator on Windows for better performance
 #[cfg(windows)]
@@ -13,22 +19,9 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 pub mod parse_schema;
 pub mod rlogic;
-// Modules moved to jsoneval
 pub mod topo_sort;
-// pub mod eval_cache;
-// pub mod eval_data;
-// pub mod json_parser;
-// pub mod parsed_schema;
-// pub mod parsed_schema_cache;
-// pub mod path_utils;
-// pub mod subform_methods;
-// pub mod table_evaluate;
-// pub mod table_metadata;
-// pub mod types;
 
-// New modular structure
 pub mod jsoneval;
-// pub mod types;
 #[macro_use]
 pub mod utils;
 
@@ -40,7 +33,7 @@ pub mod ffi;
 #[cfg(feature = "wasm")]
 pub mod wasm;
 
-// Re-export main types for convenience
+// Re-export stable public Rust API from focused internal modules.
 pub use jsoneval::eval_data::EvalData;
 pub use jsoneval::parsed_schema::ParsedSchema;
 pub use jsoneval::parsed_schema_cache::{
@@ -53,8 +46,6 @@ pub use rlogic::{
     LogicId, RLogic, RLogicConfig,
 };
 
-// Re-export from new modules
-// Re-export from new modules
 pub use jsoneval::types::*;
 pub use jsoneval::JSONEval;
 pub use utils::*;

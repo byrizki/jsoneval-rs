@@ -2,10 +2,11 @@
 //!
 //! This module provides a complete implementation of JSON Logic with:
 //! - Pre-compilation of logic expressions for fast repeated evaluation
-//! - Mutation tracking via proxy-like data wrapper (EvalData)
-//! - All data mutations gated through EvalData for safety
-//! - Zero external dependencies (uses only standard library and serde_json)
+//! - Zero external logic dependencies (uses Rust code plus serde_json values)
 //! - Global compiled logic storage for cross-instance sharing
+//!
+//! Schema-level mutation tracking lives in [`crate::jsoneval::eval_data`]; this
+//! module focuses on compiling and evaluating JSON Logic expressions.
 
 pub mod compiled;
 pub mod compiled_logic_store;

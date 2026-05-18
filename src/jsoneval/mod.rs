@@ -1,3 +1,10 @@
+//! Schema evaluation engine.
+//!
+//! This module contains the Rust implementation behind [`JSONEval`]: parsing,
+//! dependency tracking, evaluation, layout resolution, validation, subforms, and
+//! schema caches. Crate root re-exports stable public types so callers usually do
+//! not need to import from submodules directly.
+
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 

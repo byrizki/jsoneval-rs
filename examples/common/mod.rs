@@ -1,3 +1,8 @@
+//! Shared setup helpers for Rust examples.
+//!
+//! Keep this module limited to scenario discovery, formatting, and comparison
+//! plumbing. Demo-specific evaluation flow belongs in each `examples/*.rs` file.
+
 use serde_json::Value;
 use std::collections::BTreeSet;
 use std::fs;
