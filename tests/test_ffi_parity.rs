@@ -1,4 +1,5 @@
-#[cfg(feature = "ffi")]
+#![cfg(feature = "ffi")]
+
 use json_eval_rs::ffi::*;
 use serde_json::json;
 use std::ffi::CString;
