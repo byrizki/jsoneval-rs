@@ -1,196 +1,157 @@
 # Build Alignment Verification
 
-## Summary of Fixes Applied
+This file records how GitHub Actions paths line up with current repository structure.
 
-All build scripts and workflows have been aligned with the actual code structure.
+## Source layout
 
----
+```text
+Cargo.toml                         # Rust crate version and features
+bindings/csharp/                   # NuGet package project
+bindings/npm/                      # Yarn workspace for npm packages and examples
+docs/                              # Nuxt/Docus documentation site
+```
 
-## Web Bindings
+## Rust features
 
-### **FIXED**: Output Directory Paths
+- Default feature set is empty.
+- `ffi` builds native C ABI libraries used by C#, React Native, desktop, iOS, and Android artifacts.
+- `wasm` builds WebAssembly packages with `wasm-bindgen`.
 
-**Previous (WRONG):**
+Workflow checks:
+
 ```bash
-# build-bindings.sh & workflows
-wasm-pack build --target web --out-dir bindings/npm/packages/vanilla/pkg
-wasm-pack build --target bundler --out-dir bindings/npm/packages/bundler/pkg
-wasm-pack build --target nodejs --out-dir bindings/npm/packages/node/pkg
+cargo test
+cargo test --all-features
+cargo build --release --features ffi
+wasm-pack build --release --target bundler --out-dir bindings/npm/packages/bundler/pkg --features wasm
+wasm-pack build --release --target nodejs --out-dir bindings/npm/packages/node/pkg --features wasm
+wasm-pack build --release --target web --out-dir bindings/npm/packages/vanilla/pkg --features wasm
 ```
 
-**Current (CORRECT):**
+## Web/WASM packages
+
+`release.yml` writes wasm-pack output into package-local `pkg/` directories:
+
+```text
+bindings/npm/packages/bundler/pkg/
+bindings/npm/packages/node/pkg/
+bindings/npm/packages/vanilla/pkg/
+```
+
+These paths match package `files` declarations:
+
+- `bindings/npm/packages/bundler/package.json`
+- `bindings/npm/packages/node/package.json`
+- `bindings/npm/packages/vanilla/package.json`
+
+TypeScript package builds run from `bindings/npm` with Yarn workspaces:
+
 ```bash
-# build-bindings.sh & workflows
-wasm-pack build --target bundler --out-dir bindings/npm/packages/bundler/pkg
-wasm-pack build --target nodejs --out-dir bindings/npm/packages/node/pkg
+yarn workspace @json-eval-rs/common build
+yarn workspace @json-eval-rs/webcore build
+yarn workspace @json-eval-rs/bundler build
+yarn workspace @json-eval-rs/node build
+yarn workspace @json-eval-rs/vanilla build
 ```
 
-### Verification
-```javascript
-// packages/bundler/index.js imports:
-import * as wasm from './pkg/json_eval_rs.js';  // ✅ Matches build output
+Release assets include npm tarballs from:
 
-// packages/node/index.js imports:
-import * as wasm from './pkg/json_eval_rs.js';  // ✅ Matches build output
+```text
+bindings/npm/packages/common/*.tgz
+bindings/npm/packages/webcore/*.tgz
+bindings/npm/packages/bundler/*.tgz
+bindings/npm/packages/node/*.tgz
+bindings/npm/packages/vanilla/*.tgz
 ```
 
-### Package Structure
-```
-bindings/npm/
-├── packages/
-│   ├── core/          # Internal API wrapper (no WASM build needed)
-│   ├── bundler/       # ✅ WASM built to pkg/
-│   │   └── pkg/       # ← wasm-pack output
-│   └── node/          # ✅ WASM built to pkg/
-│       └── pkg/       # ← wasm-pack output
+## React Native package
+
+Android JNI libraries are copied into:
+
+```text
+bindings/npm/packages/react-native/android/src/main/jniLibs/<ABI>/libjson_eval_rs.so
 ```
 
----
+Supported ABIs:
 
-## React Native Bindings
+- `arm64-v8a`
+- `armeabi-v7a`
+- `x86`
+- `x86_64`
 
-### Android JNI Libraries
+iOS release artifact is copied into:
 
-**Build Command:**
-```bash
-cargo ndk -t ${ARCH} -o bindings/npm/packages/react-native/android/src/main/jniLibs build --release --features ffi
+```text
+bindings/npm/packages/react-native/ios/JsonEvalRs.xcframework/
 ```
 
-**Output Locations:**
-1. **CMake linking** (build-time): `/target/${ANDROID_ABI}/release/libjson_eval_rs.so`
-   - Used by CMakeLists.txt line 13-16
-2. **APK packaging** (runtime): `bindings/npm/packages/react-native/android/src/main/jniLibs/${ANDROID_ABI}/libjson_eval_rs.so`
-   - Used by build.gradle line 59
+This matches `bindings/npm/packages/react-native/json-eval-rs.podspec`:
 
-**Architectures:**
-- ✅ arm64-v8a (ARM 64-bit)
-- ✅ armeabi-v7a (ARM 32-bit)
-- ✅ x86 (32-bit emulator)
-- ✅ x86_64 (64-bit emulator)
-
-### iOS Libraries
-
-**Build Command:**
-```bash
-cargo build --release --features ffi --target aarch64-apple-ios
-cargo build --release --features ffi --target x86_64-apple-ios
-```
-
-**Output Locations:**
-- Device: `/target/aarch64-apple-ios/release/libjson_eval_rs.a`
-- Simulator: `/target/x86_64-apple-ios/release/libjson_eval_rs.a`
-
-**Verification:**
 ```ruby
-# json-eval-rs.podspec line 29:
-s.vendored_libraries = "../../target/aarch64-apple-ios/release/libjson_eval_rs.a"
-# ✅ Matches build output
+s.vendored_frameworks = 'ios/JsonEvalRs.xcframework'
 ```
 
----
+React Native package tarball comes from:
 
-## Build Script Alignment
-
-### `build-bindings.sh`
-
-**Changes Made:**
-1. ✅ Web output directories corrected to `packages/*/pkg/`
-2. ✅ Android builds all 4 architectures (was only arm64-v8a)
-3. ✅ Removed unused "web" target (no vanilla package exists)
-4. ✅ Added web dependencies installation
-
-### `.github/workflows/build-bindings.yml`
-
-**Changes Made:**
-1. ✅ Web output directories corrected to `packages/*/pkg/`
-2. ✅ Removed unused "web" target build
-3. ✅ Added example dependencies installation step
-4. ✅ WASM artifacts upload paths corrected
-
-### `.github/workflows/publish.yml`
-
-**Changes Made:**
-1. ✅ Web output directories corrected to `packages/*/pkg/`
-2. ✅ Removed unused "web" target build
-
----
-
-## Verification Checklist
-
-### Web Bindings
-- [x] Build output matches import paths in code
-- [x] No orphaned pkg directories at root level
-- [x] Dependencies install correctly
-- [x] Workflow artifacts reference correct paths
-
-### React Native - Android
-- [x] JNI libs built to correct locations for CMake
-- [x] JNI libs copied to correct locations for APK
-- [x] All 4 architectures supported
-- [x] NDK setup configured in workflow
-
-### React Native - iOS  
-- [x] Static libs built to locations referenced by podspec
-- [x] Both device and simulator targets built
-- [x] Podspec paths are correct
-
-### Examples
-- [x] rncli example dependencies installation added
-- [x] Example can find the binding package
-
----
-
-## Testing Commands
-
-### Local Testing
 ```bash
-# Test web build
-./build-bindings.sh web
-ls -la bindings/npm/packages/bundler/pkg/
-ls -la bindings/npm/packages/node/pkg/
-
-# Test React Native build (requires cargo-ndk and NDK)
-./build-bindings.sh react-native
-ls -la bindings/npm/packages/react-native/android/src/main/jniLibs/
-ls -la target/aarch64-apple-ios/release/
-
-# Test all
-./build-bindings.sh all
+cd bindings/npm/packages/react-native
+npm pack
 ```
 
-### Workflow Testing
-Push to a branch and check Actions tab to verify:
-1. Web WASM artifacts contain `packages/bundler/pkg/` and `packages/node/pkg/`
-2. Android JNI artifacts contain all 4 architectures
-3. React Native package contains all native libraries
-4. No "file not found" errors in any job
+## C# package
 
----
+Native desktop libraries are copied to NuGet runtime identifiers:
 
-## Breaking Changes
+```text
+bindings/csharp/runtimes/linux-x64/native/libjson_eval_rs.so
+bindings/csharp/runtimes/linux-arm64/native/libjson_eval_rs.so
+bindings/csharp/runtimes/win-x64/native/json_eval_rs.dll
+bindings/csharp/runtimes/osx-x64/native/libjson_eval_rs.dylib
+bindings/csharp/runtimes/osx-arm64/native/libjson_eval_rs.dylib
+```
 
-**None** - These are corrections to match existing code structure, not code changes.
+NuGet package command:
 
----
+```bash
+cd bindings/csharp
+dotnet pack -c Release
+```
 
-## Notes
+Release asset:
 
-1. **Web "vanilla" target**: The ARCHITECTURE.md mentions a "vanilla" package but it doesn't exist in the codebase. Only bundler and node packages exist.
+```text
+bindings/csharp/bin/Release/*.nupkg
+```
 
-2. **iOS XCFramework**: Currently building separate static libs. Could be enhanced to build XCFramework for better distribution.
+## Docs
 
-3. **Android**: cargo-ndk handles both CMake linking and APK packaging automatically.
+Docs workflow runs with working directory `docs` and uploads:
 
-4. **Package publishing**: Web bindings are published as a monorepo root package that includes all sub-packages.
+```text
+docs/.output/public
+```
 
----
+Build command:
 
-## Related Files Modified
+```bash
+NUXT_APP_BASE_URL=/jsoneval-rs/ yarn build
+```
 
-- ✅ `/build-bindings.sh`
-- ✅ `/.github/workflows/build-bindings.yml`
-- ✅ `/.github/workflows/publish.yml`
+## Integrity checks
 
----
+Before committing workflow changes:
 
-*Last updated: 2025-10-15*
+```bash
+python - <<'PY'
+import pathlib, yaml
+for path in pathlib.Path('.github/workflows').glob('*.yml'):
+    yaml.safe_load(path.read_text())
+    print(f'OK {path}')
+PY
+
+! grep -R -E 'build-bindings\.yml|pages\.yml' .github/workflows README.md .github/SETUP_GUIDE.md
+
+git diff --check
+```
+
+`bindings/npm` is current repo layout. Do not replace it unless the workspace is actually renamed.

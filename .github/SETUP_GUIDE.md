@@ -1,506 +1,131 @@
 # GitHub CI/CD Setup Guide
 
-Complete guide to setting up automated builds, tests, and publishing for json-eval-rs.
-
-## 📋 Table of Contents
-
-1. [Prerequisites](#prerequisites)
-2. [Repository Configuration](#repository-configuration)
-3. [Setting Up Secrets](#setting-up-secrets)
-4. [Workflow Configuration](#workflow-configuration)
-5. [Testing the Setup](#testing-the-setup)
-6. [First Release](#first-release)
-7. [Troubleshooting](#troubleshooting)
-
----
+Setup guide for release, publish, and docs workflows in this repository.
 
 ## Prerequisites
 
-### Required Accounts
+Accounts:
 
-1. **GitHub Account** - Repository hosting
-   - Create at: https://github.com/join
+- GitHub repository with Actions enabled.
+- NuGet account for `JsonEvalRs`.
+- npm account for `@json-eval-rs/*` packages.
+- crates.io account for `json-eval-rs`.
 
-2. **NuGet Account** - For C# package publishing
-   - Create at: https://www.nuget.org/users/account/LogOn
+Local tools for pre-release checks:
 
-3. **npm Account** - For Web and React Native packages
-   - Create at: https://www.npmjs.com/signup
+- Rust stable toolchain.
+- .NET SDK 8.0+.
+- Node.js 24.x+ with Corepack.
+- wasm-pack for Web/WASM package checks.
+- Android NDK and Xcode only when validating mobile artifacts locally.
 
-4. **crates.io Account** - For Rust crate publishing
-   - Login at: https://crates.io/ (uses GitHub authentication)
+## Repository settings
 
-### Required Tools (for local testing)
+1. Enable Actions: repository Settings → Actions → General → allow actions and reusable workflows.
+2. Workflow permissions: enable read/write permissions so release workflow can create tags/releases and deploy Pages.
+3. Optional branch protection for `main`: require pull request, required checks, and up-to-date branches.
+4. Enable GitHub Pages with GitHub Actions as deployment source.
 
-- Rust 1.70+ (`rustup`, `cargo`)
-- .NET SDK 6.0+
-- Node.js 18+
-- wasm-pack (for WASM builds)
+## Required secrets
 
----
+Add these under Settings → Secrets and variables → Actions:
 
-## Repository Configuration
+| Secret | Used by | Purpose |
+| --- | --- | --- |
+| `NUGET_API_KEY` | `publish.yml` | Push `JsonEvalRs` NuGet package. |
+| `NPM_TOKEN` | `publish.yml` | Publish `@json-eval-rs/*` packages. |
+| `CARGO_REGISTRY_TOKEN` | `publish.yml` | Publish `json-eval-rs` to crates.io. |
 
-### 1. Enable GitHub Actions
+`GITHUB_TOKEN` is automatic.
 
-1. Go to your repository on GitHub
-2. Navigate to **Settings** → **Actions** → **General**
-3. Under "Actions permissions", select:
-   - ✅ **Allow all actions and reusable workflows**
-4. Under "Workflow permissions", select:
-   - ✅ **Read and write permissions**
-   - ✅ **Allow GitHub Actions to create and approve pull requests**
-5. Click **Save**
+## Current workflows
 
-### 2. Configure Branch Protection (Optional but Recommended)
-
-1. Go to **Settings** → **Branches**
-2. Click **Add rule**
-3. Branch name pattern: `main`
-4. Enable:
-   - ✅ **Require a pull request before merging**
-   - ✅ **Require status checks to pass before merging**
-   - Select status checks: `CI`, `Test`, `Format Check`, `Clippy Lints`
-   - ✅ **Require branches to be up to date before merging**
-5. Click **Create**
-
-### 3. Enable Issue Templates
-
-Create `.github/ISSUE_TEMPLATE/bug_report.md`:
-
-```yaml
----
-name: Bug report
-about: Create a report to help us improve
-title: '[BUG] '
-labels: bug
-assignees: ''
----
-
-**Describe the bug**
-A clear description of what the bug is.
-
-**To Reproduce**
-Steps to reproduce the behavior.
-
-**Expected behavior**
-What you expected to happen.
-
-**Environment:**
-- OS: [e.g., Ubuntu 22.04, Windows 11, macOS 13]
-- Version: [e.g., 0.0.1]
-- Binding: [e.g., Rust, C#, Web, React Native]
-```
-
----
-
-## Setting Up Secrets
-
-### 1. NuGet API Key
-
-**Step 1: Generate API Key**
-1. Login to [NuGet.org](https://www.nuget.org/)
-2. Click your username → **API Keys**
-3. Click **Create**
-   - Key name: `GitHub Actions`
-   - Select scopes: **Push new packages and package versions**
-   - Select packages: **All packages**
-   - Glob pattern: `JsonEvalRs*`
-   - Expiration: 365 days (recommended)
-4. Click **Create**
-5. **Copy the key** (you won't see it again!)
-
-**Step 2: Add to GitHub**
-1. Go to your GitHub repository
-2. Navigate to **Settings** → **Secrets and variables** → **Actions**
-3. Click **New repository secret**
-4. Name: `NUGET_API_KEY`
-5. Secret: Paste your NuGet API key
-6. Click **Add secret**
-
-### 2. npm Authentication Token
-
-**Step 1: Generate Token**
-1. Login to [npmjs.com](https://www.npmjs.com/)
-2. Click your profile icon → **Access Tokens**
-3. Click **Generate New Token** → **Automation**
-4. Token name: `GitHub Actions`
-5. Click **Generate Token**
-6. **Copy the token**
-
-**Step 2: Add to GitHub**
-1. Go to **Settings** → **Secrets and variables** → **Actions**
-2. Click **New repository secret**
-3. Name: `NPM_TOKEN`
-4. Secret: Paste your npm token
-5. Click **Add secret**
-
-### 3. crates.io API Token
-
-**Step 1: Generate Token**
-1. Login to [crates.io](https://crates.io/) with GitHub
-2. Go to **Account Settings**
-3. Scroll to **API Tokens**
-4. Click **New Token**
-5. Token name: `GitHub Actions`
-6. Click **Create**
-7. **Copy the token**
-
-**Step 2: Add to GitHub**
-1. Go to **Settings** → **Secrets and variables** → **Actions**
-2. Click **New repository secret**
-3. Name: `CARGO_REGISTRY_TOKEN`
-4. Secret: Paste your crates.io token
-5. Click **Add secret**
-
-### 4. Verify All Secrets
-
-After adding all secrets, you should see:
-
-```
-✅ NUGET_API_KEY
-✅ NPM_TOKEN
-✅ CARGO_REGISTRY_TOKEN
-```
-
-Note: `GITHUB_TOKEN` is automatically provided by GitHub Actions.
-
----
-
-## Workflow Configuration
-
-### 1. Verify Workflow Files
-
-Ensure these files exist in `.github/workflows/`:
-
-```
+```text
 .github/workflows/
-├── ci.yml                  # Continuous Integration
-├── build-bindings.yml      # Build all bindings
-├── publish.yml             # Publish to registries
-└── README.md              # Workflow documentation
+├── release.yml       # Build release artifacts and attach them to GitHub Release
+├── publish.yml       # Publish pre-built release artifacts to registries
+├── deploy-docs.yml   # Build docs and deploy GitHub Pages
+└── README.md         # Workflow reference
 ```
 
-### 2. Update Package Metadata
+## Package metadata to keep in sync
 
-Before first release, update these files:
+Update versions before release:
 
-**Cargo.toml:**
-```toml
-[package]
-name = "json-eval-rs"
-version = "0.0.1"
-authors = ["Muhamad Rizki <hello@byrizki.com>"]
-edition = "2021"
-description = "High-performance JSON Logic evaluator with schema validation"
-license = "MIT"
-repository = "https://github.com/byrizki/jsoneval-rs"
-documentation = "https://docs.rs/json-eval-rs"
-homepage = "https://github.com/byrizki/jsoneval-rs"
-keywords = ["json", "logic", "schema", "validation", "evaluation"]
-categories = ["parser-implementations", "data-structures"]
+```text
+Cargo.toml
+bindings/csharp/JsonEvalRs.csproj
+bindings/npm/package.json
+bindings/npm/packages/common/package.json
+bindings/npm/packages/webcore/package.json
+bindings/npm/packages/bundler/package.json
+bindings/npm/packages/node/package.json
+bindings/npm/packages/vanilla/package.json
+bindings/npm/packages/react-native/package.json
 ```
 
-**bindings/csharp/JsonEvalRs.csproj:**
-```xml
-<PropertyGroup>
-  <Version>0.0.1</Version>
-  <Authors>Muhamad Rizki</Authors>
-  <Company>Quadrant Synergy International</Company>
-  <PackageProjectUrl>https://github.com/byrizki/jsoneval-rs</PackageProjectUrl>
-  <RepositoryUrl>https://github.com/byrizki/jsoneval-rs</RepositoryUrl>
-</PropertyGroup>
-```
+## Release flow
 
-**bindings/npm/package.json:**
-```json
-{
-  "name": "@json-eval-rs/web",
-  "version": "0.0.1",
-  "author": "Muhamad Rizki <hello@byrizki.com>",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/byrizki/jsoneval-rs"
-  }
-}
-```
+1. Update package versions and `CHANGELOG.md`.
+2. Run local checks:
 
-**bindings/npm/package.json:**
-```json
-{
-  "name": "@json-eval-rs/react-native",
-  "version": "0.0.1",
-  "author": "Muhamad Rizki <hello@byrizki.com>",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/byrizki/jsoneval-rs"
-  }
-}
-```
-
-### 3. Add README Badges
-
-Update your main `README.md`:
-
-```markdown
-# json-eval-rs
-
-[![CI](https://github.com/byrizki/jsoneval-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/byrizki/jsoneval-rs/actions/workflows/ci.yml)
-[![Build Bindings](https://github.com/byrizki/jsoneval-rs/actions/workflows/build-bindings.yml/badge.svg)](https://github.com/byrizki/jsoneval-rs/actions/workflows/build-bindings.yml)
-[![Crates.io](https://img.shields.io/crates/v/json-eval-rs.svg)](https://crates.io/crates/json-eval-rs)
-[![NuGet](https://img.shields.io/nuget/v/JsonEvalRs.svg)](https://www.nuget.org/packages/JsonEvalRs)
-[![npm](https://img.shields.io/npm/v/@json-eval-rs/web.svg)](https://www.npmjs.com/package/@json-eval-rs/web)
-```
-
----
-
-## Testing the Setup
-
-### 1. Test CI Workflow
-
-**Push to main branch:**
 ```bash
-git add .
-git commit -m "Setup GitHub Actions"
-git push origin main
+cargo test --lib --bins --examples
+cargo test --all-features --lib --bins --examples
 ```
 
-**Expected:**
-- Go to **Actions** tab
-- See "CI" workflow running
-- All checks should pass: ✅
+3. Commit version/changelog changes and push to `main`.
+4. `release.yml` creates/replaces tag `v<version>` based on `Cargo.toml` and uploads release assets.
+5. `publish.yml` starts after successful Release and Build run. Use manual dispatch for selective publishing or re-publishing duplicates safely.
 
-### 2. Test Build Workflow
+## Manual publish
 
-**Create a pull request:**
+Use Actions → Publish Packages → Run workflow.
+
+Inputs:
+
+- `release_tag`: release asset source, for example `v0.0.96`.
+- package toggles: C#, common npm, web npm, React Native npm, crates.io.
+
+Publish workflow downloads `.nupkg` and `.tgz` assets from the GitHub Release. It does not rebuild packages.
+
+## Docs deploy
+
+Docs deploy when files under `docs/**` or `.github/workflows/deploy-docs.yml` change on `main`.
+
+Local docs smoke check:
+
 ```bash
-git checkout -b test-workflows
-git push origin test-workflows
+cd docs
+corepack enable
+yarn install --immutable
+yarn nuxt build --extends docus --preset github_pages
 ```
-
-Create PR on GitHub.
-
-**Expected:**
-- See "Build Bindings" workflow running
-- All artifacts should be created
-- Download and test artifacts
-
-### 3. Test Manual Build
-
-1. Go to **Actions** tab
-2. Select **Build Bindings**
-3. Click **Run workflow**
-4. Select branch: `main`
-5. Click **Run workflow**
-
-**Expected:**
-- Workflow runs successfully
-- All artifacts available for download
-
----
-
-## First Release
-
-### Pre-Release Checklist
-
-- [ ] All tests passing locally
-- [ ] Documentation updated
-- [ ] CHANGELOG.md created
-- [ ] Version numbers consistent
-- [ ] All secrets configured
-- [ ] Package metadata updated
-
-### Step-by-Step Release Process
-
-**1. Update version numbers:**
-```bash
-# Update all these files to version 0.0.1
-vim Cargo.toml
-vim bindings/csharp/JsonEvalRs.csproj
-vim bindings/npm/package.json
-vim bindings/npm/package.json
-```
-
-**2. Create CHANGELOG.md:**
-```markdown
-# Changelog
-
-## [0.0.1] - 2024-01-XX
-
-### Added
-- Initial release
-- Core JSON Logic evaluation engine
-- Schema validation support
-- C# NuGet package
-- Web WASM package
-- React Native package
-- Comprehensive test suite
-```
-
-**3. Commit and push:**
-```bash
-git add -A
-git commit -m "Release v0.0.1"
-git push origin main
-```
-
-**4. Create and push tag:**
-```bash
-git tag -a v0.0.1 -m "Release version 0.0.1"
-git push origin v0.0.1
-```
-
-**5. Monitor workflow:**
-- Go to **Actions** tab
-- Watch "Publish Packages" workflow
-- Verify all jobs complete successfully
-
-**6. Verify publications:**
-- ✅ Check [crates.io](https://crates.io/crates/json-eval-rs)
-- ✅ Check [NuGet](https://www.nuget.org/packages/JsonEvalRs)
-- ✅ Check [npm web](https://www.npmjs.com/package/@json-eval-rs/web)
-- ✅ Check [npm RN](https://www.npmjs.com/package/@json-eval-rs/react-native)
-- ✅ Check GitHub Releases
-
-**7. Test installations:**
-```bash
-# Test each package
-cargo add json-eval-rs
-dotnet add package JsonEvalRs
-yarn install @json-eval-rs/web
-yarn install @json-eval-rs/react-native
-```
-
----
 
 ## Troubleshooting
 
-### Workflow Not Running
+### Release workflow did not publish packages
 
-**Problem:** Pushed code but no workflow appears
+Check `release.yml` first. `publish.yml` runs only after Release and Build completes successfully, or by manual dispatch.
 
-**Solutions:**
-1. Check if Actions are enabled (Settings → Actions)
-2. Verify workflow file is in `.github/workflows/`
-3. Check YAML syntax with: `yamllint .github/workflows/*.yml`
-4. Check workflow trigger conditions match your push
+### Missing release asset
 
-### Secret Not Working
+Open the GitHub Release for `v<version>` and confirm expected assets exist:
 
-**Problem:** "Invalid credentials" or "Unauthorized"
+- `*.nupkg` for NuGet.
+- `json-eval-rs-common-*.tgz` for common package.
+- Web package `.tgz` files: webcore, bundler, node, vanilla.
+- `*react-native*.tgz` for React Native.
+- Native archives and `wasm-modules.tar.gz` for distribution/debugging.
 
-**Solutions:**
-1. Verify secret name matches exactly (case-sensitive)
-2. Check secret value doesn't have extra spaces
-3. Regenerate token and update secret
-4. Verify token hasn't expired
-5. Check token permissions/scopes
+### npm duplicate publish
 
-### Build Failing
+npm rejects duplicate versions. Bump every npm package version before release, or disable npm jobs during manual dispatch.
 
-**Problem:** Native library build fails
+### crates.io duplicate publish
 
-**Solutions:**
-1. Check Rust version in workflow matches local
-2. Verify all features are specified correctly
-3. Check for platform-specific code issues
-4. Review error logs in Actions tab
+crates.io rejects duplicate versions. Bump `Cargo.toml` before release, or disable crates.io during manual dispatch.
 
-### Publishing Fails
+### React Native validation skipped
 
-**Problem:** "Package already exists"
-
-**Solutions:**
-1. Increment version number in ALL package files
-2. Ensure versions are consistent
-3. Check if version was already published
-
-**Problem:** "Cannot authenticate"
-
-**Solutions:**
-1. Verify secrets are set correctly
-2. Check token hasn't expired
-3. Regenerate tokens if needed
-4. Verify repository access for tokens
-
-### Artifact Not Found
-
-**Problem:** Artifacts not available in release
-
-**Solutions:**
-1. Check all build jobs completed successfully
-2. Verify artifact upload steps succeeded
-3. Check artifact names match download steps
-4. Review workflow logs for errors
-
----
-
-## Advanced Configuration
-
-### Enable Dependabot
-
-Create `.github/dependabot.yml`:
-
-```yaml
-version: 2
-updates:
-  - package-ecosystem: "cargo"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-  
-  - package-ecosystem: "npm"
-    directory: "/bindings/npm"
-    schedule:
-      interval: "weekly"
-  
-  - package-ecosystem: "npm"
-    directory: "/bindings/npm"
-    schedule:
-      interval: "weekly"
-  
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-```
-
-### Enable Code Scanning
-
-1. Go to **Security** → **Code scanning**
-2. Click **Set up code scanning**
-3. Choose **CodeQL Analysis**
-4. Commit the workflow file
-
----
-
-## Support
-
-**Issues with setup:**
-- Open an issue: https://github.com/byrizki/jsoneval-rs/issues
-- Check workflow logs in Actions tab
-- Review GitHub Actions documentation
-
-**Package-specific issues:**
-- NuGet: https://docs.microsoft.com/en-us/nuget/
-- npm: https://docs.npmjs.com/
-- crates.io: https://doc.rust-lang.org/cargo/
-
----
-
-## Next Steps
-
-After successful setup:
-
-1. ✅ Configure branch protection rules
-2. ✅ Set up Dependabot
-3. ✅ Enable code scanning
-4. ✅ Add status badges to README
-5. ✅ Create contribution guidelines
-6. ✅ Set up issue templates
-7. ✅ Configure release automation
-8. ✅ Monitor download statistics
-
----
-
-**🎉 Congratulations! Your CI/CD pipeline is now fully configured!**
+RN example validation runs only when latest changelog section or latest commit message contains `[RN]`. Core React Native package build still runs for release artifacts.

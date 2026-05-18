@@ -3,6 +3,10 @@ name: Publish Packages
 permissions:
   contents: read
 
+concurrency:
+  group: publish-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag || github.run_id }}
+  cancel-in-progress: false
+
 on:
   # Trigger after Release and Build workflow completes successfully
   workflow_run:
@@ -79,7 +83,10 @@ jobs:
           else
             # For workflow_run, get the latest release tag
             echo "🔍 Looking for latest release..."
-            TAG=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r .tag_name)
+            TAG=$(curl -fsSL \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github+json" \
+              https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r .tag_name)
             if [ "$TAG" = "null" ] || [ -z "$TAG" ]; then
               echo "❌ ERROR: No release found in the repository"
               echo ""
@@ -104,7 +111,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "8.0.x"
 
       - name: Download NuGet package from release
         env:
@@ -116,7 +128,7 @@ jobs:
           mkdir -p packages
           cd packages
           gh release download "$TAG" --pattern "*.nupkg"
-
+          test -n "$(find . -maxdepth 1 -name '*.nupkg' -print -quit)"
           ls -lh *.nupkg
 
       - name: Publish to NuGet
@@ -148,12 +160,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24.x"
           registry-url: "https://registry.npmjs.org"
 
       - name: Download common package from release
@@ -166,7 +178,8 @@ jobs:
           cd packages
           # Download only the common package (not webcore/bundler/node/RN)
           gh release download "$TAG" --pattern "json-eval-rs-common-*.tgz"
-          ls -lh *.tgz || echo "No common package found"
+          test -n "$(find . -maxdepth 1 -name 'json-eval-rs-common-*.tgz' -print -quit)"
+          ls -lh *.tgz
 
       - name: Publish common package to npm
         run: |
@@ -178,6 +191,7 @@ jobs:
           fi
           echo "Publishing: $(basename $PKG)"
           cd packages
+          npm publish "$(basename $PKG)" --access public --dry-run
           npm publish "$(basename $PKG)" --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -185,18 +199,20 @@ jobs:
   # Publish Web npm packages (download directly from release)
   publish-web:
     if: |
+      always() &&
       needs.check-workflow.outputs.should_run == 'true' &&
+      (needs.publish-common.result == 'success' || needs.publish-common.result == 'skipped') &&
       (github.event_name == 'workflow_run' || github.event.inputs.publish_web == 'true')
-    needs: [check-workflow]
+    needs: [check-workflow, publish-common]
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24.x"
           registry-url: "https://registry.npmjs.org"
 
       - name: Download web packages from release
@@ -214,7 +230,8 @@ jobs:
 
           echo ""
           echo "Downloaded packages:"
-          ls -lh *.tgz 2>/dev/null || echo "No .tgz files found"
+          test -n "$(find . -maxdepth 1 -name '*.tgz' -print -quit)"
+          ls -lh *.tgz
 
       - name: Publish web packages to npm
         run: |
@@ -222,7 +239,7 @@ jobs:
           ls -lh packages/
           echo ""
 
-          # Find and publish all web-related .tgz packages (core, bundler, node)
+          # Find and publish all web-related .tgz packages (webcore, bundler, node, vanilla)
           PUBLISHED=0
 
           # Change into packages directory to ensure npm treats paths as local files
@@ -259,6 +276,7 @@ jobs:
 
               # Publish (use ./ to force local file interpretation)
               echo "  🚀 Publishing to npm..."
+              npm publish "./$pkg" --access public --dry-run
               npm publish "./$pkg" --access public
               echo "  ✅ Published successfully"
               PUBLISHED=$((PUBLISHED + 1))
@@ -269,7 +287,7 @@ jobs:
             echo ""
             echo "❌ No web packages were published"
             echo ""
-            echo "Expected to find: @json-eval-rs/webcore, @json-eval-rs/bundler, @json-eval-rs/node"
+            echo "Expected to find: @json-eval-rs/webcore, @json-eval-rs/bundler, @json-eval-rs/node, @json-eval-rs/vanilla"
             echo "Available files in packages/:"
             ls -lh
             echo ""
@@ -286,18 +304,20 @@ jobs:
   # Publish React Native npm package (download directly from release)
   publish-react-native:
     if: |
+      always() &&
       needs.check-workflow.outputs.should_run == 'true' &&
+      (needs.publish-common.result == 'success' || needs.publish-common.result == 'skipped') &&
       (github.event_name == 'workflow_run' || github.event.inputs.publish_react_native == 'true')
-    needs: [check-workflow]
+    needs: [check-workflow, publish-common]
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "24.x"
           registry-url: "https://registry.npmjs.org"
 
       - name: Download React Native package from release
@@ -313,6 +333,7 @@ jobs:
 
           echo ""
           echo "Downloaded package:"
+          test -n "$(find . -maxdepth 1 -name '*react-native*.tgz' -print -quit)"
           ls -lh *react-native*.tgz
 
       - name: Inspect and publish React Native package
@@ -367,12 +388,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
+
+      - name: Validate crates.io package
+        run: cargo publish --dry-run
 
       - name: Publish to crates.io
         run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
