@@ -236,7 +236,10 @@ impl JSONEvalWasm {
     /// @param subformPath - Path to the subform
     /// @returns LayoutOverlayEntry array as JavaScript object
     #[wasm_bindgen(js_name = getResolvedLayoutSubform)]
-    pub fn get_resolved_layout_subform(&mut self, subform_path: &str) -> Result<JsValue, JsValue> {
+    pub fn get_resolved_layout_subform(
+        &mut self,
+        subform_path: &str,
+    ) -> Result<JsValue, JsValue> {
         let result = self.inner.get_resolved_layout_subform(subform_path);
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
@@ -250,9 +253,7 @@ impl JSONEvalWasm {
         &mut self,
         subform_path: &str,
     ) -> Result<JsValue, JsValue> {
-        let result = self
-            .inner
-            .get_evaluated_schema_resolved_subform(subform_path);
+        let result = self.inner.get_evaluated_schema_resolved_subform(subform_path);
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
@@ -261,8 +262,13 @@ impl JSONEvalWasm {
     /// @param subformPath - Path to the subform
     /// @returns Evaluated schema as JSON string
     #[wasm_bindgen(js_name = getEvaluatedSchemaSubform)]
-    pub fn get_evaluated_schema_subform(&mut self, subform_path: &str) -> String {
-        let result = self.inner.get_evaluated_schema_subform(subform_path);
+    pub fn get_evaluated_schema_subform(
+        &mut self,
+        subform_path: &str,
+    ) -> String {
+        let result = self
+            .inner
+            .get_evaluated_schema_subform(subform_path);
         serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string())
     }
 
@@ -275,7 +281,9 @@ impl JSONEvalWasm {
         &mut self,
         subform_path: &str,
     ) -> Result<JsValue, JsValue> {
-        let result = self.inner.get_evaluated_schema_subform(subform_path);
+        let result = self
+            .inner
+            .get_evaluated_schema_subform(subform_path);
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
@@ -323,7 +331,10 @@ impl JSONEvalWasm {
     /// @param subformPath - Path to the subform
     /// @returns Evaluated schema as JSON string
     #[wasm_bindgen(js_name = getEvaluatedSchemaWithoutParamsSubform)]
-    pub fn get_evaluated_schema_without_params_subform(&mut self, subform_path: &str) -> String {
+    pub fn get_evaluated_schema_without_params_subform(
+        &mut self,
+        subform_path: &str,
+    ) -> String {
         let result = self
             .inner
             .get_evaluated_schema_without_params_subform(subform_path);
@@ -372,10 +383,10 @@ impl JSONEvalWasm {
         subform_path: &str,
         schema_path: &str,
     ) -> Result<JsValue, JsValue> {
-        match self
-            .inner
-            .get_evaluated_schema_by_path_subform(subform_path, schema_path)
-        {
+        match self.inner.get_evaluated_schema_by_path_subform(
+            subform_path,
+            schema_path,
+        ) {
             Some(value) => super::to_value(&value).map_err(|e| JsValue::from_str(&e.to_string())),
             None => Ok(JsValue::NULL),
         }
@@ -601,7 +612,6 @@ impl JSONEvalWasm {
         &mut self,
         subform_path: &str,
     ) -> serde_json::Value {
-        self.inner
-            .get_evaluated_schema_resolved_subform(subform_path)
+        self.inner.get_evaluated_schema_resolved_subform(subform_path)
     }
 }

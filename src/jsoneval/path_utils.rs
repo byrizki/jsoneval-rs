@@ -106,7 +106,7 @@ pub fn schema_path_to_data_pointer(path: &str) -> Cow<'_, str> {
         s.push('/');
         s.push_str(part);
     }
-
+    
     if s.is_empty() {
         Cow::Borrowed("")
     } else {
@@ -243,11 +243,9 @@ pub fn canonicalize_schema_path(path: &str) -> Cow<'_, str> {
     }
 
     // If the path explicitly uses schema pointer semantics, just normalize delimiters
-    if clean_path.starts_with("properties/")
-        || clean_path.starts_with("properties.")
-        || clean_path.contains("/properties/")
-        || clean_path.contains(".properties.")
-    {
+    if clean_path.starts_with("properties/") || clean_path.starts_with("properties.")
+        || clean_path.contains("/properties/") || clean_path.contains(".properties.") {
+        
         let mut s = String::with_capacity(clean_path.len() + 1);
         s.push('/');
         for c in clean_path.chars() {

@@ -158,12 +158,14 @@ impl JSONEval {
             base_path
         };
 
-        let root_key =
-            crate::jsoneval::path_utils::get_value_by_pointer(&self.schema, schema_pointer)
-                .and_then(|node| node.get("itemsRootKey"))
-                .and_then(|v| v.as_str())
-                .unwrap_or(&original_field_key)
-                .to_string();
+        let root_key = crate::jsoneval::path_utils::get_value_by_pointer(
+            &self.schema,
+            schema_pointer,
+        )
+        .and_then(|node| node.get("itemsRootKey"))
+        .and_then(|v| v.as_str())
+        .unwrap_or(&original_field_key)
+        .to_string();
 
         // Step 1: update subform data and extract item snapshot for targeted diff.
         // Scoped block releases the mutable borrow on `self.subforms` before we touch
@@ -184,13 +186,15 @@ impl JSONEval {
             subform
                 .eval_data
                 .replace_data_and_context(data_value, context_value);
-            let mut new_item_val = subform.eval_data.data().get(&root_key).cloned();
+            let mut new_item_val = subform
+                .eval_data
+                .data()
+                .get(&root_key)
+                .cloned();
 
             // Fallback 1: Absolute data path extraction (e.g. for full form payload)
             if new_item_val.is_none() {
-                let array_path =
-                    crate::jsoneval::path_utils::schema_path_to_data_pointer(base_path)
-                        .into_owned();
+                let array_path = crate::jsoneval::path_utils::schema_path_to_data_pointer(base_path).into_owned();
                 let item_path = format!("{}/{}", array_path, idx);
                 new_item_val = subform.eval_data.get(&item_path).cloned();
             }
@@ -210,8 +214,7 @@ impl JSONEval {
             // The frontend sometimes only provides the active item root but leaves the
             // corresponding slot empty or stale in the parent array tree of the wrapper.
             // Formulas that aggregate over the parent array must see the active item.
-            let array_path =
-                crate::jsoneval::path_utils::schema_path_to_data_pointer(base_path).into_owned();
+            let array_path = crate::jsoneval::path_utils::schema_path_to_data_pointer(base_path).into_owned();
             let item_path = format!("{}/{}", array_path, idx);
             subform.eval_data.set(&item_path, new_item_val.clone());
 
@@ -269,7 +272,7 @@ impl JSONEval {
                 &format!("/{}", root_key),
                 &old_item_snapshot,
                 &new_item_val,
-                "with_item_cache_swap_diff_and_update_versions",
+                "with_item_cache_swap_diff_and_update_versions"
             );
             c.item_snapshot = new_item_val.clone();
         }
@@ -300,9 +303,7 @@ impl JSONEval {
                     .collect();
                 if !newly_bumped.is_empty() {
                     for k in newly_bumped {
-                        parent_cache
-                            .data_versions
-                            .bump(&k, "propagate_newly_bumped");
+                        parent_cache.data_versions.bump(&k, "propagate_newly_bumped");
                     }
                     parent_cache.eval_generation += 1;
                 }
@@ -728,7 +729,10 @@ impl JSONEval {
     }
 
     /// Get evaluated schema from subform.
-    pub fn get_evaluated_schema_subform(&mut self, subform_path: &str) -> Value {
+    pub fn get_evaluated_schema_subform(
+        &mut self,
+        subform_path: &str,
+    ) -> Value {
         let (base_path, idx_opt) = self.resolve_subform_path_alias(subform_path);
 
         if let Some(idx) = idx_opt {
@@ -783,7 +787,10 @@ impl JSONEval {
     }
 
     /// Get evaluated schema without $params from subform.
-    pub fn get_evaluated_schema_without_params_subform(&mut self, subform_path: &str) -> Value {
+    pub fn get_evaluated_schema_without_params_subform(
+        &mut self,
+        subform_path: &str,
+    ) -> Value {
         let (base_path, _) = self.resolve_subform_path_alias(subform_path);
         if let Some(subform) = self.subforms.get_mut(base_path.as_ref() as &str) {
             subform.get_evaluated_schema_without_params()
@@ -800,7 +807,10 @@ impl JSONEval {
     ) -> Option<Value> {
         let (base_path, _) = self.resolve_subform_path_alias(subform_path);
         self.subforms.get_mut(base_path.as_ref() as &str).map(|sf| {
-            sf.get_evaluated_schema_by_paths(&[schema_path.to_string()], Some(ReturnFormat::Nested))
+            sf.get_evaluated_schema_by_paths(
+                &[schema_path.to_string()],
+                Some(ReturnFormat::Nested),
+            )
         })
     }
 
@@ -856,7 +866,10 @@ impl JSONEval {
     }
 
     /// Get resolved layout overlay entries for subform.
-    pub fn get_resolved_layout_subform(&mut self, subform_path: &str) -> ResolvedLayoutResult {
+    pub fn get_resolved_layout_subform(
+        &mut self,
+        subform_path: &str,
+    ) -> ResolvedLayoutResult {
         let (base_path, _) = self.resolve_subform_path_alias(subform_path);
         if let Some(subform) = self.subforms.get_mut(base_path.as_ref() as &str) {
             subform.get_resolved_layout()
@@ -866,7 +879,10 @@ impl JSONEval {
     }
 
     /// Get evaluated schema with layout fully resolved for subform.
-    pub fn get_evaluated_schema_resolved_subform(&mut self, subform_path: &str) -> Value {
+    pub fn get_evaluated_schema_resolved_subform(
+        &mut self,
+        subform_path: &str,
+    ) -> Value {
         let (base_path, _) = self.resolve_subform_path_alias(subform_path);
         if let Some(subform) = self.subforms.get_mut(base_path.as_ref() as &str) {
             subform.get_evaluated_schema_resolved()

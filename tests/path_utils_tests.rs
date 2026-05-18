@@ -81,16 +81,12 @@ fn test_dot_notation_to_schema_pointer() {
 
     // Explicit schema pointer with schema keywords should be preserved
     assert_eq!(
-        dot_notation_to_schema_pointer(
-            "illustration.properties.header.properties.app_version.value"
-        ),
+        dot_notation_to_schema_pointer("illustration.properties.header.properties.app_version.value"),
         "#/illustration/properties/header/properties/app_version/value"
     );
 
     assert_eq!(
-        dot_notation_to_schema_pointer(
-            "illustration.properties.header.properties.app_version.type"
-        ),
+        dot_notation_to_schema_pointer("illustration.properties.header.properties.app_version.type"),
         "#/illustration/properties/header/properties/app_version/type"
     );
 }

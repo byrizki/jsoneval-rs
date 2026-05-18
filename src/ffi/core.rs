@@ -572,9 +572,7 @@ pub unsafe extern "C" fn json_eval_new_from_cache_with_error(
             if !error_out.is_null() {
                 let error_msg = format!("Failed to create JSONEval from cache: {}", e);
                 *error_out = CString::new(error_msg)
-                    .unwrap_or_else(|_| {
-                        CString::new("Failed to create JSONEval from cache").unwrap()
-                    })
+                    .unwrap_or_else(|_| CString::new("Failed to create JSONEval from cache").unwrap())
                     .into_raw();
             }
             ptr::null_mut()

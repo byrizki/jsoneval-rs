@@ -92,8 +92,7 @@ fn evaluate_table_inner(
     });
 
     let mut external_deps = indexmap::IndexSet::new();
-    let pointer_data_prefix =
-        crate::jsoneval::path_utils::schema_path_to_data_pointer(&table_pointer_path).into_owned();
+    let pointer_data_prefix = crate::jsoneval::path_utils::schema_path_to_data_pointer(&table_pointer_path).into_owned();
     let pointer_data_prefix_slash = format!("{}/", pointer_data_prefix);
     if let Some(deps) = lib.dependencies.get(eval_key) {
         for dep in deps {

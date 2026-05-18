@@ -131,12 +131,16 @@ fn test_parsed_schema_reuse_multiple_evaluators() {
         .expect("Failed to evaluate eval2");
 
     assert_eq!(
-        eval1.get_evaluated_schema().pointer("/properties/result"),
+        eval1
+            .get_evaluated_schema()
+            .pointer("/properties/result"),
         Some(&json!(20)) // 10 * 2
     );
 
     assert_eq!(
-        eval2.get_evaluated_schema().pointer("/properties/result"),
+        eval2
+            .get_evaluated_schema()
+            .pointer("/properties/result"),
         Some(&json!(50)) // 25 * 2
     );
 }

@@ -75,11 +75,7 @@ impl JSONEval {
     ///
     /// The resolved element is a "full tree" — $ref expanded, metadata injected,
     /// nested elements arrays also resolved. Used for parent condition cascade.
-    fn resolve_element_ref_recursive(
-        &self,
-        element: Value,
-        _path_context: &str,
-    ) -> (Value, String) {
+    fn resolve_element_ref_recursive(&self, element: Value, _path_context: &str) -> (Value, String) {
         // Resolve this element's $ref
         let (mut resolved, ref_path) = self.resolve_element_ref(element);
 
@@ -106,10 +102,7 @@ impl JSONEval {
             Value::Object(mut map) => {
                 let has_ref = map.get("$ref").is_some();
                 let ref_path = if has_ref {
-                    map.get("$ref")
-                        .and_then(Value::as_str)
-                        .unwrap_or("")
-                        .to_string()
+                    map.get("$ref").and_then(Value::as_str).unwrap_or("").to_string()
                 } else {
                     String::new()
                 };
@@ -119,7 +112,8 @@ impl JSONEval {
                     let normalized_path = if ref_str.starts_with('#') || ref_str.starts_with('/') {
                         path_utils::normalize_to_json_pointer(&ref_str).into_owned()
                     } else {
-                        let schema_pointer = path_utils::dot_notation_to_schema_pointer(&ref_str);
+                        let schema_pointer =
+                            path_utils::dot_notation_to_schema_pointer(&ref_str);
                         let schema_path =
                             path_utils::normalize_to_json_pointer(&schema_pointer).into_owned();
 
@@ -139,15 +133,13 @@ impl JSONEval {
                     map.insert("$path".to_string(), Value::String(last_segment.to_string()));
                     map.insert("$parentHide".to_string(), Value::Bool(false));
 
-                    if let Some(referenced_value) = self.evaluated_schema.pointer(&normalized_path)
-                    {
+                    if let Some(referenced_value) = self.evaluated_schema.pointer(&normalized_path) {
                         let resolved = referenced_value.clone();
 
                         if let Value::Object(mut resolved_map) = resolved {
                             map.remove("$ref");
 
-                            if let Some(Value::Object(layout_obj)) = resolved_map.remove("$layout")
-                            {
+                            if let Some(Value::Object(layout_obj)) = resolved_map.remove("$layout") {
                                 let mut result = layout_obj.clone();
                                 for (key, value) in resolved_map {
                                     if key != "type" || !result.contains_key("type") {
@@ -203,14 +195,7 @@ impl JSONEval {
                 // - $ref: handled by compact schema
                 // - elements: handled by child overlays
                 // - properties/items/required: schema structure, not layout
-                const EXCLUDED: &[&str] = &[
-                    "$ref",
-                    "elements",
-                    "properties",
-                    "items",
-                    "required",
-                    "additionalProperties",
-                ];
+                const EXCLUDED: &[&str] = &["$ref", "elements", "properties", "items", "required", "additionalProperties"];
                 for (key, value) in map {
                     if !EXCLUDED.contains(&key.as_str()) {
                         overlay.insert(key.clone(), value.clone());
@@ -223,8 +208,7 @@ impl JSONEval {
                         // $ref element: use the actual schema ref target dotted path
                         let last_segment = ref_path.split('.').last().unwrap_or(ref_path);
                         overlay.insert("$fullpath".to_string(), Value::String(ref_path.clone()));
-                        overlay
-                            .insert("$path".to_string(), Value::String(last_segment.to_string()));
+                        overlay.insert("$path".to_string(), Value::String(last_segment.to_string()));
                     } else {
                         // Non-$ref (inline layout container): build a clean positional path by
                         // stripping the structural /$layout/elements suffix from layout_path
@@ -238,8 +222,7 @@ impl JSONEval {
                         } else {
                             format!("{}.{}", base, element_idx)
                         };
-                        let last_segment =
-                            fullpath.split('.').last().unwrap_or(&fullpath).to_string();
+                        let last_segment = fullpath.split('.').last().unwrap_or(&fullpath).to_string();
                         overlay.insert("$fullpath".to_string(), Value::String(fullpath));
                         overlay.insert("$path".to_string(), Value::String(last_segment));
                     }
@@ -271,10 +254,9 @@ impl JSONEval {
                         }
                     }
                 }
-
+                
                 // Only show condition cascade if parent has state OR element has state
-                let show_condition_cascade =
-                    parent_hidden || parent_disabled || element_hidden || element_disabled;
+                let show_condition_cascade = parent_hidden || parent_disabled || element_hidden || element_disabled;
 
                 // $parentHide already set above
 
@@ -299,12 +281,12 @@ impl JSONEval {
                     if (parent_hidden || element_hidden)
                         && (element.get("hideLayout").is_some() || element.get("type").is_some())
                     {
-                        let mut hide_layout =
-                            if let Some(Value::Object(h)) = element.get("hideLayout") {
-                                h.clone()
-                            } else {
-                                serde_json::Map::new()
-                            };
+                        let mut hide_layout = if let Some(Value::Object(h)) = element.get("hideLayout")
+                        {
+                            h.clone()
+                        } else {
+                            serde_json::Map::new()
+                        };
                         hide_layout.insert("all".to_string(), Value::Bool(true));
                         overlay.insert("hideLayout".to_string(), Value::Object(hide_layout));
                     }
@@ -317,8 +299,7 @@ impl JSONEval {
                         .iter()
                         .map(|c| {
                             if let Value::Object(m) = c {
-                                (
-                                    c.clone(),
+                                (c.clone(),
                                     m.get("$fullpath")
                                         .and_then(Value::as_str)
                                         .unwrap_or("")
@@ -329,13 +310,9 @@ impl JSONEval {
                             }
                         })
                         .collect();
-
-                    let child_layout_path = format!(
-                        "{}/{}/elements",
-                        layout_path.trim_end_matches('/'),
-                        element_idx
-                    );
-
+                    
+                    let child_layout_path = format!("{}/{}/elements", layout_path.trim_end_matches('/'), element_idx);
+                    
                     // Recurse into children with element_hidden/element_disabled as parent state
                     let child_overlays = Self::tree_to_overlays(
                         &child_tree,

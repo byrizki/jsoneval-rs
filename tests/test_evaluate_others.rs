@@ -1,4 +1,4 @@
-use json_eval_rs::{jsoneval::types::LayoutOverlayEntry, JSONEval};
+use json_eval_rs::{JSONEval, jsoneval::types::LayoutOverlayEntry};
 use serde_json::json;
 
 /// Get a nested value from a JSON value using a JSON pointer path.
@@ -118,6 +118,7 @@ fn test_options_url_dynamic_template_evaluation() {
     let data_str = serde_json::to_string(&data).unwrap();
     eval.evaluate(&data_str, None, None, None).unwrap();
 
+    
     let mut evaluated = eval.get_evaluated_schema();
     let overlay_entries = eval.get_resolved_layout();
     merge_layout_overlay(&mut evaluated, &overlay_entries);
@@ -742,21 +743,15 @@ fn test_multiple_options_templates_in_schema() {
     merge_layout_overlay(&mut evaluated, &overlay_entries);
 
     assert_eq!(
-        evaluated
-            .pointer("/properties/users/options/url")
-            .and_then(|v| v.as_str()),
+        evaluated.pointer("/properties/users/options/url").and_then(|v| v.as_str()),
         Some("/api/users/42")
     );
     assert_eq!(
-        evaluated
-            .pointer("/properties/posts/options/url")
-            .and_then(|v| v.as_str()),
+        evaluated.pointer("/properties/posts/options/url").and_then(|v| v.as_str()),
         Some("/api/posts/100/comments/5")
     );
     assert_eq!(
-        evaluated
-            .pointer("/properties/static/options/url")
-            .and_then(|v| v.as_str()),
+        evaluated.pointer("/properties/static/options/url").and_then(|v| v.as_str()),
         Some("/api/static")
     );
 }

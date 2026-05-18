@@ -37,24 +37,15 @@ fn test_repro_missing_properties_with_layout() {
     // Use get_evaluated_schema_resolved to get resolved layout
     let evaluated = je.get_evaluated_schema_resolved();
 
-    eprintln!(
-        "Evaluated schema: {}",
-        serde_json::to_string_pretty(&evaluated).unwrap()
-    );
-    eprintln!(
-        "Layout path exists: {:?}",
-        evaluated.pointer("/$layout/elements/0")
-    );
+    eprintln!("Evaluated schema: {}", serde_json::to_string_pretty(&evaluated).unwrap());
+    eprintln!("Layout path exists: {:?}", evaluated.pointer("/$layout/elements/0"));
 
     // The resolved element should be at /$layout/elements/0
     let element = evaluated
         .pointer("/$layout/elements/0")
         .expect("Element not found");
 
-    eprintln!(
-        "Element: {}",
-        serde_json::to_string_pretty(element).unwrap()
-    );
+    eprintln!("Element: {}", serde_json::to_string_pretty(element).unwrap());
 
     let props = element.get("properties");
 

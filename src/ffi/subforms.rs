@@ -477,8 +477,11 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_by_paths_subform(
         _ => crate::ReturnFormat::Nested,
     };
 
-    let result =
-        eval.get_evaluated_schema_by_paths_subform(subform_str, &paths, Some(return_format));
+    let result = eval.get_evaluated_schema_by_paths_subform(
+        subform_str,
+        &paths,
+        Some(return_format),
+    );
     let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
     FFIResult::success(result_bytes)
 }

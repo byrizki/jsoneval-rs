@@ -1,8 +1,8 @@
 use super::JSONEval;
 use crate::jsoneval::path_utils;
 use crate::jsoneval::types::{ResolvedLayoutResult, ReturnFormat};
-use crate::time_block;
 use crate::utils::clean_float_noise_scalar;
+use crate::time_block;
 use serde_json::Value;
 use std::sync::Arc;
 
@@ -118,6 +118,7 @@ impl JSONEval {
         }
     }
 
+
     /// Get the evaluated schema (compact — $ref intact, no layout expansion).
     ///
     /// # Returns
@@ -172,18 +173,14 @@ impl JSONEval {
                 overlay: indexmap::IndexMap<String, Value>,
             }
 
-            let mut entries: Vec<ResolveEntry> = overlays
-                .iter()
-                .map(|entry| {
-                    let layout_path =
-                        path_utils::normalize_to_json_pointer(&entry.layout_path).into_owned();
-                    ResolveEntry {
-                        layout_path,
-                        element_idx: entry.element_idx,
-                        overlay: entry.overlay.clone(),
-                    }
-                })
-                .collect();
+            let mut entries: Vec<ResolveEntry> = overlays.iter().map(|entry| {
+                let layout_path = path_utils::normalize_to_json_pointer(&entry.layout_path).into_owned();
+                ResolveEntry {
+                    layout_path,
+                    element_idx: entry.element_idx,
+                    overlay: entry.overlay.clone(),
+                }
+            }).collect();
             drop(overlays);
 
             // Sort entries shallow-first so parent elements are expanded before their children.
@@ -192,9 +189,7 @@ impl JSONEval {
             entries.sort_by(|a, b| {
                 let depth_a = a.layout_path.matches('/').count();
                 let depth_b = b.layout_path.matches('/').count();
-                depth_a
-                    .cmp(&depth_b)
-                    .then_with(|| a.element_idx.cmp(&b.element_idx))
+                depth_a.cmp(&depth_b).then_with(|| a.element_idx.cmp(&b.element_idx))
             });
 
             // ── Phase 2 (mutable): resolve $ref + apply overlays (parent-first order) ──
@@ -212,8 +207,7 @@ impl JSONEval {
                         path_utils::normalize_to_json_pointer(ref_str).into_owned()
                     } else {
                         let schema_pointer = path_utils::dot_notation_to_schema_pointer(ref_str);
-                        let normalized =
-                            path_utils::normalize_to_json_pointer(&schema_pointer).into_owned();
+                        let normalized = path_utils::normalize_to_json_pointer(&schema_pointer).into_owned();
                         if schema.pointer(&normalized).is_some() {
                             normalized
                         } else {
@@ -720,8 +714,7 @@ impl JSONEval {
 
         // Build the JSON pointer path to the /options node (strip leading # for serde pointer())
         let options_schema_key = format!("{}/options", schema_ptr);
-        let options_pointer =
-            path_utils::normalize_to_json_pointer(&options_schema_key).into_owned();
+        let options_pointer = path_utils::normalize_to_json_pointer(&options_schema_key).into_owned();
 
         // Check if the options node exists in the evaluated schema
         let options_node = self.evaluated_schema.pointer(&options_pointer)?.clone();
@@ -747,9 +740,9 @@ impl JSONEval {
         }
 
         // Check options_templates for a URL template at this field's options/url path
-        let url_pointer =
-            path_utils::normalize_to_json_pointer(&format!("{}/options/url", schema_ptr))
-                .into_owned();
+        let url_pointer = path_utils::normalize_to_json_pointer(
+            &format!("{}/options/url", schema_ptr)
+        ).into_owned();
 
         let templates = self.options_templates.clone();
         for (tmpl_url_path, tmpl_str, tmpl_params_path) in templates.iter() {

@@ -544,8 +544,8 @@ fn test_nested_subform_key() {
     assert!(eval.has_subform("#/properties/form/properties/riders"));
 
     // Get schema without params
-    let schema_without_params =
-        eval.get_evaluated_schema_without_params_subform("#/properties/form/properties/riders");
+    let schema_without_params = eval
+        .get_evaluated_schema_without_params_subform("#/properties/form/properties/riders");
 
     // Should have "riders" key instead of "properties/form/properties/riders"
     assert!(
