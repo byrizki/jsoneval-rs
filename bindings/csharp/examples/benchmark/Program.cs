@@ -108,7 +108,7 @@ namespace JsonEvalBenchmark
             // Determine library name based on platform
             string libName = GetLibraryFileName("json_eval_rs");
             string libSource = Path.Combine(_projectRoot!, "target", "release", libName);
-            string libDest = Path.Combine(_projectRoot!, "bindings", "csharp-example", "bin", "Release", "net8.0", libName);
+            string libDest = Path.Combine(_projectRoot!, "bindings", "csharp", "examples", "benchmark", "bin", "Release", "net10.0", libName);
             
             Console.WriteLine($"📋 Ensuring library is accessible ({libName})...");
             if (File.Exists(libSource))

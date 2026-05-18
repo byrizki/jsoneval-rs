@@ -43,6 +43,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="examples/**" />
+    <EmbeddedResource Remove="examples/**" />
+    <None Remove="examples/**" />
+    <Content Remove="examples/**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
     <None Include="icon.png" Pack="true" PackagePath="/" Condition="Exists('icon.png')" />
     <None Include="JsonEvalRs.targets" Pack="true" PackagePath="build/" />

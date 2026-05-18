@@ -12,14 +12,14 @@ This project benchmarks the C# bindings for the JSON Eval RS library using the Z
 
 ## Requirements
 
-- .NET 8.0 SDK or later
-- JsonEvalRs C# library (referenced from `../csharp`)
+- .NET 10.0 SDK or later
+- JsonEvalRs C# library (referenced from `../../JsonEvalRs.csproj`)
 - Native Rust library (json_eval_rs.dll/.so/.dylib)
 
 ## Building
 
 ```bash
-cd bindings/csharp-example
+cd bindings/csharp/examples/benchmark
 dotnet build --configuration Release
 ```
 
@@ -38,17 +38,13 @@ dotnet run --configuration Release -- <scenario_name>
 ## Project Structure
 
 ```
-csharp-example/
+bindings/csharp/examples/benchmark/
 ├── JsonEvalBenchmark.csproj   # Project file
-├── Program.cs                  # Main benchmark code
-├── README.md                   # This file
-└── samples/                    # Output directory (created at runtime)
-    ├── zcc.json               # Schema file (copied from ../../samples)
-    ├── zcc-data.json          # Input data (copied from ../../samples)
-    ├── zcc-evaluated-schema.json      # Generated output
-    ├── zcc-parsed-schema.json         # Generated output
-    └── zcc-sorted-evaluations.json    # Generated output
+├── Program.cs                 # Main benchmark code
+└── README.md                  # This file
 ```
+
+Runtime outputs are written under repository-level `samples/`.
 
 ## Benchmark Metrics
 
@@ -126,7 +122,7 @@ The C# binding adds a small overhead due to:
 
 ### Rust (Native)
 ```bash
-cd ../..
+cd ../../../..
 cargo run --release -- zcc
 ```
 
@@ -155,7 +151,7 @@ Typical results:
 
 **Solution**: Build the native library first:
 ```bash
-cd ../..
+cd ../../../..
 cargo build --release
 ```
 
@@ -170,11 +166,11 @@ The library will be in:
 
 **Solution**: Ensure schema files exist:
 ```bash
-ls ../../samples/zcc.json
-ls ../../samples/zcc-data.json
+ls ../../../../samples/zcc.json
+ls ../../../../samples/zcc-data.json
 ```
 
-The project automatically copies these files to the output directory during build.
+When these files exist, the project copies them to the output directory during build.
 
 ### Version Mismatch
 
@@ -191,8 +187,8 @@ Console.WriteLine(JSONEval.Version); // Should match Cargo.toml version
 
 To benchmark a custom schema:
 
-1. Place your schema in `../../samples/yourschema.json`
-2. Place your data in `../../samples/yourschema-data.json`
+1. Place your schema in repository-level `samples/yourschema.json`
+2. Place your data in repository-level `samples/yourschema-data.json`
 3. Run: `dotnet run --configuration Release -- yourschema`
 
 ### Multiple Runs

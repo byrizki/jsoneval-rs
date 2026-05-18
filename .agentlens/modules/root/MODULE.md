@@ -8,7 +8,7 @@
 
 | File | Lines | Large |
 | ---- | ----- | ----- |
-| `bindings/csharp-example/Program.cs` | 618 | 📊 |
+| `bindings/csharp/examples/benchmark/Program.cs` | 618 | 📊 |
 | `bindings/react-native/packages/react-native/android/src/main/cpp/json-eval-rn.cpp` | 938 | 📊 |
 | `bindings/react-native/packages/react-native/ios/JsonEvalRs.h` | 5 |  |
 | `bindings/react-native/packages/react-native/lib/typescript/src/index.d.ts` | 452 |  |

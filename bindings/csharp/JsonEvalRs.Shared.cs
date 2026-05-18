@@ -1,3 +1,4 @@
+// Shared DTOs and exceptions used by public JsonEvalRs APIs.
 using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;

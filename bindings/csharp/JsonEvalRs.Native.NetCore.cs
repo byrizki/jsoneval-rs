@@ -1,3 +1,4 @@
+// Native P/Invoke declarations for .NET Core / .NET 5+ targets.
 #if NETCOREAPP || NET5_0_OR_GREATER
 using System;
 using System.Collections.Generic;

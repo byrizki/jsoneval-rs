@@ -1,3 +1,4 @@
+// Native P/Invoke declarations and UTF-8 helpers for .NET Standard targets.
 #if !NETCOREAPP && !NET5_0_OR_GREATER
 using System;
 using System.Runtime.InteropServices;
