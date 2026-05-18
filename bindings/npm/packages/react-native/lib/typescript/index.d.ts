@@ -1,6 +1,6 @@
-import { type JSONEvalOptions, type EvaluateOptions, type EvaluateDependentsOptions, type EvaluateSubformOptions, type ValidateSubformOptions, type EvaluateDependentsSubformOptions, type ResolveLayoutSubformOptions, type GetEvaluatedSchemaSubformOptions, type GetSchemaValueSubformOptions, type GetEvaluatedSchemaByPathSubformOptions, type GetEvaluatedSchemaByPathsSubformOptions, type GetSchemaByPathSubformOptions, type GetSchemaByPathsSubformOptions, type ValidationResult, type DependentChange, type SchemaValueItem, type ValidatePathsOptions, ReturnFormat } from '@json-eval-rs/common';
+import { type JSONEvalOptions, type EvaluateOptions, type EvaluateDependentsOptions, type LayoutOverlayEntry, type EvaluateSubformOptions, type ValidateSubformOptions, type EvaluateDependentsSubformOptions, type ResolveLayoutSubformOptions, type GetEvaluatedSchemaSubformOptions, type GetSchemaValueSubformOptions, type GetEvaluatedSchemaByPathSubformOptions, type GetEvaluatedSchemaByPathsSubformOptions, type GetSchemaByPathSubformOptions, type GetSchemaByPathsSubformOptions, type ValidationResult, type DependentChange, type SchemaValueItem, type ValidatePathsOptions, ReturnFormat } from '@json-eval-rs/common';
 export { ReturnFormat } from '@json-eval-rs/common';
-export type { SchemaValueItem, ValidationResult, DependentChange, ValidationError, JSONEvalOptions, EvaluateOptions, EvaluateDependentsOptions, EvaluateSubformOptions, ValidateSubformOptions, EvaluateDependentsSubformOptions, ResolveLayoutSubformOptions, GetEvaluatedSchemaSubformOptions, GetSchemaValueSubformOptions, GetEvaluatedSchemaByPathSubformOptions, GetEvaluatedSchemaByPathsSubformOptions, GetSchemaByPathSubformOptions, GetSchemaByPathsSubformOptions, } from '@json-eval-rs/common';
+export type { LayoutOverlayEntry, SchemaValueItem, ValidationResult, DependentChange, ValidationError, JSONEvalOptions, EvaluateOptions, EvaluateDependentsOptions, EvaluateSubformOptions, ValidateSubformOptions, EvaluateDependentsSubformOptions, ResolveLayoutSubformOptions, GetEvaluatedSchemaSubformOptions, GetSchemaValueSubformOptions, GetEvaluatedSchemaByPathSubformOptions, GetEvaluatedSchemaByPathsSubformOptions, GetSchemaByPathSubformOptions, GetSchemaByPathsSubformOptions, } from '@json-eval-rs/common';
 /**
  * High-performance JSON Logic evaluator with schema validation for React Native
  *
@@ -141,12 +141,23 @@ export declare class JSONEval {
      */
     evaluateDependentsString(options: EvaluateDependentsOptions): Promise<string>;
     /**
-     * Get the evaluated schema with optional layout resolution
-     * @param skipLayout - Whether to skip layout resolution (default: false)
+     * Get the evaluated schema (compact, without $layout resolution)
      * @returns Promise resolving to evaluated schema object
      * @throws {Error} If operation fails
      */
     getEvaluatedSchema(): Promise<any>;
+    /**
+     * Get resolved layout overlay entries
+     * @returns Promise resolving to array of overlay entries
+     * @throws {Error} If operation fails
+     */
+    getResolvedLayout(): Promise<LayoutOverlayEntry[]>;
+    /**
+     * Get evaluated schema with layout fully resolved
+     * @returns Promise resolving to evaluated schema with layout applied
+     * @throws {Error} If operation fails
+     */
+    getEvaluatedSchemaResolved(): Promise<any>;
     /**
      * Get all schema values (evaluations ending with .value)
      * @returns Promise resolving to map of path -> value
@@ -168,25 +179,22 @@ export declare class JSONEval {
      */
     getSchemaValueObject(): Promise<Record<string, any>>;
     /**
-     * Get the evaluated schema without $params field
-     * @param skipLayout - Whether to skip layout resolution (default: false)
+     * Get the evaluated schema without $params field (compact)
      * @returns Promise resolving to evaluated schema object
      * @throws {Error} If operation fails
      */
     getEvaluatedSchemaWithoutParams(): Promise<any>;
     /**
-     * Get a value from the evaluated schema using dotted path notation
+     * Get a value from the evaluated schema using dotted path notation (compact)
      * @param path - Dotted path to the value (e.g., "properties.field.value")
-     * @param skipLayout - Whether to skip layout resolution
      * @returns Promise resolving to the value at the path, or null if not found
      * @throws {Error} If operation fails
      */
     getEvaluatedSchemaByPath(path: string): Promise<any | null>;
     /**
-     * Get values from the evaluated schema using multiple dotted path notations
+     * Get values from the evaluated schema using multiple dotted path notations (compact)
      * Returns data in the specified format (skips paths that are not found)
      * @param paths - Array of dotted paths to retrieve
-     * @param skipLayout - Whether to skip layout resolution
      * @param format - Return format (Nested, Flat, or Array)
      * @returns Promise resolving to data in the specified format
      * @throws {Error} If operation fails
@@ -208,6 +216,19 @@ export declare class JSONEval {
      * @throws {Error} If operation fails
      */
     getSchemaByPaths(paths: string[], format?: ReturnFormat): Promise<any>;
+    /**
+     * Evaluate and return the options for a specific field on demand.
+     *
+     * The field is identified by `fieldPath`, which can be:
+     * - Dotted notation: `"form.occupation"`
+     * - JSON pointer: `"/properties/form/properties/occupation"`
+     * - Schema ref: `"#/properties/form/properties/occupation"`
+     *
+     * @param fieldPath - Field path identifying which field's options to retrieve
+     * @returns Promise resolving to the resolved options (array or URL string), or null if none
+     * @throws {Error} If operation fails
+     */
+    getFieldOptions(fieldPath: string): Promise<any | null>;
     /**
      * Reload schema with new data
      * @param options - Configuration options with new schema, context, and data
@@ -233,7 +254,7 @@ export declare class JSONEval {
     /**
      * Resolve layout with optional evaluation
      * @param evaluate - If true, runs evaluation before resolving layout (default: false)
-     * @returns Promise that resolves when layout resolution is complete
+     * @returns Promise resolving to array of layout overlay entries
      * @throws {Error} If operation fails
      */
     resolveLayout(evaluate?: boolean): Promise<LayoutOverlayEntry[]>;
@@ -328,13 +349,27 @@ export declare class JSONEval {
     /**
      * Resolve layout for subform
      * @param options - Options including subform path and evaluate flag
-     * @returns Promise that resolves when layout is resolved
+     * @returns Promise resolving to array of layout overlay entries
      * @throws {Error} If layout resolution fails
      */
-    resolveLayoutSubform(options: ResolveLayoutSubformOptions): Promise<void>;
+    resolveLayoutSubform(options: ResolveLayoutSubformOptions): Promise<LayoutOverlayEntry[]>;
     /**
-     * Get evaluated schema from subform
-     * @param options - Options including subform path and resolveLayout flag
+     * Get resolved layout overlay entries for subform
+     * @param options - Options including subform path
+     * @returns Promise resolving to array of layout overlay entries
+     * @throws {Error} If operation fails
+     */
+    getResolvedLayoutSubform(options: GetEvaluatedSchemaSubformOptions): Promise<LayoutOverlayEntry[]>;
+    /**
+     * Get evaluated schema with layout fully resolved for subform
+     * @param options - Options including subform path
+     * @returns Promise resolving to evaluated schema with layout applied
+     * @throws {Error} If operation fails
+     */
+    getEvaluatedSchemaResolvedSubform(options: GetEvaluatedSchemaSubformOptions): Promise<any>;
+    /**
+     * Get evaluated schema from subform (compact, without $layout resolution)
+     * @param options - Options including subform path
      * @returns Promise resolving to evaluated schema
      * @throws {Error} If operation fails
      */
@@ -363,23 +398,23 @@ export declare class JSONEval {
      */
     getSchemaValueObjectSubform(options: GetSchemaValueSubformOptions): Promise<Record<string, any>>;
     /**
-     * Get evaluated schema without $params from subform
-     * @param options - Options including subform path and resolveLayout flag
+     * Get evaluated schema without $params from subform (compact)
+     * @param options - Options including subform path
      * @returns Promise resolving to evaluated schema without $params
      * @throws {Error} If operation fails
      */
     getEvaluatedSchemaWithoutParamsSubform(options: GetEvaluatedSchemaSubformOptions): Promise<any>;
     /**
-     * Get evaluated schema by specific path from subform
-     * @param options - Options including subform path, schema path, and skipLayout flag
+     * Get evaluated schema by specific path from subform (compact)
+     * @param options - Options including subform path and schema path
      * @returns Promise resolving to value at path or null if not found
      * @throws {Error} If operation fails
      */
     getEvaluatedSchemaByPathSubform(options: GetEvaluatedSchemaByPathSubformOptions): Promise<any | null>;
     /**
-     * Get evaluated schema by multiple paths from subform
+     * Get evaluated schema by multiple paths from subform (compact)
      * Returns data in the specified format (skips paths that are not found)
-     * @param options - Options including subform path, array of schema paths, skipLayout flag, and format
+     * @param options - Options including subform path, array of schema paths, and format
      * @returns Promise resolving to data in the specified format
      * @throws {Error} If operation fails
      */
