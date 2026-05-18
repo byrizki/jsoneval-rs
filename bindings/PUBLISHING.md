@@ -19,8 +19,8 @@ Before publishing any package, ensure:
 All packages should maintain the same version number:
 - Rust crate: `Cargo.toml`
 - C# package: `JsonEvalRs.csproj`
-- Web package: `bindings/web/package.json`
-- React Native package: `bindings/react-native/package.json`
+- Web package: `bindings/npm/package.json`
+- React Native package: `bindings/npm/package.json`
 
 Update all simultaneously when releasing.
 
@@ -120,18 +120,18 @@ dotnet nuget push bin/Release/JsonEvalRs.0.0.1.snupkg \
 
 ```bash
 # Build for web
-wasm-pack build --target web --out-dir bindings/web/pkg --features wasm
+wasm-pack build --target web --out-dir bindings/npm/packages/vanilla/pkg --features wasm
 
 # Build for Node.js
-wasm-pack build --target nodejs --out-dir bindings/web/pkg-node --features wasm
+wasm-pack build --target nodejs --out-dir bindings/npm/packages/node/pkg --features wasm
 
 # Build for bundlers
-wasm-pack build --target bundler --out-dir bindings/web/pkg-bundler --features wasm
+wasm-pack build --target bundler --out-dir bindings/npm/packages/bundler/pkg --features wasm
 ```
 
 #### 2.2. Update Package Metadata
 
-Edit `bindings/web/package.json`:
+Edit `bindings/npm/package.json`:
 
 ```json
 {
@@ -144,7 +144,7 @@ Edit `bindings/web/package.json`:
 #### 2.3. Test Package Locally
 
 ```bash
-cd bindings/web
+cd bindings/npm
 
 # Run local tests
 npm test
@@ -154,7 +154,7 @@ npm pack
 
 # Install locally in test project
 cd /path/to/test/project
-yarn install /path/to/json-eval-rs/bindings/web/json-eval-rs-web-0.0.1.tgz
+yarn install /path/to/json-eval-rs/bindings/npm/packages/bundler/json-eval-rs-bundler-0.0.1.tgz
 ```
 
 #### 2.4. Login to npm
@@ -168,7 +168,7 @@ Enter your credentials.
 #### 2.5. Publish to npm
 
 ```bash
-cd bindings/web
+cd bindings/npm
 
 # Publish with public access
 npm publish --access public
@@ -184,7 +184,7 @@ If you want separate packages for different targets:
 
 ```bash
 # Publish web version
-cd bindings/web/pkg
+cd bindings/npm/packages/vanilla/pkg
 npm publish --access public
 
 # Publish Node.js version
@@ -209,7 +209,7 @@ npm publish --access public
 # Android (requires cargo-ndk)
 cargo install cargo-ndk
 cargo ndk -t arm64-v8a -t armeabi-v7a -t x86 -t x86_64 \
-  -o bindings/react-native/android/src/main/jniLibs \
+  -o bindings/npm/packages/react-native/android/src/main/jniLibs \
   build --release --features ffi
 
 # iOS (requires macOS)
@@ -221,12 +221,12 @@ cargo build --release --features ffi --target aarch64-apple-ios-sim
 lipo -create \
   target/x86_64-apple-ios/release/libjson_eval_rs.a \
   target/aarch64-apple-ios-sim/release/libjson_eval_rs.a \
-  -output bindings/react-native/ios/libjson_eval_rs.a
+  -output bindings/npm/packages/react-native/ios/libjson_eval_rs.a
 ```
 
 #### 3.2. Update Package Metadata
 
-Edit `bindings/react-native/package.json`:
+Edit `bindings/npm/package.json`:
 
 ```json
 {
@@ -238,7 +238,7 @@ Edit `bindings/react-native/package.json`:
 #### 3.3. Test Package
 
 ```bash
-cd bindings/react-native
+cd bindings/npm
 
 # Install dependencies
 yarn install
@@ -253,7 +253,7 @@ npm run example
 #### 3.4. Publish to npm
 
 ```bash
-cd bindings/react-native
+cd bindings/npm
 npm publish --access public
 ```
 
@@ -409,7 +409,7 @@ jobs:
       - run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
       - run: ./build-bindings.sh web
       - run: |
-          cd bindings/web
+          cd bindings/npm
           echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
           npm publish --access public
 
@@ -420,7 +420,7 @@ jobs:
       - uses: actions/setup-node@v3
       - run: ./build-bindings.sh react-native
       - run: |
-          cd bindings/react-native
+          cd bindings/npm
           echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
           npm publish --access public
 ```

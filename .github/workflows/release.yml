@@ -368,49 +368,56 @@ jobs:
           key: ${{ runner.os }}-cargo-wasm-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build WASM for bundler
-        run: wasm-pack build --release --target bundler --out-dir bindings/web/packages/bundler/pkg --features wasm
+        run: wasm-pack build --release --target bundler --out-dir bindings/npm/packages/bundler/pkg --features wasm
 
       - name: Build WASM for Node.js
-        run: wasm-pack build --release --target nodejs --out-dir bindings/web/packages/node/pkg --features wasm
+        run: wasm-pack build --release --target nodejs --out-dir bindings/npm/packages/node/pkg --features wasm
 
       - name: Build WASM for vanilla (web)
-        run: wasm-pack build --release --target web --out-dir bindings/web/packages/vanilla/pkg --features wasm
+        run: wasm-pack build --release --target web --out-dir bindings/npm/packages/vanilla/pkg --features wasm
+
+      - name: Install npm workspace dependencies
+        run: |
+          cd bindings/npm
+          yarn install
 
       - name: Build common package
         run: |
-          cd bindings/common
-          yarn install
-          yarn build
+          cd bindings/npm
+          yarn workspace @json-eval-rs/common build
           echo "✓ Common package built: dist/index.js exists?"
-          ls -lh dist/ || echo "⚠ dist/ missing"
+          ls -lh packages/common/dist/ || echo "⚠ dist/ missing"
 
-      - name: Install web dependencies
+      - name: Build web packages
         run: |
-          cd bindings/web
-          yarn install
+          cd bindings/npm
+          yarn workspace @json-eval-rs/webcore build
+          yarn workspace @json-eval-rs/bundler build
+          yarn workspace @json-eval-rs/node build
+          yarn workspace @json-eval-rs/vanilla build
 
       - name: Verify WASM files exist
         run: |
           echo "Bundler WASM files:"
-          ls -lh bindings/web/packages/bundler/pkg/ || echo "No bundler pkg directory"
+          ls -lh bindings/npm/packages/bundler/pkg/ || echo "No bundler pkg directory"
           echo ""
           echo "Node WASM files:"
-          ls -lh bindings/web/packages/node/pkg/ || echo "No node pkg directory"
+          ls -lh bindings/npm/packages/node/pkg/ || echo "No node pkg directory"
           echo ""
           echo "Vanilla WASM files:"
-          ls -lh bindings/web/packages/vanilla/pkg/ || echo "No vanilla pkg directory"
+          ls -lh bindings/npm/packages/vanilla/pkg/ || echo "No vanilla pkg directory"
 
       - name: Remove pkg .gitignore files
         run: |
           # wasm-pack generates .gitignore files that can prevent npm pack from including WASM files
-          rm -f bindings/web/packages/bundler/pkg/.gitignore
-          rm -f bindings/web/packages/node/pkg/.gitignore
-          rm -f bindings/web/packages/vanilla/pkg/.gitignore
+          rm -f bindings/npm/packages/bundler/pkg/.gitignore
+          rm -f bindings/npm/packages/node/pkg/.gitignore
+          rm -f bindings/npm/packages/vanilla/pkg/.gitignore
           echo "✓ Removed .gitignore files from pkg directories"
 
       - name: Package core wrapper
         run: |
-          cd bindings/web/packages/core
+          cd bindings/npm/packages/webcore
           npm pack
 
           echo ""
@@ -423,7 +430,7 @@ jobs:
 
       - name: Package web binding (bundler)
         run: |
-          cd bindings/web/packages/bundler
+          cd bindings/npm/packages/bundler
           npm pack
 
           echo ""
@@ -442,7 +449,7 @@ jobs:
 
       - name: Package web binding (node)
         run: |
-          cd bindings/web/packages/node
+          cd bindings/npm/packages/node
           npm pack
 
           echo ""
@@ -461,7 +468,7 @@ jobs:
 
       - name: Package web binding (vanilla)
         run: |
-          cd bindings/web/packages/vanilla
+          cd bindings/npm/packages/vanilla
           npm pack
 
           echo ""
@@ -480,7 +487,7 @@ jobs:
 
       - name: Package common
         run: |
-          cd bindings/common
+          cd bindings/npm/packages/common
           npm pack
           echo ""
           echo "✅ Common package created:"
@@ -491,11 +498,11 @@ jobs:
         with:
           name: web-packages
           path: |
-            bindings/web/packages/core/*.tgz
-            bindings/web/packages/bundler/*.tgz
-            bindings/web/packages/node/*.tgz
-            bindings/web/packages/vanilla/*.tgz
-            bindings/common/*.tgz
+            bindings/npm/packages/webcore/*.tgz
+            bindings/npm/packages/bundler/*.tgz
+            bindings/npm/packages/node/*.tgz
+            bindings/npm/packages/vanilla/*.tgz
+            bindings/npm/packages/common/*.tgz
           if-no-files-found: warn
 
       - name: Upload WASM artifacts
@@ -503,8 +510,9 @@ jobs:
         with:
           name: wasm-modules
           path: |
-            bindings/web/packages/bundler/pkg/
-            bindings/web/packages/node/pkg/
+            bindings/npm/packages/bundler/pkg/
+            bindings/npm/packages/node/pkg/
+            bindings/npm/packages/vanilla/pkg/
 
   # Build Android JNI libraries
   build-android-jni:
@@ -585,16 +593,16 @@ jobs:
 
       - name: Copy to jniLibs directory
         run: |
-          mkdir -p bindings/react-native/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}
+          mkdir -p bindings/npm/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}
           cp target/${{ steps.rust-target.outputs.target }}/release/libjson_eval_rs.so \
-             bindings/react-native/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}/
-          ls -lh bindings/react-native/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}/
+             bindings/npm/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}/
+          ls -lh bindings/npm/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}/
 
       - name: Upload Android JNI library artifact
         uses: actions/upload-artifact@v7
         with:
           name: android-jni-${{ matrix.target }}
-          path: bindings/react-native/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}/
+          path: bindings/npm/packages/react-native/android/src/main/jniLibs/${{ matrix.target }}/
           if-no-files-found: error
 
   # Build iOS XCFramework (requires macOS)
@@ -693,65 +701,65 @@ jobs:
       - name: Organize Android JNI libraries
         run: |
           # Copy Android JNI artifacts to the package structure
-          mkdir -p bindings/react-native/packages/react-native/android/src/main/jniLibs
+          mkdir -p bindings/npm/packages/react-native/android/src/main/jniLibs
 
           # Copy each ABI's libraries (contents only, not the directory)
           for abi_dir in android-jni-artifacts/android-jni-*/; do
             if [ -d "$abi_dir" ]; then
               abi=$(basename "$abi_dir" | sed 's/android-jni-//')
               echo "Copying $abi libraries..."
-              mkdir -p bindings/react-native/packages/react-native/android/src/main/jniLibs/$abi
-              cp "$abi_dir"/*.so bindings/react-native/packages/react-native/android/src/main/jniLibs/$abi/ 2>/dev/null || true
+              mkdir -p bindings/npm/packages/react-native/android/src/main/jniLibs/$abi
+              cp "$abi_dir"/*.so bindings/npm/packages/react-native/android/src/main/jniLibs/$abi/ 2>/dev/null || true
             fi
           done
 
           # Verify libraries
           echo "Android JNI libraries bundled in package:"
-          find bindings/react-native/packages/react-native/android/src/main/jniLibs -name "*.so" -exec ls -lh {} \;
+          find bindings/npm/packages/react-native/android/src/main/jniLibs -name "*.so" -exec ls -lh {} \;
 
       - name: Download iOS XCFramework
         uses: actions/download-artifact@v8
         with:
           name: ios-xcframework
-          path: bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework/
+          path: bindings/npm/packages/react-native/ios/JsonEvalRs.xcframework/
 
       - name: Verify XCFramework bundled
         run: |
           echo "iOS XCFramework bundled in package:"
-          find bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework -type f
+          find bindings/npm/packages/react-native/ios/JsonEvalRs.xcframework -type f
 
       - name: Build common package
         run: |
-          cd bindings/common
+          cd bindings/npm
           yarn install
-          yarn build
+          yarn workspace @json-eval-rs/common build
           echo "✓ Common package built"
 
       - name: Install React Native dependencies
         run: |
-          cd bindings/react-native
+          cd bindings/npm
           yarn install
 
       - name: Build TypeScript
         run: |
-          cd bindings/react-native
+          cd bindings/npm
           yarn workspace @json-eval-rs/react-native prepare
 
       - name: Install example dependencies
         run: |
-          cd bindings/react-native/examples/rncli
+          cd bindings/npm/examples/rncli
           yarn install || echo "Example dependencies installation skipped"
 
       - name: Package React Native binding
         run: |
-          cd bindings/react-native/packages/react-native
+          cd bindings/npm/packages/react-native
           npm pack
 
       - name: Upload React Native package
         uses: actions/upload-artifact@v7
         with:
           name: react-native-package
-          path: bindings/react-native/packages/react-native/*.tgz
+          path: bindings/npm/packages/react-native/*.tgz
           if-no-files-found: error
 
   # Run tests
@@ -811,7 +819,7 @@ jobs:
 
       - name: Copy Android JNI libraries to package
         run: |
-          mkdir -p bindings/react-native/packages/react-native/android/src/main/jniLibs
+          mkdir -p bindings/npm/packages/react-native/android/src/main/jniLibs
 
           # Map artifact names to Android ABIs
           declare -A abi_map=(
@@ -827,36 +835,36 @@ jobs:
               abi="${abi_map[$artifact_name]}"
               
               if [ -n "$abi" ]; then
-                mkdir -p "bindings/react-native/packages/react-native/android/src/main/jniLibs/$abi"
-                cp "$artifact_dir"/*.so "bindings/react-native/packages/react-native/android/src/main/jniLibs/$abi/" 2>/dev/null || true
+                mkdir -p "bindings/npm/packages/react-native/android/src/main/jniLibs/$abi"
+                cp "$artifact_dir"/*.so "bindings/npm/packages/react-native/android/src/main/jniLibs/$abi/" 2>/dev/null || true
                 echo "✓ Copied $abi libraries"
               fi
             fi
           done
 
           echo "Android JNI libraries in package:"
-          find bindings/react-native/packages/react-native/android/src/main/jniLibs -name "*.so" -exec ls -lh {} \;
+          find bindings/npm/packages/react-native/android/src/main/jniLibs -name "*.so" -exec ls -lh {} \;
 
       - name: Build common package
         run: |
-          cd bindings/common
+          cd bindings/npm
           yarn install
-          yarn build
+          yarn workspace @json-eval-rs/common build
           echo "✓ Common package built"
 
       - name: Install monorepo dependencies
         run: |
-          cd bindings/react-native
+          cd bindings/npm
           yarn install
 
       - name: Build TypeScript (React Native package)
         run: |
-          cd bindings/react-native
+          cd bindings/npm
           yarn workspace @json-eval-rs/react-native prepare
 
       - name: Install example dependencies
         run: |
-          cd bindings/react-native/examples/rncli
+          cd bindings/npm/examples/rncli
           yarn install
 
       - name: Setup Gradle cache
@@ -872,13 +880,13 @@ jobs:
       - name: Verify native files exist
         run: |
           echo "Checking for CMakeLists.txt..."
-          ls -la bindings/react-native/packages/react-native/android/CMakeLists.txt
+          ls -la bindings/npm/packages/react-native/android/CMakeLists.txt
           echo "Checking node_modules link..."
-          ls -la bindings/react-native/examples/rncli/node_modules/@json-eval-rs/react-native/android/CMakeLists.txt || echo "Symlink issue detected"
+          ls -la bindings/npm/examples/rncli/node_modules/@json-eval-rs/react-native/android/CMakeLists.txt || echo "Symlink issue detected"
 
       - name: Build Android library (validation)
         run: |
-          cd bindings/react-native/examples/rncli/android
+          cd bindings/npm/examples/rncli/android
           chmod +x gradlew
           # Only build the React Native library module, not the full app
           # This validates JNI linking without building the entire APK
@@ -913,34 +921,34 @@ jobs:
 
       - name: Copy iOS XCFramework to package
         run: |
-          mkdir -p bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework
-          cp -R ios-xcframework-artifacts/* bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework/
+          mkdir -p bindings/npm/packages/react-native/ios/JsonEvalRs.xcframework
+          cp -R ios-xcframework-artifacts/* bindings/npm/packages/react-native/ios/JsonEvalRs.xcframework/
 
           echo "iOS XCFramework in package:"
-          find bindings/react-native/packages/react-native/ios/JsonEvalRs.xcframework -type f
+          find bindings/npm/packages/react-native/ios/JsonEvalRs.xcframework -type f
 
       - name: Build common package
         run: |
-          cd bindings/common
+          cd bindings/npm
           yarn install
-          yarn build
+          yarn workspace @json-eval-rs/common build
           echo "✓ Common package built"
 
       - name: Install monorepo dependencies
         run: |
-          cd bindings/react-native
+          cd bindings/npm
           yarn install
 
       - name: Build TypeScript (React Native package)
         run: |
-          cd bindings/react-native
+          cd bindings/npm
           yarn workspace @json-eval-rs/react-native prepare
 
       - name: Setup CocoaPods cache
         uses: actions/cache@v5
         with:
           path: |
-            bindings/react-native/examples/rncli/ios/Pods
+            bindings/npm/examples/rncli/ios/Pods
             ~/Library/Caches/CocoaPods
             ~/.cocoapods
           key: ${{ runner.os }}-pods-${{ hashFiles('**/Podfile.lock') }}
@@ -949,12 +957,12 @@ jobs:
 
       - name: Install CocoaPods dependencies
         run: |
-          cd bindings/react-native/examples/rncli/ios
+          cd bindings/npm/examples/rncli/ios
           pod install
 
       - name: Build iOS app (validation)
         run: |
-          cd bindings/react-native/examples/rncli/ios
+          cd bindings/npm/examples/rncli/ios
           # Build with optimizations for speed
           set -o pipefail && xcodebuild \
             -workspace rncli.xcworkspace \

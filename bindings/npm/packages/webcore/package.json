@@ -1,0 +1,33 @@
+{
+  "name": "@json-eval-rs/webcore",
+  "version": "0.0.96",
+  "description": "JSON Eval RS core JavaScript wrapper (internal package - not published)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "npx tsc",
+    "prepack": "npm run build"
+  },
+  "keywords": [
+    "json",
+    "json-logic",
+    "schema",
+    "validation",
+    "wasm"
+  ],
+  "author": "Muhamad Rizki",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/byrizki/jsoneval-rs.git",
+    "directory": "bindings/npm/packages/webcore"
+  },
+  "dependencies": {
+    "@json-eval-rs/common": "*"
+  },
+  "sideEffects": false
+}

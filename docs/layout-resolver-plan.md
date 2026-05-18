@@ -181,7 +181,7 @@ pub type ResolvedLayoutResult = Vec<LayoutOverlayEntry>;
 | `src/index.ts`              | Re-export new types + `applyLayoutOverlays`, `getByDottedPath`, `setPointer`.                                                                                                      |
 | **`src/layout-applier.ts`** | NEW — Pure TS helper functions for merging overlay deltas. See below.                                                                                                               |
 
-### Bindings — Web (`bindings/web/packages/core/src/index.ts`)
+### Bindings — Web (`bindings/npm/packages/webcore/src/index.ts`)
 
 | File       | Change                                                                                                                                                                                               |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -259,7 +259,7 @@ For consumers that don't use layout at all: **nothing changes**. `getEvaluatedSc
 
 ## `@json-eval-rs/common` — `layout-applier.ts` Detail
 
-New file in `bindings/common/src/layout-applier.ts`. Pure TS, zero dependencies. Exports 3 functions:
+New file in `bindings/npm/packages/common/src/layout-applier.ts`. Pure TS, zero dependencies. Exports 3 functions:
 
 ### 1. `applyLayoutOverlays(schema, overlays) → schema`
 

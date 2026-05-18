@@ -1,0 +1,63 @@
+{
+  "name": "json-eval-rs-npm-monorepo",
+  "version": "0.0.96",
+  "private": true,
+  "description": "JSON Eval RS npm bindings - monorepo",
+  "workspaces": [
+    "packages/*",
+    "examples/*"
+  ],
+  "scripts": {
+    "build": "yarn build:common && yarn build:web && yarn build:react-native",
+    "build:common": "yarn workspace @json-eval-rs/common build",
+    "build:web": "yarn workspace @json-eval-rs/webcore build && yarn workspace @json-eval-rs/bundler build && yarn workspace @json-eval-rs/node build && yarn workspace @json-eval-rs/vanilla build",
+    "build:react-native": "yarn workspace @json-eval-rs/react-native prepare",
+    "clean:web": "rm -rf packages/webcore/dist packages/bundler/dist packages/node/dist packages/vanilla/dist packages/bundler/pkg packages/node/pkg packages/vanilla/pkg",
+    "clean:react-native": "yarn workspace @json-eval-rs/react-native clean",
+    "example:web:nextjs": "yarn workspace nextjs dev",
+    "example:react-native:start": "yarn workspace rncli start",
+    "example:react-native:android": "yarn workspace rncli android",
+    "example:react-native:ios": "yarn workspace rncli ios",
+    "example:react-native:pods": "yarn workspace rncli pods",
+    "test": "yarn workspaces run test",
+    "lint": "yarn workspaces run lint"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/byrizki/jsoneval-rs.git",
+    "directory": "bindings/npm"
+  },
+  "keywords": [
+    "json",
+    "json-logic",
+    "schema",
+    "validation",
+    "wasm",
+    "rust",
+    "react-native"
+  ],
+  "author": "Muhamad Rizki",
+  "license": "MIT",
+  "packageManager": "yarn@1.22.22",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "react": "18.3.1",
+    "react-native": "0.75.5",
+    "@babel/core": "^7.20.0",
+    "@babel/preset-env": "^7.20.0",
+    "react-dom": "^18.2.0"
+  },
+  "resolutions": {
+    "next": "^14.2.10",
+    "brace-expansion": "^2.0.1",
+    "fast-xml-parser": "^4.5.1",
+    "flatted": "^3.3.1",
+    "node-forge": "^1.3.1",
+    "minimatch": "^9.0.5",
+    "picomatch": "^4.0.1",
+    "lodash": "^4.18.1",
+    "yaml": "^2.4.5",
+    "ajv": "^6.12.7"
+  }
+}

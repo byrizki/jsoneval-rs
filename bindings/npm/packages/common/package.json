@@ -1,0 +1,35 @@
+{
+  "name": "@json-eval-rs/common",
+  "version": "0.0.96",
+  "description": "Shared TypeScript types and utilities for JSON Eval RS bindings",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "npx tsc",
+    "prepack": "npm run build"
+  },
+  "keywords": [
+    "json",
+    "json-logic",
+    "schema",
+    "validation"
+  ],
+  "author": "Muhamad Rizki",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/byrizki/jsoneval-rs.git",
+    "directory": "bindings/npm/packages/common"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  },
+  "sideEffects": false
+}
