@@ -1,6 +1,6 @@
 {
   "name": "@json-eval-rs/common",
-  "version": "0.0.96",
+  "version": "0.0.97",
   "description": "Shared TypeScript types and utilities for JSON Eval RS bindings",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

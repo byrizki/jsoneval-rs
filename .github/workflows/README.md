@@ -48,7 +48,7 @@ Main jobs:
 
 Manual dispatch inputs:
 
-- `release_tag` — release to publish from, for example `v0.0.96`.
+- `release_tag` — release to publish from, for example `v0.0.97`.
 - `publish_csharp` — NuGet package.
 - `publish_common` — `@json-eval-rs/common`.
 - `publish_web` — `@json-eval-rs/webcore`, `@json-eval-rs/bundler`, `@json-eval-rs/node`, `@json-eval-rs/vanilla`.

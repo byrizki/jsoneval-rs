@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.0.97] - 2026-05-06
+
+- [core] improve $layout resolver
+
 ## [0.0.96] - 2026-05-06
 
 - [core] revert deferred schema options
