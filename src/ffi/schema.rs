@@ -11,9 +11,7 @@ use std::os::raw::c_char;
 /// - handle must be a valid pointer from json_eval_new
 /// - Caller must call json_eval_free_result when done
 #[no_mangle]
-pub unsafe extern "C" fn json_eval_get_evaluated_schema(
-    handle: *mut JSONEvalHandle,
-) -> FFIResult {
+pub unsafe extern "C" fn json_eval_get_evaluated_schema(handle: *mut JSONEvalHandle) -> FFIResult {
     if handle.is_null() {
         return FFIResult::error("Invalid handle pointer".to_string());
     }
@@ -300,9 +298,7 @@ pub unsafe extern "C" fn json_eval_get_schema_by_paths(
 /// - handle must be a valid pointer from json_eval_new
 /// - Caller must call json_eval_free_result when done
 #[no_mangle]
-pub unsafe extern "C" fn json_eval_get_resolved_layout(
-    handle: *mut JSONEvalHandle,
-) -> FFIResult {
+pub unsafe extern "C" fn json_eval_get_resolved_layout(handle: *mut JSONEvalHandle) -> FFIResult {
     if handle.is_null() {
         return FFIResult::error("Invalid handle pointer".to_string());
     }
@@ -369,6 +365,8 @@ pub unsafe extern "C" fn json_eval_get_field_options(
             let result_bytes = serde_json::to_vec(&value).unwrap_or_default();
             FFIResult::success(result_bytes)
         }
-        None => FFIResult::error("Field has no options or options could not be resolved".to_string()),
+        None => {
+            FFIResult::error("Field has no options or options could not be resolved".to_string())
+        }
     }
 }

@@ -46,7 +46,9 @@ impl Clone for JSONEval {
             conditional_readonly_fields: self.conditional_readonly_fields.clone(),
             static_arrays: self.static_arrays.clone(),
             regex_cache: RwLock::new(HashMap::new()),
-            layout_synced_paths: Vec::new(),
+            layout_hidden_refs: indexmap::IndexSet::new(),
+            layout_visible_refs: indexmap::IndexSet::new(),
+            layout_condition_hidden_refs: indexmap::IndexSet::new(),
         }
     }
 }
@@ -122,7 +124,9 @@ impl JSONEval {
                     conditional_readonly_fields: Arc::new(Vec::new()),
                     static_arrays,
                     regex_cache: RwLock::new(HashMap::new()),
-            layout_synced_paths: Vec::new(),
+                    layout_hidden_refs: indexmap::IndexSet::new(),
+                    layout_visible_refs: indexmap::IndexSet::new(),
+                    layout_condition_hidden_refs: indexmap::IndexSet::new(),
                 }
             });
             time_block!("  parse_schema", {
@@ -184,7 +188,9 @@ impl JSONEval {
                     conditional_readonly_fields: Arc::new(Vec::new()),
                     static_arrays,
                     regex_cache: RwLock::new(HashMap::new()),
-            layout_synced_paths: Vec::new(),
+                    layout_hidden_refs: indexmap::IndexSet::new(),
+                    layout_visible_refs: indexmap::IndexSet::new(),
+                    layout_condition_hidden_refs: indexmap::IndexSet::new(),
                 }
             });
             time_block!("  parse_schema", {
@@ -269,7 +275,9 @@ impl JSONEval {
             conditional_readonly_fields: Arc::new(Vec::new()),
             static_arrays,
             regex_cache: RwLock::new(HashMap::new()),
-            layout_synced_paths: Vec::new(),
+            layout_hidden_refs: indexmap::IndexSet::new(),
+            layout_visible_refs: indexmap::IndexSet::new(),
+            layout_condition_hidden_refs: indexmap::IndexSet::new(),
         };
         parse_schema::legacy::parse_schema(&mut instance)?;
         Ok(instance)
@@ -358,7 +366,9 @@ impl JSONEval {
             conditional_readonly_fields: Arc::clone(&parsed.conditional_readonly_fields),
             static_arrays: Arc::clone(&parsed.static_arrays),
             regex_cache: RwLock::new(HashMap::new()),
-            layout_synced_paths: Vec::new(),
+            layout_hidden_refs: indexmap::IndexSet::new(),
+            layout_visible_refs: indexmap::IndexSet::new(),
+            layout_condition_hidden_refs: indexmap::IndexSet::new(),
         };
         Ok(instance)
     }
@@ -424,7 +434,9 @@ impl JSONEval {
         // Clear MessagePack cache since schema has been mutated
         self.cached_msgpack_schema = None;
         self.resolved_layout_cache = None;
-        self.layout_synced_paths.clear();
+        self.layout_hidden_refs.clear();
+        self.layout_visible_refs.clear();
+        self.layout_condition_hidden_refs.clear();
 
         Ok(())
     }
@@ -539,7 +551,9 @@ impl JSONEval {
         // Cache the MessagePack for future retrievals
         self.cached_msgpack_schema = Some(schema_msgpack.to_vec());
         self.resolved_layout_cache = None;
-        self.layout_synced_paths.clear();
+        self.layout_hidden_refs.clear();
+        self.layout_visible_refs.clear();
+        self.layout_condition_hidden_refs.clear();
 
         Ok(())
     }
@@ -611,7 +625,9 @@ impl JSONEval {
         // Clear MessagePack cache since we're loading from ParsedSchema
         self.cached_msgpack_schema = None;
         self.resolved_layout_cache = None;
-        self.layout_synced_paths.clear();
+        self.layout_hidden_refs.clear();
+        self.layout_visible_refs.clear();
+        self.layout_condition_hidden_refs.clear();
 
         Ok(())
     }

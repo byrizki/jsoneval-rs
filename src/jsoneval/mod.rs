@@ -76,6 +76,12 @@ pub struct JSONEval {
     pub(crate) eval_lock: Mutex<()>,
     pub(crate) cached_msgpack_schema: Option<Vec<u8>>,
     pub(crate) resolved_layout_cache: Option<Arc<Vec<crate::jsoneval::types::LayoutOverlayEntry>>>,
-    pub(crate) layout_synced_paths: Vec<String>,
+    /// `$ref` targets hidden in every current resolved layout occurrence.
+    pub(crate) layout_hidden_refs: indexmap::IndexSet<String>,
+    /// `$ref` targets visible in at least one current resolved layout occurrence.
+    /// Used while resolving to subtract refs from layout_hidden_refs.
+    pub(crate) layout_visible_refs: indexmap::IndexSet<String>,
+    /// Subset of layout_hidden_refs hidden by a condition.hidden cascade and eligible for clearing.
+    pub(crate) layout_condition_hidden_refs: indexmap::IndexSet<String>,
     pub(crate) regex_cache: std::sync::RwLock<HashMap<String, regex::Regex>>,
 }
