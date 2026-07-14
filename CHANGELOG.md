@@ -1,6 +1,10 @@
 # Changelog
 
-## [0.0.97] - 2026-05-06
+## [0.0.98] - 2026-07-15
+
+- [core] improve $layout resolver
+
+## [0.0.97] - 2026-07-14
 
 - [core] improve $layout resolver
 
