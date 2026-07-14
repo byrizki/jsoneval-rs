@@ -382,46 +382,44 @@ impl JSONEval {
             result.push(Value::Object(obj));
         }
 
-        // When readonly fields were updated, re-run evaluate_internal only for the subset of
-        // $params tables that actually depend on the changed readonly fields.
-        // Use had_actual_readonly_changes (captured before draining into to_process) — NOT
-        // `!to_process.is_empty()`, which would fire whenever any dependents were queued,
-        // triggering a spurious second evaluate_internal per rider costing ~240ms each.
+        // A readonly write can change input to a cached `$params` table. Refresh only when
+        // one of those tables depends on a field written by this pass. `to_process` stores
+        // schema paths with `#`; dependency metadata stores the same paths without it.
+        // Do not use `!to_process.is_empty()`: entries from earlier passes would cause an
+        // unnecessary full evaluation even when this pass wrote no relevant readonly field.
         if had_actual_readonly_changes {
-            if let Some(active_idx) = self.eval_cache.active_item_index {
-                // Collect the schema-dep paths for the readonly-changed fields so we can
-                // filter tables to only those that actually depend on these fields.
-                // Bumping ALL $params tables unconditionally forces a full re-evaluate of
-                // every WOP/RIDER table even when they don't read wop_rider_premi etc.
-                let readonly_dep_prefixes: Vec<String> =
-                    to_process.iter().map(|(path, _, _)| path.clone()).collect();
-
-                let params_table_keys: Vec<String> = self
-                    .table_metadata
-                    .keys()
-                    .filter(|k| {
-                        if !k.starts_with("#/$params") {
-                            return false;
-                        }
-                        // Only invalidate tables that depend on one of the readonly fields
-                        if let Some(deps) = self.dependencies.get(*k) {
+            let readonly_dep_prefixes: Vec<String> = to_process
+                .iter()
+                .map(|(path, _, _)| path.trim_start_matches('#').to_string())
+                .collect();
+            let params_table_keys: Vec<String> = self
+                .table_metadata
+                .keys()
+                .filter(|key| key.starts_with("#/$params"))
+                .filter(|key| {
+                    self.dependencies
+                        .get(*key)
+                        .map(|deps| {
                             deps.iter().any(|dep| {
-                                readonly_dep_prefixes
-                                    .iter()
-                                    .any(|ro| dep == ro || dep.starts_with(ro.as_str()))
+                                readonly_dep_prefixes.iter().any(|readonly| {
+                                    dep == readonly
+                                        || dep
+                                            .strip_prefix(readonly)
+                                            .is_some_and(|suffix| suffix.starts_with('/'))
+                                })
                             })
-                        } else {
-                            false
-                        }
-                    })
-                    .cloned()
-                    .collect();
+                        })
+                        .unwrap_or(false)
+                })
+                .cloned()
+                .collect();
 
-                if !params_table_keys.is_empty() {
+            if !params_table_keys.is_empty() {
+                if let Some(active_idx) = self.eval_cache.active_item_index {
                     self.eval_cache
                         .invalidate_params_tables_for_item(active_idx, &params_table_keys);
-                    self.evaluate_internal(None, token)?;
                 }
+                self.evaluate_internal(None, token)?;
             }
         }
 
