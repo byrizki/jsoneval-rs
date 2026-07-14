@@ -636,8 +636,8 @@ fn test_direct_layout_elements_have_metadata() {
 
     assert_eq!(
         flex_container.get("$fullpath").and_then(|v| v.as_str()),
-        Some("form.0"),
-        "$fullpath for non-$ref container should be clean positional path (layout segments stripped)"
+        Some("properties.form.$layout.elements.0"),
+        "$fullpath for non-$ref container should preserve its literal structural layout path"
     );
 }
 

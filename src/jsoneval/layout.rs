@@ -305,13 +305,11 @@ impl JSONEval {
                         overlay
                             .insert("$path".to_string(), Value::String(last_segment.to_string()));
                     } else {
-                        // Non-$ref (inline layout container): build a clean positional path by
-                        // stripping the structural /$layout/elements suffix from layout_path
-                        // so it reads as a field-relative path, not an internal layout pointer.
+                        // Non-$ref (inline layout container): retain its literal structural
+                        // schema path so callers can identify its exact layout position.
                         //
-                        // e.g. "#/properties/form/$layout/elements" → "form" → "form.0"
-                        //      "#/form/$layout/elements/2/elements" → "form.2" → "form.2.0"
-                        let base = Self::layout_path_to_field_path(layout_path);
+                        // e.g. "#/illustration/$layout/elements" → "illustration.$layout.elements.1"
+                        let base = Self::layout_path_to_structural_path(layout_path);
                         let fullpath = if base.is_empty() {
                             format!("{}", element_idx)
                         } else {
@@ -459,43 +457,21 @@ impl JSONEval {
 
     // ── Private helpers ──────────────────────────────────────────────────────
 
-    /// Convert a layout elements path to a clean field-relative dotted path
-    /// by stripping all structural `/$layout/elements` segments and the leading
-    /// `/properties` prefix.
+    /// Convert a layout elements pointer to its literal dotted structural path.
     ///
     /// ## Examples
     ///
     /// ```text
-    /// "#/properties/form/$layout/elements"       → "form"
-    /// "#/form/$layout/elements"                  → "form"
-    /// "#/properties/form/$layout/elements/2/elements" → "form.2"
-    /// "#/a/properties/b/$layout/elements"        → "a.b"
+    /// "#/illustration/$layout/elements" → "illustration.$layout.elements"
+    /// "#/properties/form/$layout/elements" → "properties.form.$layout.elements"
     /// ```
-    fn layout_path_to_field_path(layout_path: &str) -> String {
-        // Strip leading `#` or `#/`
-        let raw = if layout_path.starts_with("#/") {
-            &layout_path[2..]
-        } else if layout_path.starts_with('#') {
-            &layout_path[1..]
-        } else if layout_path.starts_with('/') {
-            &layout_path[1..]
-        } else {
-            layout_path
-        };
-
-        // Walk segments, dropping "properties", "$layout", "elements" structural tokens
-        let parts: Vec<&str> = raw.split('/').collect();
-        let mut out: Vec<&str> = Vec::new();
-        let mut i = 0;
-        while i < parts.len() {
-            let seg = parts[i];
-            match seg {
-                "" | "properties" | "$layout" | "elements" | "additionalProperties" => {}
-                _ => out.push(seg),
-            }
-            i += 1;
-        }
-
-        out.join(".")
+    fn layout_path_to_structural_path(layout_path: &str) -> String {
+        layout_path
+            .trim_start_matches('#')
+            .trim_start_matches('/')
+            .split('/')
+            .filter(|segment| !segment.is_empty())
+            .collect::<Vec<_>>()
+            .join(".")
     }
 }

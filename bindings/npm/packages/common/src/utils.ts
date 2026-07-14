@@ -165,24 +165,20 @@ function dotNotationToSchemaPointer(path: string): string {
 // ─── Private: mirrors Rust layout_path_to_field_path ─────────────────────────
 
 /**
- * Convert a layout elements path to a clean field-relative dotted path by
- * stripping structural `/$layout/elements` segments and the leading `/properties` prefix.
+ * Convert a layout elements pointer to its literal dotted structural path.
  *
  * @example
- * layoutPathToFieldPath("#/properties/form/$layout/elements")  // "form"
- * layoutPathToFieldPath("#/form/$layout/elements/2/elements")  // "form.2"
- * layoutPathToFieldPath("#/a/properties/b/$layout/elements")   // "a.b"
+ * layoutPathToStructuralPath("#/illustration/$layout/elements")
+ * // "illustration.$layout.elements"
  */
-function layoutPathToFieldPath(layoutPath: string): string {
+function layoutPathToStructuralPath(layoutPath: string): string {
   const raw = layoutPath.startsWith('#/')
     ? layoutPath.slice(2)
     : layoutPath.startsWith('#') || layoutPath.startsWith('/')
       ? layoutPath.slice(1)
       : layoutPath;
 
-  const SKIP = new Set(['', 'properties', '$layout', 'elements', 'additionalProperties']);
-  const parts = raw.split('/').filter((s) => !SKIP.has(s));
-  return parts.join('.');
+  return raw.split('/').filter(Boolean).join('.');
 }
 
 /**
@@ -212,8 +208,8 @@ function stampFullpath(
     element['$fullpath'] = dotted;
     element['$path'] = dotted.split('.').pop() ?? dotted;
   } else {
-    // Non-$ref (inline layout container): clean positional path
-    const base = layoutPathToFieldPath(layoutPath);
+    // Non-$ref (inline layout container): literal structural path.
+    const base = layoutPathToStructuralPath(layoutPath);
     const fullpath = base ? `${base}.${idx}` : String(idx);
     element['$fullpath'] = fullpath;
     element['$path'] = fullpath.split('.').pop() ?? fullpath;
@@ -249,6 +245,7 @@ function stampFullpathRecursive(
     }
 
     const needsStamp =
+      !refStr ||
       !el.$fullpath ||
       el.$fullpath.includes('$layout') ||
       el.$fullpath.includes('/elements/');
@@ -288,6 +285,34 @@ function resolveRefPointer(schema: any, refStr: string): string | null {
   }
 
   return getByPointer(schema, pointer) !== undefined ? pointer : null;
+}
+
+function stampPropertyMetadata(schema: any): void {
+  function walk(value: any, path: string, parentHide: boolean): void {
+    if (value == null || typeof value !== 'object' || Array.isArray(value)) return;
+
+    const hidden = parentHide || value.condition?.hidden === true;
+    const properties = value.properties;
+    if (properties != null && typeof properties === 'object' && !Array.isArray(properties)) {
+      for (const [name, property] of Object.entries<any>(properties)) {
+        const propertyPath = path ? `${path}.properties.${name}` : `properties.${name}`;
+        if (property != null && typeof property === 'object' && !Array.isArray(property)) {
+          property.$fullpath = propertyPath;
+          property.$path = name;
+          property.$parentHide = hidden;
+        }
+        walk(property, propertyPath, hidden);
+      }
+    }
+
+    for (const [name, child] of Object.entries<any>(value)) {
+      if (name !== 'properties' && !name.startsWith('$') && child != null && typeof child === 'object' && !Array.isArray(child)) {
+        walk(child, path ? `${path}.${name}` : name, hidden);
+      }
+    }
+  }
+
+  walk(schema, '', false);
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────
@@ -425,6 +450,7 @@ export function mergeLayoutOverlay(
     }
   }
   walkLayoutArrays(schema, '#');
+  stampPropertyMetadata(schema);
 
   return schema;
 }

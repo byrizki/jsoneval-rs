@@ -175,7 +175,7 @@ impl JSONEval {
     ///    after parent $ref resolution (nested elements).
     pub fn get_evaluated_schema_resolved(&mut self) -> Value {
         time_block!("get_evaluated_schema_resolved()", {
-            let mut schema = self.evaluated_schema.clone();
+            let mut schema = self.get_evaluated_schema_without_params();
             let overlays = self.get_resolved_layout();
 
             struct ResolveEntry {
@@ -280,9 +280,57 @@ impl JSONEval {
                 }
             }
 
-            self.resolve_static_markers_in_value(&mut schema);
+            Self::stamp_property_metadata(&mut schema);
             schema
         })
+    }
+
+    /// Stamp every schema property with raw pointer-style dotted metadata.
+    fn stamp_property_metadata(schema: &mut Value) {
+        fn walk(value: &mut Value, path: &str, parent_hidden: bool) {
+            let Some(map) = value.as_object_mut() else {
+                return;
+            };
+
+            let hidden = parent_hidden
+                || map
+                    .get("condition")
+                    .and_then(Value::as_object)
+                    .and_then(|condition| condition.get("hidden"))
+                    .is_some_and(|hidden| hidden == &Value::Bool(true));
+
+            if let Some(Value::Object(properties)) = map.get_mut("properties") {
+                for (name, property) in properties {
+                    let property_path = if path.is_empty() {
+                        format!("properties.{}", name)
+                    } else {
+                        format!("{}.properties.{}", path, name)
+                    };
+                    if let Value::Object(property_map) = property {
+                        property_map.insert(
+                            "$fullpath".to_string(),
+                            Value::String(property_path.clone()),
+                        );
+                        property_map.insert("$path".to_string(), Value::String(name.clone()));
+                        property_map.insert("$parentHide".to_string(), Value::Bool(hidden));
+                    }
+                    walk(property, &property_path, hidden);
+                }
+            }
+
+            for (name, child) in map {
+                if name != "properties" && !name.starts_with('$') && child.is_object() {
+                    let child_path = if path.is_empty() {
+                        name.clone()
+                    } else {
+                        format!("{}.{}", path, name)
+                    };
+                    walk(child, &child_path, hidden);
+                }
+            }
+        }
+
+        walk(schema, "", false);
     }
 
     /// Resolve `$static_array` markers within the subtree rooted at `schema_prefix`.
