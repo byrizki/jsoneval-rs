@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.0.100] - 2026-07-15
+
+- [core] fix dependents re-evaluation
+
 ## [0.0.99] - 2026-07-15
 
 - [core] improve $layout resolver

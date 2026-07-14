@@ -169,8 +169,14 @@ impl JSONEval {
                 return Ok(());
             }
 
-            // Call internal evaluate (uses existing data if not provided)
-            self.evaluate_internal(paths, token)
+            // Resolve visibility first, then initialize visible static defaults before
+            // final formula pass. Without this, first full evaluation sees `null`
+            // for optional defaulted inputs such as ZPP's ph_em multiplier.
+            self.evaluate_internal(paths, token)?;
+            if self.apply_visible_static_defaults() {
+                self.evaluate_internal(paths, token)?;
+            }
+            Ok(())
         })
     }
 

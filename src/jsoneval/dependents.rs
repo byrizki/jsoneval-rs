@@ -492,6 +492,69 @@ impl JSONEval {
         Ok(())
     }
 
+    /// Collect visible primitive schema values missing from input.
+    fn collect_visible_static_defaults(&self) -> Vec<(String, Value, String)> {
+        let mut defaults = Vec::new();
+        let schema_values = self.get_schema_value_array();
+
+        if let Value::Array(values) = schema_values {
+            for item in values {
+                let Value::Object(map) = item else {
+                    continue;
+                };
+                let Some(Value::String(dot_path)) = map.get("path") else {
+                    continue;
+                };
+                let Some(schema_val) = map.get("value") else {
+                    continue;
+                };
+
+                let schema_ptr = path_utils::dot_notation_to_schema_pointer(dot_path);
+                if let Some(Value::Object(schema_node)) = self
+                    .evaluated_schema
+                    .pointer(schema_ptr.trim_start_matches('#'))
+                {
+                    if let Some(Value::Object(condition)) = schema_node.get("condition") {
+                        if let Some(hidden_val) = condition.get("hidden") {
+                            if !hidden_val.is_boolean() || hidden_val.as_bool() == Some(true) {
+                                continue;
+                            }
+                        }
+                    }
+                }
+
+                let data_path = dot_path.replace('.', "/");
+                let current_data = self
+                    .eval_data
+                    .data()
+                    .pointer(&format!("/{}", data_path))
+                    .unwrap_or(&Value::Null);
+                let is_empty = matches!(current_data, Value::Null)
+                    || matches!(current_data, Value::String(s) if s.is_empty());
+                let is_schema_val_empty = matches!(schema_val, Value::Null)
+                    || matches!(schema_val, Value::String(s) if s.is_empty())
+                    || matches!(schema_val, Value::Object(map) if map.contains_key("$evaluation"));
+
+                if is_empty && !is_schema_val_empty && current_data != schema_val {
+                    defaults.push((data_path, schema_val.clone(), dot_path.clone()));
+                }
+            }
+        }
+
+        defaults
+    }
+
+    pub(crate) fn apply_visible_static_defaults(&mut self) -> bool {
+        let defaults = self.collect_visible_static_defaults();
+        for (data_path, schema_val, _) in &defaults {
+            self.eval_data
+                .set(&format!("/{}", data_path), schema_val.clone());
+            self.eval_cache
+                .bump_data_version(&format!("/{}", data_path));
+        }
+        !defaults.is_empty()
+    }
+
     /// Internal method to run the schema default value pass.
     /// Filters for only primitive schema values (not $evaluation objects).
     fn run_schema_default_value_pass(
@@ -614,7 +677,7 @@ impl JSONEval {
     fn run_subform_pass(
         &mut self,
         changed_paths: &[String],
-        re_evaluate: bool,
+        _re_evaluate: bool,
         token: Option<&CancellationToken>,
         result: &mut Vec<Value>,
     ) -> Result<bool, String> {
@@ -645,11 +708,6 @@ impl JSONEval {
             // This prevents memory leaks when riders are removed and the array shrinks.
             self.eval_cache.prune_subform_caches(item_count);
 
-            // When the parent ran a re_evaluate pass, always pass re_evaluate:true to subforms.
-            // The parent's evaluate_internal may have updated $params or other referenced values
-            // that the subform formulas read, even if none of the subform's own dep paths bumped.
-            let global_sub_re_evaluate = re_evaluate;
-
             // Snapshot the parent's version trackers once, before iterating any riders.
             // Using the live `parent_cache.data_versions` inside the loop would let rider N's
             // evaluation bumps contaminate the merge_from baseline for rider M (M ≠ N),
@@ -677,13 +735,6 @@ impl JSONEval {
                         }
                     })
                     .collect();
-
-                let sub_re_evaluate = global_sub_re_evaluate || !item_changed_paths.is_empty();
-
-                // Skip entirely if there's nothing to do for this item
-                if !sub_re_evaluate && item_changed_paths.is_empty() {
-                    continue;
-                }
 
                 // Build minimal merged data: clone only item at idx, share $params shallowly.
                 // This avoids cloning the full 5MB parent payload for every item.
@@ -720,6 +771,15 @@ impl JSONEval {
                 let Some(subform) = self.subforms.get_mut(&subform_path) else {
                     continue;
                 };
+
+                // Parent-only re-evaluation already refreshes global `$params` tables and main-form
+                // readonly values. Re-running every subform can evaluate a table with the transient
+                // parent state (for example a cleared `prem_pay_period`) and overwrite fresh global
+                // rows with an empty table. Only item-specific changed paths re-evaluate subforms.
+                let sub_re_evaluate = !item_changed_paths.is_empty();
+                if !sub_re_evaluate && item_changed_paths.is_empty() {
+                    continue;
+                }
 
                 // Prepare cache state for this item
                 self.eval_cache.ensure_active_item_cache(idx);
