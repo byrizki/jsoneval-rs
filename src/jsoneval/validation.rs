@@ -47,8 +47,7 @@ impl JSONEval {
 
             // Re-evaluate rule evaluations to ensure fresh values
             // This ensures all rule.$evaluation expressions are re-computed
-            // Always pass had_cache_miss=true for validation: rules must always re-run.
-            self.evaluate_others(paths, token, true);
+            self.evaluate_others(paths, token);
 
             // Update evaluated_schema with fresh evaluations
             self.evaluated_schema = self.get_evaluated_schema();
@@ -95,7 +94,7 @@ impl JSONEval {
         token: Option<&CancellationToken>,
     ) -> Result<crate::ValidationResult, String> {
         // Re-evaluate rule evaluations with the current (already-set) data.
-        self.evaluate_others(paths, token, true);
+        self.evaluate_others(paths, token);
         self.evaluated_schema = self.get_evaluated_schema();
 
         let mut errors: IndexMap<String, ValidationError> = IndexMap::new();

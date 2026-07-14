@@ -165,7 +165,7 @@ impl JSONEval {
             // deps are actually stale — all batches would be cache hits. Skip the full traversal.
             // Safe only in the external evaluate() path; run_re_evaluate_pass must always evaluate.
             if paths.is_none() && !self.eval_cache.needs_full_evaluation() {
-                self.evaluate_others(paths, token, false);
+                self.evaluate_others(paths, token);
                 return Ok(());
             }
 
@@ -338,14 +338,6 @@ impl JSONEval {
             // Borrow sorted_evaluations via Arc (avoid deep-cloning Vec<Vec<String>>)
             let eval_batches = self.sorted_evaluations.clone();
 
-            // Track whether any entry was a cache miss (required an actual formula run).
-            // When false (all hits), evaluate_others can skip resolve_layout because no
-            // values changed and the layout state is guaranteed identical.
-            // On the very first evaluation (last_evaluated_generation == u64::MAX), we MUST
-            // force a cache miss so that static schemas (with no formulas) still process
-            // URL templates and layout resolution once.
-            let mut had_cache_miss = self.eval_cache.last_evaluated_generation == u64::MAX;
-
             // Process each batch - sequentially
             // Batches are processed sequentially to maintain dependency order
             // Process value evaluations (simple computed fields with no dependencies)
@@ -384,7 +376,6 @@ impl JSONEval {
                         continue;
                     }
 
-                    had_cache_miss = true;
                     // Cache miss - evaluate
                     if let Some(logic_id) = self.evaluations.get(eval_key) {
                         match self.engine.run(logic_id, eval_data_values.data()) {
@@ -488,7 +479,6 @@ impl JSONEval {
                     if all_cache_hit {
                         continue;
                     }
-                    had_cache_miss = true;
 
                     // Sequential execution.
                     // For each formula miss, snapshot_data() gives an O(1) Arc::clone
@@ -657,7 +647,7 @@ impl JSONEval {
             // any formula was actually re-stored (via bump_data/params_version) since this run.
             self.eval_cache.mark_evaluated();
 
-            self.evaluate_others(paths, token, had_cache_miss);
+            self.evaluate_others(paths, token);
 
             Ok(())
         })
@@ -667,7 +657,6 @@ impl JSONEval {
         &mut self,
         paths: Option<&[String]>,
         token: Option<&CancellationToken>,
-        had_cache_miss: bool,
     ) {
         if let Some(t) = token {
             if t.is_cancelled() {
