@@ -24,6 +24,7 @@ import {
 	type ValidateSubformOptions,
 	type ValidationResult,
 	extractErrorMessage,
+	resolveEvaluatedLayout,
 	stringifyOrNull,
 	stringifyValue,
 } from "@json-eval-rs/common";
@@ -389,7 +390,10 @@ export class JSONEvalCore {
 	 */
 	async getEvaluatedSchemaResolved(): Promise<any> {
 		await this.init();
-		return this._instance.getEvaluatedSchemaResolved();
+		return resolveEvaluatedLayout(
+			() => this.getEvaluatedSchemaWithoutParams(),
+			() => this.getResolvedLayout(),
+		);
 	}
 
 	/**
@@ -819,7 +823,10 @@ export class JSONEvalCore {
 		subformPath,
 	}: GetEvaluatedSchemaSubformOptions): Promise<any> {
 		await this.init();
-		return this._instance.getEvaluatedSchemaResolvedSubform(subformPath);
+		return resolveEvaluatedLayout(
+			() => this.getEvaluatedSchemaWithoutParamsSubform({ subformPath }),
+			() => this.getResolvedLayoutSubform({ subformPath }),
+		);
 	}
 
 	/**

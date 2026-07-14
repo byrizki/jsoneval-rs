@@ -24,6 +24,7 @@ import {
   stringifyOrNull,
   extractErrorMessage,
   parseValue,
+  resolveEvaluatedLayout,
 } from '@json-eval-rs/common';
 import { getJSIGlobal, JsonEvalJSIGlobal } from './jsi-bridge';
 
@@ -514,7 +515,10 @@ export class JSONEval {
    */
   async getEvaluatedSchemaResolved(): Promise<any> {
     this.throwIfDisposed();
-    return await this._callNativeJson('getEvaluatedSchemaResolved');
+    return resolveEvaluatedLayout(
+      () => this.getEvaluatedSchemaWithoutParams(),
+      () => this.getResolvedLayout(),
+    );
   }
 
   /**
@@ -1008,9 +1012,9 @@ export class JSONEval {
     options: GetEvaluatedSchemaSubformOptions
   ): Promise<any> {
     this.throwIfDisposed();
-    return await this._callNativeJson(
-      'getEvaluatedSchemaResolvedSubform',
-      options.subformPath
+    return resolveEvaluatedLayout(
+      () => this.getEvaluatedSchemaWithoutParamsSubform(options),
+      () => this.getResolvedLayoutSubform(options),
     );
   }
 

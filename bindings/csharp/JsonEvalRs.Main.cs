@@ -460,8 +460,9 @@ namespace JsonEvalRs
         public JObject GetEvaluatedSchemaResolved()
         {
             ThrowIfDisposed();
-            var result = Native.json_eval_get_evaluated_schema_resolved(_handle);
-            return ProcessResult(result);
+            return LayoutOverlayMerger.Merge(
+                GetEvaluatedSchemaWithoutParams(),
+                GetResolvedLayout());
         }
 
         /// <summary>

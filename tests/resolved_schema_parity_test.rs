@@ -140,3 +140,49 @@ fn resolved_schema_omits_params_and_stamps_properties_and_inline_layout_items() 
         "direct resolved schema must equal compact schema merged with resolver overlays"
     );
 }
+
+#[test]
+fn resolved_subform_schema_omits_params_and_stamps_inline_layout_items() {
+    let schema = json!({
+        "$params": { "internal": true },
+        "illustrations": {
+            "type": "array",
+            "items": {
+                "$layout": {
+                    "elements": [
+                        { "$ref": "#/illustrations/properties/name" },
+                        { "type": "TabLayout" }
+                    ]
+                },
+                "properties": {
+                    "name": { "type": "string" }
+                }
+            }
+        }
+    })
+    .to_string();
+    let mut eval = JSONEval::new(&schema, None, None).unwrap();
+    eval.evaluate("{}", None, None, None).unwrap();
+
+    let resolved = eval.get_evaluated_schema_resolved_subform("#/illustrations");
+    let mut compact_plus_overlay =
+        eval.get_evaluated_schema_without_params_subform("#/illustrations");
+    merge_layout_overlay(
+        &mut compact_plus_overlay,
+        &eval.get_resolved_layout_subform("#/illustrations"),
+    );
+
+    assert!(resolved.get("$params").is_none());
+    assert_eq!(
+        resolved.pointer("/illustrations/properties/name/$fullpath"),
+        Some(&json!("illustrations.properties.name"))
+    );
+    assert_eq!(
+        resolved.pointer("/illustrations/$layout/elements/1/$fullpath"),
+        Some(&json!("illustrations.$layout.elements.1"))
+    );
+    assert_eq!(
+        resolved, compact_plus_overlay,
+        "direct subform resolved schema must equal compact schema merged with resolver overlays"
+    );
+}

@@ -47,6 +47,10 @@
     <EmbeddedResource Remove="examples/**" />
     <None Remove="examples/**" />
     <Content Remove="examples/**" />
+    <Compile Remove="tests/**" />
+    <EmbeddedResource Remove="tests/**" />
+    <None Remove="tests/**" />
+    <Content Remove="tests/**" />
   </ItemGroup>
 
   <ItemGroup>

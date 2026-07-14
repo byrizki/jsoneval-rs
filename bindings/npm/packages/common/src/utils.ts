@@ -201,10 +201,7 @@ function stampFullpath(
   if (refPointer !== null) {
     // $ref element: $fullpath is the actual resolved schema field path
     // Convert pointer → dotted notation (strip leading / or /properties/)
-    const dotted = refPointer
-      .replace(/^\//, '')
-      .replace(/\/properties\//g, '.')
-      .replace(/^properties\./, '');
+    const dotted = refPointer.replace(/^\//, '').replace(/\//g, '.');
     element['$fullpath'] = dotted;
     element['$path'] = dotted.split('.').pop() ?? dotted;
   } else {
@@ -218,8 +215,10 @@ function stampFullpath(
 
 /**
  * Recursively walk `elements` arrays in the resolved schema and stamp
- * `$fullpath` / `$path` on every item that does not already have one
+ * `$fullpath` / `$path` on every inline item that does not already have one
  * or whose `$fullpath` looks like a raw layout path (contains `$layout`).
+ * Already-expanded `$ref` items are marked before `$ref` removal and retain
+ * their resolved schema-field paths.
  *
  * This is the TS mirror of Rust's recursive `tree_to_overlays` fullpath injection.
  *
@@ -232,6 +231,7 @@ function stampFullpathRecursive(
   elements: any[],
   layoutPath: string,
   schema: any,
+  resolvedElements: WeakSet<object>,
 ): void {
   for (let i = 0; i < elements.length; i++) {
     const el = elements[i];
@@ -245,10 +245,11 @@ function stampFullpathRecursive(
     }
 
     const needsStamp =
-      !refStr ||
-      !el.$fullpath ||
-      el.$fullpath.includes('$layout') ||
-      el.$fullpath.includes('/elements/');
+      !resolvedElements.has(el) &&
+      (!refStr ||
+        !el.$fullpath ||
+        el.$fullpath.includes('$layout') ||
+        el.$fullpath.includes('/elements/'));
 
     if (needsStamp) {
       stampFullpath(el, resolvedRefPointer, layoutPath, i);
@@ -257,7 +258,7 @@ function stampFullpathRecursive(
     // Recurse into nested elements
     if (Array.isArray(el.elements)) {
       const nestedPath = `${layoutPath.replace(/\/$/, '')}/${i}/elements`;
-      stampFullpathRecursive(el.elements, nestedPath, schema);
+      stampFullpathRecursive(el.elements, nestedPath, schema, resolvedElements);
     }
   }
 }
@@ -345,12 +346,15 @@ export function mergeLayoutOverlay(
   schema: any,
   overlayEntries: LayoutOverlayEntry[],
 ): any {
-  if (!schema || !Array.isArray(overlayEntries) || overlayEntries.length === 0) {
-    return schema;
-  }
+  if (!schema) return schema;
+
+  // Schema metadata must also match native resolved output when no layout entries exist.
+  const entries = Array.isArray(overlayEntries) ? overlayEntries : [];
+
+  const resolvedElements = new WeakSet<object>();
 
   // Step 1: Sort parent-first by slash-depth of layout_path, then element_idx
-  const sorted = [...overlayEntries].sort((a, b) => {
+  const sorted = [...entries].sort((a, b) => {
     const da = (a.layout_path.match(/\//g) ?? []).length;
     const db = (b.layout_path.match(/\//g) ?? []).length;
     return da !== db ? da - db : a.element_idx - b.element_idx;
@@ -396,8 +400,13 @@ export function mergeLayoutOverlay(
           elements[entry.element_idx] = resolved;
         }
 
-        // Stamp $fullpath from the actual resolved ref pointer (not the raw $ref string)
-        stampFullpath(elements[entry.element_idx], resolvedRefPointer, entry.layout_path, entry.element_idx);
+        // Preserve resolved field identity after `$ref` is removed. Final traversal
+        // must only restamp truly inline items.
+        const resolvedElement = elements[entry.element_idx];
+        if (resolvedElement != null && typeof resolvedElement === 'object') {
+          stampFullpath(resolvedElement, resolvedRefPointer, entry.layout_path, entry.element_idx);
+          resolvedElements.add(resolvedElement);
+        }
       }
     }
 
@@ -440,10 +449,10 @@ export function mergeLayoutOverlay(
         const layoutVal = val as Record<string, any>;
         if (Array.isArray(layoutVal.elements)) {
           const elemPath = `${currentPath}/$layout/elements`;
-          stampFullpathRecursive(layoutVal.elements, elemPath, schema);
+          stampFullpathRecursive(layoutVal.elements, elemPath, schema, resolvedElements);
         }
       } else if (key === 'elements' && Array.isArray(val)) {
-        stampFullpathRecursive(val, `${currentPath}/elements`, schema);
+        stampFullpathRecursive(val, `${currentPath}/elements`, schema, resolvedElements);
       } else {
         walkLayoutArrays(val, `${currentPath}/${key}`);
       }

@@ -204,13 +204,9 @@ namespace JsonEvalRs
             if (string.IsNullOrEmpty(subformPath))
                 throw new ArgumentNullException(nameof(subformPath));
 
-#if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_get_evaluated_schema_resolved_subform(_handle, subformPath);
-#else
-            var result = Native.json_eval_get_evaluated_schema_resolved_subform(_handle, Native.ToUTF8Bytes(subformPath)!);
-#endif
-            
-            return ProcessResult(result);
+            return LayoutOverlayMerger.Merge(
+                GetEvaluatedSchemaWithoutParamsSubform(subformPath),
+                GetResolvedLayoutSubform(subformPath));
         }
 
         /// <summary>
