@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.0.98] - 2026-07-15
+## [0.0.99] - 2026-07-15
 
 - [core] improve $layout resolver
 
