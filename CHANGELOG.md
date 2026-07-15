@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.0.105] - 2026-07-16
+
+- [core] fix data mutation on get_schema_value
+
 ## [0.0.104] - 2026-07-15
 
 - [core] fix stale field condition, subform evaluation
