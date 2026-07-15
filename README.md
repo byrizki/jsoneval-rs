@@ -10,6 +10,7 @@
 [![Web Core](https://img.shields.io/npm/v/@json-eval-rs/webcore?label=@json-eval-rs/webcore&logo=npm)](https://www.npmjs.com/package/@json-eval-rs/webcore)
 [![Bundler](https://img.shields.io/npm/v/@json-eval-rs/bundler?label=@json-eval-rs/bundler&logo=npm)](https://www.npmjs.com/package/@json-eval-rs/bundler)
 [![Vanilla Web](https://img.shields.io/npm/v/@json-eval-rs/vanilla?label=@json-eval-rs/vanilla&logo=npm)](https://www.npmjs.com/package/@json-eval-rs/vanilla)
+[![Common](https://img.shields.io/npm/v/@json-eval-rs/common?label=@json-eval-rs/common&logo=npm)](https://www.npmjs.com/package/@json-eval-rs/common)
 [![Node](https://img.shields.io/npm/v/@json-eval-rs/node?label=@json-eval-rs/node&logo=npm)](https://www.npmjs.com/package/@json-eval-rs/node)
 
 **High-performance JSON Logic evaluation library with schema validation and multi-platform bindings**
@@ -60,7 +61,7 @@
 
 ```toml
 [dependencies]
-json-eval-rs = "0.0.100"
+json-eval-rs = "0.0.101"
 ```
 
 ### C# / .NET

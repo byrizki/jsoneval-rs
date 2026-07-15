@@ -1,10 +1,18 @@
 # Changelog
 
+## [0.0.101] - 2026-07-15
+
+- [core] improve dependents & subform evaluation
+
 ## [0.0.100] - 2026-07-15
 
-- [core] fix dependents re-evaluation
+- [core] improve dependents evaluation
 
-## [0.0.100] - 2026-07-15
+## [0.0.99] - 2026-07-15
+
+- [core] improve $layout resolver
+
+## [0.0.98] - 2026-07-15
 
 - [core] improve $layout resolver
 
