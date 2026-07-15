@@ -84,7 +84,7 @@ Use Actions → Publish Packages → Run workflow.
 
 Inputs:
 
-- `release_tag`: release asset source, for example `v0.0.105`.
+- `release_tag`: release asset source, for example `v0.0.106`.
 - package toggles: C#, common npm, web npm, React Native npm, crates.io.
 
 Publish workflow downloads `.nupkg` and `.tgz` assets from the GitHub Release. It does not rebuild packages.

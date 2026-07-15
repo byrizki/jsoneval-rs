@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.106] - 2026-07-16
+
+- fix subform re-evaluation
+
+
 ## [0.0.105] - 2026-07-16
 
 - [core] fix data mutation on get_schema_value
