@@ -90,14 +90,16 @@ impl EvalData {
     /// Replace data and context in existing EvalData (for evaluation updates)
     /// Uses CoW: replaces Arc, no clone needed if not shared
     pub fn replace_data_and_context(&mut self, input_data: Value, context_data: Value) {
+        let Some(input_obj) = input_data.as_object() else {
+            // Public evaluation entry points accept JSON text. A non-object root cannot
+            // represent form data, but must not abort the process through `unwrap()`.
+            return;
+        };
+
         let data = Arc::make_mut(&mut self.data); // CoW: clone only if shared
-        input_data
-            .as_object()
-            .unwrap()
-            .iter()
-            .for_each(|(key, value)| {
-                Self::set_by_pointer(data, &format!("/{key}"), value.clone());
-            });
+        input_obj.iter().for_each(|(key, value)| {
+            Self::set_by_pointer(data, &format!("/{key}"), value.clone());
+        });
         Self::set_by_pointer(data, "/$context", context_data);
     }
 

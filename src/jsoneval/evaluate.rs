@@ -799,6 +799,7 @@ impl JSONEval {
             }
         });
 
+        self.refresh_computed_value_dependents(token);
         self.evaluate_options_templates(paths);
 
         // Resolve refs and visibility from current evaluated schema every evaluation.
@@ -810,6 +811,88 @@ impl JSONEval {
 
         // Layout state was rebuilt above. Overlay consumers may reuse it only until next run.
         self.resolved_layout_cache = None;
+    }
+
+    /// Re-evaluate direct dependents of computed fields against a temporary data overlay.
+    /// Computed values are exposed only for this refresh; shared form data, cache entries and
+    /// version trackers remain untouched, preventing subform/table cascade contamination.
+    fn refresh_computed_value_dependents(&mut self, token: Option<&CancellationToken>) {
+        let computed_values: Vec<(String, Value)> = self
+            .evaluations
+            .keys()
+            .filter_map(|key| {
+                let field_path = key.strip_suffix("/value")?;
+                if !field_path.contains("/properties/") || key.contains("/rules/") {
+                    return None;
+                }
+                let schema_pointer = path_utils::normalize_to_json_pointer(key);
+                let value = self.evaluated_schema.pointer(&schema_pointer)?;
+                if value.is_object() && value.get("$evaluation").is_some() {
+                    return None;
+                }
+                Some((
+                    path_utils::schema_path_to_data_pointer(field_path).into_owned(),
+                    value.clone(),
+                ))
+            })
+            .collect();
+        if computed_values.is_empty() {
+            return;
+        }
+
+        let mut overlay = EvalData::new(self.eval_data.snapshot_data_clone());
+        let mut changed = indexmap::IndexSet::new();
+        for (data_path, value) in computed_values {
+            if overlay.get(&data_path) != Some(&value) {
+                overlay.set(&data_path, value);
+                changed.insert(data_path);
+            }
+        }
+        if changed.is_empty() {
+            return;
+        }
+
+        let targets: Vec<String> = self
+            .evaluations
+            .keys()
+            .filter(|key| {
+                !key.contains("/dependents/")
+                    && !key.contains("/$params/")
+                    && !self.tables.keys().any(|table| key.starts_with(table))
+                    && self.dependencies.get(*key).is_some_and(|dependencies| {
+                        dependencies.iter().any(|dependency| {
+                            changed.contains(
+                                path_utils::schema_path_to_data_pointer(dependency).as_ref(),
+                            )
+                        })
+                    })
+            })
+            .cloned()
+            .collect();
+
+        for key in targets {
+            if token.is_some_and(CancellationToken::is_cancelled) {
+                return;
+            }
+            let Some(logic_id) = self.evaluations.get(&key) else {
+                continue;
+            };
+            let Ok(value) = self.engine.run(logic_id, overlay.data()) else {
+                continue;
+            };
+            let pointer = path_utils::normalize_to_json_pointer(&key);
+            if let Some(node) = self.evaluated_schema.pointer_mut(&pointer) {
+                let value = clean_float_noise_scalar(value);
+                if pointer.contains("/rules/") && !pointer.ends_with("/value") {
+                    if let Some(rule) = node.as_object_mut() {
+                        rule.remove("$evaluation");
+                        rule.insert("value".to_string(), value);
+                    }
+                } else {
+                    *node = value;
+                }
+            }
+        }
     }
 
     /// Evaluate options URL templates (handles {variable} patterns) — called on demand from get_field_options
