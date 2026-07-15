@@ -129,7 +129,13 @@ impl JSONEval {
                 paths
             };
             let subform_invalidated_tables = time_block!("  [dep] run_subform_pass", {
-                self.run_subform_pass(&extended_paths, re_evaluate, token, &mut result)
+                self.run_subform_pass(
+                    &extended_paths,
+                    changed_paths,
+                    re_evaluate,
+                    token,
+                    &mut result,
+                )
             })?;
 
             // If the subform pass invalidated and re-evaluated any T2 $params tables that
@@ -148,7 +154,7 @@ impl JSONEval {
                 // (e.g. first_prem) against the now-fresh T2 tables. The first subform pass ran
                 // before evaluate_internal refreshed those tables. Deduplication (last-writer-wins)
                 // ensures these up-to-date entries overwrite any stale entries from pass 1.
-                self.run_subform_pass(&[], true, token, &mut result)?;
+                self.run_subform_pass(&[], &[], true, token, &mut result)?;
 
                 // Patch the whole-array entry in result with the post-pass eval_data snapshot.
                 for (subform_path, _) in &self.subforms {
@@ -677,6 +683,7 @@ impl JSONEval {
     fn run_subform_pass(
         &mut self,
         changed_paths: &[String],
+        parent_changed_paths: &[String],
         _re_evaluate: bool,
         token: Option<&CancellationToken>,
         result: &mut Vec<Value>,
@@ -767,6 +774,86 @@ impl JSONEval {
                     map.insert(field_key.clone(), item_val.clone());
                     Value::Object(map)
                 };
+
+                // Project parent changes into directly dependent rider value formulas. This is
+                // graph-driven: no product/field path policy belongs in evaluator code. Tables
+                // remain excluded because evaluating a `$params` table with one rider payload can
+                // overwrite shared parent cache rows.
+                let parent_dependency_paths: Vec<String> = parent_changed_paths
+                    .iter()
+                    .map(|path| {
+                        path_utils::dot_notation_to_schema_pointer(path)
+                            .trim_start_matches('#')
+                            .to_string()
+                    })
+                    .collect();
+                let dependent_value_paths: Vec<String> = self
+                    .subforms
+                    .get(&subform_path)
+                    .map(|subform| {
+                        subform
+                            .dependencies
+                            .iter()
+                            .filter(|(key, deps)| {
+                                !subform.table_metadata.contains_key(*key)
+                                    && !key.starts_with("#/$params/")
+                                    && key.ends_with("/value")
+                                    && parent_dependency_paths
+                                        .iter()
+                                        .any(|dependency| deps.contains(dependency))
+                            })
+                            .map(|(key, _)| key.clone())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                if item_changed_paths.is_empty() && !dependent_value_paths.is_empty() {
+                    let mut parent_cache = std::mem::take(&mut self.eval_cache);
+                    parent_cache.set_active_item(idx);
+                    let subform = self
+                        .subforms
+                        .get_mut(&subform_path)
+                        .expect("subform exists");
+                    subform.eval_data.replace_data_and_context(
+                        merged_data,
+                        self.eval_data
+                            .data()
+                            .get("$context")
+                            .cloned()
+                            .unwrap_or(Value::Null),
+                    );
+                    std::mem::swap(&mut subform.eval_cache, &mut parent_cache);
+                    subform.evaluate_internal(Some(&dependent_value_paths), token)?;
+
+                    for formula_path in &dependent_value_paths {
+                        let schema_path = path_utils::normalize_to_json_pointer(formula_path);
+                        let data_path = path_utils::schema_path_to_data_pointer(formula_path);
+                        let Some(value) = subform.evaluated_schema.pointer(&schema_path).cloned()
+                        else {
+                            continue;
+                        };
+                        let mut change = serde_json::Map::new();
+                        let field = data_path
+                            .trim_start_matches('/')
+                            .trim_end_matches("/value")
+                            .replace('/', ".");
+                        let field = field.strip_prefix(&field_prefix).unwrap_or(&field);
+                        change.insert(
+                            "$ref".to_string(),
+                            Value::String(format!("{}.{}.{}", subform_dot_path, idx, field)),
+                        );
+                        if value == Value::Null || value.as_str() == Some("") {
+                            change.insert("clear".to_string(), Value::Bool(true));
+                        } else {
+                            change.insert("value".to_string(), value);
+                        }
+                        result.push(Value::Object(change));
+                    }
+                    std::mem::swap(&mut subform.eval_cache, &mut parent_cache);
+                    parent_cache.clear_active_item();
+                    self.eval_cache = parent_cache;
+                    continue;
+                }
 
                 let Some(subform) = self.subforms.get_mut(&subform_path) else {
                     continue;
