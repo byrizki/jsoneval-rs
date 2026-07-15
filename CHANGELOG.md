@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.0.104] - 2026-07-15
+
+- [core] fix stale field condition, subform evaluation
+
 ## [0.0.103] - 2026-07-15
 
 - [core] fix evaluation cache staleness
