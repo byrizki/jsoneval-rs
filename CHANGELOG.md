@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.0.102] - 2026-07-15
+
+- [core] fix dependents on conditional fields
+
 ## [0.0.101] - 2026-07-15
 
 - [core] improve dependents & subform evaluation
