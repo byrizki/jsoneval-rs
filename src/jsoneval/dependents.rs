@@ -850,8 +850,25 @@ impl JSONEval {
                     .unwrap_or_default();
 
                 if item_changed_paths.is_empty() && !dependent_value_paths.is_empty() {
-                    let mut parent_cache = std::mem::take(&mut self.eval_cache);
-                    parent_cache.set_active_item(idx);
+                    // Parent-only changes need an item-local overlay. Computed item values must
+                    // be visible to their own `dependents` (for example wop_flag=false clears
+                    // both WOP rider fields), but publishing into parent eval_data or its cache
+                    // makes later rider/table passes observe a synthetic input change.
+                    let parent_cache = std::mem::take(&mut self.eval_cache);
+                    let mut overlay_cache = parent_cache.clone();
+                    overlay_cache.ensure_active_item_cache(idx);
+                    if let Some(item_cache) = overlay_cache.subform_caches.get_mut(&idx) {
+                        // T1 checks use item versions, not parent versions. Merge parent changes
+                        // into disposable overlay state so relation-driven formulas cannot reuse
+                        // an earlier rider result (e.g. cached wop_flag=true).
+                        item_cache
+                            .data_versions
+                            .merge_from(&parent_data_versions_snapshot);
+                        item_cache
+                            .data_versions
+                            .merge_from_params(&parent_params_versions_snapshot);
+                    }
+                    overlay_cache.set_active_item(idx);
                     let subform = self
                         .subforms
                         .get_mut(&subform_path)
@@ -864,16 +881,28 @@ impl JSONEval {
                             .cloned()
                             .unwrap_or(Value::Null),
                     );
-                    std::mem::swap(&mut subform.eval_cache, &mut parent_cache);
+                    std::mem::swap(&mut subform.eval_cache, &mut overlay_cache);
                     subform.evaluate_internal(Some(&dependent_value_paths), token)?;
 
+                    let mut overlay_result = Vec::new();
+                    let mut overlay_queue = Vec::new();
+                    let mut overlay_processed = std::collections::HashMap::new();
                     for formula_path in &dependent_value_paths {
                         let schema_path = path_utils::normalize_to_json_pointer(formula_path);
-                        let data_path = path_utils::schema_path_to_data_pointer(formula_path);
+                        let data_path = path_utils::schema_path_to_data_pointer(formula_path)
+                            .replace("/value", "");
                         let Some(value) = subform.evaluated_schema.pointer(&schema_path).cloned()
                         else {
                             continue;
                         };
+
+                        // Make this computed value available only to direct dependent formulas.
+                        // `overlay_cache` is discarded below, so no main/subform cache version or
+                        // runtime input is changed by this targeted refresh.
+                        let source_path = formula_path.trim_end_matches("/value").to_string();
+                        subform.eval_data.set(&data_path, value.clone());
+                        overlay_queue.push((source_path, true, None));
+
                         let mut change = serde_json::Map::new();
                         let field = data_path
                             .trim_start_matches('/')
@@ -891,8 +920,41 @@ impl JSONEval {
                         }
                         result.push(Value::Object(change));
                     }
-                    std::mem::swap(&mut subform.eval_cache, &mut parent_cache);
-                    parent_cache.clear_active_item();
+
+                    Self::process_dependents_queue(
+                        &subform.engine,
+                        &subform.evaluations,
+                        &mut subform.eval_data,
+                        &mut subform.eval_cache,
+                        &subform.dependents_evaluations,
+                        &subform.dep_formula_triggers,
+                        &subform.evaluated_schema,
+                        &mut overlay_queue,
+                        &mut overlay_processed,
+                        &mut overlay_result,
+                        token,
+                        None,
+                    )?;
+
+                    for change in overlay_result {
+                        let Some(object) = change.as_object() else {
+                            continue;
+                        };
+                        let Some(Value::String(ref_path)) = object.get("$ref") else {
+                            continue;
+                        };
+                        let local_ref = ref_path.strip_prefix(&field_prefix).unwrap_or(ref_path);
+                        let mut mapped = object.clone();
+                        mapped.insert(
+                            "$ref".to_string(),
+                            Value::String(format!("{}.{}.{}", subform_dot_path, idx, local_ref)),
+                        );
+                        result.push(Value::Object(mapped));
+                    }
+
+                    // Restore subform's durable cache and discard overlay mutations. Keep the
+                    // parent's cache byte-for-byte unchanged for remaining items/tables.
+                    std::mem::swap(&mut subform.eval_cache, &mut overlay_cache);
                     self.eval_cache = parent_cache;
                     continue;
                 }
