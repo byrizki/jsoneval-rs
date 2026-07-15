@@ -371,23 +371,6 @@ impl JSONEval {
             self.eval_cache.bump_data_version(&data_path);
             to_process.push((path, true, None));
         }
-        for (path, schema_value) in readonly_values {
-            let data_path = path_utils::schema_path_to_data_pointer(&path).replace("/value/", "/");
-            let mut obj = serde_json::Map::new();
-            obj.insert(
-                "$ref".to_string(),
-                Value::String(path_utils::pointer_to_dot_notation(&data_path)),
-            );
-            obj.insert("$readonly".to_string(), Value::Bool(true));
-            let is_clear = schema_value == Value::Null || schema_value.as_str() == Some("");
-            if is_clear {
-                obj.insert("clear".to_string(), Value::Bool(true));
-            } else {
-                obj.insert("value".to_string(), schema_value);
-            }
-            result.push(Value::Object(obj));
-        }
-
         // A readonly write can change input to a cached `$params` table. Refresh only when
         // one of those tables depends on a field written by this pass. `to_process` stores
         // schema paths with `#`; dependency metadata stores the same paths without it.
@@ -426,7 +409,40 @@ impl JSONEval {
                         .invalidate_params_tables_for_item(active_idx, &params_table_keys);
                 }
                 self.evaluate_internal(None, token)?;
+
+                // The first readonly snapshot predates the table refresh. Re-read readonly
+                // values so dependent response patches reflect refreshed derived values (for
+                // example `wop_basic_premi` after `wop_basic_benefit` selects a WOP table row).
+                readonly_values.clear();
+                for path in self.conditional_readonly_fields.iter() {
+                    let normalized = path_utils::normalize_to_json_pointer(path);
+                    if let Some(schema_el) = self.evaluated_schema.pointer(&normalized) {
+                        self.check_readonly_for_dependents(
+                            schema_el,
+                            path,
+                            &mut Vec::new(),
+                            &mut readonly_values,
+                        );
+                    }
+                }
             }
+        }
+
+        for (path, schema_value) in readonly_values {
+            let data_path = path_utils::schema_path_to_data_pointer(&path).replace("/value/", "/");
+            let mut obj = serde_json::Map::new();
+            obj.insert(
+                "$ref".to_string(),
+                Value::String(path_utils::pointer_to_dot_notation(&data_path)),
+            );
+            obj.insert("$readonly".to_string(), Value::Bool(true));
+            let is_clear = schema_value == Value::Null || schema_value.as_str() == Some("");
+            if is_clear {
+                obj.insert("clear".to_string(), Value::Bool(true));
+            } else {
+                obj.insert("value".to_string(), schema_value);
+            }
+            result.push(Value::Object(obj));
         }
 
         if !to_process.is_empty() {
@@ -559,6 +575,32 @@ impl JSONEval {
                 .bump_data_version(&format!("/{}", data_path));
         }
         !defaults.is_empty()
+    }
+
+    /// Apply missing visible static defaults and process their declared dependents.
+    ///
+    /// Used by indexed subform evaluation after its first formula/visibility pass. The
+    /// initial pass determines which defaults are visible; this pass writes only missing
+    /// primitive defaults, then lets their dependent graph override them if necessary.
+    pub(crate) fn apply_visible_static_defaults_with_dependents(
+        &mut self,
+        token: Option<&CancellationToken>,
+    ) -> Result<bool, String> {
+        if self.collect_visible_static_defaults().is_empty() {
+            return Ok(false);
+        }
+
+        let mut to_process = Vec::new();
+        let mut processed = std::collections::HashMap::new();
+        let mut result = Vec::new();
+        self.run_schema_default_value_pass(
+            token,
+            &mut to_process,
+            &mut processed,
+            &mut result,
+            None,
+        )?;
+        Ok(true)
     }
 
     /// Internal method to run the schema default value pass.

@@ -598,7 +598,13 @@ impl JSONEval {
         };
 
         self.with_item_cache_swap(base_path, idx, data_value, context_value, |sf| {
-            sf.evaluate_internal_pre_diffed(paths, token)
+            // Match main-form lifecycle: resolve visibility, hydrate missing visible static
+            // defaults and their dependents, then re-evaluate only when data was written.
+            sf.evaluate_internal_pre_diffed(paths, token)?;
+            if sf.apply_visible_static_defaults_with_dependents(token)? {
+                sf.evaluate_internal_pre_diffed(paths, token)?;
+            }
+            Ok(())
         })
     }
 
