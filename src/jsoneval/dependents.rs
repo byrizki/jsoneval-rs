@@ -883,47 +883,36 @@ impl JSONEval {
                     );
                     std::mem::swap(&mut subform.eval_cache, &mut overlay_cache);
 
-                    // Re-evaluate only to hydrate missing computed outputs downstream of a table
-                    // fed by one of these parent-derived rider values. Existing computed values
-                    // retain legacy parent-cascade behavior; this targets newly prefilling riders
-                    // whose table-backed output (such as WOP premium) has never been calculated.
-                    let refresh_missing_table_outputs =
-                        dependent_value_paths.iter().any(|source| {
-                            let source = source.trim_end_matches("/value").trim_start_matches('#');
-                            let affected_tables: Vec<&String> = subform
-                                .table_metadata
-                                .keys()
-                                .filter(|table| table.starts_with("#/$params"))
-                                .filter(|table| {
-                                    subform.dependencies.get(*table).is_some_and(|deps| {
-                                        deps.iter().any(|dep| dep.trim_start_matches('#') == source)
-                                    })
+                    // Detect table-backed outputs downstream of parent-derived rider values.
+                    // They must be recalculated and emitted even when stored data is non-null:
+                    // after a relation change an existing WOP01 premium may otherwise remain
+                    // stale when rider WOP remaps to WOP02.
+                    let refresh_table_outputs = dependent_value_paths.iter().any(|source| {
+                        let source = source.trim_end_matches("/value").trim_start_matches('#');
+                        let affected_tables: Vec<&String> = subform
+                            .table_metadata
+                            .keys()
+                            .filter(|table| table.starts_with("#/$params"))
+                            .filter(|table| {
+                                subform.dependencies.get(*table).is_some_and(|deps| {
+                                    deps.iter().any(|dep| dep.trim_start_matches('#') == source)
                                 })
-                                .collect();
+                            })
+                            .collect();
 
-                            !affected_tables.is_empty()
-                                && subform.evaluations.iter().any(|(target, _)| {
-                                    target.ends_with("/value")
-                                        && subform.dependencies.get(target).is_some_and(|deps| {
-                                            deps.iter().any(|dep| {
-                                                affected_tables.iter().any(|table| {
-                                                    dep.trim_start_matches('#')
-                                                        == table.trim_start_matches('#')
-                                                })
+                        !affected_tables.is_empty()
+                            && subform.evaluations.iter().any(|(target, _)| {
+                                target.ends_with("/value")
+                                    && subform.dependencies.get(target).is_some_and(|deps| {
+                                        deps.iter().any(|dep| {
+                                            affected_tables.iter().any(|table| {
+                                                dep.trim_start_matches('#')
+                                                    == table.trim_start_matches('#')
                                             })
                                         })
-                                        && subform
-                                            .eval_data
-                                            .get(
-                                                &path_utils::schema_path_to_data_pointer(target)
-                                                    .replace("/value", ""),
-                                            )
-                                            .is_none_or(|value| {
-                                                value.is_null()
-                                                    || value.as_str().is_some_and(str::is_empty)
-                                            })
-                                })
-                        });
+                                    })
+                            })
+                    });
                     subform.evaluate_internal(Some(&dependent_value_paths), token)?;
 
                     let mut overlay_result = Vec::new();
@@ -982,10 +971,10 @@ impl JSONEval {
                         None,
                     )?;
 
-                    if refresh_missing_table_outputs {
-                        // Formula values changed above feed a missing table-backed computed field
-                        // with no explicit schema `dependents`. Reuse normal lifecycle in the
-                        // disposable overlay so it is calculated and patched.
+                    if refresh_table_outputs {
+                        // Parent-derived source values can feed table-backed computed fields with
+                        // no explicit schema dependents. Re-run their formula graph in the
+                        // disposable overlay even if prior rider data contains a value.
                         subform.run_re_evaluate_pass(
                             token,
                             &mut overlay_queue,
