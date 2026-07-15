@@ -882,6 +882,48 @@ impl JSONEval {
                             .unwrap_or(Value::Null),
                     );
                     std::mem::swap(&mut subform.eval_cache, &mut overlay_cache);
+
+                    // Re-evaluate only to hydrate missing computed outputs downstream of a table
+                    // fed by one of these parent-derived rider values. Existing computed values
+                    // retain legacy parent-cascade behavior; this targets newly prefilling riders
+                    // whose table-backed output (such as WOP premium) has never been calculated.
+                    let refresh_missing_table_outputs =
+                        dependent_value_paths.iter().any(|source| {
+                            let source = source.trim_end_matches("/value").trim_start_matches('#');
+                            let affected_tables: Vec<&String> = subform
+                                .table_metadata
+                                .keys()
+                                .filter(|table| table.starts_with("#/$params"))
+                                .filter(|table| {
+                                    subform.dependencies.get(*table).is_some_and(|deps| {
+                                        deps.iter().any(|dep| dep.trim_start_matches('#') == source)
+                                    })
+                                })
+                                .collect();
+
+                            !affected_tables.is_empty()
+                                && subform.evaluations.iter().any(|(target, _)| {
+                                    target.ends_with("/value")
+                                        && subform.dependencies.get(target).is_some_and(|deps| {
+                                            deps.iter().any(|dep| {
+                                                affected_tables.iter().any(|table| {
+                                                    dep.trim_start_matches('#')
+                                                        == table.trim_start_matches('#')
+                                                })
+                                            })
+                                        })
+                                        && subform
+                                            .eval_data
+                                            .get(
+                                                &path_utils::schema_path_to_data_pointer(target)
+                                                    .replace("/value", ""),
+                                            )
+                                            .is_none_or(|value| {
+                                                value.is_null()
+                                                    || value.as_str().is_some_and(str::is_empty)
+                                            })
+                                })
+                        });
                     subform.evaluate_internal(Some(&dependent_value_paths), token)?;
 
                     let mut overlay_result = Vec::new();
@@ -897,10 +939,14 @@ impl JSONEval {
                         };
 
                         // Make this computed value available only to direct dependent formulas.
-                        // `overlay_cache` is discarded below, so no main/subform cache version or
-                        // runtime input is changed by this targeted refresh.
+                        // The overlay is discarded below, but its version must still advance: the
+                        // re-evaluation pass uses it to invalidate formulas and tables derived
+                        // from this value (for example wop_rider_premi after its benefit changes).
                         let source_path = formula_path.trim_end_matches("/value").to_string();
-                        subform.eval_data.set(&data_path, value.clone());
+                        if subform.eval_data.get(&data_path) != Some(&value) {
+                            subform.eval_data.set(&data_path, value.clone());
+                            subform.eval_cache.bump_data_version(&data_path);
+                        }
                         overlay_queue.push((source_path, true, None));
 
                         let mut change = serde_json::Map::new();
@@ -935,6 +981,19 @@ impl JSONEval {
                         token,
                         None,
                     )?;
+
+                    if refresh_missing_table_outputs {
+                        // Formula values changed above feed a missing table-backed computed field
+                        // with no explicit schema `dependents`. Reuse normal lifecycle in the
+                        // disposable overlay so it is calculated and patched.
+                        subform.run_re_evaluate_pass(
+                            token,
+                            &mut overlay_queue,
+                            &mut overlay_processed,
+                            &mut overlay_result,
+                            None,
+                        )?;
+                    }
 
                     for change in overlay_result {
                         let Some(object) = change.as_object() else {

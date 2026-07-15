@@ -57,6 +57,16 @@ impl VersionTracker {
         }
     }
 
+    /// Merge counters except paths local to a different active subform item.
+    pub(crate) fn merge_excluding_prefix(&mut self, other: &VersionTracker, excluded_prefix: &str) {
+        for (k, v) in &other.versions {
+            if !k.starts_with(excluded_prefix) {
+                let current = self.versions.get(k).copied().unwrap_or(0);
+                self.versions.insert(k.clone(), current.max(*v));
+            }
+        }
+    }
+
     /// Returns true if any tracked path with the given prefix has been bumped (version > 0).
     /// Used to gate table re-evaluation when item fields change without the item being new.
     pub fn any_bumped_with_prefix(&self, prefix: &str) -> bool {
@@ -694,6 +704,30 @@ fn diff_and_update_versions_internal(
 /// Recursively traverses a value and bumps the version for every nested path.
 /// Used when a structural type mismatch occurs (e.g., Object -> Null) so that
 /// cache entries depending on nested fields are correctly invalidated.
+#[cfg(test)]
+mod tests {
+    use super::VersionTracker;
+
+    #[test]
+    fn merge_excluding_prefix_keeps_item_versions_isolated() {
+        let mut item = VersionTracker::new();
+        item.bump("/riders/wop_flag", "test");
+
+        let mut parent = VersionTracker::new();
+        parent.bump("/illustration/insured/phins_relation", "test");
+        parent.bump("/riders/wop_flag", "test");
+
+        item.merge_excluding_prefix(&parent, "/riders/");
+
+        assert_eq!(item.get("/illustration/insured/phins_relation"), 1);
+        assert_eq!(
+            item.get("/riders/wop_flag"),
+            1,
+            "another rider's parent-tracker bump must not alter this item's version"
+        );
+    }
+}
+
 fn traverse_and_bump(tracker: &mut VersionTracker, pointer: &mut String, val: &Value) {
     match val {
         Value::Object(map) => {

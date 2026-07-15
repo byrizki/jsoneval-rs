@@ -183,7 +183,7 @@ impl JSONEval {
 
             subform
                 .eval_data
-                .replace_data_and_context(data_value, context_value);
+                .replace_data_and_context(data_value.clone(), context_value.clone());
             let mut new_item_val = subform.eval_data.data().get(&root_key).cloned();
 
             // Fallback 1: Absolute data path extraction (e.g. for full form payload)
@@ -227,6 +227,11 @@ impl JSONEval {
             )
         }; // subform borrow released here
 
+        // Full-form payloads can change parent fields read by subform conditions (for example
+        // `illustration.insured.phins_relation`). Item-only wrappers omit this absolute array
+        // path, so they must never overwrite or invalidate parent form state.
+        let full_parent_payload = data_value.pointer(&array_path).is_some();
+
         // Unified store fallback: if the subform's own per-item cache has no snapshot for this
         // index (e.g. this is the first evaluate_subform call after a full evaluate()), treat the
         // parent's eval_data slot as the canonical baseline. The parent always holds the most
@@ -247,7 +252,38 @@ impl JSONEval {
         let is_new_item = parent_item.is_none();
 
         let mut parent_cache = std::mem::take(&mut self.eval_cache);
+        if full_parent_payload {
+            let old_parent_data = self.eval_data.snapshot_data_clone();
+            self.eval_data
+                .replace_data_and_context(data_value.clone(), context_value.clone());
+            let new_parent_data = self.eval_data.snapshot_data_clone();
+            crate::jsoneval::eval_cache::diff_and_update_versions(
+                &mut parent_cache.data_versions,
+                "",
+                &old_parent_data,
+                &new_parent_data,
+                "sync_full_subform_payload",
+            );
+        }
         parent_cache.ensure_active_item_cache(idx);
+
+        if let Some(c) = parent_cache.subform_caches.get_mut(&idx) {
+            // Parent dependency paths use absolute form pointers, while item formulas use
+            // `/riders/...`; merging parent versions invalidates parent-driven conditions without
+            // cross-item contamination. Item-local bumps remain isolated under `/riders/...`.
+            c.data_versions
+                .merge_excluding_prefix(&parent_cache.data_versions, &format!("/{root_key}/"));
+            c.data_versions
+                .merge_from_params(&parent_cache.params_versions);
+
+            // Merge the durable item history before diffing. Diffing first can reuse a version
+            // number held by a cached entry (false → true both appear as version 1), leaving an
+            // outdated condition/value cache entry valid. Historical versions form the diff base.
+            if let Some(subform_item_cache) = &subform_item_cache_opt {
+                c.data_versions
+                    .merge_from(&subform_item_cache.data_versions);
+            }
+        }
 
         // Snapshot item versions BEFORE the diff so we can detect only NEW bumps below.
         // `any_bumped_with_prefix(v > 0)` would return true for historical bumps from prior
@@ -259,10 +295,6 @@ impl JSONEval {
             .map(|c| c.data_versions.clone());
 
         if let Some(c) = parent_cache.subform_caches.get_mut(&idx) {
-            // Only inherit $params-scoped versions from the parent so that data-path
-            // bumps from other items or previous calls don't contaminate this item's baseline.
-            c.data_versions
-                .merge_from_params(&parent_cache.params_versions);
             // Diff only the item field to find what changed (skips the 5 MB parent tree).
             crate::jsoneval::eval_cache::diff_and_update_versions(
                 &mut c.data_versions,
@@ -326,9 +358,6 @@ impl JSONEval {
                 // After the merge, current_dv reflects the full accumulated state; the diff
                 // above already bumped any newly-changed fields further, so stale entries that
                 // depended on those fields are still correctly evicted.
-                c.data_versions
-                    .merge_from(&subform_item_cache.data_versions);
-
                 let current_dv = c.data_versions.clone();
                 for (k, v) in subform_item_cache.entries {
                     // Skip if entry already exists (parent-form run may have added a fresher result).
