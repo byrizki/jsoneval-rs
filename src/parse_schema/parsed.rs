@@ -1,5 +1,5 @@
 /// ParsedSchema parsing for schema caching and reuse
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use serde_json::Value;
 use std::sync::Arc;
 
@@ -57,6 +57,9 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
     });
 
     parsed.layout_paths = Arc::new(layout_paths);
+    let mut layout_field_refs = IndexSet::new();
+    crate::parse_schema::common::collect_layout_field_refs(&parsed.schema, &mut layout_field_refs);
+    parsed.layout_field_refs = Arc::new(layout_field_refs);
     parsed.dependents_evaluations = Arc::new(dependents_evaluations);
     parsed.options_templates = Arc::new(options_templates);
     parsed.fields_with_rules = Arc::new(fields_with_rules);

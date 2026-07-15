@@ -9,6 +9,51 @@ use serde_json::Map;
 use serde_json::Value;
 use std::sync::Arc;
 
+/// Collect schema field pointers referenced by `$layout` elements.
+///
+/// This runs once during schema parsing. Runtime schema-value extraction then uses
+/// an O(1) set membership check instead of re-walking a potentially large schema.
+pub fn collect_layout_field_refs(value: &Value, refs: &mut IndexSet<String>) {
+    fn collect_elements(elements: &Value, refs: &mut IndexSet<String>) {
+        let Some(elements) = elements.as_array() else {
+            return;
+        };
+        for element in elements {
+            let Some(map) = element.as_object() else {
+                continue;
+            };
+            if let Some(reference) = map.get("$ref").and_then(Value::as_str) {
+                let pointer = path_utils::normalize_to_json_pointer(reference);
+                refs.insert(pointer.trim_start_matches('#').to_string());
+            }
+            if let Some(children) = map.get("elements") {
+                collect_elements(children, refs);
+            }
+        }
+    }
+
+    match value {
+        Value::Object(map) => {
+            if let Some(elements) = map
+                .get("$layout")
+                .and_then(Value::as_object)
+                .and_then(|layout| layout.get("elements"))
+            {
+                collect_elements(elements, refs);
+            }
+            for child in map.values() {
+                collect_layout_field_refs(child, refs);
+            }
+        }
+        Value::Array(values) => {
+            for child in values {
+                collect_layout_field_refs(child, refs);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// Collect $ref dependencies from a JSON value recursively
 pub fn collect_refs(value: &Value, refs: &mut IndexSet<String>) {
     match value {

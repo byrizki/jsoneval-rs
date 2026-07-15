@@ -69,6 +69,10 @@ pub struct ParsedSchema {
     /// Cached layout paths (collected at parse time) (wrapped in Arc for zero-copy sharing)
     pub layout_paths: Arc<Vec<String>>,
 
+    /// Schema field pointers referenced by any `$layout` element. Precomputed so
+    /// schema-value extraction can distinguish editable layout fields in O(1).
+    pub layout_field_refs: Arc<IndexSet<String>>,
+
     /// Options URL templates (url_path, template_str, params_path) (wrapped in Arc for zero-copy sharing)
     pub options_templates: Arc<Vec<(String, String, String)>>,
 
@@ -155,6 +159,7 @@ impl ParsedSchema {
             others_evaluations: Arc::new(Vec::new()),
             value_evaluations: Arc::new(Vec::new()),
             layout_paths: Arc::new(Vec::new()),
+            layout_field_refs: Arc::new(IndexSet::new()),
             options_templates: Arc::new(Vec::new()),
             subforms: IndexMap::new(),
             reffed_by: Arc::new(IndexMap::new()),

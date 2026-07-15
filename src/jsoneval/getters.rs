@@ -69,6 +69,13 @@ impl JSONEval {
         false
     }
 
+    /// Return whether a schema field appears in any `$layout` element.
+    /// Field references are collected once while parsing schema, so this is O(1).
+    fn is_mapped_in_any_layout(&self, schema_path: &str) -> bool {
+        self.layout_field_refs
+            .contains(schema_path.trim_start_matches('#'))
+    }
+
     /// Prune hidden values from data object recursively
     fn prune_hidden_values(&self, data: &mut Value, current_path: &str) {
         if let Value::Object(map) = data {
@@ -385,9 +392,11 @@ impl JSONEval {
         self.resolve_static_markers_at_path(pointer_path.trim_start_matches('#'))
     }
 
-    /// Get all schema values (data view)
-    /// Mutates internal data state by overriding with values from value evaluations
-    /// This corresponds to subform.get_schema_value() usage
+    /// Get all schema values (data view).
+    ///
+    /// Builds a consumer view from current data and evaluated values without mutating
+    /// evaluator state. Indexed subforms carry active-item wrappers at their root;
+    /// persisting this view would append that wrapper into later form evaluations.
     pub fn get_schema_value(&mut self) -> Value {
         // Start with current authoritative data from eval_data
         let mut current_data = self.eval_data.data().clone();
@@ -447,13 +456,28 @@ impl JSONEval {
                 let is_last = i == path_parts.len() - 1;
 
                 if is_last {
-                    // Set the value at the final key
+                    // Only disabled calculated fields are library-owned. Editable fields
+                    // preserve non-null caller input even when their schema has `$evaluation`.
+                    let schema_value = self.schema.pointer(clean_key);
+                    let computed_value = schema_value
+                        .and_then(Value::as_object)
+                        .is_some_and(|value| value.contains_key("$evaluation"));
+                    let disabled = self
+                        .evaluated_schema
+                        .pointer(schema_path)
+                        .and_then(Value::as_object)
+                        .and_then(|field| field.get("condition"))
+                        .and_then(Value::as_object)
+                        .and_then(|condition| condition.get("disabled"))
+                        .is_some_and(|disabled| disabled == &Value::Bool(true));
+                    let computed_disabled =
+                        computed_value && (disabled || !self.is_mapped_in_any_layout(schema_path));
                     if let Some(obj) = current.as_object_mut() {
-                        let should_update = match obj.get(*part) {
-                            Some(v) => v.is_null(),
-                            None => true,
-                        };
-
+                        let should_update = computed_disabled
+                            || match obj.get(*part) {
+                                Some(v) => v.is_null(),
+                                None => true,
+                            };
                         if should_update {
                             obj.insert(
                                 (*part).to_string(),
@@ -476,9 +500,6 @@ impl JSONEval {
                 }
             }
         }
-
-        // Update self.data to persist the view changes (matching backup behavior)
-        self.data = current_data.clone();
 
         crate::utils::clean_float_noise(current_data)
     }

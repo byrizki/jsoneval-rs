@@ -59,6 +59,9 @@ pub fn parse_schema(lib: &mut JSONEval) -> Result<(), String> {
     });
 
     lib.layout_paths = Arc::new(layout_paths);
+    let mut layout_field_refs = indexmap::IndexSet::new();
+    crate::parse_schema::common::collect_layout_field_refs(&lib.schema, &mut layout_field_refs);
+    lib.layout_field_refs = Arc::new(layout_field_refs);
     lib.dependents_evaluations = Arc::new(dependents_evaluations);
     lib.options_templates = Arc::new(options_templates);
     lib.fields_with_rules = Arc::new(fields_with_rules);

@@ -53,6 +53,8 @@ pub struct JSONEval {
     pub others_evaluations: Arc<Vec<String>>,
     pub value_evaluations: Arc<Vec<String>>,
     pub layout_paths: Arc<Vec<String>>,
+    /// Field schema pointers referenced by one or more `$layout` elements.
+    pub layout_field_refs: Arc<IndexSet<String>>,
     pub options_templates: Arc<Vec<(String, String, String)>>,
     pub subforms: IndexMap<String, Box<JSONEval>>,
 
