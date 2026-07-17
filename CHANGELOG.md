@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.107] - 2026-07-17
+
+- enhance subform & caching eval
+
+
 ## [0.0.106] - 2026-07-16
 
 - fix subform re-evaluation
