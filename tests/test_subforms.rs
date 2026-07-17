@@ -461,6 +461,79 @@ fn test_get_schema_value_subform() {
 }
 
 #[test]
+fn get_schema_value_subform_does_not_mutate_parent_data_with_active_item() {
+    let schema = json!({
+        "illustration": {
+            "type": "object",
+            "properties": {
+                "product_benefit": {
+                    "type": "object",
+                    "properties": {
+                        "riders": {
+                            "type": "array",
+                            "itemsRootKey": "riders",
+                            "items": {
+                                "properties": {
+                                    "code": { "type": "string" }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+    let data = json!({
+        "illustration": {
+            "product_benefit": {
+                "riders": [{ "code": "ZLOB" }]
+            }
+        }
+    });
+    let schema_str = schema.to_string();
+    let data_str = data.to_string();
+    let mut eval = JSONEval::new(&schema_str, None, Some(&data_str)).unwrap();
+    eval.evaluate(&data_str, None, None, None).unwrap();
+
+    let item_payload = json!({ "riders": { "code": "ZLOB" } }).to_string();
+    eval.evaluate_subform(
+        "illustration.product_benefit.riders.0",
+        &item_payload,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
+
+    let parent_before = eval.data.clone();
+    let subform_data_before = eval
+        .subforms
+        .get("#/illustration/properties/product_benefit/properties/riders")
+        .unwrap()
+        .data
+        .clone();
+    let values = eval.get_schema_value_subform("illustration.product_benefit.riders.0");
+
+    assert_eq!(
+        values,
+        json!({ "riders": { "code": "ZLOB" } }),
+        "get_schema_value_subform must expose only subform-root data"
+    );
+    assert_eq!(
+        eval.data, parent_before,
+        "get_schema_value_subform must not mutate parent form data"
+    );
+    assert_eq!(
+        eval.subforms
+            .get("#/illustration/properties/product_benefit/properties/riders")
+            .unwrap()
+            .data,
+        subform_data_before,
+        "get_schema_value_subform must not append indexed rider root to subform data"
+    );
+}
+
+#[test]
 fn test_get_evaluated_schema_without_params_subform() {
     // Test getting evaluated schema without $params
     let schema = json!({

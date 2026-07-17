@@ -34,6 +34,7 @@ pub mod parsed_schema_cache;
 pub mod path_utils;
 pub mod static_arrays;
 pub mod subform_methods;
+pub(crate) mod subform_scope;
 pub mod table_evaluate;
 pub mod table_metadata;
 pub mod types;

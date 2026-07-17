@@ -398,14 +398,17 @@ impl EvalCache {
                 }
             }
 
-            // Tier 2: validate the global entry against the parent main-form tracker.
-            //
-            // Global $params table entries are stored using `self.data_versions` (store_cache
-            // with no active item). When a rider field (e.g. `riders.sa`) changes via
-            // `with_item_cache_swap`, the newly-bumped paths are propagated into
-            // `parent_cache.data_versions` before the swap. This ensures the T2 check
-            // here correctly sees the change without needing MaxVersionTracker, which
-            // would pick up historical per-rider bumps and cause false misses.
+            // A `$params` table can still read rider data. Global T2 reuse would
+            // then return another item's table row; keep it in the active item's T1
+            // cache. Only tables with exclusively `$params` dependencies are shared.
+            let has_item_data_dependency = deps.iter().any(|dep| {
+                !crate::jsoneval::path_utils::schema_path_to_data_pointer(dep)
+                    .starts_with("/$params")
+            });
+            if has_item_data_dependency {
+                return None;
+            }
+
             let result = self.validate_entry(eval_key, deps, &self.entries, &self.data_versions);
             if result.is_some() {
                 if crate::utils::is_debug_cache_enabled() {
@@ -601,6 +604,58 @@ pub(crate) fn diff_and_update_versions(
     let mut pointer_buf = String::with_capacity(128);
     pointer_buf.push_str(pointer);
     diff_and_update_versions_internal(tracker, &mut pointer_buf, old, new, source);
+}
+
+#[cfg(test)]
+mod cache_tests {
+    use super::{CacheEntry, EvalCache};
+    use indexmap::IndexSet;
+    use serde_json::json;
+    use std::collections::HashMap;
+
+    #[test]
+    fn active_item_does_not_reuse_global_table_with_item_dependency() {
+        let mut cache = EvalCache::new();
+        cache.set_active_item(1);
+
+        let eval_key = "#/$params/references/RIDER_RATE";
+        let deps = IndexSet::from_iter(["#/riders/properties/benefit".to_string()]);
+        cache.entries.insert(
+            eval_key.to_string(),
+            CacheEntry {
+                dep_versions: HashMap::from([("/riders/benefit".to_string(), 0)]),
+                result: json!([{"rate": 97}]),
+                computed_for_item: None,
+            },
+        );
+
+        assert!(
+            cache.check_table_cache(eval_key, &deps).is_none(),
+            "rider-dependent table rows must be scoped to active item"
+        );
+    }
+
+    #[test]
+    fn active_item_reuses_global_table_with_only_params_dependencies() {
+        let mut cache = EvalCache::new();
+        cache.set_active_item(1);
+
+        let eval_key = "#/$params/references/SHARED_RATE";
+        let deps = IndexSet::from_iter(["#/$params/others/currency".to_string()]);
+        cache.entries.insert(
+            eval_key.to_string(),
+            CacheEntry {
+                dep_versions: HashMap::from([("/$params/others/currency".to_string(), 0)]),
+                result: json!([{"rate": 10}]),
+                computed_for_item: None,
+            },
+        );
+
+        assert_eq!(
+            cache.check_table_cache(eval_key, &deps),
+            Some(json!([{"rate": 10}]))
+        );
+    }
 }
 
 fn diff_and_update_versions_internal(

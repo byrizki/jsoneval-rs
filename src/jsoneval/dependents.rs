@@ -794,29 +794,6 @@ impl JSONEval {
                         .cloned()
                         .unwrap_or(Value::Null);
 
-                // Build a minimal parent object with only the fields the subform needs:
-                // the item under field_key, plus all non-array top-level parent fields
-                // ($params markers, scalars). Large arrays are already stripped to static_arrays.
-                let merged_data = {
-                    let parent = self.eval_data.data();
-                    let mut map = serde_json::Map::new();
-                    if let Value::Object(parent_map) = parent {
-                        for (k, v) in parent_map {
-                            if k == &field_key {
-                                // Will be overridden with the single item below
-                                continue;
-                            }
-                            // Include scalars, objects ($params markers, etc.) but skip
-                            // other large array fields that aren't this subform
-                            if !v.is_array() {
-                                map.insert(k.clone(), v.clone());
-                            }
-                        }
-                    }
-                    map.insert(field_key.clone(), item_val.clone());
-                    Value::Object(map)
-                };
-
                 // Project parent changes into directly dependent rider value formulas. This is
                 // graph-driven: no product/field path policy belongs in evaluator code. Tables
                 // remain excluded because evaluating a `$params` table with one rider payload can
@@ -869,18 +846,29 @@ impl JSONEval {
                             .merge_from_params(&parent_params_versions_snapshot);
                     }
                     overlay_cache.set_active_item(idx);
+                    let canonical_root =
+                        path_utils::schema_path_to_data_pointer(&subform_path).into_owned();
+                    let scope = crate::jsoneval::subform_scope::SubformScope::new(
+                        &subform_path,
+                        &canonical_root,
+                        Some(idx),
+                    );
+                    let mut scoped_view = scope.evaluation_view(self.eval_data.data());
+                    if let Some(view) = scoped_view.as_object_mut() {
+                        view.insert(
+                            "$context".to_string(),
+                            self.eval_data
+                                .data()
+                                .get("$context")
+                                .cloned()
+                                .unwrap_or(Value::Null),
+                        );
+                    }
                     let subform = self
                         .subforms
                         .get_mut(&subform_path)
                         .expect("subform exists");
-                    subform.eval_data.replace_data_and_context(
-                        merged_data,
-                        self.eval_data
-                            .data()
-                            .get("$context")
-                            .cloned()
-                            .unwrap_or(Value::Null),
-                    );
+                    subform.eval_data = EvalData::new(scoped_view);
                     std::mem::swap(&mut subform.eval_cache, &mut overlay_cache);
 
                     // Detect table-backed outputs downstream of parent-derived rider values.
@@ -934,6 +922,9 @@ impl JSONEval {
                         let source_path = formula_path.trim_end_matches("/value").to_string();
                         if subform.eval_data.get(&data_path) != Some(&value) {
                             subform.eval_data.set(&data_path, value.clone());
+                            subform
+                                .eval_data
+                                .set(&scope.canonical_path(&data_path), value.clone());
                             subform.eval_cache.bump_data_version(&data_path);
                         }
                         overlay_queue.push((source_path, true, None));
@@ -971,6 +962,15 @@ impl JSONEval {
                         None,
                     )?;
 
+                    // Dependents write local aliases. Synchronize active item before tables
+                    // resolve absolute parent paths inside this disposable overlay.
+                    let local_item_path = format!("/{field_key}");
+                    if let Some(local_item) = subform.eval_data.get(&local_item_path).cloned() {
+                        subform
+                            .eval_data
+                            .set(&scope.canonical_path(&local_item_path), local_item);
+                    }
+
                     if refresh_table_outputs {
                         // Parent-derived source values can feed table-backed computed fields with
                         // no explicit schema dependents. Re-run their formula graph in the
@@ -1007,6 +1007,24 @@ impl JSONEval {
                     continue;
                 }
 
+                let canonical_root =
+                    path_utils::schema_path_to_data_pointer(&subform_path).into_owned();
+                let scope = crate::jsoneval::subform_scope::SubformScope::new(
+                    &subform_path,
+                    &canonical_root,
+                    Some(idx),
+                );
+                let mut scoped_view = scope.evaluation_view(self.eval_data.data());
+                if let Some(view) = scoped_view.as_object_mut() {
+                    view.insert(
+                        "$context".to_string(),
+                        self.eval_data
+                            .data()
+                            .get("$context")
+                            .cloned()
+                            .unwrap_or(Value::Null),
+                    );
+                }
                 let Some(subform) = self.subforms.get_mut(&subform_path) else {
                     continue;
                 };
@@ -1045,20 +1063,8 @@ impl JSONEval {
                     }
                 };
 
-                subform.eval_data.replace_data_and_context(
-                    merged_data,
-                    self.eval_data
-                        .data()
-                        .get("$context")
-                        .cloned()
-                        .unwrap_or(Value::Null),
-                );
-                let new_item_val = subform
-                    .eval_data
-                    .data()
-                    .get(&field_key)
-                    .cloned()
-                    .unwrap_or(Value::Null);
+                subform.eval_data = EvalData::new(scoped_view);
+                let new_item_val = item_val.clone();
 
                 // Cache-swap: lend parent cache to subform
                 let mut parent_cache = std::mem::take(&mut self.eval_cache);

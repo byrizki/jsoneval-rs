@@ -165,10 +165,34 @@ impl JSONEval {
                 .unwrap_or(&original_field_key)
                 .to_string();
 
+        let array_path =
+            crate::jsoneval::path_utils::schema_path_to_data_pointer(base_path).into_owned();
+        let item_path = format!("{}/{}", array_path, idx);
+        let full_parent_payload = data_value.pointer(&array_path).is_some();
+        let payload_has_parent_context = data_value
+            .as_object()
+            .map(|map| map.keys().any(|key| key != &root_key))
+            .unwrap_or(false);
+
+        // Normalize both public payload shapes into one active item before scope setup.
+        let normalized_item = if full_parent_payload {
+            data_value
+                .pointer(&item_path)
+                .cloned()
+                .or_else(|| data_value.get(&root_key).cloned())
+        } else {
+            data_value.get(&root_key).cloned()
+        }
+        .ok_or_else(|| {
+            format!(
+                "Invalid indexed subform payload for {base_path}[{idx}]: expected active item at {item_path} or wrapper root {root_key}"
+            )
+        })?;
+
         // Step 1: update subform data and extract item snapshot for targeted diff.
         // Scoped block releases the mutable borrow on `self.subforms` before we touch
         // `self.eval_cache` (they are disjoint fields, but keep it explicit).
-        let (old_item_snapshot, new_item_val, subform_item_cache_opt, array_path, item_path) = {
+        let (old_item_snapshot, new_item_val, subform_item_cache_opt) = {
             let subform = self
                 .subforms
                 .get_mut(base_path)
@@ -181,56 +205,31 @@ impl JSONEval {
                 .map(|c| c.item_snapshot.clone())
                 .unwrap_or(Value::Null);
 
-            subform
-                .eval_data
-                .replace_data_and_context(data_value.clone(), context_value.clone());
-            let mut new_item_val = subform.eval_data.data().get(&root_key).cloned();
-
-            // Fallback 1: Absolute data path extraction (e.g. for full form payload)
-            if new_item_val.is_none() {
-                let array_path =
-                    crate::jsoneval::path_utils::schema_path_to_data_pointer(base_path)
-                        .into_owned();
-                let item_path = format!("{}/{}", array_path, idx);
-                new_item_val = subform.eval_data.get(&item_path).cloned();
+            // Retain parent evaluator's schema-owned `$params`, then merge a full
+            // payload's parent fields over it. Item wrappers supply only active item.
+            let mut scoped_data = EvalData::new(self.eval_data.snapshot_data_clone());
+            if full_parent_payload || payload_has_parent_context {
+                scoped_data.replace_data_and_context(data_value.clone(), context_value.clone());
             }
-
-            // Fallback 2: Single key wrapper heuristic
-            if new_item_val.is_none() {
-                if let Value::Object(map) = subform.eval_data.data() {
-                    if map.len() == 1 {
-                        new_item_val = Some(map.values().next().unwrap().clone());
-                    }
-                }
+            scoped_data.set(&item_path, normalized_item.clone());
+            let canonical_parent = scoped_data.snapshot_data_clone();
+            let scope = crate::jsoneval::subform_scope::SubformScope::new(
+                base_path,
+                &array_path,
+                Some(idx),
+            );
+            let mut scoped_view = scope.evaluation_view(&canonical_parent);
+            if let Some(view) = scoped_view.as_object_mut() {
+                view.insert("$context".to_string(), context_value.clone());
             }
-
-            let new_item_val = new_item_val.unwrap_or(Value::Null);
-
-            // INJECT the item into the parent array location within subform's eval_data!
-            // The frontend sometimes only provides the active item root but leaves the
-            // corresponding slot empty or stale in the parent array tree of the wrapper.
-            // Formulas that aggregate over the parent array must see the active item.
-            let array_path =
-                crate::jsoneval::path_utils::schema_path_to_data_pointer(base_path).into_owned();
-            let item_path = format!("{}/{}", array_path, idx);
-            subform.eval_data.set(&item_path, new_item_val.clone());
+            subform.eval_data = EvalData::new(scoped_view);
+            let new_item_val = normalized_item.clone();
 
             // Pull out any existing item-scoped entries from the subform's own cache
             // so they can be merged into the parent cache below.
             let existing = subform.eval_cache.subform_caches.remove(&idx);
-            (
-                old_item_snapshot,
-                new_item_val,
-                existing,
-                array_path,
-                item_path,
-            )
+            (old_item_snapshot, new_item_val, existing)
         }; // subform borrow released here
-
-        // Full-form payloads can change parent fields read by subform conditions (for example
-        // `illustration.insured.phins_relation`). Item-only wrappers omit this absolute array
-        // path, so they must never overwrite or invalidate parent form state.
-        let full_parent_payload = data_value.pointer(&array_path).is_some();
 
         // Unified store fallback: if the subform's own per-item cache has no snapshot for this
         // index (e.g. this is the first evaluate_subform call after a full evaluate()), treat the
@@ -719,18 +718,61 @@ impl JSONEval {
                 let dv = subform.eval_data.snapshot_data_clone();
                 (dv, Value::Object(serde_json::Map::new()))
             };
-            self.with_item_cache_swap(base_path.as_ref(), idx, data_value, context_value, |sf| {
-                // Data is already set by with_item_cache_swap; pass None to avoid re-parsing.
-                sf.evaluate_dependents(
-                    changed_paths,
-                    None,
-                    None,
-                    re_evaluate,
-                    token,
-                    None,
-                    include_subforms,
-                )
-            })
+            let changes = self.with_item_cache_swap(
+                base_path.as_ref(),
+                idx,
+                data_value,
+                context_value,
+                |sf| {
+                    // Data is already set by with_item_cache_swap; pass None to avoid re-parsing.
+                    sf.evaluate_dependents(
+                        changed_paths,
+                        None,
+                        None,
+                        re_evaluate,
+                        token,
+                        None,
+                        include_subforms,
+                    )
+                },
+            )?;
+            // Public indexed-subform patches retain subform-local refs so callers can apply
+            // them directly to their `{ riders: item }` editing payload. Internal dependent
+            // evaluation stays canonical; only active-item result refs are projected here.
+            let subform_dot_path =
+                crate::jsoneval::path_utils::pointer_to_dot_notation(base_path.as_ref())
+                    .replace(".properties.", ".");
+            let canonical_prefix = format!("{subform_dot_path}.{idx}");
+            let root_key = base_path.rsplit('/').next().unwrap_or(base_path.as_ref());
+            let changes = match changes {
+                Value::Array(changes) => Value::Array(
+                    changes
+                        .into_iter()
+                        .map(|change| {
+                            let Some(change_map) = change.as_object() else {
+                                return change;
+                            };
+                            let Some(Value::String(reference)) = change_map.get("$ref") else {
+                                return change;
+                            };
+                            let Some(suffix) = reference.strip_prefix(&canonical_prefix) else {
+                                return change;
+                            };
+                            if !suffix.is_empty() && !suffix.starts_with('.') {
+                                return change;
+                            }
+                            let mut mapped = change_map.clone();
+                            mapped.insert(
+                                "$ref".to_string(),
+                                Value::String(format!("{root_key}{suffix}")),
+                            );
+                            Value::Object(mapped)
+                        })
+                        .collect(),
+                ),
+                value => value,
+            };
+            Ok(changes)
         } else {
             let subform = self
                 .subforms
@@ -788,13 +830,41 @@ impl JSONEval {
     }
 
     /// Get schema value from subform in nested object format (all .value fields).
+    ///
+    /// Indexed evaluation stores an absolute parent-array wrapper in the subform's
+    /// eval data for cross-item formulas. This endpoint exposes only fields declared
+    /// by its isolated subform schema, never that implementation wrapper.
     pub fn get_schema_value_subform(&mut self, subform_path: &str) -> Value {
         let (base_path, _) = self.resolve_subform_path_alias(subform_path);
-        if let Some(subform) = self.subforms.get_mut(base_path.as_ref() as &str) {
-            subform.get_schema_value()
-        } else {
-            Value::Null
-        }
+        let Some(subform) = self.subforms.get_mut(base_path.as_ref() as &str) else {
+            return Value::Null;
+        };
+
+        let values = subform.get_schema_value();
+        let Some(values) = values.as_object() else {
+            return values;
+        };
+
+        let schema_root_keys: Vec<&str> = subform
+            .schema
+            .as_object()
+            .into_iter()
+            .flat_map(|schema| schema.keys())
+            .filter(|key| !key.starts_with('$'))
+            .map(String::as_str)
+            .collect();
+
+        Value::Object(
+            schema_root_keys
+                .into_iter()
+                .filter_map(|key| {
+                    values
+                        .get(key)
+                        .cloned()
+                        .map(|value| (key.to_string(), value))
+                })
+                .collect(),
+        )
     }
 
     /// Get schema values from subform as a flat array of path-value pairs.

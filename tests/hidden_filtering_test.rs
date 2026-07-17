@@ -152,6 +152,96 @@ fn test_hidden_field_filtering() {
 }
 
 #[test]
+fn get_schema_value_prefers_calculation_only_for_disabled_fields() {
+    let schema = json!({
+        "type": "object",
+        "$layout": {
+            "elements": [
+                { "$ref": "#/properties/editable_calculated" }
+            ]
+        },
+        "properties": {
+            "disabled_calculated": {
+                "type": "number",
+                "condition": { "disabled": true },
+                "value": { "$evaluation": { "+": [1, 1] } }
+            },
+            "editable_calculated": {
+                "type": "number",
+                "condition": { "disabled": false },
+                "value": { "$evaluation": { "+": [1, 1] } }
+            },
+            "unmapped_calculated": {
+                "type": "number",
+                "condition": { "disabled": false },
+                "value": { "$evaluation": { "+": [1, 1] } }
+            }
+        }
+    });
+    let data = json!({
+        "disabled_calculated": 0,
+        "editable_calculated": 7,
+        "unmapped_calculated": 0
+    });
+    let schema_str = schema.to_string();
+    let data_str = data.to_string();
+    let mut eval = JSONEval::new(&schema_str, None, Some(&data_str)).unwrap();
+    eval.evaluate(&data_str, None, None, None).unwrap();
+
+    let values = eval.get_schema_value();
+    assert_eq!(
+        values.pointer("/disabled_calculated"),
+        Some(&json!(2)),
+        "disabled computed field must override stale caller data"
+    );
+    assert_eq!(
+        values.pointer("/editable_calculated"),
+        Some(&json!(7)),
+        "editable field mapped by $layout must preserve caller input over library calculation"
+    );
+    assert_eq!(
+        values.pointer("/unmapped_calculated"),
+        Some(&json!(2)),
+        "unmapped calculated field must override stale caller data"
+    );
+}
+
+#[test]
+fn get_schema_value_uses_cached_layout_field_mapping() {
+    let mut properties = serde_json::Map::new();
+    let mut elements = Vec::new();
+    let mut data = serde_json::Map::new();
+    for index in 0..2_000 {
+        let name = format!("field_{index}");
+        properties.insert(
+            name.clone(),
+            json!({
+                "type": "number",
+                "value": { "$evaluation": { "+": [1, 1] } }
+            }),
+        );
+        data.insert(name.clone(), json!(0));
+        if index % 2 == 0 {
+            elements.push(json!({ "$ref": format!("#/properties/{name}") }));
+        }
+    }
+    let schema = json!({
+        "type": "object",
+        "$layout": { "elements": elements },
+        "properties": properties
+    });
+    let schema_str = schema.to_string();
+    let data_str = serde_json::Value::Object(data).to_string();
+    let mut eval = JSONEval::new(&schema_str, None, Some(&data_str)).unwrap();
+    eval.evaluate(&data_str, None, None, None).unwrap();
+
+    // Must not repeatedly traverse full schema while extracting every evaluated value.
+    let values = eval.get_schema_value();
+    assert_eq!(values.pointer("/field_0"), Some(&json!(0)));
+    assert_eq!(values.pointer("/field_1"), Some(&json!(2)));
+}
+
+#[test]
 fn test_hidden_field_validation() {
     let schema = json!({
         "type": "object",
