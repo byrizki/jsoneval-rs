@@ -4,7 +4,7 @@
 
 - chore: fix deps & codeql
 - docs: update content
-- fix [rn] / [c#] ffi parity
+- fix [RN] / [C#] ffi parity
 
 
 ## [0.0.107] - 2026-07-17
