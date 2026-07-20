@@ -6,10 +6,10 @@ seo:
 
 ::u-page-hero
 #title
-High-performance JSON Logic evaluation.
+JSON Logic and schema evaluation.
 
 #description
-`json-eval-rs` is a blazing-fast JSON Logic evaluator written in Rust, featuring a custom-built compiler, intelligent caching, and comprehensive schema validation.
+`json-eval-rs` evaluates JSON Logic in schemas, validates data, tracks dependencies, and resolves layout overlays across Rust, .NET, WebAssembly, and React Native.
 
 #links
   :::u-button
@@ -62,16 +62,6 @@ High-performance JSON Logic evaluation.
   icon: simple-icons-react
   ---
   react-native
-  :::
-
-  :::u-button{class="mr-2"}
-  ---
-  size: sm
-  to: https://www.npmjs.com/package/@json-eval-rs/webcore
-  variant: outline
-  icon: simple-icons-npm
-  ---
-  webcore
   :::
 
   :::u-button{class="mr-2"}
