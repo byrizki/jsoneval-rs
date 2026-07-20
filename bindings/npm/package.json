@@ -49,7 +49,7 @@
     "react-dom": "^18.2.0"
   },
   "resolutions": {
-    "next": "15.5.16",
+    "next": "15.5.18",
     "brace-expansion": "2.0.3",
     "fast-xml-parser": "5.7.0",
     "flatted": "^3.3.1",
