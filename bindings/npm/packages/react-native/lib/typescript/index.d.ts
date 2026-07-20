@@ -94,6 +94,10 @@ export declare class JSONEval {
      */
     private _callNative;
     /**
+     * Internal helper to return native MessagePack binary data.
+     */
+    private _callNativeMsgpack;
+    /**
      * Internal helper to call native methods and parse JSON result.
      */
     private _callNativeJson;
@@ -146,6 +150,15 @@ export declare class JSONEval {
      * @throws {Error} If operation fails
      */
     getEvaluatedSchema(): Promise<any>;
+    /**
+     * Get evaluated schema as compact MessagePack binary data.
+     */
+    getEvaluatedSchemaMsgpack(): Promise<Uint8Array>;
+    /**
+     * Get layout-resolved evaluated schema as MessagePack binary data.
+     * Bytes are serialized by Rust from its resolved schema merger.
+     */
+    getEvaluatedSchemaResolvedMsgpack(): Promise<Uint8Array>;
     /**
      * Get resolved layout overlay entries
      * @returns Promise resolving to array of overlay entries

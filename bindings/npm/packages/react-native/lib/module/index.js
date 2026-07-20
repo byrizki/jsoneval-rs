@@ -1,6 +1,8 @@
+"use strict";
+
 import React from 'react';
 import { NativeModules, Platform } from 'react-native';
-import { ReturnFormat, stringifyValue, stringifyOrNull, extractErrorMessage, parseValue } from '@json-eval-rs/common';
+import { ReturnFormat, stringifyValue, stringifyOrNull, extractErrorMessage, parseValue, resolveEvaluatedLayout } from '@json-eval-rs/common';
 import { getJSIGlobal } from './jsi-bridge';
 
 // Re-export shared types for downstream consumers
@@ -91,10 +93,9 @@ export class JSONEval {
    * @throws {Error} If schema not found in cache or creation fails
    */
   static fromCache(cacheKey, context, data) {
-    var _jsi2;
     const contextStr = stringifyOrNull(context);
     const dataStr = stringifyOrNull(data);
-    if (useJSI && (_jsi2 = _jsi) !== null && _jsi2 !== void 0 && _jsi2.createFromCache) {
+    if (useJSI && _jsi?.createFromCache) {
       const handle = _jsi.createFromCache(cacheKey, contextStr, dataStr);
       return new JSONEval({
         schema: {},
@@ -120,11 +121,10 @@ export class JSONEval {
     const contextStr = stringifyOrNull(context);
     const dataStr = stringifyOrNull(data);
     try {
-      var _jsi3;
       // Convert Uint8Array to number array if needed
       const msgpackArray = schemaMsgpack instanceof Uint8Array ? Array.from(schemaMsgpack) : schemaMsgpack;
       let handle;
-      if (useJSI && (_jsi3 = _jsi) !== null && _jsi3 !== void 0 && _jsi3.createFromMsgpack) {
+      if (useJSI && _jsi?.createFromMsgpack) {
         handle = _jsi.createFromMsgpack(msgpackArray, contextStr, dataStr);
       } else {
         handle = JsonEvalRs.createFromMsgpack(msgpackArray, contextStr, dataStr);
@@ -201,6 +201,17 @@ export class JSONEval {
       return _jsi[methodName](this.handle, ...args);
     }
     return await JsonEvalRs[methodName](this.handle, ...args);
+  }
+
+  /**
+   * Internal helper to return native MessagePack binary data.
+   */
+  async _callNativeMsgpack(methodName) {
+    const result = await this._callNative(methodName);
+    if (result instanceof Uint8Array) return result;
+    if (result instanceof ArrayBuffer) return new Uint8Array(result);
+    if (Array.isArray(result)) return Uint8Array.from(result);
+    throw new Error(`${methodName} returned invalid MessagePack data`);
   }
 
   /**
@@ -355,6 +366,23 @@ export class JSONEval {
   }
 
   /**
+   * Get evaluated schema as compact MessagePack binary data.
+   */
+  async getEvaluatedSchemaMsgpack() {
+    this.throwIfDisposed();
+    return this._callNativeMsgpack('getEvaluatedSchemaMsgpack');
+  }
+
+  /**
+   * Get layout-resolved evaluated schema as MessagePack binary data.
+   * Bytes are serialized by Rust from its resolved schema merger.
+   */
+  async getEvaluatedSchemaResolvedMsgpack() {
+    this.throwIfDisposed();
+    return this._callNativeMsgpack('getEvaluatedSchemaResolvedMsgpack');
+  }
+
+  /**
    * Get resolved layout overlay entries
    * @returns Promise resolving to array of overlay entries
    * @throws {Error} If operation fails
@@ -371,7 +399,7 @@ export class JSONEval {
    */
   async getEvaluatedSchemaResolved() {
     this.throwIfDisposed();
-    return await this._callNativeJson('getEvaluatedSchemaResolved');
+    return resolveEvaluatedLayout(() => this.getEvaluatedSchemaWithoutParams(), () => this.getResolvedLayout());
   }
 
   /**
@@ -736,7 +764,7 @@ export class JSONEval {
    */
   async getEvaluatedSchemaResolvedSubform(options) {
     this.throwIfDisposed();
-    return await this._callNativeJson('getEvaluatedSchemaResolvedSubform', options.subformPath);
+    return resolveEvaluatedLayout(() => this.getEvaluatedSchemaWithoutParamsSubform(options), () => this.getResolvedLayoutSubform(options));
   }
 
   /**
@@ -881,8 +909,7 @@ export class JSONEval {
    * @returns Promise resolving to version string
    */
   static async version() {
-    var _jsi4;
-    if (useJSI && (_jsi4 = _jsi) !== null && _jsi4 !== void 0 && _jsi4.version) {
+    if (useJSI && _jsi?.version) {
       return _jsi.version();
     }
     return JsonEvalRs.version();

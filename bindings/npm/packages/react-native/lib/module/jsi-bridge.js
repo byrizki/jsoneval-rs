@@ -1,3 +1,5 @@
+"use strict";
+
 /**
  * JSI Bridge for @json-eval-rs/react-native
  *
