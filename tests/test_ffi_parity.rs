@@ -92,27 +92,39 @@ fn test_ffi_methods_parity() {
         );
         json_eval_free_result(result);
 
-        // 4. json_eval_get_resolved_layout
+        // 4. json_eval_get_evaluated_schema_resolved_msgpack
+        let result = json_eval_get_evaluated_schema_resolved_msgpack(handle);
+        assert!(
+            result.success,
+            "Get resolved evaluated schema MessagePack should succeed"
+        );
+        let resolved_msgpack = std::slice::from_raw_parts(result.data_ptr, result.data_len);
+        let resolved_msgpack_value: serde_json::Value = rmp_serde::from_slice(resolved_msgpack)
+            .expect("resolved MessagePack must decode into JSON value");
+        assert_eq!(resolved_msgpack_value, schema_val);
+        json_eval_free_result(result);
+
+        // 5. json_eval_get_resolved_layout
         let result = json_eval_get_resolved_layout(handle);
         assert!(result.success, "Get resolved layout should succeed");
         assert!(result.data_len > 0, "Should return layout entries");
         json_eval_free_result(result);
 
-        // 5. json_eval_get_field_options
+        // 6. json_eval_get_field_options
         let field_path = CString::new("properties.name").unwrap();
         let result = json_eval_get_field_options(handle, field_path.as_ptr());
         assert!(result.success, "Get field options should succeed");
         json_eval_free_result(result);
 
-        // 6. Subform methods parity
+        // 7. Subform methods parity
         let subform_path = CString::new("#/riders/0").unwrap();
 
-        // 6a. json_eval_get_resolved_layout_subform
+        // 7a. json_eval_get_resolved_layout_subform
         let result = json_eval_get_resolved_layout_subform(handle, subform_path.as_ptr());
         assert!(result.success, "Get resolved layout subform should succeed");
         json_eval_free_result(result);
 
-        // 6b. json_eval_get_evaluated_schema_resolved_subform
+        // 7b. json_eval_get_evaluated_schema_resolved_subform
         let result = json_eval_get_evaluated_schema_resolved_subform(handle, subform_path.as_ptr());
         assert!(
             result.success,
@@ -132,7 +144,7 @@ fn test_ffi_methods_parity() {
         );
         json_eval_free_result(result);
 
-        // 7. Cleanup
+        // 8. Cleanup
         json_eval_free(handle);
     }
 }

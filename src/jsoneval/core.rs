@@ -598,9 +598,13 @@ impl JSONEval {
         self.others_evaluations = parsed.others_evaluations.clone();
         self.value_evaluations = parsed.value_evaluations.clone();
         self.layout_paths = parsed.layout_paths.clone();
+        self.layout_field_refs = parsed.layout_field_refs.clone();
         self.options_templates = parsed.options_templates.clone();
-        self.static_arrays = parsed.static_arrays.clone();
+        self.reffed_by = parsed.reffed_by.clone();
         self.dep_formula_triggers = parsed.dep_formula_triggers.clone();
+        self.conditional_hidden_fields = parsed.conditional_hidden_fields.clone();
+        self.conditional_readonly_fields = parsed.conditional_readonly_fields.clone();
+        self.static_arrays = parsed.static_arrays.clone();
 
         // Share the engine Arc (cheap pointer clone, not data clone)
         self.engine = parsed.engine.clone();

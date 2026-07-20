@@ -43,6 +43,17 @@ impl JSONEvalWasm {
             .map_err(|e| JsValue::from_str(&e))
     }
 
+    /// Get the layout-resolved evaluated schema in MessagePack format.
+    ///
+    /// Serializes the same result as `getEvaluatedSchemaResolved`: `$params`
+    /// omitted and resolved `$layout` overlays merged.
+    #[wasm_bindgen(js_name = getEvaluatedSchemaResolvedMsgpack)]
+    pub fn get_evaluated_schema_resolved_msgpack(&mut self) -> Result<Vec<u8>, JsValue> {
+        self.inner
+            .get_evaluated_schema_resolved_msgpack()
+            .map_err(|e| JsValue::from_str(&e))
+    }
+
     /// Get all schema values (evaluations ending with .value)
     /// Mutates internal data by overriding with values from value evaluations
     ///

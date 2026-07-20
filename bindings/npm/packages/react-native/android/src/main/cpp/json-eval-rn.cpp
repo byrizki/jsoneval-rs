@@ -68,11 +68,51 @@ void rejectPromise(JNIEnv* env, jobject promise, const std::string& code, const 
     env->DeleteLocalRef(jmsg);
 }
 
+void resolveByteArrayPromise(JNIEnv* env, jobject promise, const std::string& result) {
+    jclass arrayClass = env->FindClass("com/facebook/react/bridge/WritableNativeArray");
+    jmethodID constructor = env->GetMethodID(arrayClass, "<init>", "()V");
+    jmethodID pushInt = env->GetMethodID(arrayClass, "pushInt", "(I)V");
+    jobject array = env->NewObject(arrayClass, constructor);
+    for (unsigned char byte : result) {
+        env->CallVoidMethod(array, pushInt, static_cast<jint>(byte));
+    }
+    env->CallVoidMethod(promise, gResolveMethodID, array);
+    env->DeleteLocalRef(array);
+    env->DeleteLocalRef(arrayClass);
+}
+
 } // extern "C"
 
 // Generic async helper to reduce code duplication
 // Encapsulates the JavaVM/thread attachment boilerplate pattern
 // Note: Template functions must have C++ linkage, not C linkage
+template<typename Func>
+void runAsyncWithByteArrayPromise(
+    JNIEnv* env,
+    jobject promise,
+    const char* errorCode,
+    Func&& bridgeCall
+) {
+    JavaVM* jvm;
+    env->GetJavaVM(&jvm);
+    jobject globalPromise = env->NewGlobalRef(promise);
+
+    bridgeCall([jvm, globalPromise, errorCode](const std::string& result, const std::string& error) {
+        JNIEnv* env = nullptr;
+        if (jvm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
+            jvm->AttachCurrentThreadAsDaemon(&env, nullptr);
+        }
+
+        if (error.empty()) {
+            resolveByteArrayPromise(env, globalPromise, result);
+        } else {
+            rejectPromise(env, globalPromise, errorCode, error);
+        }
+
+        env->DeleteGlobalRef(globalPromise);
+    });
+}
+
 template<typename Func>
 void runAsyncWithPromise(
     JNIEnv* env,
@@ -350,6 +390,34 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedSchemaAsync(
 
     runAsyncWithPromise(env, promise, "GET_SCHEMA_ERROR", [handleStr](auto callback) {
         JsonEvalBridge::getEvaluatedSchemaAsync(handleStr, false, callback);
+    });
+}
+
+JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedSchemaMsgpackAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+
+    runAsyncWithByteArrayPromise(env, promise, "GET_SCHEMA_MSGPACK_ERROR", [handleStr](auto callback) {
+        JsonEvalBridge::getEvaluatedSchemaMsgpackAsync(handleStr, false, callback);
+    });
+}
+
+JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedSchemaResolvedMsgpackAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+
+    runAsyncWithByteArrayPromise(env, promise, "GET_SCHEMA_RESOLVED_MSGPACK_ERROR", [handleStr](auto callback) {
+        JsonEvalBridge::getEvaluatedSchemaResolvedMsgpackAsync(handleStr, false, callback);
     });
 }
 

@@ -615,9 +615,18 @@ impl JSONEval {
         schema
     }
 
-    /// Get evaluated schema as MessagePack bytes
+    /// Get evaluated schema as MessagePack bytes (compact, without $layout resolution)
     pub fn get_evaluated_schema_msgpack(&mut self) -> Result<Vec<u8>, String> {
         let schema = self.get_evaluated_schema();
+        rmp_serde::to_vec(&schema).map_err(|e| format!("MessagePack serialization failed: {}", e))
+    }
+
+    /// Get layout-resolved evaluated schema as MessagePack bytes.
+    ///
+    /// Reuses `get_evaluated_schema_resolved`, which omits `$params` and merges
+    /// resolved `$layout` overlays.
+    pub fn get_evaluated_schema_resolved_msgpack(&mut self) -> Result<Vec<u8>, String> {
+        let schema = self.get_evaluated_schema_resolved();
         rmp_serde::to_vec(&schema).map_err(|e| format!("MessagePack serialization failed: {}", e))
     }
 

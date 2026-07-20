@@ -477,6 +477,19 @@ namespace JsonEvalRs
         }
 
         /// <summary>
+        /// Gets layout-resolved evaluated schema as MessagePack binary data.
+        /// Bytes are serialized by Rust from the same result as
+        /// <see cref="GetEvaluatedSchemaResolved"/>.
+        /// </summary>
+        /// <returns>Resolved evaluated schema as MessagePack bytes</returns>
+        public byte[] GetEvaluatedSchemaResolvedMsgpack()
+        {
+            ThrowIfDisposed();
+            var result = Native.json_eval_get_evaluated_schema_resolved_msgpack(_handle);
+            return ProcessResultAsBytes(result);
+        }
+
+        /// <summary>
         /// Gets all schema values (evaluations ending with .value)
         /// </summary>
         /// <returns>Dictionary of path -> value</returns>

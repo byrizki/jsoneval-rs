@@ -51,6 +51,14 @@ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(installJSI)
     return utf8 ? std::string(utf8) : std::string();
 }
 
+- (NSArray<NSNumber *> *)byteArrayFromStdString:(const std::string &)bytes {
+    NSMutableArray<NSNumber *> *result = [NSMutableArray arrayWithCapacity:bytes.size()];
+    for (unsigned char byte : bytes) {
+        [result addObject:@(byte)];
+    }
+    return result;
+}
+
 - (NSString *)arrayToJsonString:(NSArray *)array {
     NSMutableArray *quotedItems = [NSMutableArray array];
     for (NSString *item in array) {
@@ -272,6 +280,40 @@ RCT_EXPORT_METHOD(getEvaluatedSchema:(NSString *)handle
                 resolve([NSString stringWithUTF8String:result.c_str()]);
             } else {
                 reject(@"GET_SCHEMA_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_METHOD(getEvaluatedSchemaMsgpack:(NSString *)handle
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+
+    JsonEvalBridge::getEvaluatedSchemaMsgpackAsync(handleStr, false,
+        [self, resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([self byteArrayFromStdString:result]);
+            } else {
+                reject(@"GET_SCHEMA_MSGPACK_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_METHOD(getEvaluatedSchemaResolvedMsgpack:(NSString *)handle
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+
+    JsonEvalBridge::getEvaluatedSchemaResolvedMsgpackAsync(handleStr, false,
+        [self, resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([self byteArrayFromStdString:result]);
+            } else {
+                reject(@"GET_SCHEMA_RESOLVED_MSGPACK_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
             }
         }
     );

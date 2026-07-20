@@ -405,6 +405,17 @@ export class JSONEvalCore {
 	}
 
 	/**
+	 * Get layout-resolved evaluated schema as MessagePack binary data.
+	 *
+	 * Bytes are produced by Rust from the same resolved schema merger used by
+	 * the native resolved getter.
+	 */
+	async getEvaluatedSchemaResolvedMsgpack(): Promise<Uint8Array> {
+		await this.init();
+		return this._instance.getEvaluatedSchemaResolvedMsgpack();
+	}
+
+	/**
 	 * Get schema values (evaluations ending with .value)
 	 */
 	async getSchemaValue(): Promise<any> {

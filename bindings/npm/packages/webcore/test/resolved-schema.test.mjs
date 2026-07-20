@@ -44,6 +44,10 @@ class JSONEvalWasm {
     throw new Error('wrapper must not call native resolved getter');
   }
 
+  getEvaluatedSchemaResolvedMsgpack() {
+    return new Uint8Array([3, 4]);
+  }
+
   getEvaluatedSchemaWithoutParamsSubformJS() {
     return structuredClone({
       subform: {
@@ -97,6 +101,11 @@ assert.deepEqual(resolved.illustration.properties.name, {
   $path: 'name',
   $parentHide: false,
 });
+
+assert.deepEqual(
+  await evaluator.getEvaluatedSchemaResolvedMsgpack(),
+  new Uint8Array([3, 4]),
+);
 
 const resolvedSubform = await evaluator.getEvaluatedSchemaResolvedSubform({
   subformPath: '#/subform',

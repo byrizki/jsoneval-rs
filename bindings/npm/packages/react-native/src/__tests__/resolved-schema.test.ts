@@ -31,6 +31,8 @@ jest.mock('react-native', () => ({
       getEvaluatedSchemaResolved: jest.fn(() => {
         throw new Error('wrapper must not call native resolved getter');
       }),
+      getEvaluatedSchemaMsgpack: jest.fn(() => [1, 2]),
+      getEvaluatedSchemaResolvedMsgpack: jest.fn(() => [3, 4]),
       getEvaluatedSchemaWithoutParamsSubform: jest.fn(() => JSON.stringify({
         subform: {
           type: 'object',
@@ -81,6 +83,15 @@ describe('resolved schema composition', () => {
       $path: 'name',
       $parentHide: false,
     });
+  });
+
+  it('forwards compact and resolved MessagePack bytes from native', async () => {
+    await expect(evaluator.getEvaluatedSchemaMsgpack()).resolves.toEqual(
+      new Uint8Array([1, 2]),
+    );
+    await expect(evaluator.getEvaluatedSchemaResolvedMsgpack()).resolves.toEqual(
+      new Uint8Array([3, 4]),
+    );
   });
 
   it('composes subform compact schema and overlays without native resolved getter', async () => {

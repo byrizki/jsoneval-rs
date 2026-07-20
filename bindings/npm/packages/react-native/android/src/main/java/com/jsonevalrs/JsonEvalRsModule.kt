@@ -104,6 +104,16 @@ class JsonEvalRsModule(
     }
 
     @ReactMethod
+    fun getEvaluatedSchemaMsgpack(handle: String, promise: Promise) {
+        nativeGetEvaluatedSchemaMsgpackAsync(handle, promise)
+    }
+
+    @ReactMethod
+    fun getEvaluatedSchemaResolvedMsgpack(handle: String, promise: Promise) {
+        nativeGetEvaluatedSchemaResolvedMsgpackAsync(handle, promise)
+    }
+
+    @ReactMethod
     fun getSchemaValue(
         handle: String,
         promise: Promise,
@@ -624,6 +634,10 @@ class JsonEvalRsModule(
         handle: String,
         promise: Promise,
     )
+
+    private external fun nativeGetEvaluatedSchemaMsgpackAsync(handle: String, promise: Promise)
+
+    private external fun nativeGetEvaluatedSchemaResolvedMsgpackAsync(handle: String, promise: Promise)
 
     private external fun nativeGetSchemaValueAsync(
         handle: String,

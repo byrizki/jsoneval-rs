@@ -55,6 +55,30 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_msgpack(
     }
 }
 
+/// Get the layout-resolved evaluated schema in MessagePack format.
+///
+/// Serializes the same result as `json_eval_get_evaluated_schema_resolved`:
+/// `$params` omitted and resolved `$layout` overlays merged.
+///
+/// # Safety
+///
+/// - handle must be a valid pointer from json_eval_new
+/// - Caller must call json_eval_free_result when done
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_get_evaluated_schema_resolved_msgpack(
+    handle: *mut JSONEvalHandle,
+) -> FFIResult {
+    if handle.is_null() {
+        return FFIResult::error("Invalid handle pointer".to_string());
+    }
+
+    let eval = &mut (*handle).inner;
+    match eval.get_evaluated_schema_resolved_msgpack() {
+        Ok(msgpack_bytes) => FFIResult::success(msgpack_bytes),
+        Err(e) => FFIResult::error(e),
+    }
+}
+
 /// Get all schema values (evaluations ending with .value)
 ///
 /// # Safety

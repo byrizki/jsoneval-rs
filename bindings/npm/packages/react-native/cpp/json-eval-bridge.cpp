@@ -79,6 +79,7 @@ extern "C" {
     JSONEvalHandle* json_eval_new_from_msgpack(const uint8_t* schema_msgpack, size_t schema_len, const char* context, const char* data);
     FFIResult json_eval_evaluate(JSONEvalHandle* handle, const char* data, const char* context, const char* paths_json);
     FFIResult json_eval_get_evaluated_schema_msgpack(JSONEvalHandle* handle);
+    FFIResult json_eval_get_evaluated_schema_resolved_msgpack(JSONEvalHandle* handle);
     FFIResult json_eval_validate(JSONEvalHandle* handle, const char* data, const char* context);
     FFIResult json_eval_evaluate_dependents(JSONEvalHandle* handle, const char* changed_path, const char* data, const char* context, int re_evaluate, int include_subforms);
     FFIResult json_eval_get_evaluated_schema(JSONEvalHandle* handle);
@@ -503,6 +504,27 @@ void JsonEvalBridge::getEvaluatedSchemaMsgpackAsync(
             resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
         } else {
             resultStr = "";
+        }
+        json_eval_free_result(result);
+        return resultStr;
+    }, callback);
+}
+
+void JsonEvalBridge::getEvaluatedSchemaResolvedMsgpackAsync(
+    const std::string& handleId,
+    bool skipLayout,
+    std::function<void(const std::string&, const std::string&)> callback
+) {
+    runWithHandle(handleId, [](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_get_evaluated_schema_resolved_msgpack(nativeHandle);
+        if (!result.success) {
+            std::string error = result.error ? result.error : "Unknown error";
+            json_eval_free_result(result);
+            throw std::runtime_error(error);
+        }
+        std::string resultStr;
+        if (result.data_ptr && result.data_len > 0) {
+            resultStr.assign(reinterpret_cast<const char*>(result.data_ptr), result.data_len);
         }
         json_eval_free_result(result);
         return resultStr;

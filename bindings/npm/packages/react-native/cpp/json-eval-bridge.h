@@ -143,6 +143,18 @@ public:
     );
 
     /**
+     * Get layout-resolved evaluated schema in MessagePack format (async).
+     * @param handle Instance handle
+     * @param skipLayout Legacy unused parameter retained for bridge symmetry
+     * @param callback Result callback with MessagePack binary data
+     */
+    static void getEvaluatedSchemaResolvedMsgpackAsync(
+        const std::string& handle,
+        bool skipLayout,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
      * Get schema value (async)
      * @param handle Instance handle
      * @param callback Result callback

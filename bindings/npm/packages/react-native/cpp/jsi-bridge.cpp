@@ -9,6 +9,8 @@ extern "C" {
     JSONEvalHandle* json_eval_new_from_cache(const char* cache_key, const char* context, const char* data);
     FFIResult json_eval_evaluate(JSONEvalHandle* handle, const char* data, const char* context, const char* paths_json);
     FFIResult json_eval_get_evaluated_schema(JSONEvalHandle* handle);
+    FFIResult json_eval_get_evaluated_schema_msgpack(JSONEvalHandle* handle);
+    FFIResult json_eval_get_evaluated_schema_resolved_msgpack(JSONEvalHandle* handle);
     FFIResult json_eval_get_schema_value(JSONEvalHandle* handle);
     FFIResult json_eval_get_schema_value_array(JSONEvalHandle* handle);
     FFIResult json_eval_get_schema_value_object(JSONEvalHandle* handle);
@@ -412,6 +414,32 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_get_evaluated_schema(handle);
                 return ffiResultToJsiObject(rt, result);
+            }
+        );
+    }
+
+    // ---- getEvaluatedSchemaMsgpack ----
+    if (prop == "getEvaluatedSchemaMsgpack") {
+        return createJsiFn(runtime, "getEvaluatedSchemaMsgpack",
+            [](jsi::Runtime& rt, const jsi::Value* args, size_t count) -> jsi::Value {
+                checkArgCount(rt, count, 1);
+                auto handleId = stringFromValue(rt, args[0]);
+                auto [handle, lock] = lockHandleById(handleId);
+                FFIResult result = json_eval_get_evaluated_schema_msgpack(handle);
+                return ffiResultToJsiBuffer(rt, result);
+            }
+        );
+    }
+
+    // ---- getEvaluatedSchemaResolvedMsgpack ----
+    if (prop == "getEvaluatedSchemaResolvedMsgpack") {
+        return createJsiFn(runtime, "getEvaluatedSchemaResolvedMsgpack",
+            [](jsi::Runtime& rt, const jsi::Value* args, size_t count) -> jsi::Value {
+                checkArgCount(rt, count, 1);
+                auto handleId = stringFromValue(rt, args[0]);
+                auto [handle, lock] = lockHandleById(handleId);
+                FFIResult result = json_eval_get_evaluated_schema_resolved_msgpack(handle);
+                return ffiResultToJsiBuffer(rt, result);
             }
         );
     }
@@ -1161,7 +1189,7 @@ std::vector<jsi::PropNameID> JsonEvalJSI::getPropertyNames(jsi::Runtime& runtime
         "evaluateOnly", "evaluate",
         "validate", "validatePaths",
         "evaluateDependents",
-        "getEvaluatedSchema", "getEvaluatedSchemaResolved", "getSchemaValue", "getSchemaValueArray", "getSchemaValueObject",
+        "getEvaluatedSchema", "getEvaluatedSchemaMsgpack", "getEvaluatedSchemaResolvedMsgpack", "getEvaluatedSchemaResolved", "getSchemaValue", "getSchemaValueArray", "getSchemaValueObject",
         "getEvaluatedSchemaByPath", "getEvaluatedSchemaByPaths",
         "getSchemaByPath", "getSchemaByPaths",
         "getEvaluatedSchemaWithoutParams",

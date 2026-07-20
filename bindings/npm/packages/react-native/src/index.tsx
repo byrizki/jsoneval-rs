@@ -282,6 +282,17 @@ export class JSONEval {
   }
 
   /**
+   * Internal helper to return native MessagePack binary data.
+   */
+  private async _callNativeMsgpack(methodName: string): Promise<Uint8Array> {
+    const result = await this._callNative(methodName);
+    if (result instanceof Uint8Array) return result;
+    if (result instanceof ArrayBuffer) return new Uint8Array(result);
+    if (Array.isArray(result)) return Uint8Array.from(result);
+    throw new Error(`${methodName} returned invalid MessagePack data`);
+  }
+
+  /**
    * Internal helper to call native methods and parse JSON result.
    */
   private async _callNativeJson(
@@ -496,6 +507,23 @@ export class JSONEval {
   async getEvaluatedSchema(): Promise<any> {
     this.throwIfDisposed();
     return await this._callNativeJson('getEvaluatedSchema');
+  }
+
+  /**
+   * Get evaluated schema as compact MessagePack binary data.
+   */
+  async getEvaluatedSchemaMsgpack(): Promise<Uint8Array> {
+    this.throwIfDisposed();
+    return this._callNativeMsgpack('getEvaluatedSchemaMsgpack');
+  }
+
+  /**
+   * Get layout-resolved evaluated schema as MessagePack binary data.
+   * Bytes are serialized by Rust from its resolved schema merger.
+   */
+  async getEvaluatedSchemaResolvedMsgpack(): Promise<Uint8Array> {
+    this.throwIfDisposed();
+    return this._callNativeMsgpack('getEvaluatedSchemaResolvedMsgpack');
   }
 
   /**
