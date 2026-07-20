@@ -111,6 +111,35 @@ impl JSONEval {
         }
 
         if include_subforms {
+            // A collection changed path identifies no rider index. Parent evaluation above has
+            // prepared canonical state, so request a refresh for every concrete item. These
+            // sentinels are consumed only by `run_subform_pass`; they are not field deltas.
+            let collection_refresh_paths: Vec<String> = self
+                .subforms
+                .keys()
+                .filter_map(|subform_path| {
+                    let dot_path = path_utils::pointer_to_dot_notation(subform_path)
+                        .replace(".properties.", ".");
+                    let collection_changed = changed_paths
+                        .iter()
+                        .any(|path| path == &dot_path || path == &subform_field_key(subform_path));
+                    collection_changed.then(|| {
+                        let data_path = path_utils::schema_path_to_data_pointer(subform_path);
+                        self.eval_data
+                            .data()
+                            .pointer(&data_path)
+                            .and_then(Value::as_array)
+                            .map(|items| {
+                                (0..items.len())
+                                    .map(|idx| format!("{dot_path}.{idx}"))
+                                    .collect::<Vec<_>>()
+                            })
+                    })
+                })
+                .flatten()
+                .flatten()
+                .collect();
+
             // Augment changed_paths with every subform item field already written into result
             // by the dependents queue and re-evaluate pass. Without this, when a main-form
             // dependent rule writes to e.g. `riders.0.benefit`, that path never appears in
@@ -126,6 +155,7 @@ impl JSONEval {
                         }
                     }
                 }
+                paths.extend(collection_refresh_paths);
                 paths
             };
             let subform_invalidated_tables = time_block!("  [dep] run_subform_pass", {
@@ -607,11 +637,14 @@ impl JSONEval {
     /// Filters for only primitive schema values (not $evaluation objects).
     fn run_schema_default_value_pass(
         &mut self,
-        token: Option<&CancellationToken>,
-        to_process: &mut Vec<(String, bool, Option<Vec<usize>>)>,
-        processed: &mut std::collections::HashMap<String, Option<std::collections::HashSet<usize>>>,
+        _token: Option<&CancellationToken>,
+        _to_process: &mut Vec<(String, bool, Option<Vec<usize>>)>,
+        _processed: &mut std::collections::HashMap<
+            String,
+            Option<std::collections::HashSet<usize>>,
+        >,
         result: &mut Vec<Value>,
-        mut canceled_paths: Option<&mut Vec<String>>,
+        _canceled_paths: Option<&mut Vec<String>>,
     ) -> Result<(), String> {
         let mut default_value_changes = Vec::new();
         let schema_values = self.get_schema_value_array();
@@ -671,7 +704,6 @@ impl JSONEval {
             }
         }
 
-        let mut has_changes = false;
         for (data_path, schema_val, dot_path) in default_value_changes {
             self.eval_data
                 .set(&format!("/{}", data_path), schema_val.clone());
@@ -688,26 +720,10 @@ impl JSONEval {
             }
             result.push(Value::Object(change_obj));
 
-            let schema_ptr = format!("#/{}", data_path.replace('/', "/properties/"));
-            to_process.push((schema_ptr, true, None));
-            has_changes = true;
-        }
-
-        if has_changes {
-            Self::process_dependents_queue(
-                &self.engine,
-                &self.evaluations,
-                &mut self.eval_data,
-                &mut self.eval_cache,
-                &self.dependents_evaluations,
-                &self.dep_formula_triggers,
-                &self.evaluated_schema,
-                to_process,
-                processed,
-                result,
-                token,
-                canceled_paths.as_mut().map(|v| &mut **v),
-            )?;
+            // Apply defaults in every evaluation lifecycle, but do not treat a
+            // synthesized value as a caller-originated dependency event. Schema
+            // expressions still observe the initialized value; paths supplied by
+            // the caller remain the only inputs to dependent propagation.
         }
 
         Ok(())
@@ -770,10 +786,15 @@ impl JSONEval {
                 let prefix_bracket = format!("{}[{}].", subform_dot_path, idx);
                 let prefix_field_bracket = format!("{}[{}].", field_key, idx);
 
+                let is_collection_refresh = changed_paths
+                    .iter()
+                    .any(|path| path == &format!("{subform_dot_path}.{idx}"));
                 let item_changed_paths: Vec<String> = changed_paths
                     .iter()
                     .filter_map(|p| {
-                        if p.starts_with(&prefix_bracket) {
+                        if p == &format!("{subform_dot_path}.{idx}") {
+                            Some(field_key.clone())
+                        } else if p.starts_with(&prefix_bracket) {
                             Some(p.replacen(&prefix_bracket, &field_prefix, 1))
                         } else if p.starts_with(&prefix_dot) {
                             Some(p.replacen(&prefix_dot, &field_prefix, 1))
@@ -1085,13 +1106,17 @@ impl JSONEval {
                     // Always reflect the latest $params (schema-level, index-independent).
                     c.data_versions
                         .merge_from_params(&parent_params_versions_snapshot);
-                    crate::jsoneval::eval_cache::diff_and_update_versions(
-                        &mut c.data_versions,
-                        &format!("/{}", field_key),
-                        &old_item_val,
-                        &new_item_val,
-                        "run_subform_pass_diff_and_update_versions",
-                    );
+                    if !is_collection_refresh {
+                        crate::jsoneval::eval_cache::diff_and_update_versions(
+                            &mut c.data_versions,
+                            &format!("/{}", field_key),
+                            &old_item_val,
+                            &new_item_val,
+                            "run_subform_pass_diff_and_update_versions",
+                        );
+                    }
+                    // Parent evaluation prepared this item before the refresh. Its computed
+                    // leaves establish the cache baseline, not a rider-input mutation.
                     c.item_snapshot = new_item_val;
                 }
 

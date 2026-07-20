@@ -398,14 +398,22 @@ impl EvalCache {
                 }
             }
 
-            // A `$params` table can still read rider data. Global T2 reuse would
-            // then return another item's table row; keep it in the active item's T1
-            // cache. Only tables with exclusively `$params` dependencies are shared.
+            // A `$params` table can read the active rider through local `/riders/...`
+            // dependencies. The parent has already evaluated this canonical item before
+            // `SubformScope` aliases it locally. Reuse that result while this item's local
+            // rider inputs remain unchanged; a local input bump makes the alias stale and
+            // forces item-scoped table recomputation.
             let has_item_data_dependency = deps.iter().any(|dep| {
                 !crate::jsoneval::path_utils::schema_path_to_data_pointer(dep)
                     .starts_with("/$params")
             });
-            if has_item_data_dependency {
+            let active_item_changed = self.subform_caches.get(&idx).is_some_and(|cache| {
+                cache
+                    .data_versions
+                    .versions()
+                    .any(|(path, version)| path.starts_with("/riders/") && *version > 0)
+            });
+            if has_item_data_dependency && active_item_changed {
                 return None;
             }
 
@@ -614,7 +622,7 @@ mod cache_tests {
     use std::collections::HashMap;
 
     #[test]
-    fn active_item_does_not_reuse_global_table_with_item_dependency() {
+    fn unchanged_active_item_reuses_global_table_with_item_dependency() {
         let mut cache = EvalCache::new();
         cache.set_active_item(1);
 
@@ -629,9 +637,38 @@ mod cache_tests {
             },
         );
 
+        assert_eq!(
+            cache.check_table_cache(eval_key, &deps),
+            Some(json!([{"rate": 97}])),
+            "a scoped alias may reuse the parent result for its unchanged canonical rider"
+        );
+    }
+
+    #[test]
+    fn changed_active_item_does_not_reuse_global_table_with_item_dependency() {
+        let mut cache = EvalCache::new();
+        cache.set_active_item(1);
+        cache
+            .subform_caches
+            .get_mut(&1)
+            .expect("active item cache must exist")
+            .data_versions
+            .bump("/riders/benefit", "test rider input change");
+
+        let eval_key = "#/$params/references/RIDER_RATE";
+        let deps = IndexSet::from_iter(["#/riders/properties/benefit".to_string()]);
+        cache.entries.insert(
+            eval_key.to_string(),
+            CacheEntry {
+                dep_versions: HashMap::from([("/riders/benefit".to_string(), 0)]),
+                result: json!([{"rate": 97}]),
+                computed_for_item: None,
+            },
+        );
+
         assert!(
             cache.check_table_cache(eval_key, &deps).is_none(),
-            "rider-dependent table rows must be scoped to active item"
+            "a changed rider input must force item-scoped table recomputation"
         );
     }
 
