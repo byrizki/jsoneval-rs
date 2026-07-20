@@ -1,6 +1,6 @@
 {
   "name": "rncli",
-  "version": "0.0.107",
+  "version": "0.0.108",
   "private": true,
   "scripts": {
     "android": "react-native run-android",

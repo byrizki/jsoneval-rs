@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.108] - 2026-07-20
+
+- chore: fix deps & codeql
+- docs: update content
+- fix [rn] / [c#] ffi parity
+
+
 ## [0.0.107] - 2026-07-17
 
 - enhance subform & caching eval
