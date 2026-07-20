@@ -82,24 +82,28 @@ jobs:
 
           echo "Changelog extracted successfully"
 
-      - name: Check release tag is available
-        id: check_tag
+      - name: Inspect existing release state
+        id: release_state
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ steps.get_version.outputs.tag }}"
 
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "❌ Release tag $TAG already exists. Bump Cargo.toml version before creating a new release."
-            exit 1
+            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release tag $TAG already exists; it will be reused."
+          else
+            echo "tag_exists=false" >> "$GITHUB_OUTPUT"
+            echo "Release tag $TAG will be created."
           fi
 
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "❌ GitHub release $TAG already exists. Bump Cargo.toml version before creating a new release."
-            exit 1
+            echo "release_exists=true" >> "$GITHUB_OUTPUT"
+            echo "GitHub release $TAG already exists; it will be updated."
+          else
+            echo "release_exists=false" >> "$GITHUB_OUTPUT"
+            echo "GitHub release $TAG will be created."
           fi
-
-          echo "Tag $TAG is available"
 
       - name: Upload release metadata
         uses: actions/upload-artifact@v6
@@ -1109,9 +1113,15 @@ jobs:
         with:
           path: release-artifacts/
 
-      - name: Create release tag
+      - name: Create release tag when absent
         run: |
           TAG="${{ needs.create-release.outputs.tag }}"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Release tag $TAG already exists; reusing it."
+            exit 0
+          fi
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "Release $TAG"
@@ -1183,7 +1193,7 @@ jobs:
           echo "  .tgz files: $(ls -1 *.tgz 2>/dev/null | wc -l)"
           echo "  .nupkg files: $(ls -1 *.nupkg 2>/dev/null | wc -l)"
 
-      - name: Create GitHub Release with artifacts
+      - name: Create or update GitHub Release with artifacts
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.create-release.outputs.tag }}
@@ -1194,6 +1204,7 @@ jobs:
           generate_release_notes: true
           make_latest: true
           target_commitish: ${{ github.sha }}
+          overwrite_files: true
           files: |
             release-artifacts/*.tar.gz
             release-artifacts/*.tgz

@@ -7,7 +7,4 @@
 - **App** — props: Component, pageProps — `bindings/npm/examples/nextjs/pages/_app.tsx`
 - **Home** — `bindings/npm/examples/nextjs/pages/index.tsx`
 - **App** — `bindings/npm/examples/rncli/App.tsx`
-- **DependentFieldsScreen** — `bindings/npm/examples/rncli/src/screens/DependentFieldsScreen.tsx`
-- **FormValidationScreen** — `bindings/npm/examples/rncli/src/screens/FormValidationScreen.tsx`
-- **InsuranceFormScreen** — `bindings/npm/examples/rncli/src/screens/InsuranceFormScreen.tsx`
 - **LINKING_ERROR** — `bindings/npm/packages/react-native/src/index.tsx`
