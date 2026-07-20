@@ -1,6 +1,6 @@
 {
   "name": "json-eval-rs-npm-monorepo",
-  "version": "0.0.108",
+  "version": "0.0.109",
   "private": true,
   "description": "JSON Eval RS npm bindings - monorepo",
   "workspaces": [

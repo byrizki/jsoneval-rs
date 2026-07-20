@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.109] - 2026-07-20
+
+- improve deps & indexed cache subform
+
+
 ## [0.0.108] - 2026-07-20
 
 - chore: fix deps & codeql
