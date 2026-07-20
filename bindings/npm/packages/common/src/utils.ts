@@ -43,6 +43,23 @@ import type { LayoutOverlayEntry } from './types';
 
 // ─── Private pointer helpers ─────────────────────────────────────────────────
 
+const PROTOTYPE_POLLUTION_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+function isSafeObjectKey(key: string): boolean {
+  return !PROTOTYPE_POLLUTION_KEYS.has(key);
+}
+
+function setSafeObjectProperty(target: Record<string, any>, key: string, value: any): void {
+  if (!isSafeObjectKey(key)) return;
+
+  Object.defineProperty(target, key, {
+    value,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
+}
+
 /**
  * Get a nested value from an object using a slash-separated pointer path.
  * Handles `#/foo/bar`, `/foo/bar`, and bare `foo/bar` forms.
@@ -53,42 +70,16 @@ function getByPointer(obj: any, pointer: string): any {
   const parts = path.split('/');
   let current: any = obj;
   for (const part of parts) {
-    if (current == null) return undefined;
+    if (
+      !isSafeObjectKey(part) ||
+      current == null ||
+      !Object.prototype.hasOwnProperty.call(current, part)
+    ) {
+      return undefined;
+    }
     current = current[part];
   }
   return current;
-}
-
-/**
- * Set a nested value in an object using a slash-separated pointer path (mutates).
- * Creates intermediate objects as needed.
- */
-function setByPointer(obj: any, pointer: string, value: any): void {
-  if (pointer === '' || pointer === '#') {
-    return; // Cannot set root; caller should replace the reference directly
-  }
-  const path = pointer.startsWith('#/') ? pointer.slice(2) : pointer.startsWith('/') ? pointer.slice(1) : pointer;
-  const parts = path.split('/');
-  let current: any = obj;
-  for (let i = 0; i < parts.length - 1; i++) {
-    if (current[parts[i]] == null) current[parts[i]] = {};
-    current = current[parts[i]];
-  }
-  current[parts[parts.length - 1]] = value;
-}
-
-/**
- * Set a nested value using dot notation (mutates).
- * Creates intermediate objects as needed.
- */
-function setByDottedPath(obj: any, dottedPath: string, value: any): void {
-  const parts = dottedPath.split('.');
-  let current: any = obj;
-  for (let i = 0; i < parts.length - 1; i++) {
-    if (current[parts[i]] == null) current[parts[i]] = {};
-    current = current[parts[i]];
-  }
-  current[parts[parts.length - 1]] = value;
 }
 
 // ─── Port of path_utils::normalize_to_json_pointer ───────────────────────────
@@ -384,7 +375,7 @@ export function mergeLayoutOverlay(
           for (const [k, v] of Object.entries(resolved)) {
             if (k === '$layout') continue;
             if (k === 'type' && base.type !== undefined) continue;
-            base[k] = v;
+            setSafeObjectProperty(base, k, v);
           }
           resolved = base;
         }
@@ -393,7 +384,7 @@ export function mergeLayoutOverlay(
         if (resolved != null && typeof resolved === 'object') {
           for (const [k, v] of Object.entries(element)) {
             if (k === '$ref') continue;
-            resolved[k] = v;
+            setSafeObjectProperty(resolved, k, v);
           }
           elements[entry.element_idx] = resolved;
         } else {
@@ -414,7 +405,7 @@ export function mergeLayoutOverlay(
     const target = elements[entry.element_idx];
     if (target != null && typeof target === 'object' && entry.overlay != null) {
       for (const [k, v] of Object.entries(entry.overlay)) {
-        target[k] = v;
+        setSafeObjectProperty(target, k, v);
       }
     }
 

@@ -3,9 +3,9 @@
 > **Stack:** aspnet, nuxt | none | react | mixed
 > **Monorepo:** csharp, json-eval-rs-npm-monorepo, documentation, products
 
-> 0 routes | 0 models | 11 components | 25 lib files | 3 env vars | 4 middleware | 0% test coverage
-> **Token savings:** this file is ~2,900 tokens. Without it, AI exploration would cost ~20,600 tokens. **Saves ~17,700 tokens per conversation.**
-> **Last scanned:** 2026-05-18 05:13 — re-run after significant changes
+> 0 routes | 0 models | 11 components | 16 lib files | 0 env vars | 2 middleware | 0% test coverage
+> **Token savings:** this file is ~3,300 tokens. Without it, AI exploration would cost ~16,400 tokens. **Saves ~13,100 tokens per conversation.**
+> **Last scanned:** 2026-07-20 03:56 — re-run after significant changes
 
 ---
 
@@ -41,7 +41,7 @@
   - function FromMsgpack
   - function Cancel
   - function EvaluateOnly
-  - _...25 more_
+  - _...26 more_
 - `bindings/csharp/JsonEvalRs.ParsedCache.cs`
   - class ParsedSchemaCache
   - class ParsedCacheStats
@@ -64,6 +64,14 @@
   - function ResolveLayoutSubform
   - _...11 more_
 - `bindings/npm/examples/nextjs/hooks/useJSONEvalWorker.ts` — function useJSONEvalWorker: ({...}, context, data, }) => UseJSONEvalWorkerReturn
+- `bindings/npm/packages/bundler/pkg/json_eval_rs_bg.js`
+  - function getVersion: () => void
+  - function init: () => void
+  - function version: () => void
+  - function __wbg_Error_83742b46f01ce22d: (arg0, arg1) => void
+  - function __wbg_String_8564e559799eccda: (arg0, arg1) => void
+  - function __wbg___wbindgen_is_string_7ef6b97b02428fae: (arg0) => void
+  - _...24 more_
 - `bindings/npm/packages/bundler/src/index.ts` — function version: () => string, class JSONEval
 - `bindings/npm/packages/common/src/utils.ts`
   - function stringifyValue: (value) => string
@@ -82,79 +90,33 @@
   - function getJSIGlobal: () => JsonEvalJSIGlobal | null
   - function isJSIAvailable: () => boolean
   - interface JsonEvalJSIGlobal
-- `bindings/npm/packages/vanilla/src/index.ts` — function version: () => string, class JSONEval
-- `bindings/npm/packages/webcore/src/index.ts` — function getVersion: (wasmModule) => string, class JSONEvalCore
-- `bindings/web/packages/bundler/pkg/json_eval_rs_bg.js`
-  - function __wbg_set_wasm: (val) => void
-  - function getVersion: () => void
-  - function version: () => void
-  - function init: () => void
-  - function __wbg_Error_e17e777aac105295: (arg0, arg1) => void
-  - function __wbg_String_8f0eb39a4a4c2f66: (arg0, arg1) => void
-  - _...25 more_
-- `bindings/web/packages/vanilla/pkg/json_eval_rs.js`
+- `bindings/npm/packages/vanilla/pkg/json_eval_rs.js`
   - function getVersion: () => void
   - function init: () => void
   - function version: () => void
   - class JSONEvalWasm
   - class ValidationError
   - class ValidationResult
-- `generate_parity_table.py`
-  - function get_matches: (file_paths, pattern, group)
-  - function snake_to_camel: (s)
-  - function check: (method, method_set)
-- `products/apps/riplay-viewer/src/app.js` — function initApp: () => void
-- `products/apps/riplay-viewer/src/services/assets.js`
-  - function getTemplate: (env, folder, file) => void
-  - function getStyle: (env, folder, file) => void
-  - function getSchema: (env, schemaKey) => void
-  - function getSample: (productCode) => void
-  - const TEMPLATES
-  - const STYLES
-  - _...2 more_
-- `products/apps/riplay-viewer/src/services/evaluator.js` — function evaluateSchema: (schema, formData, context) => void, function disposeEvaluator: () => void
-- `products/apps/riplay-viewer/src/services/renderer.js` — function renderTemplate: (templateStr, context) => void, function buildIframeDocument: (renderedHtml, templateCss, pagedCss, polyfillRaw) => void
-- `products/apps/riplay-viewer/src/store.js`
-  - function subscribe: (fn) => void
-  - function getState: () => void
-  - function setState: (patch) => void
-  - function buildDefaultFormData: (product) => void
-- `products/apps/riplay-viewer/src/ui/editor.js` — function mountEditor: (onRenderRequest) => void, function syncEditorFromState: (textarea) => void
-- `products/apps/riplay-viewer/src/ui/preview.js`
-  - function mountPreview: () => void
-  - function showPreviewLoading: (phase) => void
-  - function showPreviewContent: (html, badgeLabel) => void
-  - function showPreviewError: (message) => void
-- `products/apps/riplay-viewer/src/ui/sidebar.js` — function mountSidebar: (onRenderRequest) => void, function updateSidebarStatus: (status, message) => void
+- `bindings/npm/packages/vanilla/src/index.ts` — function version: () => string, class JSONEval
+- `bindings/npm/packages/webcore/src/index.ts` — function getVersion: (wasmModule) => string, class JSONEvalCore
 
 ---
 
 # Config
-
-## Environment Variables
-
-- `AUTH_TOKEN` **required** — products/scripts/download.ts
-- `DOCEVAL_API_URL` **required** — products/scripts/download.ts
-- `MZPRO_API_URL` **required** — products/scripts/download.ts
 
 ## Config Files
 
 - `Cargo.toml`
 - `bindings/npm/examples/nextjs/next.config.js`
 - `bindings/npm/examples/nextjs/tailwind.config.js`
-- `products/apps/riplay-viewer/vite.config.js`
 
 ---
 
 # Middleware
 
 ## custom
-- 08.migrate-legacy-jsoneval — `docs/content/en/03.advance-guide/08.migrate-legacy-jsoneval.md`
-- 08.migrate-legacy-jsoneval — `docs/content/id/03.advance-guide/08.migrate-legacy-jsoneval.md`
+- canonical_subform_scope_guardrail — `tests/canonical_subform_scope_guardrail.rs`
 - compile_and_run_separate_tests — `tests/compile_and_run_separate_tests.rs`
-
-## validation
-- generate_parity_table — `generate_parity_table.py`
 
 ---
 
@@ -162,46 +124,166 @@
 
 ## Most Imported Files (change these carefully)
 
-- `products/apps/riplay-viewer/src/config/products.js` — imported by **7** files
-- `products/apps/riplay-viewer/src/store.js` — imported by **4** files
 - `examples/common.rs` — imported by **3** files
+- `bindings/npm/packages/node/pkg/json_eval_rs.js` — imported by **2** files
 - `bindings/npm/examples/rncli/App.tsx` — imported by **2** files
-- `bindings/web/packages/bundler/pkg/json_eval_rs_bg.js` — imported by **2** files
-- `products/apps/riplay-viewer/src/services/evaluator.js` — imported by **2** files
-- `products/apps/riplay-viewer/src/services/assets.js` — imported by **2** files
 - `bindings/npm/examples/rncli/src/screens/FormValidationScreen.tsx` — imported by **1** files
 - `bindings/npm/examples/rncli/src/screens/DependentFieldsScreen.tsx` — imported by **1** files
+- `bindings/npm/packages/bundler/pkg/json_eval_rs_bg.js` — imported by **1** files
+- `bindings/npm/packages/bundler/pkg/json_eval_rs.js` — imported by **1** files
 - `bindings/npm/packages/common/src/utils.ts` — imported by **1** files
 - `bindings/npm/packages/common/src/types.ts` — imported by **1** files
 - `bindings/npm/packages/react-native/lib/commonjs/jsi-bridge.js` — imported by **1** files
 - `bindings/npm/packages/react-native/lib/module/jsi-bridge.js` — imported by **1** files
+- `bindings/npm/packages/react-native/src/index.tsx` — imported by **1** files
 - `bindings/npm/packages/react-native/src/jsi-bridge.ts` — imported by **1** files
-- `products/apps/riplay-viewer/src/services/renderer.js` — imported by **1** files
-- `products/apps/riplay-viewer/src/ui/sidebar.js` — imported by **1** files
-- `products/apps/riplay-viewer/src/ui/editor.js` — imported by **1** files
-- `products/apps/riplay-viewer/src/ui/preview.js` — imported by **1** files
-- `products/apps/riplay-viewer/src/app.js` — imported by **1** files
+- `bindings/npm/packages/vanilla/pkg/json_eval_rs.js` — imported by **1** files
 - `tests/common.rs` — imported by **1** files
 
 ## Import Map (who imports what)
 
-- `products/apps/riplay-viewer/src/config/products.js` ← `products/apps/riplay-viewer/src/app.js`, `products/apps/riplay-viewer/src/store.js`, `products/apps/riplay-viewer/src/store.js`, `products/apps/riplay-viewer/src/store.js`, `products/apps/riplay-viewer/src/ui/sidebar.js` +2 more
-- `products/apps/riplay-viewer/src/store.js` ← `products/apps/riplay-viewer/src/app.js`, `products/apps/riplay-viewer/src/ui/editor.js`, `products/apps/riplay-viewer/src/ui/preview.js`, `products/apps/riplay-viewer/src/ui/sidebar.js`
 - `examples/common.rs` ← `examples/basic.rs`, `examples/basic_parsed.rs`, `examples/benchmark.rs`
+- `bindings/npm/packages/node/pkg/json_eval_rs.js` ← `bindings/npm/examples/nodejs-benchmark/simulate_cache_miss.js`, `bindings/npm/packages/node/src/index.ts`
 - `bindings/npm/examples/rncli/App.tsx` ← `bindings/npm/examples/rncli/__tests__/App.test.tsx`, `bindings/npm/examples/rncli/index.js`
-- `bindings/web/packages/bundler/pkg/json_eval_rs_bg.js` ← `bindings/web/packages/bundler/pkg/json_eval_rs.js`, `bindings/web/packages/bundler/pkg/json_eval_rs.js`
-- `products/apps/riplay-viewer/src/services/evaluator.js` ← `products/apps/riplay-viewer/src/app.js`, `products/apps/riplay-viewer/src/ui/sidebar.js`
-- `products/apps/riplay-viewer/src/services/assets.js` ← `products/apps/riplay-viewer/src/app.js`, `products/apps/riplay-viewer/src/ui/sidebar.js`
 - `bindings/npm/examples/rncli/src/screens/FormValidationScreen.tsx` ← `bindings/npm/examples/rncli/App.tsx`
 - `bindings/npm/examples/rncli/src/screens/DependentFieldsScreen.tsx` ← `bindings/npm/examples/rncli/App.tsx`
+- `bindings/npm/packages/bundler/pkg/json_eval_rs_bg.js` ← `bindings/npm/packages/bundler/pkg/json_eval_rs.js`
+- `bindings/npm/packages/bundler/pkg/json_eval_rs.js` ← `bindings/npm/packages/bundler/src/index.ts`
 - `bindings/npm/packages/common/src/utils.ts` ← `bindings/npm/packages/common/src/index.ts`
+- `bindings/npm/packages/common/src/types.ts` ← `bindings/npm/packages/common/src/utils.ts`
+- `bindings/npm/packages/react-native/lib/commonjs/jsi-bridge.js` ← `bindings/npm/packages/react-native/lib/commonjs/index.js`
 
 ---
 
 # Test Coverage
 
 > **0%** of routes and models are covered by tests
-> 49 test files found
+> 68 test files found
+
+---
+
+# CI/CD Pipelines
+
+## GitHub Actions (3 workflows)
+
+| Workflow | Triggers | Jobs | Deploy | Environments |
+|---|---|---|---|---|
+| Deploy docs to GitHub Pages | push, workflow_dispatch | 2 | — | github-pages |
+| Publish Packages | workflow_dispatch | 7 | — | — |
+| Release and Build | push, workflow_dispatch | 13 | — | — |
+
+### Deploy docs to GitHub Pages
+
+> `.github/workflows/deploy-docs.yml`
+
+> Concurrency: `pages`
+
+- **build** on `ubuntu-latest` — 6 steps
+  - `actions/checkout@v6`
+  - `actions/setup-node@v6`
+  - `actions/upload-pages-artifact@v4`
+- **deploy** on `ubuntu-latest` — 1 steps (needs: build)
+  - `actions/deploy-pages@v5`
+
+### Publish Packages
+
+> `.github/workflows/publish.yml`
+
+> Concurrency: `publish-${{ github.event.inputs.release_tag }}`
+
+- **check-workflow** on `ubuntu-latest` — 1 steps
+- **publish-csharp** on `ubuntu-latest` — 4 steps (needs: check-workflow)
+  - `actions/checkout@v6`
+  - `actions/setup-dotnet@v5`
+- **publish-common** on `ubuntu-latest` — 4 steps (needs: check-workflow)
+  - `actions/checkout@v6`
+  - `actions/setup-node@v6`
+- **publish-web** on `ubuntu-latest` — 4 steps (needs: check-workflow, publish-common)
+  - `actions/checkout@v6`
+  - `actions/setup-node@v6`
+- **publish-react-native** on `ubuntu-latest` — 4 steps (needs: check-workflow, publish-common)
+  - `actions/checkout@v6`
+  - `actions/setup-node@v6`
+- **publish-crates-io** on `ubuntu-latest` — 4 steps (needs: check-workflow)
+  - `actions/checkout@v6`
+  - `actions-rust-lang/setup-rust-toolchain@v1`
+- **publish-summary** on `ubuntu-latest` — 1 steps
+
+### Release and Build
+
+> `.github/workflows/release.yml`
+
+- **create-release** on `ubuntu-latest` — 5 steps
+  - `actions/checkout@v6`
+  - `actions/upload-artifact@v6`
+- **check-rn-tests** on `ubuntu-latest` — 2 steps
+  - `actions/checkout@v6`
+- **build-native** on `${{ matrix.os }}` — 6 steps
+  - `actions/checkout@v6`
+  - `actions-rust-lang/setup-rust-toolchain@v1`
+  - `actions/cache@v5`
+  - `actions/upload-artifact@v6`
+- **build-csharp** on `ubuntu-latest` — 8 steps (needs: build-native)
+  - `actions/checkout@v6`
+  - `actions/setup-dotnet@v5`
+  - `actions/download-artifact@v7`
+  - `actions/upload-artifact@v6`
+- **build-web** on `ubuntu-latest` — 20 steps
+  - `actions/checkout@v6`
+  - `actions-rust-lang/setup-rust-toolchain@v1`
+  - `actions/setup-node@v6`
+  - `actions/cache@v5`
+  - `actions/upload-artifact@v6`
+  - `actions/upload-artifact@v6`
+- **build-android-jni** on `ubuntu-latest` — 11 steps
+  - `actions/checkout@v6`
+  - `actions-rust-lang/setup-rust-toolchain@v1`
+  - `nttld/setup-ndk@v1`
+  - `actions/cache@v5`
+  - `actions/upload-artifact@v6`
+- **build-ios-xcframework** on `macos-latest` — 4 steps (needs: build-native)
+  - `actions/checkout@v6`
+  - `actions/download-artifact@v7`
+  - `actions/upload-artifact@v6`
+- **build-react-native** on `ubuntu-latest` — 12 steps (needs: build-native, build-android-jni, build-ios-xcframework)
+  - `actions/checkout@v6`
+  - `actions/setup-node@v6`
+  - `actions/download-artifact@v7`
+  - `actions/download-artifact@v7`
+  - `actions/upload-artifact@v6`
+- **test** on `ubuntu-latest` — 7 steps
+  - `actions/checkout@v6`
+  - `actions-rust-lang/setup-rust-toolchain@v1`
+  - `actions/cache@v5`
+- **test-react-native-android** on `ubuntu-latest` — 13 steps (needs: build-android-jni, build-react-native, check-rn-tests)
+  - `actions/checkout@v6`
+  - `actions/setup-node@v6`
+  - `actions/setup-java@v5`
+  - `android-actions/setup-android@v3`
+  - `actions/download-artifact@v7`
+  - `actions/cache@v5`
+- **test-react-native-ios** on `macos-latest` — 11 steps (needs: build-ios-xcframework, build-react-native, check-rn-tests)
+  - `actions/checkout@v6`
+  - `actions/setup-node@v6`
+  - `actions/download-artifact@v7`
+  - `actions/cache@v5`
+  - `actions/upload-artifact@v6`
+- **upload-to-release** on `ubuntu-latest` — 6 steps
+  - `actions/checkout@v6`
+  - `actions/download-artifact@v7`
+  - `softprops/action-gh-release@v2`
+- **summary** on `ubuntu-latest` — 1 steps
+
+### Secrets
+
+- `CARGO_REGISTRY_TOKEN`
+- `GITHUB_TOKEN`
+- `NPM_TOKEN`
+- `NUGET_API_KEY`
+
+---
+_Source: .github/workflows/deploy-docs.yml, .github/workflows/publish.yml, .github/workflows/release.yml_
+_Generated by codesight-cicd-plugin_
 
 ---
 

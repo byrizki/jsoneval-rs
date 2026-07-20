@@ -14,7 +14,7 @@
   - function FromMsgpack
   - function Cancel
   - function EvaluateOnly
-  - _...25 more_
+  - _...26 more_
 - `bindings/csharp/JsonEvalRs.ParsedCache.cs`
   - class ParsedSchemaCache
   - class ParsedCacheStats
@@ -37,6 +37,14 @@
   - function ResolveLayoutSubform
   - _...11 more_
 - `bindings/npm/examples/nextjs/hooks/useJSONEvalWorker.ts` — function useJSONEvalWorker: ({...}, context, data, }) => UseJSONEvalWorkerReturn
+- `bindings/npm/packages/bundler/pkg/json_eval_rs_bg.js`
+  - function getVersion: () => void
+  - function init: () => void
+  - function version: () => void
+  - function __wbg_Error_83742b46f01ce22d: (arg0, arg1) => void
+  - function __wbg_String_8564e559799eccda: (arg0, arg1) => void
+  - function __wbg___wbindgen_is_string_7ef6b97b02428fae: (arg0) => void
+  - _...24 more_
 - `bindings/npm/packages/bundler/src/index.ts` — function version: () => string, class JSONEval
 - `bindings/npm/packages/common/src/utils.ts`
   - function stringifyValue: (value) => string
@@ -55,47 +63,12 @@
   - function getJSIGlobal: () => JsonEvalJSIGlobal | null
   - function isJSIAvailable: () => boolean
   - interface JsonEvalJSIGlobal
-- `bindings/npm/packages/vanilla/src/index.ts` — function version: () => string, class JSONEval
-- `bindings/npm/packages/webcore/src/index.ts` — function getVersion: (wasmModule) => string, class JSONEvalCore
-- `bindings/web/packages/bundler/pkg/json_eval_rs_bg.js`
-  - function __wbg_set_wasm: (val) => void
-  - function getVersion: () => void
-  - function version: () => void
-  - function init: () => void
-  - function __wbg_Error_e17e777aac105295: (arg0, arg1) => void
-  - function __wbg_String_8f0eb39a4a4c2f66: (arg0, arg1) => void
-  - _...25 more_
-- `bindings/web/packages/vanilla/pkg/json_eval_rs.js`
+- `bindings/npm/packages/vanilla/pkg/json_eval_rs.js`
   - function getVersion: () => void
   - function init: () => void
   - function version: () => void
   - class JSONEvalWasm
   - class ValidationError
   - class ValidationResult
-- `generate_parity_table.py`
-  - function get_matches: (file_paths, pattern, group)
-  - function snake_to_camel: (s)
-  - function check: (method, method_set)
-- `products/apps/riplay-viewer/src/app.js` — function initApp: () => void
-- `products/apps/riplay-viewer/src/services/assets.js`
-  - function getTemplate: (env, folder, file) => void
-  - function getStyle: (env, folder, file) => void
-  - function getSchema: (env, schemaKey) => void
-  - function getSample: (productCode) => void
-  - const TEMPLATES
-  - const STYLES
-  - _...2 more_
-- `products/apps/riplay-viewer/src/services/evaluator.js` — function evaluateSchema: (schema, formData, context) => void, function disposeEvaluator: () => void
-- `products/apps/riplay-viewer/src/services/renderer.js` — function renderTemplate: (templateStr, context) => void, function buildIframeDocument: (renderedHtml, templateCss, pagedCss, polyfillRaw) => void
-- `products/apps/riplay-viewer/src/store.js`
-  - function subscribe: (fn) => void
-  - function getState: () => void
-  - function setState: (patch) => void
-  - function buildDefaultFormData: (product) => void
-- `products/apps/riplay-viewer/src/ui/editor.js` — function mountEditor: (onRenderRequest) => void, function syncEditorFromState: (textarea) => void
-- `products/apps/riplay-viewer/src/ui/preview.js`
-  - function mountPreview: () => void
-  - function showPreviewLoading: (phase) => void
-  - function showPreviewContent: (html, badgeLabel) => void
-  - function showPreviewError: (message) => void
-- `products/apps/riplay-viewer/src/ui/sidebar.js` — function mountSidebar: (onRenderRequest) => void, function updateSidebarStatus: (status, message) => void
+- `bindings/npm/packages/vanilla/src/index.ts` — function version: () => string, class JSONEval
+- `bindings/npm/packages/webcore/src/index.ts` — function getVersion: (wasmModule) => string, class JSONEvalCore

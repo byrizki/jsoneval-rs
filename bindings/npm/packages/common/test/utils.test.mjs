@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { resolveEvaluatedLayout } from '../dist/index.js';
+import { mergeLayoutOverlay, resolveEvaluatedLayout } from '../dist/index.js';
 
 const schema = {
   $params: { internal: true },
@@ -120,3 +120,46 @@ assert.deepEqual(
   },
   'resolver must preserve native property metadata even when schema has no layouts',
 );
+
+for (const unsafeKey of ['__proto__', 'constructor', 'prototype']) {
+  const maliciousRefSchema = {
+    layout: {
+      $layout: {
+        elements: [{ $ref: `#/${unsafeKey}` }],
+      },
+    },
+  };
+
+  mergeLayoutOverlay(maliciousRefSchema, [{
+    layout_path: '#/layout/$layout/elements',
+    element_idx: 0,
+    schema_ref_path: unsafeKey,
+    overlay: {},
+  }]);
+
+  assert.equal(
+    maliciousRefSchema.layout.$layout.elements[0].$ref,
+    `#/${unsafeKey}`,
+    `${unsafeKey} must not resolve through the JavaScript prototype chain`,
+  );
+
+  const maliciousOverlaySchema = JSON.parse('{"layout":{"$layout":{"elements":[{}]}}}');
+  mergeLayoutOverlay(maliciousOverlaySchema, [{
+    layout_path: '#/layout/$layout/elements',
+    element_idx: 0,
+    schema_ref_path: '',
+    overlay: JSON.parse(`{"${unsafeKey}":{"polluted":true}}`),
+  }]);
+
+  const target = maliciousOverlaySchema.layout.$layout.elements[0];
+  assert.equal(
+    Object.hasOwn(target, unsafeKey),
+    false,
+    `layout overlays must not assign ${unsafeKey}`,
+  );
+  assert.equal(
+    Object.getPrototypeOf(target),
+    Object.prototype,
+    `layout overlays must not mutate the target prototype through ${unsafeKey}`,
+  );
+}

@@ -1,6 +1,6 @@
 # jsoneval-rs — Wiki
 
-_Generated 2026-05-18 — re-run `npx codesight --wiki` if the codebase has changed._
+_Generated 2026-07-20 — re-run `npx codesight --wiki` if the codebase has changed._
 
 Structural map compiled from source code via AST. No LLM — deterministic, 200ms.
 
@@ -9,14 +9,15 @@ Structural map compiled from source code via AST. No LLM — deterministic, 200m
 ## Articles
 
 - [Overview](./overview.md)
+- [Ui](./ui.md)
 - [Libraries](./libraries.md)
 
 ## Quick Stats
 
 - Routes: **0**
 - Models: **0**
-- Components: **0**
-- Env vars: **3** required, **0** with defaults
+- Components: **11**
+- Env vars: **0** required, **0** with defaults
 
 ## How to Use
 
@@ -42,4 +43,4 @@ These exist in your codebase but are **not** reflected in wiki articles:
 When in doubt, search the source. The wiki is a starting point, not a complete inventory.
 
 ---
-_Last compiled: 2026-05-18 · 3 articles · [codesight](https://github.com/Houseofmvps/codesight)_
+_Last compiled: 2026-07-20 · 4 articles · [codesight](https://github.com/Houseofmvps/codesight)_
