@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.111] - 2026-07-21
+
+- fix cached parsed schema evaluation
+
+
 ## [0.0.110] - 2026-07-21
 
 - fix hidden value visibility re-evaluation

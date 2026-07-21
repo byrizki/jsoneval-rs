@@ -11,10 +11,10 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Release tag to publish from (e.g., v0.0.110)"
+        description: "Release tag to publish from (e.g., v0.0.111)"
         required: true
         type: string
-        default: v0.0.110
+        default: v0.0.111
       publish_csharp:
         description: "Publish C# NuGet package"
         required: false
