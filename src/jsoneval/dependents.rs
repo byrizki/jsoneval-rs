@@ -292,6 +292,24 @@ impl JSONEval {
 
         self.evaluate_internal(None, token)?;
 
+        // First evaluation can reveal a field that was hidden when the initial
+        // default pass ran (e.g. ZIA's ph_em after WOP is enabled). Materialize
+        // that newly visible static default, then recalculate formulas which
+        // consume it. Defaults remain non-triggering: only caller paths enter
+        // the dependent queue.
+        if self.collect_visible_static_defaults().is_empty() {
+            // Nothing newly visible needs initialization.
+        } else {
+            self.run_schema_default_value_pass(
+                token,
+                to_process,
+                processed,
+                result,
+                canceled_paths.as_mut().map(|v| &mut **v),
+            )?;
+            self.evaluate_internal(None, token)?;
+        }
+
         // Emit result entries for every sorted-evaluation whose version uniquely bumped.
         let active_idx = self.eval_cache.active_item_index;
         for eval_key in self.sorted_evaluations.iter().flatten() {
