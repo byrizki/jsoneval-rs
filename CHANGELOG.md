@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.110] - 2026-07-21
+
+- fix hidden value visibility re-evaluation
+
+
 ## [0.0.109] - 2026-07-20
 
 - improve deps & indexed cache subform
