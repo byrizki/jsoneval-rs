@@ -169,10 +169,36 @@ impl ParsedSchema {
             static_arrays,
         };
 
-        // Parse the schema to populate all fields
+        // Parse the schema to populate all fields.
         crate::parse_schema::parsed::parse_schema_into(&mut parsed)?;
 
+        // Nested parsed subforms copy `$params` after large arrays become markers.
+        // Give every nested engine the root store that owns those extracted arrays.
+        let static_arrays = Arc::clone(&parsed.static_arrays);
+        parsed.inherit_static_arrays(static_arrays)?;
+
         Ok(parsed)
+    }
+
+    /// Rebind this parsed schema and every nested subform to a parent's extracted
+    /// static arrays. Subform schemas copy parent `$params` after extraction, so
+    /// their schema contains markers rather than source arrays.
+    pub(crate) fn inherit_static_arrays(
+        &mut self,
+        static_arrays: Arc<IndexMap<String, Arc<Value>>>,
+    ) -> Result<(), String> {
+        Arc::get_mut(&mut self.engine)
+            .ok_or("Cannot rebind static arrays on a shared ParsedSchema engine")?
+            .set_static_arrays(Arc::clone(&static_arrays));
+        self.static_arrays = Arc::clone(&static_arrays);
+
+        for subform in self.subforms.values_mut() {
+            Arc::get_mut(subform)
+                .ok_or("Cannot rebind static arrays on a shared nested ParsedSchema")?
+                .inherit_static_arrays(Arc::clone(&static_arrays))?;
+        }
+
+        Ok(())
     }
 
     /// Parse a MessagePack-encoded schema into a ParsedSchema structure
