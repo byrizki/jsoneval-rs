@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.112] - 2026-07-30
+
+- chore: cleanup code comments
+- fix: static array extractor
+
+
 ## [0.0.111] - 2026-07-21
 
 - fix cached parsed schema evaluation
