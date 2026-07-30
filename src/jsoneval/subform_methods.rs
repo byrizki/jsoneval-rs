@@ -189,9 +189,7 @@ impl JSONEval {
             )
         })?;
 
-        // Step 1: update subform data and extract item snapshot for targeted diff.
-        // Scoped block releases the mutable borrow on `self.subforms` before we touch
-        // `self.eval_cache` (they are disjoint fields, but keep it explicit).
+        // Prepare item data and cache state.
         let (old_item_snapshot, new_item_val, subform_item_cache_opt) = {
             let subform = self
                 .subforms
@@ -205,8 +203,7 @@ impl JSONEval {
                 .map(|c| c.item_snapshot.clone())
                 .unwrap_or(Value::Null);
 
-            // Retain parent evaluator's schema-owned `$params`, then merge a full
-            // payload's parent fields over it. Item wrappers supply only active item.
+            // Merge parent payload when available.
             let mut scoped_data = EvalData::new(self.eval_data.snapshot_data_clone());
             if full_parent_payload || payload_has_parent_context {
                 scoped_data.replace_data_and_context(data_value.clone(), context_value.clone());
@@ -225,17 +222,12 @@ impl JSONEval {
             subform.eval_data = EvalData::new(scoped_view);
             let new_item_val = normalized_item.clone();
 
-            // Pull out any existing item-scoped entries from the subform's own cache
-            // so they can be merged into the parent cache below.
+            // Move item cache into parent cache.
             let existing = subform.eval_cache.subform_caches.remove(&idx);
             (old_item_snapshot, new_item_val, existing)
         }; // subform borrow released here
 
-        // Unified store fallback: if the subform's own per-item cache has no snapshot for this
-        // index (e.g. this is the first evaluate_subform call after a full evaluate()), treat the
-        // parent's eval_data slot as the canonical baseline. The parent always holds the most
-        // recent array data written by evaluate() or evaluate_dependents(), so using it avoids
-        // treating an already-evaluated item as brand-new and forcing full table re-evaluation.
+        // Fall back to parent item snapshot.
         let parent_item = self.eval_data.get(&item_path).cloned();
         let old_item_snapshot = if old_item_snapshot == Value::Null {
             parent_item.clone().unwrap_or(Value::Null)
@@ -243,11 +235,7 @@ impl JSONEval {
             old_item_snapshot
         };
 
-        // An item is "new" only when the parent's eval_data has no entry at the item path.
-        // Using the subform's own snapshot cache as the authority (old_item_snapshot == Null)
-        // is not correct after Step 6 persistence re-seeds the cache: a rider that was
-        // previously evaluate_subform'd would have a snapshot but may still be absent from
-        // the parent array (e.g. new rider scenario after evaluate_dependents_subform).
+        // Parent data determines whether item is new.
         let is_new_item = parent_item.is_none();
 
         let mut parent_cache = std::mem::take(&mut self.eval_cache);
@@ -267,27 +255,20 @@ impl JSONEval {
         parent_cache.ensure_active_item_cache(idx);
 
         if let Some(c) = parent_cache.subform_caches.get_mut(&idx) {
-            // Parent dependency paths use absolute form pointers, while item formulas use
-            // `/riders/...`; merging parent versions invalidates parent-driven conditions without
-            // cross-item contamination. Item-local bumps remain isolated under `/riders/...`.
+            // Merge parent versions without item-local paths.
             c.data_versions
                 .merge_excluding_prefix(&parent_cache.data_versions, &format!("/{root_key}/"));
             c.data_versions
                 .merge_from_params(&parent_cache.params_versions);
 
-            // Merge the durable item history before diffing. Diffing first can reuse a version
-            // number held by a cached entry (false → true both appear as version 1), leaving an
-            // outdated condition/value cache entry valid. Historical versions form the diff base.
+            // Merge item version history before diffing.
             if let Some(subform_item_cache) = &subform_item_cache_opt {
                 c.data_versions
                     .merge_from(&subform_item_cache.data_versions);
             }
         }
 
-        // Snapshot item versions BEFORE the diff so we can detect only NEW bumps below.
-        // `any_bumped_with_prefix(v > 0)` would return true for historical bumps from prior
-        // calls, causing invalidate_params_tables_for_item to fire on every evaluate_subform
-        // even when no rider data actually changed.
+        // Keep baseline to detect new version bumps.
         let pre_diff_item_versions = parent_cache
             .subform_caches
             .get(&idx)
@@ -305,18 +286,7 @@ impl JSONEval {
             c.item_snapshot = new_item_val.clone();
         }
 
-        // Propagate paths NEWLY bumped by this diff into parent_cache.data_versions so that
-        // check_table_cache (which validates T2 global entries against self.data_versions only)
-        // correctly detects changes to rider fields like `sa`, `code`, etc.
-        //
-        // Without this, a field changed via evaluate_dependents_subform (e.g. sa: 0 → 200M)
-        // only bumps the per-item tracker. The T2 entry for RIDER_ZLOB_TABLE (cached with sa=0)
-        // still looks valid when validated against self.data_versions → stale rows → first_prem=0.
-        //
-        // We use pre_diff_item_versions as the baseline so only NEW bumps from THIS diff pass
-        // are propagated, NOT historical bumps accumulated by prior evaluate_subform calls.
-        // This prevents the regression where run_subform_pass sees stale per-rider bumps
-        // and erroneously re-evaluates expensive tables (RIDER_ZLOB_TABLE etc.) for every rider.
+        // Propagate new item changes to parent T2 versions.
         {
             let item_field_prefix = format!("/{}/", root_key);
             if let (Some(ref pre), Some(c)) = (
@@ -342,21 +312,10 @@ impl JSONEval {
 
         parent_cache.active_item_index = Some(idx);
 
-        // Restore cached entries that lived in the subform's own per-item cache.
-        // Only restore entries whose dependency versions still match the current item
-        // data_versions: if a field changed (e.g. sa bumped), entries that depended on
-        // that field are stale and must not be re-inserted (they would cause false T1 hits).
+        // Restore valid item cache entries.
         if let Some(subform_item_cache) = subform_item_cache_opt {
             if let Some(c) = parent_cache.subform_caches.get_mut(&idx) {
-                // Merge historical data_versions from the prior subform item cache BEFORE
-                // computing current_dv. The fresh item cache (ensure_active_item_cache) only
-                // has paths bumped by the current diff. Historical bumps (e.g. /riders/sa=1
-                // from prior calls) live in subform_item_cache.data_versions. Without this
-                // merge, current_dv["/riders/sa"]=0 while T1 entries store dep_ver=1, so all
-                // T1 entries are evicted and every table falls through to the T2 path.
-                // After the merge, current_dv reflects the full accumulated state; the diff
-                // above already bumped any newly-changed fields further, so stale entries that
-                // depended on those fields are still correctly evicted.
+                // Merge historical item versions before validation.
                 let current_dv = c.data_versions.clone();
                 for (k, v) in subform_item_cache.entries {
                     // Skip if entry already exists (parent-form run may have added a fresher result).
@@ -379,9 +338,7 @@ impl JSONEval {
             }
         }
 
-        // Insert into the parent eval_data as well (to make the item visible to global formulas on main evaluate).
-        // Only write (and bump version) when the value actually changed: prevents spurious riders-array
-        // version increments on repeated evaluate_subform calls where the rider data is unchanged.
+        // Sync changed item into parent data.
         let current_at_item_path = self.eval_data.get(&item_path).cloned();
         if current_at_item_path.as_ref() != Some(&new_item_val) {
             self.eval_data.set(&item_path, new_item_val.clone());
@@ -390,15 +347,7 @@ impl JSONEval {
             }
         }
 
-        // Re-evaluate `$params` tables that depend on subform item paths that changed.
-        // This is required not just for brand-new items, but also whenever a tracked field
-        // (like `riders.sa`) changes value: tables like RIDER_ZLOB_TABLE depend on rider.sa
-        // and must produce updated rows that reflect the new sa before the subform's own
-        // formula evaluation runs (otherwise cached old rows are reused).
-        //
-        // Gate: only re-evaluate tables when at least one item-level path was NEWLY bumped
-        // in this diff pass. Using any_bumped_with_prefix(v > 0) would return true for
-        // historical bumps from prior calls, causing spurious table invalidation every time.
+        // Refresh affected $params tables after new item changes.
         let field_prefix = format!("/{}/", root_key);
         let item_paths_bumped = match &pre_diff_item_versions {
             None => {
@@ -423,12 +372,7 @@ impl JSONEval {
         };
 
         if is_new_item || item_paths_bumped {
-            // Collect which rider data paths were NEWLY bumped in this diff pass.
-            // When item_paths_bumped = true, the diff detected changes — but we only want to
-            // invalidate tables that ACTUALLY depend on those changed paths. Tables like
-            // ILST_TABLE / RIDER_ZLOB_TABLE don't depend on computed outputs (wop_rider_premi,
-            // first_prem), so bumping them forces unnecessary re-evaluation and increments
-            // eval_generation, preventing the generation-based skip in evaluate_internal_pre_diffed.
+            // Collect newly changed item paths.
             let newly_bumped_paths: Option<Vec<String>> = if item_paths_bumped {
                 let paths = pre_diff_item_versions.as_ref().and_then(|pre| {
                     parent_cache.subform_caches.get(&idx).map(|c| {
@@ -436,8 +380,7 @@ impl JSONEval {
                             .versions()
                             .filter(|(k, &v)| k.starts_with(&field_prefix) && v > pre.get(k))
                             .map(|(k, _)| {
-                                // Convert data-version path (e.g. /riders/wop_rider_premi) to schema dep
-                                // format (e.g. #/riders/properties/wop_rider_premi) for dep matching.
+                                // Convert data path to schema path.
                                 let sub = k.trim_start_matches(&field_prefix);
                                 format!("#/{}/properties/{}", root_key, sub)
                             })
@@ -457,9 +400,7 @@ impl JSONEval {
                     if is_new_item {
                         return true; // new rider: invalidate all tables
                     }
-                    // Only invalidate tables whose declared deps overlap the changed paths.
-                    // If newly_bumped_paths is None (shouldn't happen when item_paths_bumped=true),
-                    // fall back to invalidating all.
+                    // Invalidate tables with changed dependencies.
                     let Some(ref bumped) = newly_bumped_paths else {
                         return true;
                     };
@@ -484,12 +425,7 @@ impl JSONEval {
 
                 let eval_data_snapshot = self.eval_data.snapshot_data();
                 for key in &params_table_keys {
-                    // CRITICAL FIX: Only evaluate global tables on the parent if they do NOT
-                    // depend on subform-specific item paths (like `#/riders/...`).
-                    // Tables like WOP_ZLOB_PREMI_TABLE contain formulas like `#/riders/properties/code`
-                    // and MUST be evaluated by the subform engine to see the subform's current data.
-                    // Tables like WOP_RIDERS contain formulas like `#/illustration/product_benefit/riders`
-                    // and MUST be evaluated by the parent engine to see the full parent array.
+                    // Item-dependent tables run in subform scope.
                     let depends_on_subform_item = if let Some(deps) = self.dependencies.get(key) {
                         let subform_dep_prefix = format!("#/{}/properties/", root_key);
                         let subform_dep_prefix_short = format!("#/{}/", root_key);
@@ -520,8 +456,7 @@ impl JSONEval {
                         let result_val = serde_json::Value::Array(rows);
 
                         if let Some(external_deps) = external_deps_opt {
-                            // We must temporarily clear active_item_index so store_cache puts this in T2 (global)
-                            // Then the subform can hit it via T2 fallback check.
+                            // Store parent result in T2.
                             parent_cache.active_item_index = None;
                             parent_cache.store_cache(key, &external_deps, result_val);
                             parent_cache.active_item_index = Some(idx);
@@ -555,12 +490,7 @@ impl JSONEval {
         parent_cache.active_item_index = None;
         self.eval_cache = parent_cache;
 
-        // Step 6: persist the updated T1 item cache (snapshot + entries) back into the subform's
-        // own per-item cache. Without this, the next evaluate_subform call for the same idx reads
-        // old_item_snapshot = Null from the subform cache (it was removed at line 183) and treats
-        // the rider as brand-new, forcing a full re-diff and invalidating all T1 entries.
-        // Also store the subform's evaluated_schema snapshot (written by evaluate_internal above)
-        // so get_evaluated_schema_subform can return per-item values with an O(1) cache read.
+        // Persist item cache and evaluated schema.
         {
             let subform = self.subforms.get_mut(base_path).unwrap();
             if let Some(item_cache) = self.eval_cache.subform_caches.get_mut(&idx) {

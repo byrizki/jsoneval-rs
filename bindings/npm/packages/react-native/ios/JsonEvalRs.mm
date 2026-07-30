@@ -35,18 +35,12 @@ RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(installJSI)
     return @YES;
 }
 
-// Helper methods
-// Note: These conversions are required by React Native bridge architecture
-// We minimize copies where possible, but some are unavoidable due to lifetime management
 - (NSString *)stringFromStdString:(const std::string &)str {
-    // Creates NSString from UTF-8 C string (copies data)
     return [NSString stringWithUTF8String:str.c_str()];
 }
 
 - (std::string)stdStringFromNSString:(NSString *)str {
     if (str == nil) return "";
-    // UTF8String returns a pointer to UTF-8 representation (minimal copy)
-    // We must copy to std::string for safe lifetime management
     const char* utf8 = [str UTF8String];
     return utf8 ? std::string(utf8) : std::string();
 }

@@ -168,22 +168,13 @@ impl JSONEval {
                 )
             })?;
 
-            // If the subform pass invalidated and re-evaluated any T2 $params tables that
-            // depend on subform-item fields (e.g. RIDER_ZLOS_TABLE), those tables now have fresh
-            // rows in the T2 cache, but the parent's evaluated_schema still contains the stale
-            // pre-dependents values written by the initial run_re_evaluate_pass. Run a second
-            // evaluate_internal on the parent so that downstream $params tables like
-            // RIDER_FIRST_PREM_PER_PAY_TABLE are re-evaluated against the new T2 rows and the
-            // parent's evaluated_schema reflects the correct post-dependents state.
+            // Refresh parent values after subform invalidates T2 tables.
             if subform_invalidated_tables {
                 let _lock2 = self.eval_lock.lock().unwrap();
                 drop(_lock2);
                 self.evaluate_internal(None, token)?;
 
-                // Run a second subform pass so each item re-evaluates computed readonly fields
-                // (e.g. first_prem) against the now-fresh T2 tables. The first subform pass ran
-                // before evaluate_internal refreshed those tables. Deduplication (last-writer-wins)
-                // ensures these up-to-date entries overwrite any stale entries from pass 1.
+                // Refresh subform computed values with updated T2 tables.
                 self.run_subform_pass(&[], &[], true, token, &mut result)?;
 
                 // Patch the whole-array entry in result with the post-pass eval_data snapshot.
@@ -241,13 +232,7 @@ impl JSONEval {
             out
         };
 
-        // Refresh main_form_snapshot so the next evaluate() call computes diffs from the
-        // post-dependents state instead of the old pre-dependents snapshot.
-        // Without this, evaluate() re-diffs every field that evaluate_dependents already
-        // processed, double-bumping data_versions and causing spurious cache misses in
-        // evaluate_internal (observed as unexpected ~550ms "cache hit" full evaluates).
-        // Only update when no subform item is active — subform evaluate_dependents calls
-        // must not overwrite the parent's snapshot.
+        // Preserve post-dependents parent snapshot.
         if self.eval_cache.active_item_index.is_none() {
             let current_snapshot = self.eval_data.snapshot_data_clone();
             self.eval_cache.main_form_snapshot = Some(current_snapshot);
@@ -1294,13 +1279,7 @@ impl JSONEval {
                         }
                     }
 
-                    // After writing computed outputs (first_prem, wop_rider_premi, etc.) back to
-                    // parent eval_data, refresh the item_snapshot so that subsequent evaluate_subform
-                    // calls see the post-computation state as their baseline. Without this, the
-                    // snapshot only contains the raw input (before apply_changes), so the next
-                    // with_item_cache_swap diff detects ALL computed fields (first_prem, code, sa ...)
-                    // as "changed" even when only genuinely-new data arrived, causing spurious
-                    // secondary version bumps → false T2 table misses for RIDER_ZLOB_TABLE etc.
+                    // Refresh item snapshots after computed writes.
                     if had_any_change {
                         let item_path = format!("{}/{}", subform_ptr, idx);
                         let updated_item = self
@@ -1308,12 +1287,11 @@ impl JSONEval {
                             .get(&item_path)
                             .cloned()
                             .unwrap_or(Value::Null);
-                        // Update parent T1 cache snapshot
+                        // Update parent snapshot.
                         if let Some(c) = self.eval_cache.subform_caches.get_mut(&idx) {
                             c.item_snapshot = updated_item.clone();
                         }
-                        // Update subform's own per-item snapshot used as old_item_snapshot
-                        // on the next evaluate_subform call.
+                        // Update subform snapshot.
                         subform.eval_cache.ensure_active_item_cache(idx);
                         if let Some(sub_cache) = subform.eval_cache.subform_caches.get_mut(&idx) {
                             sub_cache.item_snapshot = updated_item;

@@ -331,11 +331,7 @@ impl EvalCache {
                 }
             }
 
-            // Tier 2: global entries (may have been stored by main-form Run 1).
-            // Only reuse if the entry is index-safe:
-            //   (a) computed with no active item (main-form result), OR
-            //   (b) computed for the same item index, OR
-            //   (c) all deps are $params-scoped (truly index-independent)
+            // Reuse only index-safe T2 entries.
             let item_data_versions = self
                 .subform_caches
                 .get(&idx)
@@ -344,10 +340,7 @@ impl EvalCache {
 
             if let Some(entry) = self.entries.get(eval_key) {
                 let index_safe = match entry.computed_for_item {
-                    // Main-form entry (no active item when stored): only safe if ALL its deps
-                    // are $params-scoped. Non-$params deps (like /riders/prem_pay_period) mean
-                    // the formula result is rider-specific — using it for a different rider via
-                    // the batch fast path would corrupt eval_data and poison subsequent formulas.
+                    // Main-form T2 entries require only $params dependencies.
                     None => entry.dep_versions.keys().all(|p| p.starts_with("/$params")),
                     Some(stored_idx) if stored_idx == idx => true,
                     _ => entry.dep_versions.keys().all(|p| p.starts_with("/$params")),
@@ -375,15 +368,7 @@ impl EvalCache {
 
     /// Specialized cache check for `$params`-scoped table evaluations.
     ///
-    /// Tables in `$params/references/` aggregate cross-item data and produce a single result
-    /// that is independent of which subform item is currently active. The standard `check_cache`
-    /// blocks T2 reuse for entries whose deps include non-`$params` paths (e.g. `/riders/...`),
-    /// because scalar formula results are item-specific. But table results are global: the same
-    /// 734-row array is correct for rider 0, rider 1, and rider 2 alike.
-    ///
-    /// This method validates the global entry directly — using `item_data_versions` for
-    /// non-`$params` deps — without the `index_safe` gate, allowing the expensive table forward/
-    /// backward pass to be skipped when inputs have not changed.
+    /// Checks global cache for `$params` tables.
     pub fn check_table_cache(&self, eval_key: &str, deps: &IndexSet<String>) -> Option<Value> {
         if let Some(idx) = self.active_item_index {
             // Tier 1: item-scoped entries first (unlikely for $params tables but check anyway)
@@ -398,11 +383,7 @@ impl EvalCache {
                 }
             }
 
-            // A `$params` table can read the active rider through local `/riders/...`
-            // dependencies. The parent has already evaluated this canonical item before
-            // `SubformScope` aliases it locally. Reuse that result while this item's local
-            // rider inputs remain unchanged; a local input bump makes the alias stale and
-            // forces item-scoped table recomputation.
+            // Local rider changes invalidate item-dependent T2 tables.
             let has_item_data_dependency = deps.iter().any(|dep| {
                 !crate::jsoneval::path_utils::schema_path_to_data_pointer(dep)
                     .starts_with("/$params")
@@ -474,15 +455,9 @@ impl EvalCache {
 
     /// Store the newly evaluated value and snapshot the dependency versions.
     ///
-    /// Storage strategy:
-    /// - When an active item is set, store into `subform_caches[idx].entries` (item-scoped).
-    ///   This isolates per-rider results so different items with different data don't collide.
-    /// - The global `self.entries` is written only from the main form (no active item).
-    ///   Subforms can reuse these via the Tier 2 fallback in `check_cache`.
+    /// Stores result in active cache tier.
     pub fn store_cache(&mut self, eval_key: &str, deps: &IndexSet<String>, result: Value) {
-        // Phase 1: snapshot dep versions using the correct data_versions tracker.
-        // Always use item data_versions for T1; for T2 promotion of $params tables we
-        // build a separate snapshot using PARENT data_versions (see Phase 2 note below).
+        // Snapshot dependency versions.
         let mut dep_versions = HashMap::with_capacity(deps.len());
         {
             let data_versions = if let Some(idx) = self.active_item_index {
@@ -503,20 +478,13 @@ impl EvalCache {
             }
         }
 
-        // Phase 2: insert into the correct tier, tagging with the current item index.
+        // Store with current item scope.
         let computed_for_item = self.active_item_index;
 
-        // For $params-scoped entries, only bump params_versions when the result value
-        // actually changed relative to the canonical cached entry.
-        //
-        // For T1 stores (active_item set), we compare against T2 (global) first.
-        // T2 is the authoritative reference: if T2 already holds the same value,
-        // params_versions was already bumped for it — bumping again per-rider causes
-        // an O(riders × $params_formulas) version explosion that makes every downstream
-        // formula (TOTAL_WOP_SA, WOP_MULTIPLIER, COMMISSION_FACTOR…) miss on each rider.
+        // Bump $params versions only when result changes.
         if eval_key.starts_with("#/$params") {
             let existing_result: Option<&Value> = if let Some(idx) = self.active_item_index {
-                // Check T2 (global) first — if T2 has same value, no need to bump again.
+                // Prefer canonical T2 result.
                 self.entries.get(eval_key).map(|e| &e.result).or_else(|| {
                     self.subform_caches
                         .get(&idx)
@@ -565,14 +533,7 @@ impl EvalCache {
                 .entries
                 .insert(eval_key.to_string(), entry.clone());
 
-            // For $params-scoped tables, also promote to T2 (global entries).
-            // CRITICAL: T2 must be validated by check_table_cache using PARENT data_versions,
-            // not item data_versions. If we promoted the item-dep snapshot directly:
-            //   - T2 dep[/riders/code] = item_data_versions[/riders/code] = 1 (bumped for this rider)
-            //   - check_table_cache validates with parent data_versions[/riders/code] = 0
-            //   - 1 ≠ 0 → guaranteed miss for every other rider
-            // Fix: rebuild dep_versions using PARENT data_versions for non-$params paths.
-            // T1 retains item data_versions (correct for per-item scoping).
+            // Promote $params tables to T2 with parent versions.
             if eval_key.starts_with("#/$params") {
                 let t2_dep_versions: HashMap<String, u64> = entry
                     .dep_versions
@@ -581,7 +542,7 @@ impl EvalCache {
                         let parent_ver = if path.starts_with("/$params") {
                             item_ver // params_versions are global — same for both
                         } else {
-                            // Use parent data_versions, which is what check_table_cache reads
+                            // Use parent version.
                             self.data_versions.get(path)
                         };
                         (path.clone(), parent_ver)

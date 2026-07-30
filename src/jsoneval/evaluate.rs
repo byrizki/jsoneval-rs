@@ -123,12 +123,7 @@ impl JSONEval {
                 return Ok(());
             }
 
-            // Proactively populate per-item caches for all existing subform items from the loaded data.
-            // When a user opens an existing form (e.g. reload from DB), the main `evaluate(data)`
-            // establishes the baseline state. If we don't populate subform caches here, the first
-            // time the user opens a rider (`evaluate_subform`), the cache is empty (item_snapshot=Null).
-            // The diff between Null and the full rider data will then mark EVERY field (sa, code, etc.)
-            // as "changed", spuriously bumping secondary trackers and causing false T2 table misses.
+            // Seed subform caches from loaded data.
             for (subform_path, subform) in &mut self.subforms {
                 let subform_ptr =
                     crate::jsoneval::path_utils::normalize_to_json_pointer(subform_path);
@@ -151,27 +146,16 @@ impl JSONEval {
             // Save snapshot for the next evaluation cycle (avoids one snapshot_data_clone() call)
             self.eval_cache.main_form_snapshot = Some(new_data.clone());
 
-            // Detect subform array structural changes: length differences OR item identity shifts
-            // (e.g., rider reorder). When items move indices their per-index T1 caches are misaligned,
-            // and T2 global entries keyed on subform-local dep paths (e.g., `/riders/code`) must be
-            // evicted — the parent diff only bumps indexed full paths like
-            // `/illustration/product_benefit/riders/2/code`, which never match the stored dep key.
+            // Invalidate subform caches after structural changes.
             self.invalidate_subform_caches_on_structural_change(&old_data, &new_data);
 
-            // Generation-based fast skip: diff_and_update_versions bumps data_versions.versions
-            // but does NOT increment eval_generation. Only bump_data_version / bump_params_version
-            // (called from formula stores) advance eval_generation.
-            // If eval_generation == last_evaluated_generation after the diff, no formula's cached
-            // deps are actually stale — all batches would be cache hits. Skip the full traversal.
-            // Safe only in the external evaluate() path; run_re_evaluate_pass must always evaluate.
+            // Skip external traversal when cached dependencies are fresh.
             if paths.is_none() && !self.eval_cache.needs_full_evaluation() {
                 self.evaluate_others(paths, token);
                 return Ok(());
             }
 
-            // Resolve visibility first, then initialize visible static defaults before
-            // final formula pass. Without this, first full evaluation sees `null`
-            // for optional defaulted inputs such as ZPP's ph_em multiplier.
+            // Apply visible defaults before final formula pass.
             self.evaluate_internal(paths, token)?;
             if self.apply_visible_static_defaults() {
                 self.evaluate_internal(paths, token)?;
@@ -200,9 +184,7 @@ impl JSONEval {
             let new_len = new_items.map(Vec::len).unwrap_or(0);
             let min_len = old_len.min(new_len);
 
-            // Detect identity shift in the overlapping index range using subset comparison.
-            // We check whether the raw input fields of new_items[i] all match old_items[i],
-            // ignoring extra computed keys that only exist in the old snapshot.
+            // Detect reordered overlapping items.
             let identities_shifted = (0..min_len).any(|i| {
                 let old_item = old_items.and_then(|a| a.get(i));
                 let new_item = new_items.and_then(|a| a.get(i));
@@ -213,18 +195,14 @@ impl JSONEval {
                 continue; // No structural change for this subform
             }
 
-            // Build the subform-local dep-path prefix stored in T2 dep_versions
-            // (e.g., `/riders/` for a riders subform). T2 dep keys are normalized data
-            // paths — never schema paths — so only one prefix is needed.
+            // Build local subform path prefix.
             let field_key = subform_ptr
                 .split('/')
                 .next_back()
                 .unwrap_or(subform_ptr.as_str());
             let subform_dep_prefix = format!("/{}/", field_key);
 
-            // Evict T2 global entries whose deps include any subform-local path.
-            // `retain` evicts inline (no intermediate Vec allocation).
-            // Collect the normalized path of each evicted key for the params_versions bump.
+            // Evict affected T2 entries.
             let mut evicted_paths: Vec<String> = Vec::new();
             self.eval_cache.entries.retain(|eval_key, entry| {
                 let has_subform_dep = entry
