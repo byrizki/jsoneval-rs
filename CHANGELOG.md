@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.113] - 2026-07-31
+
+- feat: implement bigint in [RN] & [Web]
+
+
 ## [0.0.112] - 2026-07-30
 
 - chore: cleanup code comments
