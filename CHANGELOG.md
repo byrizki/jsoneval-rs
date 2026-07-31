@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.114] - 2026-07-31
+
+- fix bigint on merge layout resolver
+
+
 ## [0.0.113] - 2026-07-31
 
 - feat: implement bigint in [RN] & [Web]
