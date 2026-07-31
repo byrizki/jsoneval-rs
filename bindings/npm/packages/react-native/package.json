@@ -1,6 +1,6 @@
 {
   "name": "@json-eval-rs/react-native",
-  "version": "0.0.114",
+  "version": "0.0.115",
   "description": "High-performance JSON Logic evaluator with schema validation for React Native",
   "main": "lib/commonjs/index",
   "module": "lib/module/index",
@@ -138,6 +138,6 @@
     ]
   },
   "dependencies": {
-    "@json-eval-rs/common": "*"
+    "@json-eval-rs/common": "0.0.115"
   }
 }

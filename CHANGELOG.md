@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.115] - 2026-07-31
+
+- fix: lock json eval deps version
+
+
 ## [0.0.114] - 2026-07-31
 
 - fix bigint on merge layout resolver
