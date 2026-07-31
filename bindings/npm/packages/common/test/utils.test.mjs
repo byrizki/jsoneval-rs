@@ -1,5 +1,47 @@
 import assert from 'node:assert/strict';
-import { mergeLayoutOverlay, resolveEvaluatedLayout } from '../dist/index.js';
+import {
+  mergeLayoutOverlay,
+  parseJsonWithBigInt,
+  parseValue,
+  resolveEvaluatedLayout,
+  stringifyJsonWithBigInt,
+  stringifyValue,
+} from '../dist/index.js';
+
+const unsafeInteger = 1000000000000000000n;
+
+assert.deepEqual(
+  parseJsonWithBigInt('{"safe":9007199254740991,"unsafe":1000000000000000000,"negative":-9007199254740992,"decimal":1.5,"exponent":1e18,"text":"1000000000000000000"}'),
+  {
+    safe: 9007199254740991,
+    unsafe: unsafeInteger,
+    negative: -9007199254740992n,
+    decimal: 1.5,
+    exponent: 1e18,
+    text: '1000000000000000000',
+  },
+  'unsafe integer tokens must parse as bigint without changing strings, decimals, or exponents',
+);
+
+const bigintJson = stringifyJsonWithBigInt({
+  unsafe: unsafeInteger,
+  nested: [-9007199254740992n, '1000000000000000000'],
+});
+assert.equal(
+  bigintJson,
+  '{"unsafe":1000000000000000000,"nested":[-9007199254740992,"1000000000000000000"]}',
+  'bigint values must serialize as unquoted JSON integers',
+);
+assert.deepEqual(
+  parseValue(bigintJson),
+  { unsafe: unsafeInteger, nested: [-9007199254740992n, '1000000000000000000'] },
+  'parseValue must preserve bigint values emitted by stringifyJsonWithBigInt',
+);
+assert.equal(
+  stringifyValue({ unsafe: unsafeInteger }),
+  '{"unsafe":1000000000000000000}',
+  'stringifyValue must support bigint input',
+);
 
 const schema = {
   $params: { internal: true },

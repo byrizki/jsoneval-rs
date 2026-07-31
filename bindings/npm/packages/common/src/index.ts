@@ -39,4 +39,4 @@ export {
 } from './types.js';
 
 // Re-export utilities
-export { stringifyValue, parseValue, stringifyOrNull, extractErrorMessage, mergeLayoutOverlay, resolveEvaluatedLayout } from './utils.js';
+export { stringifyValue, parseValue, stringifyOrNull, parseJsonWithBigInt, stringifyJsonWithBigInt, extractErrorMessage, mergeLayoutOverlay, resolveEvaluatedLayout } from './utils.js';

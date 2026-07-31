@@ -956,7 +956,7 @@ export class JSONEval {
     const dataStr = options.data ? stringifyValue(options.data) : null;
     const contextStr = options.context ? stringifyValue(options.context) : null;
 
-    // Native bridge accepts one changed path.
+    // For now, pass the first path since native bridge expects single path (wraps internally)
     const changedPath = options.changedPaths[0] || '';
 
     return await this._callNativeJson(

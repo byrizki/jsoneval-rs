@@ -3,21 +3,133 @@
  * Shared utility functions for Web and React Native bindings.
  */
 
-/**
- * Convert a value to JSON string.
- * If already a string, returns as-is.
- * Otherwise serializes with JSON.stringify.
- */
-export function stringifyValue(value: string | object): string {
-  return typeof value === 'string' ? value : JSON.stringify(value);
+const MAX_SAFE_INTEGER = BigInt(Number.MAX_SAFE_INTEGER);
+const BIGINT_TOKEN_PREFIX = '\u0000json-eval-rs-bigint:';
+let bigintTokenNonce = 0;
+
+function isUnsafeIntegerToken(token: string): boolean {
+  if (!/^-?(?:0|[1-9]\d*)$/.test(token)) return false;
+
+  const integer = BigInt(token);
+  return integer > MAX_SAFE_INTEGER || integer < -MAX_SAFE_INTEGER;
 }
 
 /**
- * Parse a JSON string into a value.
- * If the input is not a string (already an object/array/primitive), returns it as-is.
+ * Parse JSON while preserving integer tokens outside JavaScript's safe integer
+ * range as bigint. Decimal and exponent-form numbers retain JSON.parse behavior.
+ */
+export function parseJsonWithBigInt(json: string): any {
+  const tokenPrefix = `${BIGINT_TOKEN_PREFIX}${bigintTokenNonce++}:`;
+  const tokens = new Set<string>();
+  let output = '';
+  let index = 0;
+
+  while (index < json.length) {
+    const char = json[index];
+
+    // Copy strings unchanged so numeric characters inside them are never replaced.
+    if (char === '"') {
+      const start = index++;
+      while (index < json.length) {
+        if (json[index] === '\\') {
+          index += 2;
+        } else if (json[index++] === '"') {
+          break;
+        }
+      }
+      output += json.slice(start, index);
+      continue;
+    }
+
+    if (char === '-' || (char >= '0' && char <= '9')) {
+      const start = index++;
+      // JSON number tokens end at structural whitespace or punctuation. Do not
+      // treat an object/array delimiter as part of a number token.
+      while (index < json.length && /[0-9eE+.-]/.test(json[index])) index++;
+      const token = json.slice(start, index);
+
+      if (isUnsafeIntegerToken(token)) {
+        const marker = `${tokenPrefix}${token}`;
+        tokens.add(marker);
+        output += JSON.stringify(marker);
+      } else {
+        output += token;
+      }
+      continue;
+    }
+
+    output += char;
+    index++;
+  }
+
+  const revive = (value: any): any => {
+    if (typeof value === 'string' && tokens.has(value)) {
+      return BigInt(value.slice(tokenPrefix.length));
+    }
+    if (Array.isArray(value)) return value.map(revive);
+    if (value !== null && typeof value === 'object') {
+      for (const key of Object.keys(value)) value[key] = revive(value[key]);
+    }
+    return value;
+  };
+
+  return revive(JSON.parse(output));
+}
+
+/**
+ * Serialize bigint values as exact, unquoted JSON integer tokens.
+ */
+export function stringifyJsonWithBigInt(value: unknown): string | undefined {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const tokenPrefix = `${BIGINT_TOKEN_PREFIX}${bigintTokenNonce++}:`;
+    const tokens = new Map<string, string>();
+    let tokenId = 0;
+
+    const json = JSON.stringify(value, (_key, current) => {
+      if (typeof current !== 'bigint') return current;
+
+      const marker = `${tokenPrefix}${tokenId++}`;
+      tokens.set(marker, current.toString());
+      return marker;
+    });
+
+    if (json === undefined || tokens.size === 0) return json;
+
+    // Retry if caller data contains one of our private marker strings.
+    const markerOccurrences = [...tokens.keys()].reduce(
+      (count, marker) => count + json.split(JSON.stringify(marker)).length - 1,
+      0,
+    );
+    if (markerOccurrences !== tokens.size) continue;
+
+    let output = json;
+    for (const [marker, integer] of tokens) {
+      output = output.split(JSON.stringify(marker)).join(integer);
+    }
+    return output;
+  }
+
+  throw new Error('Unable to serialize bigint values without marker collision');
+}
+
+/**
+ * Convert a value to JSON string.
+ * If already a string, returns as-is.
+ * Otherwise serializes bigint values as exact JSON integers.
+ */
+export function stringifyValue(value: unknown): string {
+  if (typeof value === 'string') return value;
+  const json = stringifyJsonWithBigInt(value);
+  if (json === undefined) throw new TypeError('Value cannot be serialized as JSON');
+  return json;
+}
+
+/**
+ * Parse a JSON string into a value while preserving unsafe integers as bigint.
+ * If input is already a value, returns it unchanged.
  */
 export function parseValue(value: unknown): any {
-  return typeof value === 'string' ? JSON.parse(value) : value;
+  return typeof value === 'string' ? parseJsonWithBigInt(value) : value;
 }
 
 /**
@@ -25,7 +137,7 @@ export function parseValue(value: unknown): any {
  */
 export function stringifyOrNull(value: any): string | null {
   if (value == null) return null;
-  return typeof value === 'string' ? value : JSON.stringify(value);
+  return typeof value === 'string' ? value : stringifyValue(value);
 }
 
 /**
