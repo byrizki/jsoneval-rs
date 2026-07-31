@@ -27,7 +27,7 @@
     "directory": "bindings/npm/packages/webcore"
   },
   "dependencies": {
-    "@json-eval-rs/common": "*"
+    "@json-eval-rs/common": "0.0.114"
   },
   "sideEffects": false
 }

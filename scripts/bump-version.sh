@@ -91,6 +91,13 @@ for PKG in "${PACKAGE_FILES[@]}"; do
   FULL_PATH="$REPO_ROOT/$PKG"
   if [[ -f "$FULL_PATH" ]]; then
     sed -i "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/" "$FULL_PATH"
+
+    # Runtime package edges must follow this release exactly. Wildcards can
+    # leave a published package nested on an older Common/WebCore version.
+    for DEP in common webcore; do
+      sed -i -E "s/(\"@json-eval-rs\/$DEP\": )(\"\\*\"|\"$CURRENT_VERSION\")/\\1\"$NEW_VERSION\"/" "$FULL_PATH"
+    done
+
     STAGED_FILES+=("$FULL_PATH")
     echo "  ✔  $PKG"
   else
