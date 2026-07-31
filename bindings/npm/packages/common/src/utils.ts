@@ -460,7 +460,11 @@ export function mergeLayoutOverlay(
   const sorted = [...entries].sort((a, b) => {
     const da = (a.layout_path.match(/\//g) ?? []).length;
     const db = (b.layout_path.match(/\//g) ?? []).length;
-    return da !== db ? da - db : a.element_idx - b.element_idx;
+    if (da !== db) return da < db ? -1 : 1;
+
+    // Unsafe JSON integers are bigint. Relational comparison supports mixed
+    // number/bigint operands; subtraction does not.
+    return a.element_idx < b.element_idx ? -1 : a.element_idx > b.element_idx ? 1 : 0;
   });
 
   // Step 2: Process each entry against the live schema

@@ -163,6 +163,19 @@ assert.deepEqual(
   'resolver must preserve native property metadata even when schema has no layouts',
 );
 
+assert.doesNotThrow(
+  () => mergeLayoutOverlay(
+    { layout: { $layout: { elements: [{}] } } },
+    [{
+      layout_path: '#/layout/$layout/elements',
+      element_idx: 0n,
+      schema_ref_path: '',
+      overlay: {},
+    }],
+  ),
+  'layout entry bigint indexes must not be subtracted during sorting',
+);
+
 for (const unsafeKey of ['__proto__', 'constructor', 'prototype']) {
   const maliciousRefSchema = {
     layout: {
