@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.116] - 2026-08-04
+
+- chore: add wasm package patch build fix
+- fix: implement scalar array indexed path getter
+
+
 ## [0.0.115] - 2026-07-31
 
 - fix: lock json eval deps version

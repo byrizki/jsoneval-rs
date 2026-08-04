@@ -1,6 +1,6 @@
 {
   "name": "@json-eval-rs/node",
-  "version": "0.0.115",
+  "version": "0.0.116",
   "description": "JSON Eval RS for Node.js and Server-Side Rendering with ergonomic API",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -30,7 +30,7 @@
     "directory": "bindings/npm/packages/node"
   },
   "dependencies": {
-    "@json-eval-rs/webcore": "0.0.115"
+    "@json-eval-rs/webcore": "0.0.116"
   },
   "sideEffects": false
 }
