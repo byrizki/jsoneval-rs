@@ -11,6 +11,7 @@
     "build": "yarn build:common && yarn build:web && yarn build:react-native",
     "build:common": "yarn workspace @json-eval-rs/common build",
     "build:web": "yarn workspace @json-eval-rs/webcore build && yarn workspace @json-eval-rs/bundler build && yarn workspace @json-eval-rs/node build && yarn workspace @json-eval-rs/vanilla build",
+    "postbuild:wasm:node": "node scripts/fix-node-wasm-package.mjs",
     "build:react-native": "yarn workspace @json-eval-rs/react-native prepare",
     "clean:web": "rm -rf packages/webcore/dist packages/bundler/dist packages/node/dist packages/vanilla/dist packages/bundler/pkg packages/node/pkg packages/vanilla/pkg",
     "clean:react-native": "yarn workspace @json-eval-rs/react-native clean",

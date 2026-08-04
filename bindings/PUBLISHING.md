@@ -127,6 +127,10 @@ wasm-pack build --target nodejs --out-dir bindings/npm/packages/node/pkg --featu
 
 # Build for bundlers
 wasm-pack build --target bundler --out-dir bindings/npm/packages/bundler/pkg --features wasm
+
+# wasm-pack nodejs glue is CommonJS, but @json-eval-rs/node is ESM.
+# Restore its nested CommonJS module boundary after every node build.
+node bindings/npm/scripts/fix-node-wasm-package.mjs
 ```
 
 #### 2.2. Update Package Metadata
