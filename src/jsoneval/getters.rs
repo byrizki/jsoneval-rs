@@ -351,6 +351,22 @@ impl JSONEval {
     /// - `schema_prefix = "/$params/references"` → resolves only arrays nested under that key
     /// - `schema_prefix = "/properties/foo/value"` → resolves a single marker if the field itself is one
     fn resolve_static_markers_at_path(&self, schema_prefix: &str) -> Option<Value> {
+        // Resolve indexed static-array paths directly.
+        for (static_key, array_arc) in self.static_arrays.iter() {
+            let schema_path: &str = if static_key.starts_with("/$table") {
+                &static_key["/$table".len()..]
+            } else {
+                static_key.as_str()
+            };
+
+            if let Some(relative) = schema_prefix
+                .strip_prefix(schema_path)
+                .and_then(|relative| relative.strip_prefix('/'))
+            {
+                return array_arc.pointer(&format!("/{}", relative)).cloned();
+            }
+        }
+
         let mut subtree = self.evaluated_schema.pointer(schema_prefix)?.clone();
 
         // Pre-build "prefix/" once for the starts_with check in the loop
