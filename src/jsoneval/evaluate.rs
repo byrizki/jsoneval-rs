@@ -781,15 +781,7 @@ impl JSONEval {
         self.refresh_computed_value_dependents(token);
         self.evaluate_options_templates(paths);
 
-        // Resolve refs and visibility from current evaluated schema every evaluation.
-        // Rust Value refs are copies, so this state cannot be restored from an old overlay
-        // or persisted by mutating evaluated_schema as legacy JavaScript did.
-        time_block!("      resolve_layout", {
-            let _ = self.resolve_layout(false);
-        });
-
-        // Layout state was rebuilt above. Overlay consumers may reuse it only until next run.
-        self.resolved_layout_cache = None;
+        self.invalidate_layout_cache();
     }
 
     /// Re-evaluate direct dependents of computed fields against a temporary data overlay.

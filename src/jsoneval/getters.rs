@@ -4,24 +4,33 @@ use crate::jsoneval::types::{ResolvedLayoutResult, ReturnFormat};
 use crate::time_block;
 use crate::utils::clean_float_noise_scalar;
 use serde_json::Value;
-use std::sync::Arc;
 
 impl JSONEval {
     /// Check if a field is effectively hidden by checking its condition and all parents
     /// Also checks for $layout.hideLayout.all on parents
     pub(crate) fn is_effective_hidden(&self, schema_pointer: &str) -> bool {
+        self.ensure_layout_resolved();
         let schema_pointer = schema_pointer.trim_start_matches('#');
-        if self.layout_hidden_refs.iter().any(|hidden_ref| {
-            schema_pointer == hidden_ref
-                || schema_pointer
-                    .strip_prefix(hidden_ref)
-                    .is_some_and(|suffix| {
-                        suffix.starts_with("/properties/") || suffix.starts_with("/items/")
-                    })
-        }) {
-            return true;
+        if let Ok(state) = self.layout_state.read() {
+            if state.layout_hidden_refs.iter().any(|hidden_ref| {
+                schema_pointer == hidden_ref
+                    || schema_pointer
+                        .strip_prefix(hidden_ref)
+                        .is_some_and(|suffix| {
+                            suffix.starts_with("/properties/") || suffix.starts_with("/items/")
+                        })
+            }) {
+                return true;
+            }
         }
 
+        self.is_schema_effective_hidden(schema_pointer)
+    }
+
+    /// Check if a field is effectively hidden in the schema hierarchy (condition.hidden or $layout.hideLayout.all)
+    /// without requiring layout resolution.
+    pub(crate) fn is_schema_effective_hidden(&self, schema_pointer: &str) -> bool {
+        let schema_pointer = schema_pointer.trim_start_matches('#');
         let mut end = schema_pointer.len();
 
         loop {
@@ -155,20 +164,14 @@ impl JSONEval {
     /// Consumer merges these into compact schema to get fully resolved layout.
     pub fn get_resolved_layout(&mut self) -> ResolvedLayoutResult {
         time_block!("get_resolved_layout()", {
-            // Check cache
-            if let Some(ref cached) = self.resolved_layout_cache {
-                return cached.as_ref().clone();
-            }
-            // Resolve and cache
-            let result = match self.resolve_layout(false) {
-                Ok(entries) => entries,
-                Err(e) => {
-                    eprintln!("Warning: Layout resolution failed: {}", e);
-                    Vec::new()
-                }
-            };
-            self.resolved_layout_cache = Some(Arc::new(result.clone()));
-            result
+            self.ensure_layout_resolved();
+            self.layout_state
+                .read()
+                .unwrap()
+                .cache
+                .as_ref()
+                .map(|c| (**c).clone())
+                .unwrap_or_default()
         })
     }
 
@@ -350,7 +353,7 @@ impl JSONEval {
     /// # Examples
     /// - `schema_prefix = "/$params/references"` → resolves only arrays nested under that key
     /// - `schema_prefix = "/properties/foo/value"` → resolves a single marker if the field itself is one
-    fn resolve_static_markers_at_path(&self, schema_prefix: &str) -> Option<Value> {
+    pub(crate) fn resolve_static_markers_at_path(&self, schema_prefix: &str) -> Option<Value> {
         // Resolve indexed static-array paths directly.
         for (static_key, array_arc) in self.static_arrays.iter() {
             let schema_path: &str = if static_key.starts_with("/$table") {
@@ -414,6 +417,7 @@ impl JSONEval {
     /// evaluator state. Indexed subforms carry active-item wrappers at their root;
     /// persisting this view would append that wrapper into later form evaluations.
     pub fn get_schema_value(&mut self) -> Value {
+        self.ensure_layout_resolved();
         // Start with current authoritative data from eval_data
         let mut current_data = self.eval_data.data().clone();
 
@@ -527,6 +531,7 @@ impl JSONEval {
     ///
     /// Array of objects containing path (dotted notation) and value pairs from value evaluations
     pub fn get_schema_value_array(&self) -> Value {
+        self.ensure_layout_resolved();
         let mut result = Vec::new();
 
         for eval_key in self.value_evaluations.iter() {
@@ -580,6 +585,7 @@ impl JSONEval {
     ///
     /// Flat object with dotted notation paths as keys and evaluated values
     pub fn get_schema_value_object(&self) -> Value {
+        self.ensure_layout_resolved();
         let mut result = serde_json::Map::new();
 
         for eval_key in self.value_evaluations.iter() {

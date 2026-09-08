@@ -42,14 +42,11 @@ impl Clone for JSONEval {
             eval_cache: self.eval_cache.clone(),
             eval_lock: Mutex::new(()), // Create fresh mutex for the clone
             cached_msgpack_schema: self.cached_msgpack_schema.clone(),
-            resolved_layout_cache: None,
             conditional_hidden_fields: self.conditional_hidden_fields.clone(),
             conditional_readonly_fields: self.conditional_readonly_fields.clone(),
             static_arrays: self.static_arrays.clone(),
             regex_cache: RwLock::new(HashMap::new()),
-            layout_hidden_refs: indexmap::IndexSet::new(),
-            layout_visible_refs: indexmap::IndexSet::new(),
-            layout_condition_hidden_refs: indexmap::IndexSet::new(),
+            layout_state: RwLock::new(crate::jsoneval::layout::LayoutResolutionState::default()),
         }
     }
 }
@@ -121,14 +118,11 @@ impl JSONEval {
                     eval_cache: crate::jsoneval::eval_cache::EvalCache::new(),
                     eval_lock: Mutex::new(()),
                     cached_msgpack_schema: None,
-                    resolved_layout_cache: None,
                     conditional_hidden_fields: Arc::new(Vec::new()),
                     conditional_readonly_fields: Arc::new(Vec::new()),
                     static_arrays,
                     regex_cache: RwLock::new(HashMap::new()),
-                    layout_hidden_refs: indexmap::IndexSet::new(),
-                    layout_visible_refs: indexmap::IndexSet::new(),
-                    layout_condition_hidden_refs: indexmap::IndexSet::new(),
+                    layout_state: RwLock::new(crate::jsoneval::layout::LayoutResolutionState::default()),
                 }
             });
             time_block!("  parse_schema", {
@@ -186,14 +180,11 @@ impl JSONEval {
                     eval_cache: crate::jsoneval::eval_cache::EvalCache::new(),
                     eval_lock: Mutex::new(()),
                     cached_msgpack_schema: None,
-                    resolved_layout_cache: None,
                     conditional_hidden_fields: Arc::new(Vec::new()),
                     conditional_readonly_fields: Arc::new(Vec::new()),
                     static_arrays,
                     regex_cache: RwLock::new(HashMap::new()),
-                    layout_hidden_refs: indexmap::IndexSet::new(),
-                    layout_visible_refs: indexmap::IndexSet::new(),
-                    layout_condition_hidden_refs: indexmap::IndexSet::new(),
+                    layout_state: RwLock::new(crate::jsoneval::layout::LayoutResolutionState::default()),
                 }
             });
             time_block!("  parse_schema", {
@@ -274,14 +265,11 @@ impl JSONEval {
             eval_cache: crate::jsoneval::eval_cache::EvalCache::new(),
             eval_lock: Mutex::new(()),
             cached_msgpack_schema: Some(cached_msgpack),
-            resolved_layout_cache: None,
             conditional_hidden_fields: Arc::new(Vec::new()),
             conditional_readonly_fields: Arc::new(Vec::new()),
             static_arrays,
             regex_cache: RwLock::new(HashMap::new()),
-            layout_hidden_refs: indexmap::IndexSet::new(),
-            layout_visible_refs: indexmap::IndexSet::new(),
-            layout_condition_hidden_refs: indexmap::IndexSet::new(),
+            layout_state: RwLock::new(crate::jsoneval::layout::LayoutResolutionState::default()),
         };
         parse_schema::legacy::parse_schema(&mut instance)?;
         Ok(instance)
@@ -366,14 +354,11 @@ impl JSONEval {
             eval_cache: crate::jsoneval::eval_cache::EvalCache::new(),
             eval_lock: Mutex::new(()),
             cached_msgpack_schema: None,
-            resolved_layout_cache: None,
             conditional_hidden_fields: Arc::clone(&parsed.conditional_hidden_fields),
             conditional_readonly_fields: Arc::clone(&parsed.conditional_readonly_fields),
             static_arrays: Arc::clone(&parsed.static_arrays),
             regex_cache: RwLock::new(HashMap::new()),
-            layout_hidden_refs: indexmap::IndexSet::new(),
-            layout_visible_refs: indexmap::IndexSet::new(),
-            layout_condition_hidden_refs: indexmap::IndexSet::new(),
+            layout_state: RwLock::new(crate::jsoneval::layout::LayoutResolutionState::default()),
         };
         Ok(instance)
     }
@@ -438,10 +423,7 @@ impl JSONEval {
 
         // Clear MessagePack cache since schema has been mutated
         self.cached_msgpack_schema = None;
-        self.resolved_layout_cache = None;
-        self.layout_hidden_refs.clear();
-        self.layout_visible_refs.clear();
-        self.layout_condition_hidden_refs.clear();
+        self.invalidate_layout_cache();
 
         Ok(())
     }
@@ -555,10 +537,7 @@ impl JSONEval {
 
         // Cache the MessagePack for future retrievals
         self.cached_msgpack_schema = Some(schema_msgpack.to_vec());
-        self.resolved_layout_cache = None;
-        self.layout_hidden_refs.clear();
-        self.layout_visible_refs.clear();
-        self.layout_condition_hidden_refs.clear();
+        self.invalidate_layout_cache();
 
         Ok(())
     }
@@ -633,10 +612,7 @@ impl JSONEval {
 
         // Clear MessagePack cache since we're loading from ParsedSchema
         self.cached_msgpack_schema = None;
-        self.resolved_layout_cache = None;
-        self.layout_hidden_refs.clear();
-        self.layout_visible_refs.clear();
-        self.layout_condition_hidden_refs.clear();
+        self.invalidate_layout_cache();
 
         Ok(())
     }

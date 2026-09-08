@@ -52,6 +52,8 @@ impl JSONEval {
             // Update evaluated_schema with fresh evaluations
             self.evaluated_schema = self.get_evaluated_schema();
 
+            self.ensure_layout_resolved();
+
             let mut errors: IndexMap<String, ValidationError> = IndexMap::new();
 
             // Use pre-parsed fields_with_rules from schema parsing (no runtime collection needed)
@@ -96,6 +98,8 @@ impl JSONEval {
         // Re-evaluate rule evaluations with the current (already-set) data.
         self.evaluate_others(paths, token);
         self.evaluated_schema = self.get_evaluated_schema();
+
+        self.ensure_layout_resolved();
 
         let mut errors: IndexMap<String, ValidationError> = IndexMap::new();
 

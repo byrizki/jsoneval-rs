@@ -6,7 +6,57 @@ use crate::time_block;
 use indexmap::IndexMap;
 use serde_json::Value;
 
+use std::sync::Arc;
+
+#[derive(Default, Clone)]
+pub(crate) struct LayoutResolutionState {
+    pub(crate) resolved: bool,
+    pub(crate) cache: Option<Arc<Vec<LayoutOverlayEntry>>>,
+    pub(crate) layout_hidden_refs: indexmap::IndexSet<String>,
+    pub(crate) layout_visible_refs: indexmap::IndexSet<String>,
+    pub(crate) layout_condition_hidden_refs: indexmap::IndexSet<String>,
+}
+
 impl JSONEval {
+    /// Ensure layout references and visibility state are resolved and cached.
+    pub(crate) fn ensure_layout_resolved(&self) {
+        if self.layout_paths.is_empty() {
+            return;
+        }
+
+        if let Ok(state) = self.layout_state.read() {
+            if state.resolved {
+                return;
+            }
+        }
+
+        let mut state = match self.layout_state.write() {
+            Ok(s) => s,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+
+        if state.resolved {
+            return;
+        }
+
+        let entries = self.compute_layout_resolution(&mut state);
+        state.cache = Some(Arc::new(entries));
+        state.resolved = true;
+    }
+
+    /// Invalidate the layout resolution cache and state.
+    pub(crate) fn invalidate_layout_cache(&self) {
+        let mut state = match self.layout_state.write() {
+            Ok(s) => s,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        state.resolved = false;
+        state.cache = None;
+        state.layout_hidden_refs.clear();
+        state.layout_visible_refs.clear();
+        state.layout_condition_hidden_refs.clear();
+    }
+
     /// Resolve layout references, return overlay entries.
     ///
     /// Unlike old version: does NOT mutate evaluated_schema.
@@ -22,22 +72,28 @@ impl JSONEval {
             self.evaluate(&data_str, None, None, None)?;
         }
 
-        Ok(self.resolve_layout_internal())
+        self.ensure_layout_resolved();
+        let state = self.layout_state.read().unwrap();
+        Ok(state
+            .cache
+            .as_ref()
+            .map(|c| (**c).clone())
+            .unwrap_or_default())
     }
 
-    fn resolve_layout_internal(&mut self) -> ResolvedLayoutResult {
+    fn compute_layout_resolution(&self, state: &mut LayoutResolutionState) -> ResolvedLayoutResult {
         time_block!("  resolve_layout_internal()", {
-            let layout_paths = self.layout_paths.clone();
+            let layout_paths = &self.layout_paths;
             let mut all_entries = ResolvedLayoutResult::new();
 
-            // Resolve every ref from current evaluated_schema. Visibility state remains
-            // ephemeral: overlays and hidden indexes never mutate evaluated_schema.
-            self.layout_hidden_refs.clear();
-            self.layout_visible_refs.clear();
-            self.layout_condition_hidden_refs.clear();
-            // A nested field layout is expanded by its parent's `$ref` tree. Resolving it
-            // again as a standalone root loses its actual parent visibility and would make a
-            // shared ref look visible when every real attachment is hidden.
+            state.layout_hidden_refs.clear();
+            state.layout_visible_refs.clear();
+            state.layout_condition_hidden_refs.clear();
+
+            if layout_paths.is_empty() {
+                return all_entries;
+            }
+
             let attached_layout_refs = Self::collect_layout_ref_targets(&self.schema);
             time_block!("    resolve_layout_elements", {
                 for layout_path in layout_paths.iter().filter(|path| {
@@ -51,19 +107,17 @@ impl JSONEval {
                         false,
                         false,
                         false,
-                        &mut self.layout_hidden_refs,
-                        &mut self.layout_visible_refs,
-                        &mut self.layout_condition_hidden_refs,
+                        &mut state.layout_hidden_refs,
+                        &mut state.layout_visible_refs,
+                        &mut state.layout_condition_hidden_refs,
                     );
                     all_entries.extend(entries);
                 }
             });
 
-            // Schema-wide filtering and clearing apply only if no attached layout occurrence
-            // renders this ref visible. Overlay entries above retain per-occurrence state.
-            for visible_ref in &self.layout_visible_refs {
-                self.layout_hidden_refs.shift_remove(visible_ref);
-                self.layout_condition_hidden_refs.shift_remove(visible_ref);
+            for visible_ref in &state.layout_visible_refs {
+                state.layout_hidden_refs.shift_remove(visible_ref);
+                state.layout_condition_hidden_refs.shift_remove(visible_ref);
             }
 
             all_entries

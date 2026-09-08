@@ -508,7 +508,11 @@ impl JSONEval {
                 self.check_hidden_field(schema_el, path, &mut hidden_fields);
             }
         }
-        for path in self.layout_condition_hidden_refs.iter() {
+        let layout_condition_hidden_refs = {
+            let state = self.layout_state.read().unwrap();
+            state.layout_condition_hidden_refs.clone()
+        };
+        for path in layout_condition_hidden_refs.iter() {
             if let Some(schema_el) = self.evaluated_schema.pointer(path) {
                 self.check_effectively_hidden_field(schema_el, path, &mut hidden_fields);
             }
@@ -550,49 +554,66 @@ impl JSONEval {
     /// Collect visible primitive schema values missing from input.
     fn collect_visible_static_defaults(&self) -> Vec<(String, Value, String)> {
         let mut defaults = Vec::new();
-        let schema_values = self.get_schema_value_array();
 
-        if let Value::Array(values) = schema_values {
-            for item in values {
-                let Value::Object(map) = item else {
-                    continue;
-                };
-                let Some(Value::String(dot_path)) = map.get("path") else {
-                    continue;
-                };
-                let Some(schema_val) = map.get("value") else {
-                    continue;
-                };
+        for eval_key in self.value_evaluations.iter() {
+            let clean_key = eval_key.strip_prefix('#').unwrap_or(eval_key);
 
-                let schema_ptr = path_utils::dot_notation_to_schema_pointer(dot_path);
-                if let Some(Value::Object(schema_node)) = self
-                    .evaluated_schema
-                    .pointer(schema_ptr.trim_start_matches('#'))
-                {
-                    if let Some(Value::Object(condition)) = schema_node.get("condition") {
-                        if let Some(hidden_val) = condition.get("hidden") {
-                            if !hidden_val.is_boolean() || hidden_val.as_bool() == Some(true) {
-                                continue;
-                            }
+            // Exclude rules.*.value, options.*.value, and $params
+            if clean_key.starts_with("/$params")
+                || (clean_key.ends_with("/value")
+                    && (clean_key.contains("/rules/") || clean_key.contains("/options/")))
+            {
+                continue;
+            }
+
+            let schema_path = clean_key.strip_suffix("/value").unwrap_or(&clean_key);
+            if self.is_schema_effective_hidden(schema_path) {
+                continue;
+            }
+
+            let dotted_path = clean_key
+                .replace("/properties", "")
+                .replace("/value", "")
+                .trim_start_matches('/')
+                .replace('/', ".");
+
+            if dotted_path.is_empty() {
+                continue;
+            }
+
+            let schema_val = match self.resolve_static_markers_at_path(clean_key) {
+                Some(v) => crate::utils::clean_float_noise(v),
+                None => continue,
+            };
+
+            let schema_ptr = path_utils::dot_notation_to_schema_pointer(&dotted_path);
+            if let Some(Value::Object(schema_node)) = self
+                .evaluated_schema
+                .pointer(schema_ptr.trim_start_matches('#'))
+            {
+                if let Some(Value::Object(condition)) = schema_node.get("condition") {
+                    if let Some(hidden_val) = condition.get("hidden") {
+                        if !hidden_val.is_boolean() || hidden_val.as_bool() == Some(true) {
+                            continue;
                         }
                     }
                 }
+            }
 
-                let data_path = dot_path.replace('.', "/");
-                let current_data = self
-                    .eval_data
-                    .data()
-                    .pointer(&format!("/{}", data_path))
-                    .unwrap_or(&Value::Null);
-                let is_empty = matches!(current_data, Value::Null)
-                    || matches!(current_data, Value::String(s) if s.is_empty());
-                let is_schema_val_empty = matches!(schema_val, Value::Null)
-                    || matches!(schema_val, Value::String(s) if s.is_empty())
-                    || matches!(schema_val, Value::Object(map) if map.contains_key("$evaluation"));
+            let data_path = dotted_path.replace('.', "/");
+            let current_data = self
+                .eval_data
+                .data()
+                .pointer(&format!("/{}", data_path))
+                .unwrap_or(&Value::Null);
+            let is_empty = matches!(current_data, Value::Null)
+                || matches!(current_data, Value::String(s) if s.is_empty());
+            let is_schema_val_empty = matches!(schema_val, Value::Null)
+                || matches!(schema_val, Value::String(ref s) if s.is_empty())
+                || matches!(schema_val, Value::Object(ref map) if map.contains_key("$evaluation"));
 
-                if is_empty && !is_schema_val_empty && current_data != schema_val {
-                    defaults.push((data_path, schema_val.clone(), dot_path.clone()));
-                }
+            if is_empty && !is_schema_val_empty && current_data != &schema_val {
+                defaults.push((data_path, schema_val, dotted_path));
             }
         }
 
@@ -649,63 +670,7 @@ impl JSONEval {
         result: &mut Vec<Value>,
         _canceled_paths: Option<&mut Vec<String>>,
     ) -> Result<(), String> {
-        let mut default_value_changes = Vec::new();
-        let schema_values = self.get_schema_value_array();
-
-        if let Value::Array(values) = schema_values {
-            for item in values {
-                if let Value::Object(map) = item {
-                    if let (Some(Value::String(dot_path)), Some(schema_val)) =
-                        (map.get("path"), map.get("value"))
-                    {
-                        let schema_ptr = path_utils::dot_notation_to_schema_pointer(dot_path);
-                        if let Some(Value::Object(schema_node)) = self
-                            .evaluated_schema
-                            .pointer(schema_ptr.trim_start_matches('#'))
-                        {
-                            if let Some(Value::Object(condition)) = schema_node.get("condition") {
-                                if let Some(hidden_val) = condition.get("hidden") {
-                                    // Skip if hidden is true OR if it's a non-primitive value (formula object)
-                                    if !hidden_val.is_boolean()
-                                        || hidden_val.as_bool() == Some(true)
-                                    {
-                                        continue;
-                                    }
-                                }
-                            }
-                        }
-
-                        let data_path = dot_path.replace('.', "/");
-                        let current_data = self
-                            .eval_data
-                            .data()
-                            .pointer(&format!("/{}", data_path))
-                            .unwrap_or(&Value::Null);
-
-                        let is_empty = match current_data {
-                            Value::Null => true,
-                            Value::String(s) if s.is_empty() => true,
-                            _ => false,
-                        };
-
-                        let is_schema_val_empty = match schema_val {
-                            Value::Null => true,
-                            Value::String(s) if s.is_empty() => true,
-                            Value::Object(map) if map.contains_key("$evaluation") => true,
-                            _ => false,
-                        };
-
-                        if is_empty && !is_schema_val_empty && current_data != schema_val {
-                            default_value_changes.push((
-                                data_path,
-                                schema_val.clone(),
-                                dot_path.clone(),
-                            ));
-                        }
-                    }
-                }
-            }
-        }
+        let default_value_changes = self.collect_visible_static_defaults();
 
         for (data_path, schema_val, dot_path) in default_value_changes {
             self.eval_data
