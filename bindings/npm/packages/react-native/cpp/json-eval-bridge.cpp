@@ -377,11 +377,12 @@ void JsonEvalBridge::validateAsync(
     const std::string& handleId,
     const std::string& data,
     const std::string& context,
+    bool validateReadonly,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runWithHandle(handleId, [data, context](JSONEvalHandle* nativeHandle) -> std::string {
+    runWithHandle(handleId, [data, context, validateReadonly](JSONEvalHandle* nativeHandle) -> std::string {
         const char* ctx = context.empty() ? nullptr : context.c_str();
-        FFIResult result = json_eval_validate(nativeHandle, data.c_str(), ctx);
+        FFIResult result = json_eval_validate(nativeHandle, data.c_str(), ctx, validateReadonly);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
@@ -906,12 +907,13 @@ void JsonEvalBridge::validatePathsAsync(
     const std::string& data,
     const std::string& context,
     const std::string& pathsJson,
+    bool validateReadonly,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runWithHandle(handleId, [data, context, pathsJson](JSONEvalHandle* nativeHandle) -> std::string {
+    runWithHandle(handleId, [data, context, pathsJson, validateReadonly](JSONEvalHandle* nativeHandle) -> std::string {
         const char* ctx = context.empty() ? nullptr : context.c_str();
         const char* paths = pathsJson.empty() ? nullptr : pathsJson.c_str();
-        FFIResult result = json_eval_validate_paths(nativeHandle, data.c_str(), ctx, paths);
+        FFIResult result = json_eval_validate_paths(nativeHandle, data.c_str(), ctx, paths, validateReadonly);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
@@ -959,11 +961,12 @@ void JsonEvalBridge::validateSubformAsync(
     const std::string& subformPath,
     const std::string& data,
     const std::string& context,
+    bool validateReadonly,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runWithHandle(handleId, [subformPath, data, context](JSONEvalHandle* nativeHandle) -> std::string {
+    runWithHandle(handleId, [subformPath, data, context, validateReadonly](JSONEvalHandle* nativeHandle) -> std::string {
         const char* ctx = context.empty() ? nullptr : context.c_str();
-        FFIResult result = json_eval_validate_subform(nativeHandle, subformPath.c_str(), data.c_str(), ctx);
+        FFIResult result = json_eval_validate_subform(nativeHandle, subformPath.c_str(), data.c_str(), ctx, validateReadonly);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);

@@ -117,7 +117,8 @@ namespace JsonEvalRs
         internal static extern FFIResult json_eval_validate(
             IntPtr handle,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string data,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
+            [MarshalAs(UnmanagedType.I1)] bool validateReadonly
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
@@ -188,7 +189,8 @@ namespace JsonEvalRs
             IntPtr handle,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string data,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? pathsJson
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? pathsJson,
+            [MarshalAs(UnmanagedType.I1)] bool validateReadonly
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
@@ -235,7 +237,8 @@ namespace JsonEvalRs
             IntPtr handle,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string subformPath,
             [MarshalAs(UnmanagedType.LPUTF8Str)] string data,
-            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string? context,
+            [MarshalAs(UnmanagedType.I1)] bool validateReadonly
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]

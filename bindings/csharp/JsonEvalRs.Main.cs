@@ -363,8 +363,9 @@ namespace JsonEvalRs
         /// </summary>
         /// <param name="data">JSON data string</param>
         /// <param name="context">Optional context data</param>
+        /// <param name="validateReadonly">Optional flag to validate readonly/disabled fields (default: false)</param>
         /// <returns>ValidationResult</returns>
-        public ValidationResult Validate(string data, string? context = null)
+        public ValidationResult Validate(string data, string? context = null, bool validateReadonly = false)
         {
             ThrowIfDisposed();
 
@@ -372,9 +373,9 @@ namespace JsonEvalRs
                 throw new ArgumentNullException(nameof(data));
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_validate(_handle, data, context);
+            var result = Native.json_eval_validate(_handle, data, context, validateReadonly);
 #else
-            var result = Native.json_eval_validate(_handle, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context));
+            var result = Native.json_eval_validate(_handle, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), validateReadonly);
 #endif
             return ProcessResult<ValidationResult>(result);
         }
@@ -1109,8 +1110,9 @@ namespace JsonEvalRs
         /// <param name="data">JSON data string</param>
         /// <param name="context">Optional context data</param>
         /// <param name="paths">Optional list of paths to validate (null for all)</param>
+        /// <param name="validateReadonly">Optional flag to validate readonly/disabled fields (default: false)</param>
         /// <returns>ValidationResult</returns>
-        public ValidationResult ValidatePaths(string data, string? context = null, System.Collections.Generic.List<string>? paths = null)
+        public ValidationResult ValidatePaths(string data, string? context = null, System.Collections.Generic.List<string>? paths = null, bool validateReadonly = false)
         {
             ThrowIfDisposed();
 
@@ -1119,9 +1121,9 @@ namespace JsonEvalRs
 
             string? pathsJson = paths != null ? JsonConvert.SerializeObject(paths) : null;
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_validate_paths(_handle, data, context, pathsJson);
+            var result = Native.json_eval_validate_paths(_handle, data, context, pathsJson, validateReadonly);
 #else
-            var result = Native.json_eval_validate_paths(_handle, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), Native.ToUTF8Bytes(pathsJson));
+            var result = Native.json_eval_validate_paths(_handle, Native.ToUTF8Bytes(data), Native.ToUTF8Bytes(context), Native.ToUTF8Bytes(pathsJson), validateReadonly);
 #endif
             return ProcessResult<ValidationResult>(result);
         }
@@ -1129,9 +1131,9 @@ namespace JsonEvalRs
         /// <summary>
         /// Alias for ValidatePaths to maintain API parity with TS
         /// </summary>
-        public ValidationResult ValidatePathsOnly(string data, string? context = null, System.Collections.Generic.List<string>? paths = null)
+        public ValidationResult ValidatePathsOnly(string data, string? context = null, System.Collections.Generic.List<string>? paths = null, bool validateReadonly = false)
         {
-            return ValidatePaths(data, context, paths);
+            return ValidatePaths(data, context, paths, validateReadonly);
         }
 
         // Helper methods for processing results

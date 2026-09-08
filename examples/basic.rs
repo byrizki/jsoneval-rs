@@ -165,7 +165,7 @@ fn main() {
         // Step 3: Validate
         let validation_start = Instant::now();
         let validation_result = eval
-            .validate(&data_str, None, None, None)
+            .validate(&data_str, None, None, None, None)
             .unwrap_or_else(|e| panic!("validation failed: {}", e));
         let validation_time = validation_start.elapsed();
         println!("  🛡️ Validate: {:?}", validation_time);

@@ -21,6 +21,7 @@ import {
 	type ResolveLayoutSubformOptions,
 	type SchemaValueItem,
 	type ValidateOptions,
+	type ValidatePathsOptions,
 	type ValidateSubformOptions,
 	type ValidationResult,
 	extractErrorMessage,
@@ -54,6 +55,7 @@ export {
 	ReturnFormat,
 	SchemaValueItem,
 	ValidateOptions,
+	ValidatePathsOptions,
 	ValidateSubformOptions,
 	ValidationError,
 	ValidationResult,
@@ -265,12 +267,14 @@ export class JSONEvalCore {
 	async validate({
 		data,
 		context,
+		validateReadonly,
 	}: ValidateOptions): Promise<ValidationResult> {
 		await this.init();
 		try {
 			return this._instance.validateJS(
 				stringifyOrNull(data)!,
 				stringifyOrNull(context),
+				validateReadonly,
 			);
 		} catch (error: any) {
 			throw new Error(`Validation failed: ${extractErrorMessage(error)}`);
@@ -662,13 +666,15 @@ export class JSONEvalCore {
 		data,
 		context,
 		paths,
-	}: EvaluateOptions): Promise<ValidationResult> {
+		validateReadonly,
+	}: ValidatePathsOptions): Promise<ValidationResult> {
 		await this.init();
 		try {
 			return this._instance.validatePathsJS(
 				stringifyOrNull(data)!,
 				stringifyOrNull(context),
 				paths || null,
+				validateReadonly,
 			);
 		} catch (error: any) {
 			throw new Error(`Validation failed: ${extractErrorMessage(error)}`);
@@ -683,13 +689,15 @@ export class JSONEvalCore {
 		data,
 		context,
 		paths,
-	}: EvaluateOptions): Promise<any> {
+		validateReadonly,
+	}: ValidatePathsOptions): Promise<any> {
 		await this.init();
 		try {
 			return this._instance.validatePaths(
 				stringifyOrNull(data)!,
 				stringifyOrNull(context),
 				paths || null,
+				validateReadonly,
 			);
 		} catch (error: any) {
 			throw new Error(`Validation failed: ${extractErrorMessage(error)}`);
@@ -734,6 +742,7 @@ export class JSONEvalCore {
 		subformPath,
 		data,
 		context,
+		validateReadonly,
 	}: ValidateSubformOptions): Promise<ValidationResult> {
 		await this.init();
 		try {
@@ -741,6 +750,7 @@ export class JSONEvalCore {
 				subformPath,
 				stringifyOrNull(data)!,
 				stringifyOrNull(context),
+				validateReadonly,
 			);
 		} catch (error: any) {
 			throw new Error(

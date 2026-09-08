@@ -1,6 +1,6 @@
-import { type JSONEvalOptions, type EvaluateOptions, type EvaluateDependentsOptions, type LayoutOverlayEntry, type EvaluateSubformOptions, type ValidateSubformOptions, type EvaluateDependentsSubformOptions, type ResolveLayoutSubformOptions, type GetEvaluatedSchemaSubformOptions, type GetSchemaValueSubformOptions, type GetEvaluatedSchemaByPathSubformOptions, type GetEvaluatedSchemaByPathsSubformOptions, type GetSchemaByPathSubformOptions, type GetSchemaByPathsSubformOptions, type ValidationResult, type DependentChange, type SchemaValueItem, type ValidatePathsOptions, ReturnFormat } from '@json-eval-rs/common';
+import { type JSONEvalOptions, type EvaluateOptions, type EvaluateDependentsOptions, type LayoutOverlayEntry, type EvaluateSubformOptions, type ValidateSubformOptions, type EvaluateDependentsSubformOptions, type ResolveLayoutSubformOptions, type GetEvaluatedSchemaSubformOptions, type GetSchemaValueSubformOptions, type GetEvaluatedSchemaByPathSubformOptions, type GetEvaluatedSchemaByPathsSubformOptions, type GetSchemaByPathSubformOptions, type GetSchemaByPathsSubformOptions, type ValidationResult, type DependentChange, type SchemaValueItem, type ValidateOptions, type ValidatePathsOptions, ReturnFormat } from '@json-eval-rs/common';
 export { ReturnFormat } from '@json-eval-rs/common';
-export type { LayoutOverlayEntry, SchemaValueItem, ValidationResult, DependentChange, ValidationError, JSONEvalOptions, EvaluateOptions, EvaluateDependentsOptions, EvaluateSubformOptions, ValidateSubformOptions, EvaluateDependentsSubformOptions, ResolveLayoutSubformOptions, GetEvaluatedSchemaSubformOptions, GetSchemaValueSubformOptions, GetEvaluatedSchemaByPathSubformOptions, GetEvaluatedSchemaByPathsSubformOptions, GetSchemaByPathSubformOptions, GetSchemaByPathsSubformOptions, } from '@json-eval-rs/common';
+export type { LayoutOverlayEntry, SchemaValueItem, ValidationResult, DependentChange, ValidationError, JSONEvalOptions, EvaluateOptions, ValidateOptions, ValidatePathsOptions, EvaluateDependentsOptions, EvaluateSubformOptions, ValidateSubformOptions, EvaluateDependentsSubformOptions, ResolveLayoutSubformOptions, GetEvaluatedSchemaSubformOptions, GetSchemaValueSubformOptions, GetEvaluatedSchemaByPathSubformOptions, GetEvaluatedSchemaByPathsSubformOptions, GetSchemaByPathSubformOptions, GetSchemaByPathsSubformOptions, } from '@json-eval-rs/common';
 /**
  * High-performance JSON Logic evaluator with schema validation for React Native
  *
@@ -129,7 +129,7 @@ export declare class JSONEval {
      * @returns Promise resolving to ValidationResult
      * @throws {Error} If validation operation fails
      */
-    validate(options: EvaluateOptions): Promise<ValidationResult>;
+    validate(options: ValidateOptions): Promise<ValidationResult>;
     /**
      * Re-evaluate fields that depend on a changed path
      * @param options - Dependent evaluation options

@@ -136,6 +136,8 @@ export interface ValidateOptions {
   data: any;
   /** Optional context data */
   context?: any;
+  /** Optional flag to validate readonly/disabled fields (default: false) */
+  validateReadonly?: boolean;
 }
 
 /**
@@ -148,6 +150,8 @@ export interface ValidatePathsOptions {
   context?: any;
   /** Optional array of paths to validate */
   paths?: string[];
+  /** Optional flag to validate readonly/disabled fields (default: false) */
+  validateReadonly?: boolean;
 }
 
 /**
@@ -261,6 +265,8 @@ export interface ValidateSubformOptions {
   data: any;
   /** Optional context data */
   context?: any;
+  /** Optional flag to validate readonly/disabled fields (default: false) */
+  validateReadonly?: boolean;
 }
 
 /**

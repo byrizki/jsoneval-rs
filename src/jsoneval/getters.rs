@@ -171,6 +171,100 @@ impl JSONEval {
         false
     }
 
+    /// Check if a field is effectively readonly/disabled using pre-acquired layout disabled refs and a local cache.
+    pub(crate) fn is_effective_readonly_with_cache(
+        &self,
+        schema_pointer: &str,
+        layout_disabled_refs: &indexmap::IndexSet<String>,
+        cache: &mut std::collections::HashMap<String, bool>,
+    ) -> bool {
+        let schema_pointer = schema_pointer.trim_start_matches('#');
+        if let Some(&is_readonly) = cache.get(schema_pointer) {
+            return is_readonly;
+        }
+
+        if layout_disabled_refs.iter().any(|disabled_ref| {
+            schema_pointer == disabled_ref
+                || schema_pointer
+                    .strip_prefix(disabled_ref)
+                    .is_some_and(|suffix| {
+                        suffix.starts_with("/properties/") || suffix.starts_with("/items/")
+                    })
+        }) {
+            cache.insert(schema_pointer.to_string(), true);
+            return true;
+        }
+
+        let is_readonly = self.is_schema_effective_readonly_cached(schema_pointer, cache);
+        cache.insert(schema_pointer.to_string(), is_readonly);
+        is_readonly
+    }
+
+    /// Check if a field is effectively readonly/disabled in the schema hierarchy with ancestor caching.
+    pub(crate) fn is_schema_effective_readonly_cached(
+        &self,
+        schema_pointer: &str,
+        cache: &mut std::collections::HashMap<String, bool>,
+    ) -> bool {
+        let schema_pointer = schema_pointer.trim_start_matches('#');
+        let mut end = schema_pointer.len();
+
+        loop {
+            let current_path = &schema_pointer[..end];
+
+            if let Some(&ancestor_readonly) = cache.get(current_path) {
+                if ancestor_readonly {
+                    return true;
+                }
+                break;
+            }
+
+            if let Some(schema_node) = self.evaluated_schema.pointer(current_path) {
+                if let Value::Object(map) = schema_node {
+                    if map.get("disabled").and_then(Value::as_bool) == Some(true)
+                        || map.get("readonly").and_then(Value::as_bool) == Some(true)
+                        || map.get("readOnly").and_then(Value::as_bool) == Some(true)
+                        || map.get("$readonly").and_then(Value::as_bool) == Some(true)
+                    {
+                        cache.insert(current_path.to_string(), true);
+                        return true;
+                    }
+
+                    if let Some(Value::Object(condition)) = map.get("condition") {
+                        if condition.get("disabled").and_then(Value::as_bool) == Some(true)
+                            || condition.get("readonly").and_then(Value::as_bool) == Some(true)
+                            || condition.get("readOnly").and_then(Value::as_bool) == Some(true)
+                        {
+                            cache.insert(current_path.to_string(), true);
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            if end == 0 {
+                break;
+            }
+
+            match schema_pointer[..end].rfind('/') {
+                Some(0) | None => {
+                    end = 0;
+                }
+                Some(last_slash) => {
+                    end = last_slash;
+                    let parent = &schema_pointer[..end];
+                    if parent.ends_with("/properties") {
+                        end -= "/properties".len();
+                    } else if parent.ends_with("/items") {
+                        end -= "/items".len();
+                    }
+                }
+            }
+        }
+
+        false
+    }
+
     /// Return whether a schema field appears in any `$layout` element.
     /// Field references are collected once while parsing schema, so this is O(1).
     fn is_mapped_in_any_layout(&self, schema_path: &str) -> bool {

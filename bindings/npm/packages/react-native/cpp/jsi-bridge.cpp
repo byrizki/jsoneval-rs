@@ -17,8 +17,8 @@ extern "C" {
     FFIResult json_eval_get_schema_value(JSONEvalHandle* handle);
     FFIResult json_eval_get_schema_value_array(JSONEvalHandle* handle);
     FFIResult json_eval_get_schema_value_object(JSONEvalHandle* handle);
-    FFIResult json_eval_validate(JSONEvalHandle* handle, const char* data, const char* context);
-    FFIResult json_eval_validate_paths(JSONEvalHandle* handle, const char* data, const char* context, const char* paths_json);
+    FFIResult json_eval_validate(JSONEvalHandle* handle, const char* data, const char* context, bool validate_readonly);
+    FFIResult json_eval_validate_paths(JSONEvalHandle* handle, const char* data, const char* context, const char* paths_json, bool validate_readonly);
     FFIResult json_eval_evaluate_dependents(JSONEvalHandle* handle, const char* changed_path, const char* data, const char* context, int re_evaluate, int include_subforms);
     FFIResult json_eval_get_evaluated_schema_by_path(JSONEvalHandle* handle, const char* path);
     FFIResult json_eval_get_evaluated_schema_by_paths(JSONEvalHandle* handle, const char* paths_json, uint8_t format);
@@ -40,7 +40,7 @@ extern "C" {
 
     // Subform FFI methods
     FFIResult json_eval_evaluate_subform(JSONEvalHandle* handle, const char* subform_path, const char* data, const char* context, const char* paths_json);
-    FFIResult json_eval_validate_subform(JSONEvalHandle* handle, const char* subform_path, const char* data, const char* context);
+    FFIResult json_eval_validate_subform(JSONEvalHandle* handle, const char* subform_path, const char* data, const char* context, bool validate_readonly);
     FFIResult json_eval_evaluate_dependents_subform(JSONEvalHandle* handle, const char* subform_path, const char* changed_path, const char* data, const char* context, int re_evaluate, int include_subforms);
     FFIResult json_eval_resolve_layout_subform(JSONEvalHandle* handle, const char* subform_path, bool evaluate);
     FFIResult json_eval_get_evaluated_schema_subform(JSONEvalHandle* handle, const char* subform_path);
@@ -486,12 +486,14 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 auto handleId = stringFromValue(rt, args[0]);
                 auto data = stringFromValue(rt, args[1]);
                 auto ctx = count > 2 ? stringFromValue(rt, args[2]) : "";
+                bool validateReadonly = count > 3 && args[3].isBool() ? args[3].asBool() : false;
                 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_validate(
                     handle,
                     data.c_str(),
-                    ctx.empty() ? nullptr : ctx.c_str()
+                    ctx.empty() ? nullptr : ctx.c_str(),
+                    validateReadonly
                 );
                 return ffiResultToJsiValue(rt, result);
             }
@@ -507,13 +509,15 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 auto data = stringFromValue(rt, args[1]);
                 auto ctx = count > 2 ? stringFromValue(rt, args[2]) : "";
                 auto paths = count > 3 ? stringFromValue(rt, args[3]) : "";
+                bool validateReadonly = count > 4 && args[4].isBool() ? args[4].asBool() : false;
                 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_validate_paths(
                     handle,
                     data.c_str(),
                     ctx.empty() ? nullptr : ctx.c_str(),
-                    paths.empty() ? nullptr : paths.c_str()
+                    paths.empty() ? nullptr : paths.c_str(),
+                    validateReadonly
                 );
                 return ffiResultToJsiValue(rt, result);
             }
@@ -1055,13 +1059,15 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 auto subformPath = stringFromValue(rt, args[1]);
                 auto data = stringFromValue(rt, args[2]);
                 auto ctx = count > 3 ? stringFromValue(rt, args[3]) : "";
+                bool validateReadonly = count > 4 && args[4].isBool() ? args[4].asBool() : false;
                 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_validate_subform(
                     handle,
                     subformPath.c_str(),
                     data.c_str(),
-                    ctx.empty() ? nullptr : ctx.c_str()
+                    ctx.empty() ? nullptr : ctx.c_str(),
+                    validateReadonly
                 );
                 return ffiResultToJsiValue(rt, result);
             }

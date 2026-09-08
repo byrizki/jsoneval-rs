@@ -85,6 +85,7 @@ pub unsafe extern "C" fn json_eval_validate_subform(
     subform_path: *const c_char,
     data: *const c_char,
     context: *const c_char,
+    validate_readonly: bool,
 ) -> FFIResult {
     if handle.is_null() || subform_path.is_null() || data.is_null() {
         return FFIResult::error("Invalid pointer".to_string());
@@ -113,7 +114,7 @@ pub unsafe extern "C" fn json_eval_validate_subform(
         None
     };
 
-    match eval.validate_subform(path_str, data_str, context_str, None, token.as_ref()) {
+    match eval.validate_subform(path_str, data_str, context_str, None, token.as_ref(), Some(validate_readonly)) {
         Ok(validation_result) => {
             let mut errors_map = serde_json::Map::new();
             for (path, err) in &validation_result.errors {

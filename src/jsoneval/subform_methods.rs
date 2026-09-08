@@ -578,6 +578,7 @@ impl JSONEval {
         context: Option<&str>,
         paths: Option<&[String]>,
         token: Option<&CancellationToken>,
+        validate_readonly: Option<bool>,
     ) -> Result<crate::ValidationResult, String> {
         let (base_path, idx_opt) = self.resolve_subform_path_alias(subform_path);
         if let Some(idx) = idx_opt {
@@ -598,7 +599,7 @@ impl JSONEval {
                 move |sf| {
                     // Warm the evaluation cache before running rule checks.
                     sf.evaluate_internal_pre_diffed(paths, token)?;
-                    sf.validate_pre_set(data_for_validation, paths, token)
+                    sf.validate_pre_set(data_for_validation, paths, token, validate_readonly)
                 },
             )
         } else {
@@ -606,7 +607,7 @@ impl JSONEval {
                 .subforms
                 .get_mut(base_path.as_ref() as &str)
                 .ok_or_else(|| format!("Subform not found: {}", base_path))?;
-            subform.validate(data, context, paths, token)
+            subform.validate(data, context, paths, token, validate_readonly)
         }
     }
 

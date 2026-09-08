@@ -64,8 +64,9 @@ namespace JsonEvalRs
         /// <param name="subformPath">Path to the subform</param>
         /// <param name="data">JSON data string for the subform</param>
         /// <param name="context">Optional context data JSON string</param>
+        /// <param name="validateReadonly">Optional flag to validate readonly/disabled fields (default: false)</param>
         /// <returns>Validation result with errors if any</returns>
-        public ValidationResult ValidateSubform(string subformPath, string data, string? context = null)
+        public ValidationResult ValidateSubform(string subformPath, string data, string? context = null, bool validateReadonly = false)
         {
             ThrowIfDisposed();
             if (string.IsNullOrEmpty(subformPath))
@@ -74,9 +75,9 @@ namespace JsonEvalRs
                 throw new ArgumentNullException(nameof(data));
 
 #if NETCOREAPP || NET5_0_OR_GREATER
-            var result = Native.json_eval_validate_subform(_handle, subformPath, data, context);
+            var result = Native.json_eval_validate_subform(_handle, subformPath, data, context, validateReadonly);
 #else
-            var result = Native.json_eval_validate_subform(_handle, Native.ToUTF8Bytes(subformPath)!, Native.ToUTF8Bytes(data)!, Native.ToUTF8Bytes(context));
+            var result = Native.json_eval_validate_subform(_handle, Native.ToUTF8Bytes(subformPath)!, Native.ToUTF8Bytes(data)!, Native.ToUTF8Bytes(context), validateReadonly);
 #endif
             
             return ProcessResult<ValidationResult>(result);

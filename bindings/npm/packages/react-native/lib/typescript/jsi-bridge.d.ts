@@ -14,8 +14,8 @@ export interface JsonEvalJSIGlobal {
     dispose(handle: string): void;
     evaluateOnly(handle: string, data: string, context: string | null, paths: string | null): void;
     evaluate(handle: string, data: string, context: string | null, paths: string | null): string;
-    validate(handle: string, data: string, context: string | null): string;
-    validatePaths(handle: string, data: string, context: string | null, paths: string | null): string;
+    validate(handle: string, data: string, context: string | null, validateReadonly?: boolean): string;
+    validatePaths(handle: string, data: string, context: string | null, paths: string | null, validateReadonly?: boolean): string;
     evaluateDependents(handle: string, changedPaths: string, data: string | null, context: string | null, reEvaluate: boolean, includeSubforms: boolean): string;
     getEvaluatedSchema(handle: string): string;
     getEvaluatedSchemaMsgpack(handle: string): ArrayBuffer;
@@ -41,7 +41,7 @@ export interface JsonEvalJSIGlobal {
     compileLogic(handle: string, logicStr: string): number;
     runLogic(handle: string, logicId: number, data: string | null, context: string | null): string;
     evaluateSubform(handle: string, subformPath: string, data: string, context: string | null, paths: string | null): void;
-    validateSubform(handle: string, subformPath: string, data: string, context: string | null): string;
+    validateSubform(handle: string, subformPath: string, data: string, context: string | null, validateReadonly?: boolean): string;
     evaluateDependentsSubform(handle: string, subformPath: string, changedPath: string, data: string | null, context: string | null, reEvaluate: boolean, includeSubforms: boolean): string;
     resolveLayoutSubform(handle: string, subformPath: string, evaluate: boolean): string;
     getResolvedLayoutSubform(handle: string, subformPath: string): string;

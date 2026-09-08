@@ -18,6 +18,7 @@ import {
   type ValidationResult,
   type DependentChange,
   type SchemaValueItem,
+  type ValidateOptions,
   type ValidatePathsOptions,
   ReturnFormat,
   stringifyValue,
@@ -38,6 +39,8 @@ export type {
   ValidationError,
   JSONEvalOptions,
   EvaluateOptions,
+  ValidateOptions,
+  ValidatePathsOptions,
   EvaluateDependentsOptions,
   EvaluateSubformOptions,
   ValidateSubformOptions,
@@ -402,7 +405,7 @@ export class JSONEval {
    * @returns Promise resolving to ValidationResult
    * @throws {Error} If validation operation fails
    */
-  async validate(options: EvaluateOptions): Promise<ValidationResult> {
+  async validate(options: ValidateOptions): Promise<ValidationResult> {
     this.throwIfDisposed();
 
     try {
@@ -411,7 +414,12 @@ export class JSONEval {
         ? stringifyValue(options.context)
         : null;
 
-      return await this._callNativeJson('validate', dataStr, contextStr);
+      return await this._callNativeJson(
+        'validate',
+        dataStr,
+        contextStr,
+        options.validateReadonly ?? false
+      );
     } catch (error) {
       throw new Error(`Validation failed: ${extractErrorMessage(error)}`);
     }
@@ -880,7 +888,8 @@ export class JSONEval {
       'validatePaths',
       dataStr,
       contextStr,
-      paths
+      paths,
+      options.validateReadonly ?? false
     );
   }
 
@@ -938,7 +947,8 @@ export class JSONEval {
       'validateSubform',
       options.subformPath,
       dataStr,
-      contextStr
+      contextStr,
+      options.validateReadonly ?? false
     );
   }
 

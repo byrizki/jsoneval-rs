@@ -15,6 +15,7 @@ pub(crate) struct LayoutResolutionState {
     pub(crate) layout_hidden_refs: indexmap::IndexSet<String>,
     pub(crate) layout_visible_refs: indexmap::IndexSet<String>,
     pub(crate) layout_condition_hidden_refs: indexmap::IndexSet<String>,
+    pub(crate) layout_disabled_refs: indexmap::IndexSet<String>,
 }
 
 impl JSONEval {
@@ -55,6 +56,7 @@ impl JSONEval {
         state.layout_hidden_refs.clear();
         state.layout_visible_refs.clear();
         state.layout_condition_hidden_refs.clear();
+        state.layout_disabled_refs.clear();
     }
 
     /// Resolve layout references, return overlay entries.
@@ -88,6 +90,7 @@ impl JSONEval {
             state.layout_hidden_refs.clear();
             state.layout_visible_refs.clear();
             state.layout_condition_hidden_refs.clear();
+            state.layout_disabled_refs.clear();
 
             if self.root_layout_paths.is_empty() {
                 return all_entries;
@@ -256,6 +259,16 @@ impl JSONEval {
             let mut element_condition_hidden = parent_condition_hidden;
             let mut element_disabled = parent_disabled;
 
+            if let Some(Value::Bool(d)) = overlay.get("disabled") {
+                element_disabled = element_disabled || *d;
+            }
+            if let Some(Value::Bool(r)) = overlay.get("readonly") {
+                element_disabled = element_disabled || *r;
+            }
+            if let Some(Value::Bool(r)) = overlay.get("readOnly") {
+                element_disabled = element_disabled || *r;
+            }
+
             if let Some(Value::Object(cond)) = overlay.get("condition") {
                 if let Some(Value::Bool(true)) = cond.get("hidden") {
                     element_hidden = true;
@@ -263,6 +276,12 @@ impl JSONEval {
                 }
                 if let Some(Value::Bool(d)) = cond.get("disabled") {
                     element_disabled = element_disabled || *d;
+                }
+                if let Some(Value::Bool(r)) = cond.get("readonly") {
+                    element_disabled = element_disabled || *r;
+                }
+                if let Some(Value::Bool(r)) = cond.get("readOnly") {
+                    element_disabled = element_disabled || *r;
                 }
             }
 
@@ -281,10 +300,13 @@ impl JSONEval {
                 if element_hidden {
                     state.layout_hidden_refs.insert(pointer.clone());
                     if element_condition_hidden {
-                        state.layout_condition_hidden_refs.insert(pointer);
+                        state.layout_condition_hidden_refs.insert(pointer.clone());
                     }
                 } else {
-                    state.layout_visible_refs.insert(pointer);
+                    state.layout_visible_refs.insert(pointer.clone());
+                }
+                if element_disabled {
+                    state.layout_disabled_refs.insert(pointer);
                 }
             }
 

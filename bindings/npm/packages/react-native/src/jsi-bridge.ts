@@ -37,12 +37,18 @@ export interface JsonEvalJSIGlobal {
     context: string | null,
     paths: string | null
   ): string;
-  validate(handle: string, data: string, context: string | null): string;
+  validate(
+    handle: string,
+    data: string,
+    context: string | null,
+    validateReadonly?: boolean
+  ): string;
   validatePaths(
     handle: string,
     data: string,
     context: string | null,
-    paths: string | null
+    paths: string | null,
+    validateReadonly?: boolean
   ): string;
   evaluateDependents(
     handle: string,
@@ -126,7 +132,8 @@ export interface JsonEvalJSIGlobal {
     handle: string,
     subformPath: string,
     data: string,
-    context: string | null
+    context: string | null,
+    validateReadonly?: boolean
   ): string;
   evaluateDependentsSubform(
     handle: string,

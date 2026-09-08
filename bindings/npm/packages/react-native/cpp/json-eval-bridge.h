@@ -96,8 +96,18 @@ public:
         const std::string& handle,
         const std::string& data,
         const std::string& context,
+        bool validateReadonly,
         std::function<void(const std::string&, const std::string&)> callback
     );
+
+    static void validateAsync(
+        const std::string& handle,
+        const std::string& data,
+        const std::string& context,
+        std::function<void(const std::string&, const std::string&)> callback
+    ) {
+        validateAsync(handle, data, context, false, callback);
+    }
 
     /**
      * Evaluate dependents (async) - processes transitively
@@ -402,8 +412,19 @@ public:
         const std::string& data,
         const std::string& context,
         const std::string& pathsJson,
+        bool validateReadonly,
         std::function<void(const std::string&, const std::string&)> callback
     );
+
+    static void validatePathsAsync(
+        const std::string& handle,
+        const std::string& data,
+        const std::string& context,
+        const std::string& pathsJson,
+        std::function<void(const std::string&, const std::string&)> callback
+    ) {
+        validatePathsAsync(handle, data, context, pathsJson, false, callback);
+    }
 
     /**
      * Evaluate independent logic expression (async) - No schema required
@@ -453,8 +474,19 @@ public:
         const std::string& subformPath,
         const std::string& data,
         const std::string& context,
+        bool validateReadonly,
         std::function<void(const std::string&, const std::string&)> callback
     );
+
+    static void validateSubformAsync(
+        const std::string& handleId,
+        const std::string& subformPath,
+        const std::string& data,
+        const std::string& context,
+        std::function<void(const std::string&, const std::string&)> callback
+    ) {
+        validateSubformAsync(handleId, subformPath, data, context, false, callback);
+    }
 
     /**
      * Evaluate dependents in subform when a field changes (async)

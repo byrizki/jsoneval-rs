@@ -63,7 +63,7 @@ fn test_validate_all_rules_pass() {
     let mut eval = JSONEval::new(&schema, None, Some(&data)).expect("Failed to create JSONEval");
 
     let validation = eval
-        .validate(&data, None, None, None)
+        .validate(&data, None, None, None, None)
         .expect("Validation failed");
 
     assert!(!validation.has_error, "Should have no validation errors");
@@ -85,7 +85,7 @@ fn test_validate_required_field_missing() {
         JSONEval::new(&schema, None, Some(&data_str)).expect("Failed to create JSONEval");
 
     let validation = eval
-        .validate(&data_str, None, None, None)
+        .validate(&data_str, None, None, None, None)
         .expect("Validation failed");
 
     // The name field has a required rule in minimal_form.json
@@ -122,7 +122,7 @@ fn test_validate_min_max_value() {
         JSONEval::new(&schema, None, Some(&data_min_str)).expect("Failed to create JSONEval");
 
     let validation = eval
-        .validate(&data_min_str, None, None, None)
+        .validate(&data_min_str, None, None, None, None)
         .expect("Validation failed");
 
     assert!(
@@ -153,7 +153,7 @@ fn test_validate_min_max_value() {
         JSONEval::new(&schema, None, Some(&data_max_str)).expect("Failed to create JSONEval");
 
     let validation2 = eval2
-        .validate(&data_max_str, None, None, None)
+        .validate(&data_max_str, None, None, None, None)
         .expect("Validation failed");
 
     assert!(
@@ -184,7 +184,7 @@ fn test_validate_min_max_value() {
         JSONEval::new(&schema, None, Some(&data_valid_str)).expect("Failed to create JSONEval");
 
     let validation3 = eval3
-        .validate(&data_valid_str, None, None, None)
+        .validate(&data_valid_str, None, None, None, None)
         .expect("Validation failed");
 
     assert!(
@@ -209,7 +209,7 @@ fn test_validate_skip_hidden_fields() {
         JSONEval::new(&schema, None, Some(&data_str)).expect("Failed to create JSONEval");
 
     let validation = eval
-        .validate(&data_str, None, None, None)
+        .validate(&data_str, None, None, None, None)
         .expect("Validation failed");
 
     assert!(
@@ -235,7 +235,7 @@ fn test_validate_with_path_filter() {
 
     // Test 1: Validate all fields - should find both errors
     let validation_all = eval
-        .validate(&data_str, None, None, None)
+        .validate(&data_str, None, None, None, None)
         .expect("Validation failed");
 
     assert!(validation_all.has_error, "Should have validation errors");
@@ -260,7 +260,7 @@ fn test_validate_with_path_filter() {
     // Test 2: Validate only age field using path filter
     let paths = vec!["illustration.insured.age".to_string()];
     let validation_filtered = eval
-        .validate(&data_str, None, Some(&paths), None)
+        .validate(&data_str, None, Some(&paths), None, None)
         .expect("Validation failed");
 
     assert!(

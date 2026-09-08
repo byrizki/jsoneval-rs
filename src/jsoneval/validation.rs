@@ -26,7 +26,9 @@ impl JSONEval {
         context: Option<&str>,
         paths: Option<&[String]>,
         token: Option<&CancellationToken>,
+        validate_readonly: Option<bool>,
     ) -> Result<ValidationResult, String> {
+        let validate_ro = validate_readonly.unwrap_or(false);
         if let Some(t) = token {
             if t.is_cancelled() {
                 return Err("Cancelled".to_string());
@@ -37,7 +39,7 @@ impl JSONEval {
         // return cached full result immediately.
         if paths.is_none() || paths.is_some_and(|p| p.is_empty()) {
             if let Ok(cache) = self.validation_cache.read() {
-                if let Some(cached) = cache.get_cached_full_result(data, context) {
+                if let Some(cached) = cache.get_cached_full_result(data, context, validate_ro) {
                     return Ok(cached);
                 }
             }
@@ -84,7 +86,10 @@ impl JSONEval {
 
             let layout_state = self.layout_state.read().unwrap();
             let layout_hidden_refs = &layout_state.layout_hidden_refs;
+            let layout_disabled_refs = &layout_state.layout_disabled_refs;
             let mut hidden_cache =
+                std::collections::HashMap::with_capacity(self.fields_with_rules.len());
+            let mut readonly_cache =
                 std::collections::HashMap::with_capacity(self.fields_with_rules.len());
 
             // Use pre-parsed fields_with_rules from schema parsing (no runtime collection needed)
@@ -106,7 +111,10 @@ impl JSONEval {
                         field_path,
                         &data_value,
                         layout_hidden_refs,
+                        layout_disabled_refs,
                         &mut hidden_cache,
+                        &mut readonly_cache,
+                        validate_ro,
                         &mut errors,
                     );
 
@@ -128,6 +136,7 @@ impl JSONEval {
                     cache.save_full_result(
                         data.to_string(),
                         context.map(|s| s.to_string()),
+                        validate_ro,
                         result.clone(),
                     );
                 }
@@ -148,7 +157,9 @@ impl JSONEval {
         data_value: Value,
         paths: Option<&[String]>,
         token: Option<&CancellationToken>,
+        validate_readonly: Option<bool>,
     ) -> Result<crate::ValidationResult, String> {
+        let validate_ro = validate_readonly.unwrap_or(false);
         // Re-evaluate rule evaluations with the current (already-set) data.
         self.evaluate_others(paths, token);
 
@@ -158,7 +169,10 @@ impl JSONEval {
 
         let layout_state = self.layout_state.read().unwrap();
         let layout_hidden_refs = &layout_state.layout_hidden_refs;
+        let layout_disabled_refs = &layout_state.layout_disabled_refs;
         let mut hidden_cache =
+            std::collections::HashMap::with_capacity(self.fields_with_rules.len());
+        let mut readonly_cache =
             std::collections::HashMap::with_capacity(self.fields_with_rules.len());
 
         for field_path in self.fields_with_rules.iter() {
@@ -180,7 +194,10 @@ impl JSONEval {
                 field_path,
                 &data_value,
                 layout_hidden_refs,
+                layout_disabled_refs,
                 &mut hidden_cache,
+                &mut readonly_cache,
+                validate_ro,
                 &mut errors,
             );
         }
@@ -197,26 +214,35 @@ impl JSONEval {
         &self,
         field_path: &str,
         data: &Value,
+        validate_readonly: bool,
         errors: &mut IndexMap<String, ValidationError>,
     ) {
         let layout_state = self.layout_state.read().unwrap();
         let mut hidden_cache = std::collections::HashMap::new();
+        let mut readonly_cache = std::collections::HashMap::new();
         self.validate_field_cached(
             field_path,
             data,
             &layout_state.layout_hidden_refs,
+            &layout_state.layout_disabled_refs,
             &mut hidden_cache,
+            &mut readonly_cache,
+            validate_readonly,
             errors,
         );
     }
 
-    /// Validate a single field that has rules, with pre-acquired layout_hidden_refs and hidden_cache
+    /// Validate a single field that has rules, with pre-acquired layout refs and caches
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn validate_field_cached(
         &self,
         field_path: &str,
         data: &Value,
         layout_hidden_refs: &indexmap::IndexSet<String>,
+        layout_disabled_refs: &indexmap::IndexSet<String>,
         hidden_cache: &mut std::collections::HashMap<String, bool>,
+        readonly_cache: &mut std::collections::HashMap<String, bool>,
+        validate_readonly: bool,
         errors: &mut IndexMap<String, ValidationError>,
     ) {
         // Skip if already has error
@@ -252,11 +278,34 @@ impl JSONEval {
                     field_path.to_string(),
                     Value::Null,
                     true,
+                    validate_readonly,
                     Value::Null,
                     None,
                 );
             }
             return;
+        }
+
+        // Skip readonly / disabled fields unless validate_readonly is true
+        if !validate_readonly {
+            let is_readonly = self.is_effective_readonly_with_cache(
+                &resolved_path,
+                layout_disabled_refs,
+                readonly_cache,
+            );
+            if is_readonly {
+                if let Ok(mut cache) = self.validation_cache.write() {
+                    cache.update_field(
+                        field_path.to_string(),
+                        Value::Null,
+                        false,
+                        false,
+                        Value::Null,
+                        None,
+                    );
+                }
+                return;
+            }
         }
 
         if let Value::Object(schema_map) = field_schema {
@@ -272,7 +321,7 @@ impl JSONEval {
 
             // Check field cache
             let cached_lookup = if let Ok(cache) = self.validation_cache.read() {
-                cache.check_field_cache(field_path, &field_data, false, rules_val)
+                cache.check_field_cache(field_path, &field_data, false, validate_readonly, rules_val)
             } else {
                 None
             };
@@ -309,6 +358,7 @@ impl JSONEval {
                     field_path.to_string(),
                     field_data,
                     false,
+                    validate_readonly,
                     rules_val.clone(),
                     field_error,
                 );

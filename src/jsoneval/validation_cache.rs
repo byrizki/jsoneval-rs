@@ -9,6 +9,8 @@ pub struct CachedFieldValidation {
     pub field_data: Value,
     /// Visibility state at last validation
     pub is_hidden: bool,
+    /// Whether readonly fields were validated
+    pub validate_readonly: bool,
     /// Rule evaluation snapshot (to detect changes in dynamic $evaluation rules)
     pub rules_snapshot: Value,
     /// Cached error if invalid, None if valid
@@ -22,6 +24,8 @@ pub struct ValidationCache {
     pub last_data_str: Option<String>,
     /// Last context string for whole-form caching
     pub last_context_str: Option<String>,
+    /// Whether last whole-form validation validated readonly fields
+    pub last_validate_readonly: bool,
     /// Last full validation result
     pub last_result: Option<ValidationResult>,
     /// Per-field validation cache
@@ -39,7 +43,12 @@ impl ValidationCache {
         &self,
         data: &str,
         context: Option<&str>,
+        validate_readonly: bool,
     ) -> Option<ValidationResult> {
+        if self.last_validate_readonly != validate_readonly {
+            return None;
+        }
+
         let last_data = self.last_data_str.as_deref()?;
         if last_data != data {
             return None;
@@ -67,10 +76,12 @@ impl ValidationCache {
         field_path: &str,
         field_data: &Value,
         is_hidden: bool,
+        validate_readonly: bool,
         rules: &Value,
     ) -> Option<Option<ValidationError>> {
         let cached = self.field_cache.get(field_path)?;
         if cached.is_hidden == is_hidden
+            && cached.validate_readonly == validate_readonly
             && &cached.field_data == field_data
             && &cached.rules_snapshot == rules
         {
@@ -87,6 +98,7 @@ impl ValidationCache {
         field_path: String,
         field_data: Value,
         is_hidden: bool,
+        validate_readonly: bool,
         rules_snapshot: Value,
         error: Option<ValidationError>,
     ) {
@@ -95,6 +107,7 @@ impl ValidationCache {
             CachedFieldValidation {
                 field_data,
                 is_hidden,
+                validate_readonly,
                 rules_snapshot,
                 error,
             },
@@ -107,10 +120,12 @@ impl ValidationCache {
         &mut self,
         data_str: String,
         context_str: Option<String>,
+        validate_readonly: bool,
         result: ValidationResult,
     ) {
         self.last_data_str = Some(data_str);
         self.last_context_str = context_str;
+        self.last_validate_readonly = validate_readonly;
         self.last_result = Some(result);
     }
 
@@ -119,6 +134,7 @@ impl ValidationCache {
     pub fn invalidate_full_result(&mut self) {
         self.last_data_str = None;
         self.last_context_str = None;
+        self.last_validate_readonly = false;
         self.last_result = None;
     }
 
@@ -127,6 +143,7 @@ impl ValidationCache {
     pub fn clear(&mut self) {
         self.last_data_str = None;
         self.last_context_str = None;
+        self.last_validate_readonly = false;
         self.last_result = None;
         self.field_cache.clear();
     }

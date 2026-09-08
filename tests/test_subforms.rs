@@ -220,7 +220,7 @@ fn test_validate_subform() {
     let valid_data_str = serde_json::to_string(&valid_data).unwrap();
 
     let valid_result = eval
-        .validate_subform("#/contacts", &valid_data_str, None, None, None)
+        .validate_subform("#/contacts", &valid_data_str, None, None, None, None)
         .unwrap();
     assert!(!valid_result.has_error, "Valid data should pass validation");
 
@@ -234,7 +234,7 @@ fn test_validate_subform() {
     let invalid_data_str = serde_json::to_string(&invalid_data).unwrap();
 
     let invalid_result = eval
-        .validate_subform("#/contacts", &invalid_data_str, None, None, None)
+        .validate_subform("#/contacts", &invalid_data_str, None, None, None, None)
         .unwrap();
     // Note: Validation behavior depends on schema structure in subform
     // The subform may need evaluation first for validation to work properly
