@@ -1,6 +1,6 @@
 use indexmap::IndexSet;
 use serde_json::Value;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 /// Token-version tracker for json paths
 #[derive(Default, Clone)]
@@ -144,7 +144,7 @@ pub struct EvalCache {
     /// Snapshot of the last fully-diffed main-form data payload.
     /// Stored after each successful `evaluate_internal_with_new_data` call so the next
     /// invocation can avoid an extra `snapshot_data_clone()` when computing the diff.
-    pub main_form_snapshot: Option<Value>,
+    pub main_form_snapshot: Option<std::sync::Arc<Value>>,
 }
 
 impl Default for EvalCache {
@@ -703,30 +703,44 @@ fn diff_and_update_versions_internal(
 
     match (old, new) {
         (Value::Object(a), Value::Object(b)) => {
-            let mut keys = HashSet::new();
-            for k in a.keys() {
-                keys.insert(k.as_str());
-            }
-            for k in b.keys() {
-                keys.insert(k.as_str());
-            }
-
-            for key in keys {
-                // Do not deep-diff $params at any nesting level — it is manually tracked
-                // via bump_params_version on evaluations. Skipping at root-only was insufficient
-                // when item data is diffed via a non-empty pointer prefix.
+            for (key, a_val) in a {
                 if key == "$params" {
                     continue;
                 }
-
-                let a_val = a.get(key).unwrap_or(&Value::Null);
                 let b_val = b.get(key).unwrap_or(&Value::Null);
+                if a_val == b_val {
+                    continue;
+                }
 
-                let escaped_key = key.replace('~', "~0").replace('/', "~1");
                 let old_len = pointer.len();
                 pointer.push('/');
-                pointer.push_str(&escaped_key);
+                if key.contains('~') || key.contains('/') {
+                    let escaped_key = key.replace('~', "~0").replace('/', "~1");
+                    pointer.push_str(&escaped_key);
+                } else {
+                    pointer.push_str(key);
+                }
                 diff_and_update_versions_internal(tracker, pointer, a_val, b_val, source);
+                pointer.truncate(old_len);
+            }
+
+            for (key, b_val) in b {
+                if key == "$params" || a.contains_key(key) {
+                    continue;
+                }
+                if b_val.is_null() {
+                    continue;
+                }
+
+                let old_len = pointer.len();
+                pointer.push('/');
+                if key.contains('~') || key.contains('/') {
+                    let escaped_key = key.replace('~', "~0").replace('/', "~1");
+                    pointer.push_str(&escaped_key);
+                } else {
+                    pointer.push_str(key);
+                }
+                diff_and_update_versions_internal(tracker, pointer, &Value::Null, b_val, source);
                 pointer.truncate(old_len);
             }
         }
@@ -735,6 +749,9 @@ fn diff_and_update_versions_internal(
             for i in 0..max_len {
                 let a_val = a.get(i).unwrap_or(&Value::Null);
                 let b_val = b.get(i).unwrap_or(&Value::Null);
+                if a_val == b_val {
+                    continue;
+                }
                 let old_len = pointer.len();
                 use std::fmt::Write;
                 write!(pointer, "/{}", i).unwrap();

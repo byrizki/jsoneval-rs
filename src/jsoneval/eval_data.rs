@@ -145,6 +145,11 @@ impl EvalData {
     pub fn set(&mut self, path: &str, value: Value) {
         // Normalize to JSON pointer format internally
         let pointer = path_utils::normalize_to_json_pointer(path);
+        if let Some(existing) = self.data.pointer(&pointer) {
+            if existing == &value {
+                return;
+            }
+        }
         let data = Arc::make_mut(&mut self.data); // CoW: clone only if shared
         Self::set_by_pointer(data, &pointer, value);
     }

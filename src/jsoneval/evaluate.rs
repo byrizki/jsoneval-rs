@@ -88,7 +88,7 @@ impl JSONEval {
                 .eval_cache
                 .main_form_snapshot
                 .take()
-                .unwrap_or_else(|| self.eval_data.snapshot_data_clone());
+                .unwrap_or_else(|| self.eval_data.snapshot_data());
 
             let old_context = self
                 .eval_data
@@ -104,7 +104,7 @@ impl JSONEval {
                 self.eval_data.replace_data_and_context(data, context);
             });
 
-            let new_data = self.eval_data.snapshot_data_clone();
+            let new_data = self.eval_data.snapshot_data();
             let new_context = self
                 .eval_data
                 .data()
@@ -143,8 +143,8 @@ impl JSONEval {
 
             self.eval_cache
                 .store_snapshot_and_diff_versions(&old_data, &new_data);
-            // Save snapshot for the next evaluation cycle (avoids one snapshot_data_clone() call)
-            self.eval_cache.main_form_snapshot = Some(new_data.clone());
+            // Save snapshot for the next evaluation cycle (O(1) Arc clone)
+            self.eval_cache.main_form_snapshot = Some(std::sync::Arc::clone(&new_data));
 
             // Invalidate subform caches after structural changes.
             self.invalidate_subform_caches_on_structural_change(&old_data, &new_data);

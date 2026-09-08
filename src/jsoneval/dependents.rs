@@ -10,7 +10,7 @@ use crate::time_block;
 use crate::utils::clean_float_noise_scalar;
 use crate::EvalData;
 
-use indexmap::{IndexMap, IndexSet};
+use indexmap::IndexMap;
 use serde_json::Value;
 
 impl JSONEval {
@@ -43,12 +43,12 @@ impl JSONEval {
             } else {
                 Value::Object(serde_json::Map::new())
             };
-            let old_data = self.eval_data.snapshot_data_clone();
+            let old_data = self.eval_data.snapshot_data();
             time_block!("  [dep] data_replace_and_context", {
                 self.eval_data
                     .replace_data_and_context(data_value, context_value);
             });
-            let new_data = self.eval_data.snapshot_data_clone();
+            let new_data = self.eval_data.snapshot_data();
             time_block!("  [dep] data_diff_versions", {
                 self.eval_cache
                     .store_snapshot_and_diff_versions(&old_data, &new_data);
@@ -216,25 +216,24 @@ impl JSONEval {
         // the same $ref when cache versions cause overlapping detections. The subform pass
         // result is most specific and wins because it is appended last.
         let deduped = {
-            let mut seen: IndexMap<String, usize> = IndexMap::new();
-            for (i, item) in result.iter().enumerate() {
+            let mut seen = std::collections::HashSet::new();
+            let mut deduped = Vec::with_capacity(result.len());
+            for item in result.into_iter().rev() {
                 if let Some(r) = item.get("$ref").and_then(|v| v.as_str()) {
-                    seen.insert(r.to_string(), i);
+                    if seen.insert(r.to_string()) {
+                        deduped.push(item);
+                    }
+                } else {
+                    deduped.push(item);
                 }
             }
-            let last_indices: IndexSet<usize> = seen.values().copied().collect();
-            let out: Vec<Value> = result
-                .into_iter()
-                .enumerate()
-                .filter(|(i, _)| last_indices.contains(i))
-                .map(|(_, item)| item)
-                .collect();
-            out
+            deduped.reverse();
+            deduped
         };
 
-        // Preserve post-dependents parent snapshot.
+        // Preserve post-dependents parent snapshot (O(1) Arc clone).
         if self.eval_cache.active_item_index.is_none() {
-            let current_snapshot = self.eval_data.snapshot_data_clone();
+            let current_snapshot = self.eval_data.snapshot_data();
             self.eval_cache.main_form_snapshot = Some(current_snapshot);
         }
 
@@ -282,16 +281,13 @@ impl JSONEval {
         // that newly visible static default, then recalculate formulas which
         // consume it. Defaults remain non-triggering: only caller paths enter
         // the dependent queue.
-        if self.collect_visible_static_defaults().is_empty() {
-            // Nothing newly visible needs initialization.
-        } else {
-            self.run_schema_default_value_pass(
-                token,
-                to_process,
-                processed,
-                result,
-                canceled_paths.as_mut().map(|v| &mut **v),
-            )?;
+        if self.run_schema_default_value_pass(
+            token,
+            to_process,
+            processed,
+            result,
+            canceled_paths.as_mut().map(|v| &mut **v),
+        )? {
             self.evaluate_internal(None, token)?;
         }
 
@@ -499,7 +495,7 @@ impl JSONEval {
         // Rebuild layout refs from current evaluated_schema. Unlike mutable legacy JS
         // objects, Rust resolved refs are copies, so inherited visibility must stay
         // per-run state rather than be written back into the source schema.
-        self.resolve_layout(false)?;
+        self.ensure_layout_resolved();
 
         let mut hidden_fields = Vec::new();
         for path in self.conditional_hidden_fields.iter() {
@@ -640,10 +636,6 @@ impl JSONEval {
         &mut self,
         token: Option<&CancellationToken>,
     ) -> Result<bool, String> {
-        if self.collect_visible_static_defaults().is_empty() {
-            return Ok(false);
-        }
-
         let mut to_process = Vec::new();
         let mut processed = std::collections::HashMap::new();
         let mut result = Vec::new();
@@ -653,8 +645,7 @@ impl JSONEval {
             &mut processed,
             &mut result,
             None,
-        )?;
-        Ok(true)
+        )
     }
 
     /// Internal method to run the schema default value pass.
@@ -669,8 +660,11 @@ impl JSONEval {
         >,
         result: &mut Vec<Value>,
         _canceled_paths: Option<&mut Vec<String>>,
-    ) -> Result<(), String> {
+    ) -> Result<bool, String> {
         let default_value_changes = self.collect_visible_static_defaults();
+        if default_value_changes.is_empty() {
+            return Ok(false);
+        }
 
         for (data_path, schema_val, dot_path) in default_value_changes {
             self.eval_data
@@ -694,7 +688,7 @@ impl JSONEval {
             // the caller remain the only inputs to dependent propagation.
         }
 
-        Ok(())
+        Ok(true)
     }
 
     /// Cascade dependency evaluation into each subform item.
@@ -748,6 +742,38 @@ impl JSONEval {
             let parent_data_versions_snapshot = self.eval_cache.data_versions.clone();
             let parent_params_versions_snapshot = self.eval_cache.params_versions.clone();
 
+            // Project parent changes into directly dependent rider value formulas. This is
+            // graph-driven: no product/field path policy belongs in evaluator code. Tables
+            // remain excluded because evaluating a `$params` table with one rider payload can
+            // overwrite shared parent cache rows.
+            let parent_dependency_paths: Vec<String> = parent_changed_paths
+                .iter()
+                .map(|path| {
+                    path_utils::dot_notation_to_schema_pointer(path)
+                        .trim_start_matches('#')
+                        .to_string()
+                })
+                .collect();
+            let dependent_value_paths: Vec<String> = self
+                .subforms
+                .get(&subform_path)
+                .map(|subform| {
+                    subform
+                        .dependencies
+                        .iter()
+                        .filter(|(key, deps)| {
+                            !subform.table_metadata.contains_key(*key)
+                                && !key.starts_with("#/$params/")
+                                && key.ends_with("/value")
+                                && parent_dependency_paths
+                                    .iter()
+                                    .any(|dependency| deps.contains(dependency))
+                        })
+                        .map(|(key, _)| key.clone())
+                        .collect()
+                })
+                .unwrap_or_default();
+
             for idx in 0..item_count {
                 // Map absolute changed paths → subform-internal paths for this item index
                 let prefix_dot = format!("{}.{}.", subform_dot_path, idx);
@@ -782,38 +808,6 @@ impl JSONEval {
                         .and_then(|a| a.get(idx))
                         .cloned()
                         .unwrap_or(Value::Null);
-
-                // Project parent changes into directly dependent rider value formulas. This is
-                // graph-driven: no product/field path policy belongs in evaluator code. Tables
-                // remain excluded because evaluating a `$params` table with one rider payload can
-                // overwrite shared parent cache rows.
-                let parent_dependency_paths: Vec<String> = parent_changed_paths
-                    .iter()
-                    .map(|path| {
-                        path_utils::dot_notation_to_schema_pointer(path)
-                            .trim_start_matches('#')
-                            .to_string()
-                    })
-                    .collect();
-                let dependent_value_paths: Vec<String> = self
-                    .subforms
-                    .get(&subform_path)
-                    .map(|subform| {
-                        subform
-                            .dependencies
-                            .iter()
-                            .filter(|(key, deps)| {
-                                !subform.table_metadata.contains_key(*key)
-                                    && !key.starts_with("#/$params/")
-                                    && key.ends_with("/value")
-                                    && parent_dependency_paths
-                                        .iter()
-                                        .any(|dependency| deps.contains(dependency))
-                            })
-                            .map(|(key, _)| key.clone())
-                            .collect()
-                    })
-                    .unwrap_or_default();
 
                 if item_changed_paths.is_empty() && !dependent_value_paths.is_empty() {
                     // Parent-only changes need an item-local overlay. Computed item values must
@@ -1776,6 +1770,15 @@ impl JSONEval {
                         }
                     }
                     let ref_path = &dep_item.ref_path;
+
+                    // Skip writing back to a field that has already been processed.
+                    // This prevents formula-triggered re-enqueues from creating circular writes:
+                    // e.g., ins_gender → triggers phins_relation (via dep_formula_triggers) →
+                    // phins_relation has a dep that writes back to ins_gender → we must not let that happen.
+                    if processed.contains_key(ref_path) {
+                        continue;
+                    }
+
                     let pointer_path = path_utils::normalize_to_json_pointer(ref_path);
                     // Data paths don't include /properties/, strip it for data access
                     let data_path =
@@ -1788,51 +1791,11 @@ impl JSONEval {
                         .cloned()
                         .unwrap_or(Value::Null);
 
-                    // Get field and parent field from schema
-                    let field = evaluated_schema.pointer(&pointer_path).cloned();
-
-                    // Get parent field - skip /properties/ to get actual parent object
-                    let parent_path = if let Some(last_slash) = pointer_path.rfind("/properties") {
-                        &pointer_path[..last_slash]
-                    } else {
-                        "/"
-                    };
-                    let mut parent_field = if parent_path.is_empty() || parent_path == "/" {
-                        evaluated_schema.clone()
-                    } else {
-                        evaluated_schema
-                            .pointer(parent_path)
-                            .cloned()
-                            .unwrap_or_else(|| Value::Object(serde_json::Map::new()))
-                    };
-
-                    // omit properties to minimize size of parent field
-                    if let Value::Object(ref mut map) = parent_field {
-                        map.remove("properties");
-                        map.remove("$layout");
-                    }
-
-                    let mut change_obj = serde_json::Map::new();
-                    change_obj.insert(
-                        "$ref".to_string(),
-                        Value::String(path_utils::pointer_to_dot_notation(&data_path)),
-                    );
-                    if let Some(f) = field {
-                        change_obj.insert("$field".to_string(), f);
-                    }
-                    change_obj.insert("$parentField".to_string(), parent_field);
-                    change_obj.insert("transitive".to_string(), Value::Bool(is_transitive));
-
-                    // Skip writing back to a field that has already been processed.
-                    // This prevents formula-triggered re-enqueues from creating circular writes:
-                    // e.g., ins_gender → triggers phins_relation (via dep_formula_triggers) →
-                    // phins_relation has a dep that writes back to ins_gender → we must not let that happen.
-                    if processed.contains_key(ref_path) {
-                        continue;
-                    }
-
                     let mut add_transitive = false;
                     let mut add_deps = false;
+                    let mut clear_applied = false;
+                    let mut value_to_apply = None;
+
                     // Process clear
                     if let Some(clear_val) = &dep_item.clear {
                         let should_clear = Self::evaluate_dependent_value_static(
@@ -1854,7 +1817,7 @@ impl JSONEval {
                             }
                             eval_data.set(&data_path, Value::Null);
                             eval_cache.bump_data_version(&data_path);
-                            change_obj.insert("clear".to_string(), Value::Bool(true));
+                            clear_applied = true;
                             add_transitive = true;
                             add_deps = true;
                         }
@@ -1881,7 +1844,7 @@ impl JSONEval {
                             }
                             eval_data.set(&data_path, cleaned_val.clone());
                             eval_cache.bump_data_version(&data_path);
-                            change_obj.insert("value".to_string(), cleaned_val);
+                            value_to_apply = Some(cleaned_val);
                             add_transitive = true;
                             add_deps = true;
                         }
@@ -1889,6 +1852,32 @@ impl JSONEval {
 
                     // add only when has clear / value
                     if add_deps {
+                        let field = evaluated_schema.pointer(&pointer_path).cloned();
+
+                        // Get parent field - skip /properties/ to get actual parent object
+                        let parent_path = if let Some(last_slash) = pointer_path.rfind("/properties") {
+                            &pointer_path[..last_slash]
+                        } else {
+                            "/"
+                        };
+                        let parent_field = extract_parent_field(evaluated_schema, parent_path);
+
+                        let mut change_obj = serde_json::Map::new();
+                        change_obj.insert(
+                            "$ref".to_string(),
+                            Value::String(path_utils::pointer_to_dot_notation(&data_path)),
+                        );
+                        if let Some(f) = field {
+                            change_obj.insert("$field".to_string(), f);
+                        }
+                        change_obj.insert("$parentField".to_string(), parent_field);
+                        change_obj.insert("transitive".to_string(), Value::Bool(is_transitive));
+                        if clear_applied {
+                            change_obj.insert("clear".to_string(), Value::Bool(true));
+                        }
+                        if let Some(val) = value_to_apply {
+                            change_obj.insert("value".to_string(), val);
+                        }
                         result.push(Value::Object(change_obj));
                     }
 
@@ -1920,4 +1909,28 @@ fn subform_field_key(subform_path: &str) -> String {
         .last()
         .unwrap_or(stripped)
         .to_string()
+}
+
+/// Extract the parent field definition excluding heavy child collections (`properties`, `$layout`).
+/// Returns a shallow copy of the parent schema node's attributes.
+fn extract_parent_field(evaluated_schema: &Value, parent_path: &str) -> Value {
+    let node = if parent_path.is_empty() || parent_path == "/" {
+        evaluated_schema
+    } else {
+        match evaluated_schema.pointer(parent_path) {
+            Some(v) => v,
+            None => return Value::Object(serde_json::Map::new()),
+        }
+    };
+    if let Value::Object(map) = node {
+        let mut filtered = serde_json::Map::with_capacity(map.len().saturating_sub(2));
+        for (k, v) in map {
+            if k != "properties" && k != "$layout" {
+                filtered.insert(k.clone(), v.clone());
+            }
+        }
+        Value::Object(filtered)
+    } else {
+        Value::Object(serde_json::Map::new())
+    }
 }
