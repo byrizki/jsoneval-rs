@@ -442,7 +442,7 @@ impl JSONEval {
                     }
 
                     // Evaluate the table using parent's updated data
-                    if let Ok((rows, external_deps_opt)) =
+                    if let Ok((arc_val, external_deps_opt)) =
                         crate::jsoneval::table_evaluate::evaluate_table(
                             self,
                             key,
@@ -451,14 +451,14 @@ impl JSONEval {
                         )
                     {
                         if crate::utils::is_debug_cache_enabled() {
-                            println!("PARENT EVALUATED TABLE {} -> {} rows", key, rows.len());
+                            let rows_len = arc_val.as_array().map(|a| a.len()).unwrap_or(0);
+                            println!("PARENT EVALUATED TABLE {} -> {} rows", key, rows_len);
                         }
-                        let result_val = serde_json::Value::Array(rows);
 
                         if let Some(external_deps) = external_deps_opt {
                             // Store parent result in T2.
                             parent_cache.active_item_index = None;
-                            parent_cache.store_cache(key, &external_deps, result_val);
+                            parent_cache.store_cache_arc(key, &external_deps, arc_val);
                             parent_cache.active_item_index = Some(idx);
                         }
                     } else {

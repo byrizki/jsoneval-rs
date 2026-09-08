@@ -23,7 +23,26 @@ impl Evaluator {
             // SAFETY: single-threaded (eval_lock), UnsafeCell access
             let scope = unsafe { &*self.table_scope.get() };
             if let Some(ts) = scope.as_ref() {
-                if name == ts.path {
+                if name == ts.path || name.trim_start_matches('#') == ts.path_no_hash.as_str() {
+                    if ts.col_count > 0 && !ts.flat_cells.is_null() {
+                        let mut arr = Vec::with_capacity(ts.existing_row_count + ts.total_rows);
+                        let rows = unsafe { &*ts.rows };
+                        for r in 0..ts.existing_row_count {
+                            if let Some(row) = rows.get(r) {
+                                arr.push(row.clone());
+                            }
+                        }
+                        for r in 0..ts.total_rows {
+                            let mut row_map = serde_json::Map::with_capacity(ts.col_count);
+                            let row_offset = r * ts.col_count;
+                            for (c_name, &c_idx) in ts.col_map.iter() {
+                                let cell = unsafe { &*ts.flat_cells.add(row_offset + c_idx) };
+                                row_map.insert(c_name.clone(), cell.clone());
+                            }
+                            arr.push(Value::Object(row_map));
+                        }
+                        return Ok(TableRef::Owned(Value::Array(arr)));
+                    }
                     // SAFETY: local_rows outlives this call (table_evaluate_inner scope)
                     let rows = unsafe { &*ts.rows };
                     return Ok(TableRef::LocalRows(rows));
@@ -131,7 +150,7 @@ impl Evaluator {
             return Ok(result);
         }
 
-        // OPTIMIZATION 2: Fast path for literal row indices (avoid evaluation overhead)
+        // OPTIMIZATION 2: Fast path for literal, $iteration, or $iteration + n row indices
         let row_idx = match row_idx_expr {
             CompiledLogic::Number(n) => {
                 let idx = *n as i64;
@@ -139,6 +158,89 @@ impl Evaluator {
                     Some(idx as usize)
                 } else {
                     None
+                }
+            }
+            CompiledLogic::Var(var, _) | CompiledLogic::Ref(var, _)
+                if (var == "$iteration" || var == "/$iteration") =>
+            {
+                let scope = unsafe { &*self.table_scope.get() };
+                scope
+                    .as_ref()
+                    .and_then(|ts| ts.iteration_raw)
+                    .and_then(|iter| if iter >= 0 { Some(iter as usize) } else { None })
+            }
+            CompiledLogic::Add(items) if items.len() == 2 => {
+                let fast = match (&items[0], &items[1]) {
+                    (
+                        CompiledLogic::Var(var, _) | CompiledLogic::Ref(var, _),
+                        CompiledLogic::Number(n),
+                    )
+                    | (
+                        CompiledLogic::Number(n),
+                        CompiledLogic::Var(var, _) | CompiledLogic::Ref(var, _),
+                    ) if (var == "$iteration" || var == "/$iteration") => {
+                        let scope = unsafe { &*self.table_scope.get() };
+                        scope
+                            .as_ref()
+                            .and_then(|ts| ts.iteration_raw)
+                            .map(|iter| iter + (*n as i64))
+                    }
+                    _ => None,
+                };
+                if let Some(idx) = fast {
+                    if idx >= 0 {
+                        Some(idx as usize)
+                    } else {
+                        None
+                    }
+                } else {
+                    let row_idx_val = self.evaluate_with_context(
+                        row_idx_expr,
+                        user_data,
+                        internal_context,
+                        depth + 1,
+                    )?;
+                    let row_idx_num = helpers::to_number(&row_idx_val) as i64;
+                    if row_idx_num >= 0 {
+                        Some(row_idx_num as usize)
+                    } else {
+                        None
+                    }
+                }
+            }
+            CompiledLogic::Subtract(items) if items.len() == 2 => {
+                let fast = match (&items[0], &items[1]) {
+                    (
+                        CompiledLogic::Var(var, _) | CompiledLogic::Ref(var, _),
+                        CompiledLogic::Number(n),
+                    ) if (var == "$iteration" || var == "/$iteration") => {
+                        let scope = unsafe { &*self.table_scope.get() };
+                        scope
+                            .as_ref()
+                            .and_then(|ts| ts.iteration_raw)
+                            .map(|iter| iter - (*n as i64))
+                    }
+                    _ => None,
+                };
+                if let Some(idx) = fast {
+                    if idx >= 0 {
+                        Some(idx as usize)
+                    } else {
+                        None
+                    }
+                } else {
+                    let row_idx_val = self.evaluate_with_context(
+                        row_idx_expr,
+                        user_data,
+                        internal_context,
+                        depth + 1,
+                    )?;
+                    let row_idx_num = helpers::to_number(&row_idx_val) as i64;
+                    if row_idx_num >= 0 {
+                        Some(row_idx_num as usize)
+                    } else {
+                        None
+                    }
                 }
             }
             _ => {
@@ -163,6 +265,98 @@ impl Evaluator {
             Some(idx) => idx,
             None => return Ok(Value::Null),
         };
+
+        // Fast intercept for self-table VALUEAT with flat_cells
+        let var_name = match table_expr {
+            CompiledLogic::Var(name, _) | CompiledLogic::Ref(name, _) => Some(name.as_str()),
+            _ => None,
+        };
+        if let Some(name) = var_name {
+            // SAFETY: single-threaded (eval_lock), UnsafeCell access
+            let scope = unsafe { &*self.table_scope.get() };
+            if let Some(ts) = scope.as_ref() {
+                if (name == ts.path || name.trim_start_matches('#') == ts.path_no_hash.as_str())
+                    && ts.col_count > 0
+                    && !ts.flat_cells.is_null()
+                {
+                    if row_idx < ts.existing_row_count {
+                        let rows = unsafe { &*ts.rows };
+                        if let Some(row) = rows.get(row_idx) {
+                            if let Some(col_expr) = col_name_expr {
+                                match col_expr.as_ref() {
+                                    CompiledLogic::String(s) => {
+                                        if let Value::Object(map) = row {
+                                            return Ok(map
+                                                .get(s.as_str())
+                                                .cloned()
+                                                .unwrap_or(Value::Null));
+                                        }
+                                    }
+                                    _ => {
+                                        if let Value::String(s) = self.resolve_column_name(
+                                            col_expr,
+                                            user_data,
+                                            internal_context,
+                                            depth,
+                                        )? {
+                                            if let Value::Object(map) = row {
+                                                return Ok(map
+                                                    .get(s.as_str())
+                                                    .cloned()
+                                                    .unwrap_or(Value::Null));
+                                            }
+                                        }
+                                    }
+                                }
+                                return Ok(Value::Null);
+                            } else {
+                                return Ok(row.clone());
+                            }
+                        } else {
+                            return Ok(Value::Null);
+                        }
+                    } else if row_idx < ts.existing_row_count + ts.total_rows {
+                        let row_offset = row_idx - ts.existing_row_count;
+                        if let Some(col_expr) = col_name_expr {
+                            let col_idx_opt = match col_expr.as_ref() {
+                                CompiledLogic::String(s) => ts.get_col_idx(s.as_str()),
+                                _ => match self.resolve_column_name(
+                                    col_expr,
+                                    user_data,
+                                    internal_context,
+                                    depth,
+                                )? {
+                                    Value::String(s) => ts.get_col_idx(s.as_str()),
+                                    _ => None,
+                                },
+                            };
+                            if let Some(col_idx) = col_idx_opt {
+                                let cell = unsafe {
+                                    &*ts.flat_cells.add(row_offset * ts.col_count + col_idx)
+                                };
+                                return Ok(cell.clone());
+                            } else {
+                                return Ok(Value::Null);
+                            }
+                        } else {
+                            // Whole row requested as object
+                            let mut row_map = serde_json::Map::with_capacity(ts.col_count);
+                            for (c_name, &c_idx) in ts.col_map.iter() {
+                                let cell = unsafe {
+                                    &*ts.flat_cells.add(row_offset * ts.col_count + c_idx)
+                                };
+                                row_map.insert(c_name.clone(), cell.clone());
+                            }
+                            return Ok(Value::Object(row_map));
+                        }
+                    } else {
+                        // row_idx >= ts.existing_row_count + ts.total_rows
+                        // Early out-of-bounds exit: completely avoid get_table_array allocation
+                        return Ok(Value::Null);
+                    }
+                }
+            }
+        }
 
         // OPTIMIZATION 3: Resolve table and check bounds together (reduce overhead)
         let table_ref = self.get_table_array(table_expr, user_data, internal_context, depth)?;

@@ -10,6 +10,15 @@ use serde_json::Value;
 // The single-loop approach is 100-1000x faster than double-loop standard path
 const OPTIMIZATION_MIN_SIZE: usize = 5;
 
+#[inline]
+pub(super) fn hash_bytes(bytes: &[u8]) -> u64 {
+    use rapidhash::fast::RapidHasher;
+    use std::hash::Hasher;
+    let mut hasher = RapidHasher::default();
+    hasher.write(bytes);
+    hasher.finish()
+}
+
 impl Evaluator {
     /// Try to evaluate VALUEAT with combined lookup (single loop optimization)
     /// Returns Some(value) if optimization was applied, None if standard path should be used
@@ -196,6 +205,28 @@ impl Evaluator {
         }
     }
 
+    #[inline]
+    pub(super) fn make_val_key(&self, val: &Value, is_range: bool) -> super::types::LookupValueKey {
+        use super::types::LookupValueKey;
+        if is_range {
+            LookupValueKey::Num(to_number(val).to_bits())
+        } else {
+            match val {
+                Value::Number(n) => LookupValueKey::Num(n.as_f64().unwrap_or(0.0).to_bits()),
+                Value::String(s) => {
+                    if let Ok(n) = s.parse::<f64>() {
+                        LookupValueKey::Num(n.to_bits())
+                    } else {
+                        LookupValueKey::StrHash(hash_bytes(s.as_bytes()))
+                    }
+                }
+                Value::Bool(b) => LookupValueKey::Bool(*b),
+                Value::Null => LookupValueKey::Null,
+                _ => LookupValueKey::StrHash(hash_bytes(val.to_string().as_bytes())),
+            }
+        }
+    }
+
     /// Combined VALUEAT + INDEXAT (single loop)
     pub(super) fn eval_valueat_indexat_combined(
         &self,
@@ -227,41 +258,96 @@ impl Evaluator {
             false
         };
 
+        let is_borrowed = matches!(table_ref, super::types::TableRef::Borrowed(_));
+
         // Single loop: find row and extract value
         if let (Some(arr), Value::String(field)) = (table_ref.as_array(), &field_val) {
             let lookup_num = to_number(&lookup_val);
 
+            // Fast path: check memoization cache in TableScope for immutable borrowed tables
+            if is_borrowed {
+                // SAFETY: single-threaded (eval_lock held during this scope), UnsafeCell
+                let scope = unsafe { &*self.table_scope.get() };
+                if let Some(ts) = scope.as_ref() {
+                    let key = super::types::CombinedLookupKey {
+                        arr_ptr: arr.as_ptr() as usize,
+                        field_hash: hash_bytes(field.as_bytes()),
+                        is_range,
+                        val_key: self.make_val_key(&lookup_val, is_range),
+                    };
+
+                    if let Some(&cached_match) = ts.lookup_cache.borrow().get(&key) {
+                        if let Some(matched_idx) = cached_match {
+                            if let Some(row) = arr.get(matched_idx) {
+                                if let Some(Value::String(col_name)) = &col_val {
+                                    if let Value::Object(obj) = row {
+                                        return Ok(obj
+                                            .get(col_name)
+                                            .cloned()
+                                            .unwrap_or(Value::Null));
+                                    }
+                                } else {
+                                    return Ok(row.clone());
+                                }
+                            }
+                        } else {
+                            return Ok(Value::Null);
+                        }
+                    }
+                }
+            }
+
+            let mut matched_idx = None;
             if is_range {
                 // Range mode: find FIRST row where cell_val <= lookup_val
-                for row in arr.iter() {
+                for (row_idx, row) in arr.iter().enumerate() {
                     if let Value::Object(obj) = row {
                         if let Some(cell_val) = obj.get(field) {
                             let cell_num = to_number(cell_val);
                             if cell_num <= lookup_num {
-                                // Found the row, extract value
-                                if let Some(Value::String(col_name)) = &col_val {
-                                    return Ok(obj.get(col_name).cloned().unwrap_or(Value::Null));
-                                } else {
-                                    return Ok(row.clone());
-                                }
+                                matched_idx = Some(row_idx);
+                                break;
                             }
                         }
                     }
                 }
             } else {
                 // Exact match mode: return FIRST match
-                for row in arr.iter() {
+                for (row_idx, row) in arr.iter().enumerate() {
                     if let Value::Object(obj) = row {
                         if let Some(cell_val) = obj.get(field) {
                             if loose_equal(&lookup_val, cell_val) {
-                                if let Some(Value::String(col_name)) = &col_val {
-                                    return Ok(obj.get(col_name).cloned().unwrap_or(Value::Null));
-                                } else {
-                                    return Ok(row.clone());
-                                }
+                                matched_idx = Some(row_idx);
+                                break;
                             }
                         }
                     }
+                }
+            }
+
+            // Save to cache if inside active TableScope on immutable borrowed table
+            if is_borrowed {
+                // SAFETY: single-threaded (eval_lock held during this scope), UnsafeCell
+                let scope = unsafe { &*self.table_scope.get() };
+                if let Some(ts) = scope.as_ref() {
+                    let key = super::types::CombinedLookupKey {
+                        arr_ptr: arr.as_ptr() as usize,
+                        field_hash: hash_bytes(field.as_bytes()),
+                        is_range,
+                        val_key: self.make_val_key(&lookup_val, is_range),
+                    };
+                    ts.lookup_cache.borrow_mut().insert(key, matched_idx);
+                }
+            }
+
+            if let Some(idx) = matched_idx {
+                let row = &arr[idx];
+                if let Some(Value::String(col_name)) = &col_val {
+                    if let Value::Object(obj) = row {
+                        return Ok(obj.get(col_name).cloned().unwrap_or(Value::Null));
+                    }
+                } else {
+                    return Ok(row.clone());
                 }
             }
         }

@@ -87,7 +87,7 @@ impl JSONEval {
 
             // Use default config: tracking enabled
             let engine_config = RLogicConfig::default();
-            let mut engine = RLogic::with_config(engine_config);
+            let engine = RLogic::with_config(engine_config);
             engine.set_static_arrays(Arc::clone(&static_arrays));
 
             let mut instance = time_block!("  create instance struct", {
@@ -152,7 +152,7 @@ impl JSONEval {
 
             // Use default config: tracking enabled
             let engine_config = RLogicConfig::default();
-            let mut engine = RLogic::with_config(engine_config);
+            let engine = RLogic::with_config(engine_config);
             engine.set_static_arrays(Arc::clone(&static_arrays));
 
             let mut instance = time_block!("  create instance struct", {
@@ -245,7 +245,7 @@ impl JSONEval {
         let evaluated_schema = schema_val.clone();
 
         let engine_config = RLogicConfig::default();
-        let mut engine = RLogic::with_config(engine_config);
+        let engine = RLogic::with_config(engine_config);
         engine.set_static_arrays(Arc::clone(&static_arrays));
 
         let mut instance = Self {
@@ -405,7 +405,7 @@ impl JSONEval {
         self.schema = Arc::new(schema_val);
         self.evaluated_schema = (*self.schema).clone();
 
-        let mut engine = RLogic::new();
+        let engine = RLogic::new();
         engine.set_static_arrays(static_arrays);
         self.engine = Arc::new(engine);
 
@@ -476,7 +476,7 @@ impl JSONEval {
 
         // Recreate the engine with the new configuration
         // This is necessary because RLogic is wrapped in Arc and config is part of the evaluator
-        let mut engine = RLogic::with_config(config);
+        let engine = RLogic::with_config(config);
         engine.set_static_arrays(Arc::clone(&self.static_arrays));
         self.engine = Arc::new(engine);
 
@@ -523,7 +523,7 @@ impl JSONEval {
         self.schema = Arc::new(schema_val);
         self.evaluated_schema = (*self.schema).clone();
 
-        let mut engine = RLogic::new();
+        let engine = RLogic::new();
         engine.set_static_arrays(static_arrays);
         self.engine = Arc::new(engine);
         self.evaluations = Arc::new(IndexMap::new());

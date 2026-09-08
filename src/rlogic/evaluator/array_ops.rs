@@ -294,14 +294,18 @@ impl Evaluator {
         // CRITICAL: FOR returns an ARRAY of all iteration results (for use with MULTIPLIES, etc.)
         let mut results = Vec::new();
 
-        // ZERO-COPY: Create tiny contexts for each iteration, no cloning of user_data!
-        for i in start..end {
-            // Create minimal internal context with just $loopIteration
-            let loop_context = serde_json::json!({
-                "$loopIteration": i
-            });
+        // ZERO-COPY: Mutate loop_context in-place across iterations
+        let mut loop_map = serde_json::Map::with_capacity(1);
+        loop_map.insert("$loopIteration".to_string(), Value::from(start));
+        let mut loop_context = Value::Object(loop_map);
 
-            // Evaluate with loop context as internal_context, user_data remains untouched
+        for i in start..end {
+            if let Value::Object(ref mut m) = loop_context {
+                if let Some(slot) = m.get_mut("$loopIteration") {
+                    *slot = Value::from(i);
+                }
+            }
+
             let result =
                 self.evaluate_with_context(logic_expr, user_data, &loop_context, next_depth)?;
             results.push(result);
@@ -371,14 +375,30 @@ impl Evaluator {
         }
 
         // Sequential
+        let mut loop_map = serde_json::Map::with_capacity(1);
+        loop_map.insert("$loopIteration".to_string(), Value::from(start));
+        let mut loop_context = Value::Object(loop_map);
+
         let mut product = 1.0_f64;
         for i in start..end {
-            let loop_context = serde_json::json!({
-                "$loopIteration": i
-            });
-            let val =
-                self.evaluate_with_context(logic_expr, user_data, &loop_context, next_depth)?;
-            product *= helpers::to_f64(&val);
+            if let Value::Object(ref mut m) = loop_context {
+                if let Some(slot) = m.get_mut("$loopIteration") {
+                    *slot = Value::from(i);
+                }
+            }
+            let val = match self.eval_f64(logic_expr, user_data, &loop_context, next_depth)? {
+                Some(n) => n,
+                None => {
+                    let v = self.evaluate_with_context(
+                        logic_expr,
+                        user_data,
+                        &loop_context,
+                        next_depth,
+                    )?;
+                    helpers::to_f64(&v)
+                }
+            };
+            product *= val;
         }
         Ok(self.f64_to_json(product))
     }

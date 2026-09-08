@@ -510,13 +510,12 @@ impl JSONEval {
                                         )
                                         // table_scope dropped here → rc back to 1
                                     };
-                                    if let Ok((rows, external_deps_opt)) = table_result {
-                                        let result_val = Value::Array(rows);
+                                    if let Ok((arc_value, external_deps_opt)) = table_result {
                                         if let Some(external_deps) = external_deps_opt {
-                                            self.eval_cache.store_cache(
+                                            self.eval_cache.store_cache_arc(
                                                 eval_key,
                                                 &external_deps,
-                                                result_val.clone(),
+                                                std::sync::Arc::clone(&arc_value),
                                             );
                                         }
 
@@ -527,17 +526,19 @@ impl JSONEval {
                                         // causing two version increments per changed table.
 
                                         let static_key = format!("/$table{}", pointer_path);
-                                        let arc_value = std::sync::Arc::new(result_val);
 
                                         Arc::make_mut(&mut self.static_arrays).insert(
                                             static_key.clone(),
                                             std::sync::Arc::clone(&arc_value),
                                         );
 
-                                        self.eval_data.set(&pointer_path, Value::clone(&arc_value));
+                                        self.eval_data.set(&pointer_path, (*arc_value).clone());
 
                                         let marker =
                                             serde_json::json!({ "$static_array": static_key });
+                                        self.engine
+                                            .set_static_arrays(Arc::clone(&self.static_arrays));
+
                                         if let Some(schema_value) =
                                             self.evaluated_schema.pointer_mut(&pointer_path)
                                         {

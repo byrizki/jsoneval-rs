@@ -94,7 +94,7 @@ impl VersionTracker {
 #[derive(Clone)]
 pub struct CacheEntry {
     pub dep_versions: HashMap<String, u64>,
-    pub result: Value,
+    pub result: std::sync::Arc<Value>,
     /// The `active_item_index` this entry was computed under.
     /// `None` = computed during main-form evaluation (safe to reuse across all items
     /// provided the dep versions match). `Some(idx)` = computed for a specific item;
@@ -318,6 +318,15 @@ impl EvalCache {
     /// - Tier 1: item-scoped entries in `subform_caches[idx]` — checked first when an active item is set
     /// - Tier 2: global `self.entries` — allows Run 1 (main form) results to be reused in Run 2 (subform)
     pub fn check_cache(&self, eval_key: &str, deps: &IndexSet<String>) -> Option<Value> {
+        self.check_cache_arc(eval_key, deps)
+            .map(|arc| (*arc).clone())
+    }
+
+    pub fn check_cache_arc(
+        &self,
+        eval_key: &str,
+        deps: &IndexSet<String>,
+    ) -> Option<std::sync::Arc<Value>> {
         if let Some(idx) = self.active_item_index {
             // Tier 1: item-specific entries (always safe to reuse for the same index)
             if let Some(cache) = self.subform_caches.get(&idx) {
@@ -369,7 +378,11 @@ impl EvalCache {
     /// Specialized cache check for `$params`-scoped table evaluations.
     ///
     /// Checks global cache for `$params` tables.
-    pub fn check_table_cache(&self, eval_key: &str, deps: &IndexSet<String>) -> Option<Value> {
+    pub fn check_table_cache(
+        &self,
+        eval_key: &str,
+        deps: &IndexSet<String>,
+    ) -> Option<std::sync::Arc<Value>> {
         if let Some(idx) = self.active_item_index {
             // Tier 1: item-scoped entries first (unlikely for $params tables but check anyway)
             if let Some(cache) = self.subform_caches.get(&idx) {
@@ -416,7 +429,7 @@ impl EvalCache {
         deps: &IndexSet<String>,
         entries: &HashMap<String, CacheEntry>,
         data_versions: &VersionTracker,
-    ) -> Option<Value> {
+    ) -> Option<std::sync::Arc<Value>> {
         let entry = entries.get(eval_key)?;
         for dep in deps {
             let data_dep_path = crate::jsoneval::path_utils::schema_path_to_data_pointer(dep);
@@ -450,13 +463,23 @@ impl EvalCache {
         if crate::utils::is_debug_cache_enabled() {
             println!("Cache HIT {}", eval_key);
         }
-        Some(entry.result.clone())
+        Some(std::sync::Arc::clone(&entry.result))
     }
 
     /// Store the newly evaluated value and snapshot the dependency versions.
     ///
     /// Stores result in active cache tier.
     pub fn store_cache(&mut self, eval_key: &str, deps: &IndexSet<String>, result: Value) {
+        self.store_cache_arc(eval_key, deps, std::sync::Arc::new(result));
+    }
+
+    /// Store the newly evaluated value and snapshot the dependency versions (zero-copy Arc).
+    pub fn store_cache_arc(
+        &mut self,
+        eval_key: &str,
+        deps: &IndexSet<String>,
+        result: std::sync::Arc<Value>,
+    ) {
         // Snapshot dependency versions.
         let mut dep_versions = HashMap::with_capacity(deps.len());
         {
@@ -485,17 +508,20 @@ impl EvalCache {
         if eval_key.starts_with("#/$params") {
             let existing_result: Option<&Value> = if let Some(idx) = self.active_item_index {
                 // Prefer canonical T2 result.
-                self.entries.get(eval_key).map(|e| &e.result).or_else(|| {
-                    self.subform_caches
-                        .get(&idx)
-                        .and_then(|c| c.entries.get(eval_key))
-                        .map(|e| &e.result)
-                })
+                self.entries
+                    .get(eval_key)
+                    .map(|e| e.result.as_ref())
+                    .or_else(|| {
+                        self.subform_caches
+                            .get(&idx)
+                            .and_then(|c| c.entries.get(eval_key))
+                            .map(|e| e.result.as_ref())
+                    })
             } else {
-                self.entries.get(eval_key).map(|e| &e.result)
+                self.entries.get(eval_key).map(|e| e.result.as_ref())
             };
 
-            let value_changed = existing_result.map_or(true, |r| r != &result);
+            let value_changed = existing_result.map_or(true, |r| r != result.as_ref());
 
             if value_changed {
                 let data_path = crate::jsoneval::path_utils::schema_path_to_data_pointer(eval_key);
@@ -521,7 +547,7 @@ impl EvalCache {
 
         let entry = CacheEntry {
             dep_versions,
-            result,
+            result: std::sync::Arc::clone(&result),
             computed_for_item,
         };
 
@@ -551,7 +577,7 @@ impl EvalCache {
 
                 let t2_entry = CacheEntry {
                     dep_versions: t2_dep_versions,
-                    result: entry.result.clone(),
+                    result: std::sync::Arc::clone(&entry.result),
                     computed_for_item,
                 };
                 self.entries.insert(eval_key.to_string(), t2_entry);
@@ -581,6 +607,7 @@ mod cache_tests {
     use indexmap::IndexSet;
     use serde_json::json;
     use std::collections::HashMap;
+    use std::sync::Arc;
 
     #[test]
     fn unchanged_active_item_reuses_global_table_with_item_dependency() {
@@ -593,14 +620,14 @@ mod cache_tests {
             eval_key.to_string(),
             CacheEntry {
                 dep_versions: HashMap::from([("/riders/benefit".to_string(), 0)]),
-                result: json!([{"rate": 97}]),
+                result: Arc::new(json!([{"rate": 97}])),
                 computed_for_item: None,
             },
         );
 
         assert_eq!(
             cache.check_table_cache(eval_key, &deps),
-            Some(json!([{"rate": 97}])),
+            Some(Arc::new(json!([{"rate": 97}]))),
             "a scoped alias may reuse the parent result for its unchanged canonical rider"
         );
     }
@@ -622,7 +649,7 @@ mod cache_tests {
             eval_key.to_string(),
             CacheEntry {
                 dep_versions: HashMap::from([("/riders/benefit".to_string(), 0)]),
-                result: json!([{"rate": 97}]),
+                result: Arc::new(json!([{"rate": 97}])),
                 computed_for_item: None,
             },
         );
@@ -644,14 +671,14 @@ mod cache_tests {
             eval_key.to_string(),
             CacheEntry {
                 dep_versions: HashMap::from([("/$params/others/currency".to_string(), 0)]),
-                result: json!([{"rate": 10}]),
+                result: Arc::new(json!([{"rate": 10}])),
                 computed_for_item: None,
             },
         );
 
         assert_eq!(
             cache.check_table_cache(eval_key, &deps),
-            Some(json!([{"rate": 10}]))
+            Some(Arc::new(json!([{"rate": 10}])))
         );
     }
 }

@@ -142,7 +142,7 @@ impl ParsedSchema {
 
         let static_arrays = Arc::new(static_arrays);
 
-        let mut engine = RLogic::with_config(engine_config);
+        let engine = RLogic::with_config(engine_config);
         engine.set_static_arrays(Arc::clone(&static_arrays));
 
         let mut parsed = Self {

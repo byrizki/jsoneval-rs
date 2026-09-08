@@ -28,13 +28,56 @@ pub use types::*;
 /// `rows` is a raw pointer to `local_rows` on the stack of `evaluate_table_inner`.
 /// Valid lifetime: from `enter_table_scope()` to `TableScopeGuard::drop()`.
 /// Evaluation is single-threaded (protected by `eval_lock` in `evaluate_internal`).
+const EMPTY_CACHE_SLOT: std::cell::Cell<(usize, u32, u32)> = std::cell::Cell::new((0, 0, 0));
+
 pub(crate) struct TableScope {
     /// Normalized JSON pointer path to the table being evaluated
     pub path: String,
+    /// Path without leading '#' for zero-overhead matching
+    pub path_no_hash: String,
     /// Pointer to the local rows being built in table_evaluate_inner
     pub rows: *const Vec<Value>,
+    /// Pointer to flat cells storage (total_rows * col_count) during Repeat
+    pub flat_cells: *mut Value,
+    pub col_count: usize,
+    pub total_rows: usize,
+    pub existing_row_count: usize,
+    /// Fast mapping from column name to column index
+    pub col_map: rapidhash::RapidHashMap<String, usize>,
+    /// Direct-mapped 256-slot cache with pointer-identity fast path for rapid column resolution
+    pub col_cache: [std::cell::Cell<(usize, u32, u32)>; 256],
     /// Optional cursor to the current row index being evaluated (for fast $column lookup)
     pub current_row: Option<usize>,
+    /// Precomputed row base pointer in flat_cells for O(1) cell access
+    pub current_row_base: *mut Value,
+    /// Raw iteration integer value
+    pub iteration_raw: Option<i64>,
+    /// Optional pre-computed iteration value for O(1) $iteration resolution
+    pub iteration_val: Option<Value>,
+    /// Optional pre-computed threshold value for O(1) $threshold resolution
+    pub threshold_val: Option<Value>,
+    /// Memoization cache for combined array lookups on immutable borrowed reference tables
+    pub lookup_cache:
+        std::cell::RefCell<rapidhash::RapidHashMap<types::CombinedLookupKey, Option<usize>>>,
+}
+
+impl TableScope {
+    #[inline(always)]
+    pub fn get_col_idx(&self, col_name: &str) -> Option<usize> {
+        let ptr = col_name.as_ptr() as usize;
+        let len = col_name.len() as u32;
+        let slot = (ptr ^ (ptr >> 6) ^ (len as usize)) & 255;
+        let entry = self.col_cache[slot].get();
+        if entry.0 == ptr && entry.1 == len && ptr != 0 {
+            return Some(entry.2 as usize);
+        }
+        if let Some(&col_idx) = self.col_map.get(col_name) {
+            self.col_cache[slot].set((ptr, len, col_idx as u32));
+            Some(col_idx)
+        } else {
+            None
+        }
+    }
 }
 
 // SAFETY: table evaluation is protected by eval_lock (single-threaded access).
@@ -73,7 +116,8 @@ pub struct Evaluator {
     /// Upfront indices for large tables (name -> index)
     indices: RwLock<HashMap<String, TableIndex>>,
     /// Extracted large static arrays for zero-copy resolution
-    static_arrays: Option<std::sync::Arc<indexmap::IndexMap<String, std::sync::Arc<Value>>>>,
+    static_arrays:
+        UnsafeCell<Option<std::sync::Arc<indexmap::IndexMap<String, std::sync::Arc<Value>>>>>,
     /// Active self-table scope during table evaluation (None outside table eval)
     pub(crate) table_scope: UnsafeCell<Option<TableScope>>,
 }
@@ -83,7 +127,7 @@ impl Evaluator {
         Self {
             config: RLogicConfig::default(),
             indices: RwLock::new(HashMap::new()),
-            static_arrays: None,
+            static_arrays: UnsafeCell::new(None),
             table_scope: UnsafeCell::new(None),
         }
     }
@@ -100,15 +144,51 @@ impl Evaluator {
         path: String,
         rows: &Vec<Value>,
     ) -> TableScopeGuard<'a> {
+        let path_no_hash = path.trim_start_matches('#').to_string();
         // SAFETY: single-threaded (eval_lock held by caller)
         unsafe {
             *self.table_scope.get() = Some(TableScope {
                 path,
+                path_no_hash,
                 rows: rows as *const Vec<Value>,
+                flat_cells: std::ptr::null_mut(),
+                col_count: 0,
+                total_rows: 0,
+                existing_row_count: 0,
+                col_map: rapidhash::RapidHashMap::default(),
+                col_cache: [EMPTY_CACHE_SLOT; 256],
                 current_row: None,
+                current_row_base: std::ptr::null_mut(),
+                iteration_raw: None,
+                iteration_val: None,
+                threshold_val: None,
+                lookup_cache: std::cell::RefCell::new(rapidhash::RapidHashMap::default()),
             });
         }
         TableScopeGuard { evaluator: self }
+    }
+
+    /// Register flat cell buffer and column mappings for fast direct indexed evaluation
+    pub(crate) fn set_table_scope_flat_cells(
+        &self,
+        cells: *mut Value,
+        col_count: usize,
+        total_rows: usize,
+        existing_row_count: usize,
+        col_map: rapidhash::RapidHashMap<String, usize>,
+    ) {
+        // SAFETY: single-threaded (eval_lock held by caller)
+        unsafe {
+            if let Some(ts) = (*self.table_scope.get()).as_mut() {
+                ts.flat_cells = cells;
+                ts.col_count = col_count;
+                ts.total_rows = total_rows;
+                ts.existing_row_count = existing_row_count;
+                ts.col_map = col_map;
+                ts.col_cache = [EMPTY_CACHE_SLOT; 256];
+                ts.current_row_base = std::ptr::null_mut();
+            }
+        }
     }
 
     /// Update the rows pointer in the active table scope.
@@ -127,6 +207,58 @@ impl Evaluator {
         unsafe {
             if let Some(ts) = (*self.table_scope.get()).as_mut() {
                 ts.current_row = row_idx;
+                if let Some(r) = row_idx {
+                    if ts.col_count > 0
+                        && !ts.flat_cells.is_null()
+                        && r >= ts.existing_row_count
+                        && r < ts.existing_row_count + ts.total_rows
+                    {
+                        ts.current_row_base = ts
+                            .flat_cells
+                            .add((r - ts.existing_row_count) * ts.col_count);
+                    } else {
+                        ts.current_row_base = std::ptr::null_mut();
+                    }
+                } else {
+                    ts.current_row_base = std::ptr::null_mut();
+                }
+            }
+        }
+    }
+
+    /// Set the row cursor and pre-computed iteration value for the active table scope
+    pub(crate) fn set_table_scope_cursor(&self, row_idx: Option<usize>, iteration: Option<i64>) {
+        // SAFETY: single-threaded (eval_lock held by caller)
+        unsafe {
+            if let Some(ts) = (*self.table_scope.get()).as_mut() {
+                ts.current_row = row_idx;
+                ts.iteration_raw = iteration;
+                ts.iteration_val = iteration.map(Value::from);
+                if let Some(r) = row_idx {
+                    if ts.col_count > 0
+                        && !ts.flat_cells.is_null()
+                        && r >= ts.existing_row_count
+                        && r < ts.existing_row_count + ts.total_rows
+                    {
+                        ts.current_row_base = ts
+                            .flat_cells
+                            .add((r - ts.existing_row_count) * ts.col_count);
+                    } else {
+                        ts.current_row_base = std::ptr::null_mut();
+                    }
+                } else {
+                    ts.current_row_base = std::ptr::null_mut();
+                }
+            }
+        }
+    }
+
+    /// Set the threshold value for the active table scope
+    pub(crate) fn set_table_scope_threshold(&self, threshold: i64) {
+        // SAFETY: single-threaded (eval_lock held by caller)
+        unsafe {
+            if let Some(ts) = (*self.table_scope.get()).as_mut() {
+                ts.threshold_val = Some(Value::from(threshold));
             }
         }
     }
@@ -138,10 +270,13 @@ impl Evaluator {
 
     /// Set static arrays for evaluation context
     pub fn set_static_arrays(
-        &mut self,
+        &self,
         static_arrays: std::sync::Arc<indexmap::IndexMap<String, std::sync::Arc<Value>>>,
     ) {
-        self.static_arrays = Some(static_arrays);
+        // SAFETY: single-threaded (eval_lock held by caller)
+        unsafe {
+            *self.static_arrays.get() = Some(static_arrays);
+        }
     }
 
     /// Build and store index for a table
@@ -180,33 +315,13 @@ impl Evaluator {
                 // Simple variable without default
                 return self.eval_var_or_default(path, &None, data, &Value::Null, 0);
             }
-            // Fast path for small arithmetic operations (≤5 items)
-            CompiledLogic::Add(items) if items.len() <= 5 => {
-                if let Some(result) =
-                    self.eval_arithmetic_fast(ArithOp::Add, items, data, &Value::Null)
-                {
-                    return Ok(result);
-                }
-            }
-            CompiledLogic::Subtract(items) if items.len() <= 5 => {
-                if let Some(result) =
-                    self.eval_arithmetic_fast(ArithOp::Sub, items, data, &Value::Null)
-                {
-                    return Ok(result);
-                }
-            }
-            CompiledLogic::Multiply(items) if items.len() <= 5 => {
-                if let Some(result) =
-                    self.eval_arithmetic_fast(ArithOp::Mul, items, data, &Value::Null)
-                {
-                    return Ok(result);
-                }
-            }
-            CompiledLogic::Divide(items) if items.len() <= 5 => {
-                if let Some(result) =
-                    self.eval_arithmetic_fast(ArithOp::Div, items, data, &Value::Null)
-                {
-                    return Ok(result);
+            // Fast path for arithmetic operations
+            CompiledLogic::Add(_)
+            | CompiledLogic::Subtract(_)
+            | CompiledLogic::Multiply(_)
+            | CompiledLogic::Divide(_) => {
+                if let Some(result) = self.eval_f64(logic, data, &Value::Null, 0)? {
+                    return Ok(self.f64_to_json(result));
                 }
             }
             _ => {}
@@ -293,9 +408,7 @@ impl Evaluator {
                 Ok(Value::Bool(!is_truthy(&result)))
             }
             CompiledLogic::If(cond, then_expr, else_expr) => {
-                let condition =
-                    self.evaluate_with_context(cond, user_data, internal_context, depth + 1)?;
-                if is_truthy(&condition) {
+                if self.eval_truthy(cond, user_data, internal_context, depth + 1)? {
                     self.evaluate_with_context(then_expr, user_data, internal_context, depth + 1)
                 } else {
                     self.evaluate_with_context(else_expr, user_data, internal_context, depth + 1)
@@ -329,82 +442,17 @@ impl Evaluator {
             }
 
             // ========== Arithmetic Operators ==========
-            CompiledLogic::Add(items) => self.eval_array_fold(
-                items,
-                0.0,
-                |acc, n| Some(acc + n),
-                user_data,
-                internal_context,
-                depth,
-            ),
-            CompiledLogic::Subtract(items) => {
-                if items.is_empty() {
-                    return Ok(self.f64_to_json(0.0));
+            CompiledLogic::Add(_)
+            | CompiledLogic::Subtract(_)
+            | CompiledLogic::Multiply(_)
+            | CompiledLogic::Divide(_)
+            | CompiledLogic::Power(_, _)
+            | CompiledLogic::Modulo(_, _) => {
+                match self.eval_f64(logic, user_data, internal_context, depth)? {
+                    Some(result) => Ok(self.f64_to_json(result)),
+                    None => Ok(Value::Null),
                 }
-                let first =
-                    self.evaluate_with_context(&items[0], user_data, internal_context, depth + 1)?;
-                let mut result = to_f64(&first);
-
-                if items.len() == 1 {
-                    return Ok(self.f64_to_json(-result));
-                }
-
-                for item in &items[1..] {
-                    let val =
-                        self.evaluate_with_context(item, user_data, internal_context, depth + 1)?;
-                    result -= to_f64(&val);
-                }
-                Ok(self.f64_to_json(result))
             }
-            CompiledLogic::Multiply(items) => {
-                // Special case: empty multiply returns 0 (matching test expectations, though mathematically identity is 1)
-                if items.is_empty() {
-                    return Ok(self.f64_to_json(0.0));
-                }
-                self.eval_array_fold(
-                    items,
-                    1.0,
-                    |acc, n| Some(acc * n),
-                    user_data,
-                    internal_context,
-                    depth,
-                )
-            }
-            CompiledLogic::Divide(items) => {
-                if items.is_empty() {
-                    return Ok(self.f64_to_json(0.0_f64));
-                }
-                let first =
-                    self.evaluate_with_context(&items[0], user_data, internal_context, depth + 1)?;
-                let mut result = to_f64(&first);
-
-                for item in &items[1..] {
-                    let val =
-                        self.evaluate_with_context(item, user_data, internal_context, depth + 1)?;
-                    let divisor = to_f64(&val);
-                    if divisor == 0.0 {
-                        return Ok(Value::Null);
-                    }
-                    result /= divisor;
-                }
-                Ok(self.f64_to_json(result))
-            }
-            CompiledLogic::Modulo(a, b) => self.eval_binary_arith(
-                a,
-                b,
-                |a, b| if b == 0.0 { None } else { Some(a % b) },
-                user_data,
-                internal_context,
-                depth,
-            ),
-            CompiledLogic::Power(a, b) => self.eval_binary_arith(
-                a,
-                b,
-                |a, b| Some(a.powf(b)),
-                user_data,
-                internal_context,
-                depth,
-            ),
 
             // ========== Array Operations ==========
             CompiledLogic::Map(array_expr, logic_expr) => {
@@ -849,7 +897,26 @@ impl Evaluator {
             // SAFETY: single-threaded (eval_lock), UnsafeCell
             let scope = unsafe { &*self.table_scope.get() };
             if let Some(ts) = scope.as_ref() {
-                if name == ts.path {
+                if name == ts.path || name.trim_start_matches('#') == ts.path_no_hash.as_str() {
+                    if ts.col_count > 0 && !ts.flat_cells.is_null() {
+                        let mut arr = Vec::with_capacity(ts.existing_row_count + ts.total_rows);
+                        let rows = unsafe { &*ts.rows };
+                        for r in 0..ts.existing_row_count {
+                            if let Some(row) = rows.get(r) {
+                                arr.push(row.clone());
+                            }
+                        }
+                        for r in 0..ts.total_rows {
+                            let mut row_map = serde_json::Map::with_capacity(ts.col_count);
+                            let row_offset = r * ts.col_count;
+                            for (c_name, &c_idx) in ts.col_map.iter() {
+                                let cell = unsafe { &*ts.flat_cells.add(row_offset + c_idx) };
+                                row_map.insert(c_name.clone(), cell.clone());
+                            }
+                            arr.push(Value::Object(row_map));
+                        }
+                        return Ok(Value::Array(arr));
+                    }
                     // SAFETY: local_rows outlives this evaluation frame
                     let rows = unsafe { &*ts.rows };
                     return Ok(Value::Array(rows.clone()));
@@ -879,8 +946,23 @@ impl Evaluator {
 
     /// Convert f64 to JSON number
     #[inline(always)]
-    fn f64_to_json(&self, f: f64) -> Value {
+    pub fn f64_to_value(&self, f: f64) -> Value {
         helpers::f64_to_json(f, self.config.safe_nan_handling)
+    }
+
+    #[inline(always)]
+    fn f64_to_json(&self, f: f64) -> Value {
+        self.f64_to_value(f)
+    }
+
+    #[inline(always)]
+    pub fn eval_fast_f64(
+        &self,
+        logic: &CompiledLogic,
+        user_data: &Value,
+        internal_context: &Value,
+    ) -> Result<Option<f64>, String> {
+        self.eval_f64(logic, user_data, internal_context, 0)
     }
 }
 

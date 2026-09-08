@@ -26,7 +26,7 @@ pub fn evaluate_table(
     eval_key: &str,
     scope_data: &EvalData,
     token: Option<&CancellationToken>,
-) -> Result<(Vec<Value>, Option<indexmap::IndexSet<String>>), String> {
+) -> Result<(std::sync::Arc<Value>, Option<indexmap::IndexSet<String>>), String> {
     let _total_start: Option<std::time::Instant> = if crate::utils::is_timing_enabled() {
         Some(std::time::Instant::now())
     } else {
@@ -39,12 +39,29 @@ pub fn evaluate_table(
     result
 }
 
+#[inline(always)]
+fn is_pure_arithmetic(logic: &crate::rlogic::CompiledLogic) -> bool {
+    matches!(
+        logic,
+        crate::rlogic::CompiledLogic::Add(_)
+            | crate::rlogic::CompiledLogic::Subtract(_)
+            | crate::rlogic::CompiledLogic::Multiply(_)
+            | crate::rlogic::CompiledLogic::Divide(_)
+            | crate::rlogic::CompiledLogic::Modulo(_, _)
+            | crate::rlogic::CompiledLogic::Power(_, _)
+            | crate::rlogic::CompiledLogic::Round(_, _)
+            | crate::rlogic::CompiledLogic::RoundUp(_, _)
+            | crate::rlogic::CompiledLogic::RoundDown(_, _)
+            | crate::rlogic::CompiledLogic::Abs(_)
+    )
+}
+
 fn evaluate_table_inner(
     lib: &JSONEval,
     eval_key: &str,
     scope_data: &EvalData,
     token: Option<&CancellationToken>,
-) -> Result<(Vec<Value>, Option<indexmap::IndexSet<String>>), String> {
+) -> Result<(std::sync::Arc<Value>, Option<indexmap::IndexSet<String>>), String> {
     let metadata = lib
         .table_metadata
         .get(eval_key)
@@ -127,8 +144,8 @@ fn evaluate_table_inner(
     }
 
     if let Some(cached_result) = lib.eval_cache.check_table_cache(eval_key, &external_deps) {
-        if let Value::Array(rows) = cached_result {
-            return Ok((rows, None)); // Signal that we had a cache hit
+        if cached_result.is_array() {
+            return Ok((cached_result, None)); // Signal that we had a cache hit
         }
     }
 
@@ -203,7 +220,10 @@ fn evaluate_table_inner(
         if crate::utils::is_debug_cache_enabled() {
             println!("Table Cache MISS [table::{}] should_clear={}, should_skip={}, requirement_not_filled={} (external_deps={:?})", eval_key, should_clear, should_skip, requirement_not_filled, external_deps);
         }
-        return Ok((Vec::new(), Some(external_deps)));
+        return Ok((
+            std::sync::Arc::new(Value::Array(Vec::new())),
+            Some(external_deps),
+        ));
     }
 
     let number_from_value = |value: &Value| -> i64 {
@@ -313,32 +333,77 @@ fn evaluate_table_inner(
                     .map(|col| col.name.as_ref().to_string())
                     .collect();
 
-                // Pre-allocate rows with null cells
-                local_rows.reserve(total_rows);
-                for _ in 0..total_rows {
-                    let row: Map<String, Value> =
-                        col_names.iter().map(|n| (n.clone(), Value::Null)).collect();
-                    local_rows.push(Value::Object(row));
+                let mut col_map = rapidhash::RapidHashMap::default();
+                for (i, col) in columns.iter().enumerate() {
+                    col_map.insert(col.name.as_ref().to_string(), i);
                 }
 
-                // Register this table's scope on the evaluator so self-table
-                // Var/Ref/ValueAt lookups resolve from local_rows.
-                // The guard is dropped at end of this block, clearing the scope.
-                let _scope_guard = lib
-                    .engine
-                    .enter_table_scope(table_pointer_path.clone(), &local_rows);
-
+                // Build base ctx with data_ctx entries + iteration slots
                 let key_iteration = String::from("$iteration");
                 let key_threshold = String::from("$threshold");
                 let threshold_value = Value::from(end_idx);
 
-                // Build base ctx with data_ctx entries + iteration slots
                 let mut ctx_value = Value::Object({
                     let mut m = data_ctx.clone();
                     m.insert(key_threshold.clone(), threshold_value.clone());
                     m.insert(key_iteration.clone(), Value::Null);
                     m
                 });
+
+                // Pre-resolve compiled logic references with Loop Invariant Code Motion (LICM)
+                let table_no_hash = table_pointer_path.trim_start_matches('#');
+                let folded_col_logics: Vec<Option<crate::rlogic::CompiledLogic>> = columns
+                    .iter()
+                    .map(|col| {
+                        col.logic.as_ref().and_then(|id| {
+                            lib.engine.get_compiled(id).map(|ast| {
+                                ast.fold_table_invariants(
+                                    lib.engine.evaluator(),
+                                    scope_data.data(),
+                                    &ctx_value,
+                                    &table_pointer_path,
+                                    table_no_hash,
+                                )
+                            })
+                        })
+                    })
+                    .collect();
+                let col_logics: Vec<Option<&crate::rlogic::CompiledLogic>> =
+                    folded_col_logics.iter().map(|opt| opt.as_ref()).collect();
+
+                let col_bytecodes: Vec<Option<crate::rlogic::TableBytecode>> = folded_col_logics
+                    .iter()
+                    .map(|opt| {
+                        opt.as_ref().and_then(|ast| {
+                            crate::rlogic::try_lower_to_bytecode(
+                                ast,
+                                &table_pointer_path,
+                                table_no_hash,
+                                &col_map,
+                            )
+                        })
+                    })
+                    .collect();
+
+                // Pre-allocate flat cells buffer with null cells (1 single contiguous allocation)
+                let mut flat_cells = vec![Value::Null; total_rows * col_count];
+
+                // Register this table's scope on the evaluator so self-table
+                // Var/Ref/ValueAt lookups resolve from flat_cells / local_rows.
+                // The guard is dropped at end of this block, clearing the scope.
+                let _scope_guard = lib
+                    .engine
+                    .enter_table_scope(table_pointer_path.clone(), &local_rows);
+
+                lib.engine.set_table_scope_flat_cells(
+                    flat_cells.as_mut_ptr(),
+                    col_count,
+                    total_rows,
+                    existing_row_count,
+                    col_map,
+                );
+
+                lib.engine.set_table_scope_threshold(end_idx);
 
                 // PHASE 4: FORWARD PASS — top to bottom
                 time_block!(
@@ -350,7 +415,8 @@ fn evaluate_table_inner(
                                     return Err("Cancelled".to_string());
                                 }
                             }
-                            let row_idx = existing_row_count + (iteration - start_idx) as usize;
+                            let row_offset = (iteration - start_idx) as usize;
+                            let row_idx = existing_row_count + row_offset;
 
                             // Update $iteration in ctx_value in-place
                             if let Value::Object(ref mut map) = ctx_value {
@@ -359,19 +425,65 @@ fn evaluate_table_inner(
                                 }
                             }
 
-                            // Update the scope guard so self-table lookups see
-                            // the already-populated earlier rows
-                            lib.engine.update_table_scope_rows(&local_rows);
                             // Point get_var lookup directly to the actively evaluating cell
-                            lib.engine.set_table_scope_row(Some(row_idx));
+                            lib.engine
+                                .set_table_scope_cursor(Some(row_idx), Some(iteration));
+
+                            let row_base = row_offset * col_count;
+                            let flat_cells_ptr = flat_cells.as_ptr();
+                            let static_rows_ptr = &local_rows as *const Vec<Value>;
 
                             for &col_idx in normal_cols.iter() {
                                 let column = &columns[col_idx];
-                                let value = match column.logic {
-                                    Some(logic_id) => lib
-                                        .engine
-                                        .run_with_context(&logic_id, scope_data.data(), &ctx_value)
-                                        .unwrap_or(Value::Null),
+                                if let Some(ref bc) = col_bytecodes[col_idx] {
+                                    let num = unsafe {
+                                        bc.execute(
+                                            flat_cells_ptr,
+                                            col_count,
+                                            row_offset,
+                                            existing_row_count,
+                                            total_rows,
+                                            iteration,
+                                            static_rows_ptr,
+                                            &col_names,
+                                        )
+                                    };
+                                    if let Some(n) = num {
+                                        flat_cells[row_base + col_idx] = lib.engine.f64_to_value(n);
+                                        continue;
+                                    }
+                                }
+
+                                let value = match col_logics[col_idx] {
+                                    Some(compiled) => {
+                                        if is_pure_arithmetic(compiled) {
+                                            if let Ok(Some(num)) =
+                                                lib.engine.run_precompiled_f64_with_context(
+                                                    compiled,
+                                                    scope_data.data(),
+                                                    &ctx_value,
+                                                )
+                                            {
+                                                lib.engine.f64_to_value(num)
+                                            } else {
+                                                lib.engine
+                                                    .run_precompiled_with_context(
+                                                        compiled,
+                                                        scope_data.data(),
+                                                        &ctx_value,
+                                                    )
+                                                    .unwrap_or(Value::Null)
+                                            }
+                                        } else {
+                                            lib.engine
+                                                .run_precompiled_with_context(
+                                                    compiled,
+                                                    scope_data.data(),
+                                                    &ctx_value,
+                                                )
+                                                .unwrap_or(Value::Null)
+                                        }
+                                    }
                                     None => column
                                         .literal
                                         .as_ref()
@@ -379,15 +491,11 @@ fn evaluate_table_inner(
                                         .unwrap_or(Value::Null),
                                 };
 
-                                // Write directly into local_rows — no Arc::make_mut, no pointer traversal
-                                if let Value::Object(ref mut row) = local_rows[row_idx] {
-                                    if let Some(cell) = row.get_mut(column.name.as_ref()) {
-                                        *cell = value;
-                                    }
-                                }
+                                // Write directly into flat_cells — no string hash, no IndexMap search
+                                flat_cells[row_base + col_idx] = value;
                             }
                             // Reset cursor after row
-                            lib.engine.set_table_scope_row(None);
+                            lib.engine.set_table_scope_cursor(None, None);
                         }
                     }
                 );
@@ -395,7 +503,7 @@ fn evaluate_table_inner(
                 // PHASE 5: BACKWARD PASS for forward-ref columns
                 if !forward_cols.is_empty() {
                     let max_sweeps = 100;
-                    let mut scan_from_down = false;
+                    let mut scan_from_down = true;
                     let iter_count = (end_idx - start_idx + 1) as usize;
 
                     // Build backward-pass ctx_value (same structure as forward)
@@ -418,6 +526,7 @@ fn evaluate_table_inner(
                         .collect();
 
                     // Pre-compute backward dependency mappings to integer arrays preventing string sweeps
+                    let table_name_only = table_pointer_path.rsplit('/').next().unwrap_or("");
                     let mut unknown_deps = vec![false; forward_cols.len()];
                     let forward_deps: Vec<Vec<usize>> = forward_cols
                         .iter()
@@ -428,15 +537,32 @@ fn evaluate_table_inner(
                                 if dep == "$iteration" || dep == "$threshold" {
                                     continue;
                                 }
+                                let is_self_table = (!table_name_only.is_empty()
+                                    && dep.contains(table_name_only))
+                                    || dep.contains(&table_pointer_path);
+                                if is_self_table {
+                                    unknown_deps[fwd_idx] = true;
+                                    continue;
+                                }
                                 if dep.starts_with('$') {
                                     let dep_name = dep.trim_start_matches('$');
                                     if let Some(&dep_fwd_idx) = forward_col_map.get(dep_name) {
                                         deps.push(dep_fwd_idx);
-                                    } else if !normal_col_set.contains(dep_name) {
+                                    } else if normal_col_set.contains(dep_name) {
+                                        // Dependency is in normal_cols: normal columns are already evaluated in Phase 4 and invariant during Phase 5
+                                        continue;
+                                    } else if dep_name.starts_with("params")
+                                        || dep_name.starts_with("constants")
+                                        || dep_name.starts_with("datas")
+                                    {
+                                        // External data reference: invariant during table evaluation
+                                        continue;
+                                    } else {
                                         unknown_deps[fwd_idx] = true;
                                     }
                                 } else {
-                                    unknown_deps[fwd_idx] = true;
+                                    // External schema path (e.g. #/illustration/...): invariant during table evaluation
+                                    continue;
                                 }
                             }
                             deps
@@ -458,6 +584,11 @@ fn evaluate_table_inner(
                     for _sweep_num in 1..=max_sweeps {
                         total_sweeps = _sweep_num;
                         let mut any_changed = false;
+                        let _sweep_step_start = if crate::utils::is_timing_enabled() {
+                            Some(std::time::Instant::now())
+                        } else {
+                            None
+                        };
                         curr_changed.fill(false);
 
                         // Update scope so all rows are visible during backward sweep
@@ -484,62 +615,112 @@ fn evaluate_table_inner(
                                 }
                             }
 
-                            // Explicitly direct column resolution to local stack rows cursor
-                            lib.engine.set_table_scope_row(Some(target_idx));
+                            // Explicitly direct column resolution to local stack rows cursor and iteration
+                            lib.engine
+                                .set_table_scope_cursor(Some(target_idx), Some(iteration));
 
-                            for (fwd_idx, &col_idx) in forward_cols.iter().enumerate() {
-                                let column = &columns[col_idx];
+                            let row_base = row_offset * col_count;
+                            let fwd_row_base = row_offset * forward_cols.len();
+                            macro_rules! eval_col {
+                                ($fwd_idx:expr, $col_idx:expr) => {{
+                                    let fwd_idx = $fwd_idx;
+                                    let col_idx = $col_idx;
+                                    let column = &columns[col_idx];
 
-                                let mut should_evaluate = _sweep_num == 1;
-
-                                if !should_evaluate && !column.has_forward_ref {
-                                    if unknown_deps[fwd_idx] {
-                                        should_evaluate = true;
+                                    let should_evaluate = if _sweep_num == 1 {
+                                        true
+                                    } else if unknown_deps[fwd_idx] {
+                                        true
                                     } else {
-                                        should_evaluate =
-                                            forward_deps[fwd_idx].iter().any(|&dep_fwd_idx| {
-                                                prev_changed
-                                                    [row_offset * forward_cols.len() + dep_fwd_idx]
-                                            });
-                                    }
-                                } else if !should_evaluate {
-                                    should_evaluate = true;
-                                }
-
-                                if should_evaluate {
-                                    let value = match column.logic {
-                                        Some(logic_id) => lib
-                                            .engine
-                                            .run_with_context(
-                                                &logic_id,
-                                                scope_data.data(),
-                                                &ctx_value,
-                                            )
-                                            .unwrap_or(Value::Null),
-                                        None => column
-                                            .literal
-                                            .as_ref()
-                                            .map(|arc_val| Value::clone(arc_val))
-                                            .unwrap_or(Value::Null),
-                                    };
-
-                                    // Write directly to local_rows — no Arc::make_mut
-                                    if let Value::Object(ref mut row) = local_rows[target_idx] {
-                                        if let Some(cell) = row.get_mut(column.name.as_ref()) {
-                                            if *cell != value {
-                                                any_changed = true;
-                                                curr_changed
-                                                    [row_offset * forward_cols.len() + fwd_idx] =
-                                                    true;
-                                                *cell = value;
+                                        let deps = &forward_deps[fwd_idx];
+                                        let self_changed = curr_changed
+                                            .get(fwd_row_base + fwd_idx)
+                                            .copied()
+                                            .unwrap_or(false);
+                                        if self_changed {
+                                            true
+                                        } else if deps.iter().any(|&dep_fwd_idx| {
+                                            curr_changed[fwd_row_base + dep_fwd_idx]
+                                        }) {
+                                            true
+                                        } else if scan_from_down {
+                                            if row_offset + 1 < iter_count {
+                                                let next_offset =
+                                                    (row_offset + 1) * forward_cols.len();
+                                                column.has_forward_ref
+                                                    && deps.iter().any(|&dep_fwd_idx| {
+                                                        curr_changed[next_offset + dep_fwd_idx]
+                                                    })
+                                            } else {
+                                                false
+                                            }
+                                        } else {
+                                            if row_offset > 0 {
+                                                let prev_offset =
+                                                    (row_offset - 1) * forward_cols.len();
+                                                !column.has_forward_ref
+                                                    && deps.iter().any(|&dep_fwd_idx| {
+                                                        curr_changed[prev_offset + dep_fwd_idx]
+                                                    })
+                                            } else {
+                                                false
                                             }
                                         }
+                                    };
+
+                                    if should_evaluate {
+                                        let value = match col_logics[col_idx] {
+                                            Some(compiled) => {
+                                                if is_pure_arithmetic(compiled) {
+                                                    if let Ok(Some(num)) =
+                                                        lib.engine.run_precompiled_f64_with_context(
+                                                            compiled,
+                                                            scope_data.data(),
+                                                            &ctx_value,
+                                                        )
+                                                    {
+                                                        lib.engine.f64_to_value(num)
+                                                    } else {
+                                                        lib.engine
+                                                            .run_precompiled_with_context(
+                                                                compiled,
+                                                                scope_data.data(),
+                                                                &ctx_value,
+                                                            )
+                                                            .unwrap_or(Value::Null)
+                                                    }
+                                                } else {
+                                                    lib.engine
+                                                        .run_precompiled_with_context(
+                                                            compiled,
+                                                            scope_data.data(),
+                                                            &ctx_value,
+                                                        )
+                                                        .unwrap_or(Value::Null)
+                                                }
+                                            }
+                                            None => column
+                                                .literal
+                                                .as_ref()
+                                                .map(|arc_val| Value::clone(arc_val))
+                                                .unwrap_or(Value::Null),
+                                        };
+
+                                        // Write directly to flat_cells
+                                        let cell_idx = row_base + col_idx;
+                                        if flat_cells[cell_idx] != value {
+                                            any_changed = true;
+                                            curr_changed[fwd_row_base + fwd_idx] = true;
+                                            flat_cells[cell_idx] = value;
+                                        }
                                     }
-                                }
+                                }};
+                            }
+
+                            for (fwd_idx, &col_idx) in forward_cols.iter().enumerate() {
+                                eval_col!(fwd_idx, col_idx);
                             }
                         }
-                        // Reset cursor after backwards row evaluating loop
-                        lib.engine.set_table_scope_row(None);
 
                         scan_from_down = !scan_from_down;
                         std::mem::swap(&mut prev_changed, &mut curr_changed);
@@ -560,10 +741,34 @@ fn evaluate_table_inner(
                     }
                 }
 
+                // Assemble evaluated rows into local_rows in a single final pass
+                local_rows.reserve(total_rows);
+                if total_rows > 0 {
+                    let mut prototype_map = Map::with_capacity(col_count);
+                    for name in &col_names {
+                        prototype_map.insert(name.clone(), Value::Null);
+                    }
+
+                    for r in 0..total_rows {
+                        let mut row_map = prototype_map.clone();
+                        let row_offset = r * col_count;
+                        for (slot, cell) in row_map
+                            .values_mut()
+                            .zip(&mut flat_cells[row_offset..row_offset + col_count])
+                        {
+                            *slot = std::mem::replace(cell, Value::Null);
+                        }
+                        local_rows.push(Value::Object(row_map));
+                    }
+                }
+
                 // _scope_guard dropped here → TableScope cleared on evaluator
             }
         }
     }
 
-    Ok((local_rows, Some(external_deps)))
+    Ok((
+        std::sync::Arc::new(Value::Array(local_rows)),
+        Some(external_deps),
+    ))
 }

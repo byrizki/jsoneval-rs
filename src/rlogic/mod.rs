@@ -8,6 +8,7 @@
 //! Schema-level mutation tracking lives in [`crate::jsoneval::eval_data`]; this
 //! module focuses on compiling and evaluating JSON Logic expressions.
 
+pub mod bytecode;
 pub mod compiled;
 pub mod compiled_logic_store;
 pub mod config;
@@ -15,6 +16,7 @@ pub mod evaluator;
 
 use serde_json::Value;
 
+pub use bytecode::{try_lower_to_bytecode, TableBytecode, TableOp};
 pub use compiled::{CompiledLogic, CompiledLogicStore, LogicId};
 pub use compiled_logic_store::{CompiledLogicId, CompiledLogicStoreStats};
 pub use config::RLogicConfig;
@@ -42,10 +44,16 @@ impl RLogic {
 
     /// Set static arrays for evaluation context
     pub fn set_static_arrays(
-        &mut self,
+        &self,
         static_arrays: std::sync::Arc<indexmap::IndexMap<String, std::sync::Arc<Value>>>,
     ) {
         self.evaluator.set_static_arrays(static_arrays);
+    }
+
+    /// Get reference to inner Evaluator
+    #[inline(always)]
+    pub fn evaluator(&self) -> &Evaluator {
+        &self.evaluator
     }
 
     /// Compile a JSON Logic expression
@@ -95,6 +103,29 @@ impl RLogic {
     ) -> Result<Value, String> {
         self.evaluator
             .evaluate_with_internal_context(logic, user_data, internal_context)
+    }
+
+    /// Evaluate a compiled logic expression directly to f64 without intermediate Value allocations
+    #[inline(always)]
+    pub fn run_precompiled_f64_with_context(
+        &self,
+        logic: &CompiledLogic,
+        user_data: &Value,
+        internal_context: &Value,
+    ) -> Result<Option<f64>, String> {
+        self.evaluator
+            .eval_fast_f64(logic, user_data, internal_context)
+    }
+
+    /// Fast conversion of f64 to Value using evaluator config
+    #[inline(always)]
+    pub fn f64_to_value(&self, f: f64) -> Value {
+        self.evaluator.f64_to_value(f)
+    }
+
+    /// Get a borrowed reference to compiled logic by ID
+    pub fn get_compiled(&self, logic_id: &LogicId) -> Option<&CompiledLogic> {
+        self.store.get(logic_id)
     }
 
     /// Evaluate a compiled logic expression with custom config
@@ -160,6 +191,34 @@ impl RLogic {
     /// Set the row cursor for the active table scope to allow zero-copy evaluation
     pub fn set_table_scope_row(&self, row_idx: Option<usize>) {
         self.evaluator.set_table_scope_row(row_idx);
+    }
+
+    /// Set the row cursor and pre-computed iteration value for the active table scope
+    pub fn set_table_scope_cursor(&self, row_idx: Option<usize>, iteration: Option<i64>) {
+        self.evaluator.set_table_scope_cursor(row_idx, iteration);
+    }
+
+    /// Set the threshold value for the active table scope
+    pub fn set_table_scope_threshold(&self, threshold: i64) {
+        self.evaluator.set_table_scope_threshold(threshold);
+    }
+
+    /// Register flat cell buffer and column mappings for fast direct indexed evaluation
+    pub fn set_table_scope_flat_cells(
+        &self,
+        cells: *mut Value,
+        col_count: usize,
+        total_rows: usize,
+        existing_row_count: usize,
+        col_map: rapidhash::RapidHashMap<String, usize>,
+    ) {
+        self.evaluator.set_table_scope_flat_cells(
+            cells,
+            col_count,
+            total_rows,
+            existing_row_count,
+            col_map,
+        );
     }
 }
 

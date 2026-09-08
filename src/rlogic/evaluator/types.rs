@@ -65,3 +65,21 @@ impl<'a> TableRef<'a> {
         }
     }
 }
+
+/// Compact representation of a scalar lookup value for zero-allocation cache keys
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LookupValueKey {
+    Num(u64), // to_bits()
+    StrHash(u64),
+    Bool(bool),
+    Null,
+}
+
+/// 32-byte zero-allocation cache key for combined array lookups
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct CombinedLookupKey {
+    pub arr_ptr: usize,
+    pub field_hash: u64,
+    pub is_range: bool,
+    pub val_key: LookupValueKey,
+}

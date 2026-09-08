@@ -102,14 +102,69 @@ impl Evaluator {
             return Some(data);
         }
 
-        // Fast intercept for self-table current row reference
-        if name.starts_with("/$") {
+        // Fast intercept for $iteration and $threshold in active table scope
+        if name == "/$iteration" || name == "$iteration" {
             // SAFETY: single-threaded (eval_lock held during this scope), UnsafeCell
             let scope = unsafe { &*self.table_scope.get() };
             if let Some(ts) = scope.as_ref() {
+                if let Some(ref val) = ts.iteration_val {
+                    return Some(val);
+                }
+            }
+        } else if name == "/$threshold" || name == "$threshold" {
+            // SAFETY: single-threaded (eval_lock held during this scope), UnsafeCell
+            let scope = unsafe { &*self.table_scope.get() };
+            if let Some(ts) = scope.as_ref() {
+                if let Some(ref val) = ts.threshold_val {
+                    return Some(val);
+                }
+            }
+        } else if name == "/$loopIteration" || name == "$loopIteration" {
+            if let Value::Object(obj) = data {
+                if let Some(val) = obj.get("$loopIteration") {
+                    return Some(val);
+                }
+            }
+        }
+
+        // Fast intercept for self-table current row reference
+        // Column references are of the form "/$COLUMN_NAME" or "$COLUMN_NAME" (single segment, no slashes)
+        let col_ref = if name.starts_with("/$") && !name[2..].contains('/') {
+            Some(&name[2..])
+        } else if name.starts_with('$') && !name.starts_with("/$") && !name[1..].contains('/') {
+            Some(&name[1..])
+        } else {
+            None
+        };
+
+        if let Some(field) = col_ref {
+            // SAFETY: single-threaded (eval_lock held during this scope), UnsafeCell
+            let scope = unsafe { &*self.table_scope.get() };
+            if let Some(ts) = scope.as_ref() {
+                // Ultra-fast path: direct flat_cells lookup via precomputed current_row_base
+                if !ts.current_row_base.is_null() {
+                    if let Some(col_idx) = ts.get_col_idx(field) {
+                        let cell = unsafe { &*ts.current_row_base.add(col_idx) };
+                        return Some(cell);
+                    }
+                }
                 if let Some(row_idx) = ts.current_row {
-                    let field = &name[2..]; // e.g., "POL_YEAR"
-                                            // SAFETY: local_rows outlives this evaluation frame
+                    // Fallback for flat_cells if current_row_base was null
+                    if ts.col_count > 0 && !ts.flat_cells.is_null() {
+                        if row_idx >= ts.existing_row_count
+                            && row_idx < ts.existing_row_count + ts.total_rows
+                        {
+                            if let Some(col_idx) = ts.get_col_idx(field) {
+                                let row_offset = row_idx - ts.existing_row_count;
+                                let cell = unsafe {
+                                    &*ts.flat_cells.add(row_offset * ts.col_count + col_idx)
+                                };
+                                return Some(cell);
+                            }
+                        }
+                    }
+                    // Fallback for static rows
+                    // SAFETY: local_rows outlives this evaluation frame
                     let rows = unsafe { &*ts.rows };
                     if let Some(row) = rows.get(row_idx) {
                         if let Value::Object(obj) = row {
@@ -123,12 +178,12 @@ impl Evaluator {
         }
 
         // Fast intercept for static arrays to handle deep lookup paths
-        // e.g., name = "/$params/R_PROD_RIDER/0/PLAN_NAME"
-        if let Some(arrays) = &self.static_arrays {
-            if name.starts_with("/$params/") && name.len() > 9 {
-                let end_idx = name[9..].find('/').map(|i| i + 9).unwrap_or(name.len());
-                let base_path = &name[..end_idx]; // e.g., "/$params/R_PROD_RIDER"
-
+        // e.g., name = "/$params/references/WOP_BENEFIT" or "/$params/R_PROD_RIDER/0/PLAN_NAME" or "/$table/..."
+        let static_arrays = unsafe { &*self.static_arrays.get() };
+        if let Some(arrays) = static_arrays {
+            if name.starts_with("/$params/references/") && name.len() > 20 {
+                let end_idx = name[20..].find('/').map(|i| i + 20).unwrap_or(name.len());
+                let base_path = &name[..end_idx];
                 if let Some(arc_val) = arrays.get(base_path) {
                     if end_idx == name.len() {
                         return Some(&**arc_val);
@@ -137,6 +192,47 @@ impl Evaluator {
                         return path_utils::get_value_by_pointer_without_properties(
                             arc_val, remainder,
                         );
+                    }
+                }
+            } else if name.starts_with("/$params/") && name.len() > 9 {
+                let end_idx = name[9..].find('/').map(|i| i + 9).unwrap_or(name.len());
+                let base_path = &name[..end_idx];
+                if let Some(arc_val) = arrays.get(base_path) {
+                    if end_idx == name.len() {
+                        return Some(&**arc_val);
+                    } else {
+                        let remainder = &name[end_idx..];
+                        return path_utils::get_value_by_pointer_without_properties(
+                            arc_val, remainder,
+                        );
+                    }
+                }
+            } else {
+                // Table static array intercept: e.g. POL_TABLE, /properties/POL_TABLE, or subpaths
+                for (static_key, arc_val) in arrays.iter() {
+                    if let Some(table_path) = static_key.strip_prefix("/$table") {
+                        let path_no_prop =
+                            table_path.strip_prefix("/properties").unwrap_or(table_path);
+                        let raw_name = path_no_prop.trim_start_matches('/');
+                        let matched_len = if name.starts_with(table_path) {
+                            Some(table_path.len())
+                        } else if name.starts_with(path_no_prop) {
+                            Some(path_no_prop.len())
+                        } else if name.starts_with(raw_name) {
+                            Some(raw_name.len())
+                        } else {
+                            None
+                        };
+                        if let Some(prefix_len) = matched_len {
+                            if name.len() == prefix_len {
+                                return Some(&**arc_val);
+                            } else if name.as_bytes().get(prefix_len) == Some(&b'/') {
+                                let remainder = &name[prefix_len..];
+                                return path_utils::get_value_by_pointer_without_properties(
+                                    arc_val, remainder,
+                                );
+                            }
+                        }
                     }
                 }
             }
@@ -149,7 +245,7 @@ impl Evaluator {
         if let Some(v) = val {
             if let Some(obj) = v.as_object() {
                 if let Some(Value::String(static_path)) = obj.get("$static_array") {
-                    if let Some(arrays) = &self.static_arrays {
+                    if let Some(arrays) = static_arrays {
                         if let Some(arc_val) = arrays.get(static_path) {
                             return Some(&**arc_val);
                         }

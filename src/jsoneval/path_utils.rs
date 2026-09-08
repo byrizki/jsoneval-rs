@@ -315,8 +315,10 @@ pub fn get_value_by_pointer_without_properties<'a>(
 ) -> Option<&'a Value> {
     if pointer.is_empty() {
         Some(data)
-    } else {
+    } else if pointer.contains("properties/") {
         data.pointer(&pointer.replace("properties/", ""))
+    } else {
+        data.pointer(pointer)
     }
 }
 

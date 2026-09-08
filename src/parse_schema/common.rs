@@ -187,7 +187,74 @@ pub fn compute_column_partitions(columns: &[ColumnMetadata]) -> (Vec<usize>, Vec
         }
     }
 
-    (forward_indices, normal_indices)
+    let forward_sorted = toposort_column_indices(columns, forward_indices);
+    let normal_sorted = toposort_column_indices(columns, normal_indices);
+
+    (forward_sorted, normal_sorted)
+}
+
+/// Topologically sort column indices within a partition based on intra-row dependencies.
+/// Uses Kahn's algorithm with cycle fallback to guarantee acyclic dependencies evaluate in causal order.
+fn toposort_column_indices(columns: &[ColumnMetadata], indices: Vec<usize>) -> Vec<usize> {
+    if indices.len() <= 1 {
+        return indices;
+    }
+
+    let n = indices.len();
+    let mut name_to_sub_idx = std::collections::HashMap::with_capacity(n);
+    for (sub_idx, &col_idx) in indices.iter().enumerate() {
+        name_to_sub_idx.insert(columns[col_idx].name.as_ref(), sub_idx);
+    }
+
+    let mut in_degree = vec![0usize; n];
+    let mut adj = vec![Vec::new(); n];
+
+    for (u, &col_idx) in indices.iter().enumerate() {
+        for dep in columns[col_idx].dependencies.iter() {
+            if dep.starts_with('$') {
+                let dep_name = dep.trim_start_matches('$');
+                if let Some(&v) = name_to_sub_idx.get(dep_name) {
+                    if v != u {
+                        // v must evaluate before u: edge v -> u
+                        adj[v].push(u);
+                        in_degree[u] += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    let mut queue = std::collections::VecDeque::new();
+    for (i, &deg) in in_degree.iter().enumerate() {
+        if deg == 0 {
+            queue.push_back(i);
+        }
+    }
+
+    let mut sorted = Vec::with_capacity(n);
+    let mut visited = vec![false; n];
+
+    while let Some(v) = queue.pop_front() {
+        visited[v] = true;
+        sorted.push(indices[v]);
+        for &u in &adj[v] {
+            in_degree[u] -= 1;
+            if in_degree[u] == 0 {
+                queue.push_back(u);
+            }
+        }
+    }
+
+    // Cycle fallback: append any unvisited columns in original order
+    if sorted.len() < n {
+        for (i, &was_visited) in visited.iter().enumerate() {
+            if !was_visited {
+                sorted.push(indices[i]);
+            }
+        }
+    }
+
+    sorted
 }
 
 pub fn walk_schema(

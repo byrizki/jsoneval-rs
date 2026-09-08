@@ -1570,10 +1570,15 @@ impl CompiledLogic {
                     l.collect_vars(vars);
                 }
             }
-            CompiledLogic::Left(a, opt)
-            | CompiledLogic::Right(a, opt)
-            | CompiledLogic::ValueAt(a, _, opt) => {
+            CompiledLogic::Left(a, opt) | CompiledLogic::Right(a, opt) => {
                 a.collect_vars(vars);
+                if let Some(o) = opt {
+                    o.collect_vars(vars);
+                }
+            }
+            CompiledLogic::ValueAt(a, idx, opt) => {
+                a.collect_vars(vars);
+                idx.collect_vars(vars);
                 if let Some(o) = opt {
                     o.collect_vars(vars);
                 }
@@ -1621,6 +1626,395 @@ impl CompiledLogic {
                 min.collect_vars(vars);
             }
             _ => {}
+        }
+    }
+
+    /// Check if this AST node or any descendant references iteration, threshold, or table-scoped cells
+    pub fn has_table_variant_refs(&self, table_path: &str, table_no_hash: &str) -> bool {
+        match self {
+            CompiledLogic::Null
+            | CompiledLogic::Bool(_)
+            | CompiledLogic::Number(_)
+            | CompiledLogic::String(_)
+            | CompiledLogic::Empty => false,
+
+            CompiledLogic::Today | CompiledLogic::Now => true,
+
+            CompiledLogic::Var(name, default) => {
+                if name.starts_with('$')
+                    || name.starts_with("/$")
+                    || name == table_path
+                    || name == table_no_hash
+                {
+                    return true;
+                }
+                default.as_ref().map_or(false, |d| {
+                    d.has_table_variant_refs(table_path, table_no_hash)
+                })
+            }
+
+            CompiledLogic::Ref(path, default) => {
+                if path.contains('$')
+                    || path == table_path
+                    || path == table_no_hash
+                    || path.strip_prefix('#').unwrap_or(path) == table_no_hash
+                {
+                    return true;
+                }
+                default.as_ref().map_or(false, |d| {
+                    d.has_table_variant_refs(table_path, table_no_hash)
+                })
+            }
+
+            CompiledLogic::ValueAt(table, row_idx, col_name) => {
+                let table_name = table_no_hash.rsplit('/').next().unwrap_or(table_no_hash);
+                let is_self_table = match table.as_ref() {
+                    CompiledLogic::Var(name, _) | CompiledLogic::Ref(name, _) => {
+                        name == table_path
+                            || name == table_no_hash
+                            || name.strip_prefix('#').unwrap_or(name) == table_no_hash
+                            || (!table_name.is_empty()
+                                && (name == table_name
+                                    || name.ends_with(&format!("/{}", table_name))
+                                    || name.ends_with(&format!(".{}", table_name))))
+                    }
+                    _ => false,
+                };
+                if is_self_table {
+                    return true;
+                }
+                table.has_table_variant_refs(table_path, table_no_hash)
+                    || row_idx.has_table_variant_refs(table_path, table_no_hash)
+                    || col_name.as_ref().map_or(false, |c| {
+                        c.has_table_variant_refs(table_path, table_no_hash)
+                    })
+            }
+
+            CompiledLogic::For(_, _, _) => true,
+
+            CompiledLogic::Array(arr)
+            | CompiledLogic::And(arr)
+            | CompiledLogic::Or(arr)
+            | CompiledLogic::Add(arr)
+            | CompiledLogic::Subtract(arr)
+            | CompiledLogic::Multiply(arr)
+            | CompiledLogic::Divide(arr)
+            | CompiledLogic::Merge(arr)
+            | CompiledLogic::Cat(arr)
+            | CompiledLogic::Max(arr)
+            | CompiledLogic::Min(arr)
+            | CompiledLogic::Concat(arr)
+            | CompiledLogic::Multiplies(arr)
+            | CompiledLogic::Divides(arr) => arr
+                .iter()
+                .any(|item| item.has_table_variant_refs(table_path, table_no_hash)),
+
+            CompiledLogic::Not(a)
+            | CompiledLogic::Abs(a)
+            | CompiledLogic::Length(a)
+            | CompiledLogic::Len(a)
+            | CompiledLogic::IsEmpty(a)
+            | CompiledLogic::Year(a)
+            | CompiledLogic::Month(a)
+            | CompiledLogic::Day(a) => a.has_table_variant_refs(table_path, table_no_hash),
+
+            CompiledLogic::Equal(a, b)
+            | CompiledLogic::StrictEqual(a, b)
+            | CompiledLogic::NotEqual(a, b)
+            | CompiledLogic::StrictNotEqual(a, b)
+            | CompiledLogic::LessThan(a, b)
+            | CompiledLogic::LessThanOrEqual(a, b)
+            | CompiledLogic::GreaterThan(a, b)
+            | CompiledLogic::GreaterThanOrEqual(a, b)
+            | CompiledLogic::Modulo(a, b)
+            | CompiledLogic::Power(a, b)
+            | CompiledLogic::Pow(a, b)
+            | CompiledLogic::Mround(a, b)
+            | CompiledLogic::SplitValue(a, b)
+            | CompiledLogic::Xor(a, b)
+            | CompiledLogic::IfNull(a, b)
+            | CompiledLogic::Days(a, b)
+            | CompiledLogic::In(a, b)
+            | CompiledLogic::MaxAt(a, b) => {
+                a.has_table_variant_refs(table_path, table_no_hash)
+                    || b.has_table_variant_refs(table_path, table_no_hash)
+            }
+
+            CompiledLogic::If(c, t, e)
+            | CompiledLogic::Date(c, t, e)
+            | CompiledLogic::Mid(c, t, e) => {
+                c.has_table_variant_refs(table_path, table_no_hash)
+                    || t.has_table_variant_refs(table_path, table_no_hash)
+                    || e.has_table_variant_refs(table_path, table_no_hash)
+            }
+
+            CompiledLogic::Round(a, opt)
+            | CompiledLogic::RoundUp(a, opt)
+            | CompiledLogic::RoundDown(a, opt)
+            | CompiledLogic::Ceiling(a, opt)
+            | CompiledLogic::Floor(a, opt)
+            | CompiledLogic::Trunc(a, opt)
+            | CompiledLogic::Left(a, opt)
+            | CompiledLogic::Right(a, opt)
+            | CompiledLogic::DateFormat(a, opt) => {
+                a.has_table_variant_refs(table_path, table_no_hash)
+                    || opt.as_ref().map_or(false, |d| {
+                        d.has_table_variant_refs(table_path, table_no_hash)
+                    })
+            }
+
+            _ => true,
+        }
+    }
+
+    /// Pre-evaluate loop-invariant sub-expressions before row iteration (Loop Invariant Code Motion)
+    pub fn fold_table_invariants(
+        &self,
+        evaluator: &crate::rlogic::Evaluator,
+        user_data: &serde_json::Value,
+        internal_context: &serde_json::Value,
+        table_path: &str,
+        table_no_hash: &str,
+    ) -> CompiledLogic {
+        // 1. If this entire sub-expression is loop-invariant and NOT a raw variable leaf, pre-evaluate it
+        if !self.has_table_variant_refs(table_path, table_no_hash) {
+            match self {
+                CompiledLogic::Null
+                | CompiledLogic::Bool(_)
+                | CompiledLogic::Number(_)
+                | CompiledLogic::String(_)
+                | CompiledLogic::Empty
+                | CompiledLogic::Var(_, _)
+                | CompiledLogic::Ref(_, _) => return self.clone(),
+                _ => {
+                    if let Ok(val) =
+                        evaluator.evaluate_with_internal_context(self, user_data, internal_context)
+                    {
+                        match val {
+                            serde_json::Value::Number(n) => {
+                                if let Some(f) = n.as_f64() {
+                                    return CompiledLogic::Number(f);
+                                }
+                            }
+                            serde_json::Value::Bool(b) => return CompiledLogic::Bool(b),
+                            serde_json::Value::String(s) => return CompiledLogic::String(s),
+                            _ => {} // Do not fold Null, Arrays, or Objects
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. If this node has variant refs, fold its children recursively
+        match self {
+            CompiledLogic::Add(items) => CompiledLogic::Add(
+                items
+                    .iter()
+                    .map(|item| {
+                        item.fold_table_invariants(
+                            evaluator,
+                            user_data,
+                            internal_context,
+                            table_path,
+                            table_no_hash,
+                        )
+                    })
+                    .collect(),
+            ),
+            CompiledLogic::Subtract(items) => CompiledLogic::Subtract(
+                items
+                    .iter()
+                    .map(|item| {
+                        item.fold_table_invariants(
+                            evaluator,
+                            user_data,
+                            internal_context,
+                            table_path,
+                            table_no_hash,
+                        )
+                    })
+                    .collect(),
+            ),
+            CompiledLogic::Multiply(items) => CompiledLogic::Multiply(
+                items
+                    .iter()
+                    .map(|item| {
+                        item.fold_table_invariants(
+                            evaluator,
+                            user_data,
+                            internal_context,
+                            table_path,
+                            table_no_hash,
+                        )
+                    })
+                    .collect(),
+            ),
+            CompiledLogic::Divide(items) => CompiledLogic::Divide(
+                items
+                    .iter()
+                    .map(|item| {
+                        item.fold_table_invariants(
+                            evaluator,
+                            user_data,
+                            internal_context,
+                            table_path,
+                            table_no_hash,
+                        )
+                    })
+                    .collect(),
+            ),
+            CompiledLogic::If(cond, then_expr, else_expr) => {
+                // If condition is invariant, eliminate the branch entirely
+                if !cond.has_table_variant_refs(table_path, table_no_hash) {
+                    if let Ok(val) =
+                        evaluator.evaluate_with_internal_context(cond, user_data, internal_context)
+                    {
+                        let is_truthy = crate::rlogic::evaluator::helpers::is_truthy(&val);
+                        if is_truthy {
+                            return then_expr.fold_table_invariants(
+                                evaluator,
+                                user_data,
+                                internal_context,
+                                table_path,
+                                table_no_hash,
+                            );
+                        } else {
+                            return else_expr.fold_table_invariants(
+                                evaluator,
+                                user_data,
+                                internal_context,
+                                table_path,
+                                table_no_hash,
+                            );
+                        }
+                    }
+                }
+                CompiledLogic::If(
+                    Box::new(cond.fold_table_invariants(
+                        evaluator,
+                        user_data,
+                        internal_context,
+                        table_path,
+                        table_no_hash,
+                    )),
+                    Box::new(then_expr.fold_table_invariants(
+                        evaluator,
+                        user_data,
+                        internal_context,
+                        table_path,
+                        table_no_hash,
+                    )),
+                    Box::new(else_expr.fold_table_invariants(
+                        evaluator,
+                        user_data,
+                        internal_context,
+                        table_path,
+                        table_no_hash,
+                    )),
+                )
+            }
+            CompiledLogic::Round(expr, decimals) => CompiledLogic::Round(
+                Box::new(expr.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+                decimals.as_ref().map(|d| {
+                    Box::new(d.fold_table_invariants(
+                        evaluator,
+                        user_data,
+                        internal_context,
+                        table_path,
+                        table_no_hash,
+                    ))
+                }),
+            ),
+            CompiledLogic::RoundUp(expr, decimals) => CompiledLogic::RoundUp(
+                Box::new(expr.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+                decimals.as_ref().map(|d| {
+                    Box::new(d.fold_table_invariants(
+                        evaluator,
+                        user_data,
+                        internal_context,
+                        table_path,
+                        table_no_hash,
+                    ))
+                }),
+            ),
+            CompiledLogic::RoundDown(expr, decimals) => CompiledLogic::RoundDown(
+                Box::new(expr.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+                decimals.as_ref().map(|d| {
+                    Box::new(d.fold_table_invariants(
+                        evaluator,
+                        user_data,
+                        internal_context,
+                        table_path,
+                        table_no_hash,
+                    ))
+                }),
+            ),
+            CompiledLogic::Min(items) => CompiledLogic::Min(
+                items
+                    .iter()
+                    .map(|item| {
+                        item.fold_table_invariants(
+                            evaluator,
+                            user_data,
+                            internal_context,
+                            table_path,
+                            table_no_hash,
+                        )
+                    })
+                    .collect(),
+            ),
+            CompiledLogic::Max(items) => CompiledLogic::Max(
+                items
+                    .iter()
+                    .map(|item| {
+                        item.fold_table_invariants(
+                            evaluator,
+                            user_data,
+                            internal_context,
+                            table_path,
+                            table_no_hash,
+                        )
+                    })
+                    .collect(),
+            ),
+            CompiledLogic::ValueAt(table, row_idx, col_name) => CompiledLogic::ValueAt(
+                table.clone(),
+                Box::new(row_idx.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+                col_name.as_ref().map(|c| {
+                    Box::new(c.fold_table_invariants(
+                        evaluator,
+                        user_data,
+                        internal_context,
+                        table_path,
+                        table_no_hash,
+                    ))
+                }),
+            ),
+            _ => self.clone(),
         }
     }
 }
