@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.118] - 2026-09-08
+
+- feat: [rn] [c#] [web] add readonly field validation
+- fix: improve validate
+- fix: improve evaluate dependents
+- fix: wasted layout resolving in evaluate
+
+
 ## [0.0.117] - 2026-09-08
 
 - feat: refine formula evaluation and compilation
