@@ -10,6 +10,15 @@ use indexmap::IndexMap;
 use serde_json::Value;
 
 impl JSONEval {
+    /// Invalidate the validation cache
+    pub(crate) fn invalidate_validation_cache(&self) {
+        let mut cache = match self.validation_cache.write() {
+            Ok(c) => c,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        cache.clear();
+    }
+
     /// Validate data against schema rules
     pub fn validate(
         &mut self,
@@ -23,65 +32,110 @@ impl JSONEval {
                 return Err("Cancelled".to_string());
             }
         }
+
+        // Fast path: if no path filtering and data/context are identical to last validation,
+        // return cached full result immediately.
+        if paths.is_none() || paths.is_some_and(|p| p.is_empty()) {
+            if let Ok(cache) = self.validation_cache.read() {
+                if let Some(cached) = cache.get_cached_full_result(data, context) {
+                    return Ok(cached);
+                }
+            }
+        }
+
         time_block!("validate() [total]", {
             // Acquire lock for synchronous execution
             let _lock = self.eval_lock.lock().unwrap();
 
             // Parse and update data
-            let data_value = json_parser::parse_json_str(data)?;
-            let context_value = if let Some(ctx) = context {
-                json_parser::parse_json_str(ctx)?
-            } else {
-                Value::Object(serde_json::Map::new())
-            };
+            let (data_value, context_value) = time_block!("  parse data & context", {
+                let d = json_parser::parse_json_str(data)?;
+                let c = if let Some(ctx) = context {
+                    json_parser::parse_json_str(ctx)?
+                } else {
+                    Value::Object(serde_json::Map::new())
+                };
+                Ok::<_, String>((d, c))
+            })?;
 
             // Update context
             self.context = context_value.clone();
 
             // Update eval_data with new data/context
-            self.eval_data
-                .replace_data_and_context(data_value.clone(), context_value);
+            time_block!("  replace_data_and_context", {
+                self.eval_data
+                    .replace_data_and_context(data_value.clone(), context_value);
+            });
 
             // Drop lock before calling evaluate_others which needs mutable access
             drop(_lock);
 
             // Re-evaluate rule evaluations to ensure fresh values
             // This ensures all rule.$evaluation expressions are re-computed
-            self.evaluate_others(paths, token);
+            time_block!("  evaluate_others", {
+                self.evaluate_others(paths, token);
+            });
 
-            // Update evaluated_schema with fresh evaluations
-            self.evaluated_schema = self.get_evaluated_schema();
-
-            self.ensure_layout_resolved();
+            time_block!("  ensure_layout_resolved", {
+                self.ensure_layout_resolved();
+            });
 
             let mut errors: IndexMap<String, ValidationError> = IndexMap::new();
 
+            let layout_state = self.layout_state.read().unwrap();
+            let layout_hidden_refs = &layout_state.layout_hidden_refs;
+            let mut hidden_cache =
+                std::collections::HashMap::with_capacity(self.fields_with_rules.len());
+
             // Use pre-parsed fields_with_rules from schema parsing (no runtime collection needed)
             // This list was collected during schema parse and contains all fields with rules
-            for field_path in self.fields_with_rules.iter() {
-                // Check if we should validate this path (path filtering)
-                if let Some(filter_paths) = paths {
-                    if !filter_paths.is_empty()
-                        && !filter_paths.iter().any(|p| {
-                            field_path.starts_with(p.as_str()) || p.starts_with(field_path.as_str())
-                        })
-                    {
-                        continue;
+            time_block!("  fields_with_rules loop", {
+                for field_path in self.fields_with_rules.iter() {
+                    // Check if we should validate this path (path filtering)
+                    if let Some(filter_paths) = paths {
+                        if !filter_paths.is_empty()
+                            && !filter_paths.iter().any(|p| {
+                                field_path.starts_with(p.as_str()) || p.starts_with(field_path.as_str())
+                            })
+                        {
+                            continue;
+                        }
+                    }
+
+                    self.validate_field_cached(
+                        field_path,
+                        &data_value,
+                        layout_hidden_refs,
+                        &mut hidden_cache,
+                        &mut errors,
+                    );
+
+                    if let Some(t) = token {
+                        if t.is_cancelled() {
+                            return Err("Cancelled".to_string());
+                        }
                     }
                 }
+            });
 
-                self.validate_field(field_path, &data_value, &mut errors);
-
-                if let Some(t) = token {
-                    if t.is_cancelled() {
-                        return Err("Cancelled".to_string());
-                    }
-                }
-            }
+            drop(layout_state);
 
             let has_error = !errors.is_empty();
+            let result = ValidationResult { has_error, errors };
 
-            Ok(ValidationResult { has_error, errors })
+            if paths.is_none() || paths.is_some_and(|p| p.is_empty()) {
+                if let Ok(mut cache) = self.validation_cache.write() {
+                    cache.save_full_result(
+                        data.to_string(),
+                        context.map(|s| s.to_string()),
+                        result.clone(),
+                    );
+                }
+            } else if let Ok(mut cache) = self.validation_cache.write() {
+                cache.invalidate_full_result();
+            }
+
+            Ok(result)
         })
     }
 
@@ -97,14 +151,17 @@ impl JSONEval {
     ) -> Result<crate::ValidationResult, String> {
         // Re-evaluate rule evaluations with the current (already-set) data.
         self.evaluate_others(paths, token);
-        self.evaluated_schema = self.get_evaluated_schema();
 
         self.ensure_layout_resolved();
 
         let mut errors: IndexMap<String, ValidationError> = IndexMap::new();
 
-        let fields: Vec<String> = self.fields_with_rules.iter().cloned().collect();
-        for field_path in &fields {
+        let layout_state = self.layout_state.read().unwrap();
+        let layout_hidden_refs = &layout_state.layout_hidden_refs;
+        let mut hidden_cache =
+            std::collections::HashMap::with_capacity(self.fields_with_rules.len());
+
+        for field_path in self.fields_with_rules.iter() {
             if let Some(filter_paths) = paths {
                 if !filter_paths.is_empty()
                     && !filter_paths.iter().any(|p| {
@@ -119,18 +176,47 @@ impl JSONEval {
                     return Err("Cancelled".to_string());
                 }
             }
-            self.validate_field(field_path, &data_value, &mut errors);
+            self.validate_field_cached(
+                field_path,
+                &data_value,
+                layout_hidden_refs,
+                &mut hidden_cache,
+                &mut errors,
+            );
         }
+
+        drop(layout_state);
 
         let has_error = !errors.is_empty();
         Ok(crate::ValidationResult { has_error, errors })
     }
 
-    /// Validate a single field that has rules
+    /// Validate a single field that has rules (convenience wrapper without external cache)
+    #[allow(dead_code)]
     pub(crate) fn validate_field(
         &self,
         field_path: &str,
         data: &Value,
+        errors: &mut IndexMap<String, ValidationError>,
+    ) {
+        let layout_state = self.layout_state.read().unwrap();
+        let mut hidden_cache = std::collections::HashMap::new();
+        self.validate_field_cached(
+            field_path,
+            data,
+            &layout_state.layout_hidden_refs,
+            &mut hidden_cache,
+            errors,
+        );
+    }
+
+    /// Validate a single field that has rules, with pre-acquired layout_hidden_refs and hidden_cache
+    pub(crate) fn validate_field_cached(
+        &self,
+        field_path: &str,
+        data: &Value,
+        layout_hidden_refs: &indexmap::IndexSet<String>,
+        hidden_cache: &mut std::collections::HashMap<String, bool>,
         errors: &mut IndexMap<String, ValidationError>,
     ) {
         // Skip if already has error
@@ -154,31 +240,77 @@ impl JSONEval {
             }
         };
 
-        // Skip hidden fields
-        if self.is_effective_hidden(&resolved_path) {
+        // Skip hidden fields using cached layout & schema lookup
+        let is_hidden = self.is_effective_hidden_with_cache(
+            &resolved_path,
+            layout_hidden_refs,
+            hidden_cache,
+        );
+        if is_hidden {
+            if let Ok(mut cache) = self.validation_cache.write() {
+                cache.update_field(
+                    field_path.to_string(),
+                    Value::Null,
+                    true,
+                    Value::Null,
+                    None,
+                );
+            }
             return;
         }
 
         if let Value::Object(schema_map) = field_schema {
             // Get rules object
-            let rules = match schema_map.get("rules") {
-                Some(Value::Object(r)) => r,
+            let rules_val = match schema_map.get("rules") {
+                Some(r @ Value::Object(_)) => r,
                 _ => return,
             };
+            let rules = rules_val.as_object().unwrap();
 
             // Get field data
             let field_data = self.get_field_data(field_path, data);
 
+            // Check field cache
+            let cached_lookup = if let Ok(cache) = self.validation_cache.read() {
+                cache.check_field_cache(field_path, &field_data, false, rules_val)
+            } else {
+                None
+            };
+
+            if let Some(cached_error) = cached_lookup {
+                if let Some(err) = cached_error {
+                    errors.insert(field_path.to_string(), err);
+                }
+                return;
+            }
+
             // Validate each rule
-            for (rule_name, rule_value) in rules {
-                self.validate_rule(
-                    field_path,
-                    rule_name,
-                    rule_value,
-                    &field_data,
-                    schema_map,
-                    field_schema,
-                    errors,
+            let mut field_error: Option<ValidationError> = None;
+            time_block!("    validate_rules loop", {
+                for (rule_name, rule_value) in rules {
+                    self.validate_rule(
+                        field_path,
+                        rule_name,
+                        rule_value,
+                        &field_data,
+                        schema_map,
+                        field_schema,
+                        errors,
+                    );
+                    if let Some(err) = errors.get(field_path) {
+                        field_error = Some(err.clone());
+                        break;
+                    }
+                }
+            });
+
+            if let Ok(mut cache) = self.validation_cache.write() {
+                cache.update_field(
+                    field_path.to_string(),
+                    field_data,
+                    false,
+                    rules_val.clone(),
+                    field_error,
                 );
             }
         }
@@ -186,10 +318,9 @@ impl JSONEval {
 
     /// Get data value for a field path
     pub(crate) fn get_field_data(&self, field_path: &str, data: &Value) -> Value {
-        let parts: Vec<&str> = field_path.split('.').collect();
         let mut current = data;
 
-        for part in parts {
+        for part in field_path.split('.') {
             match current {
                 Value::Object(map) => {
                     current = map.get(part).unwrap_or(&Value::Null);
@@ -218,39 +349,17 @@ impl JSONEval {
             return;
         }
 
-        let mut disabled_field = false;
-        // Check if disabled
-        if let Some(Value::Object(condition)) = schema_map.get("condition") {
-            if let Some(Value::Bool(true)) = condition.get("disabled") {
-                disabled_field = true;
-            }
-        }
-
         let schema_type = schema_map
             .get("type")
             .and_then(|t| t.as_str())
             .unwrap_or("");
 
-        // Get the evaluated rule from evaluated_schema (which has $evaluation already processed)
-        // Convert field_path to schema path
-        let schema_path = path_utils::dot_notation_to_schema_pointer(field_path);
-        let rule_path = format!(
-            "{}/rules/{}",
-            schema_path.trim_start_matches('#'),
-            rule_name
-        );
-
-        // Look up the evaluated rule from evaluated_schema
-        let evaluated_rule = if let Some(eval_rule) = self.evaluated_schema.pointer(&rule_path) {
-            eval_rule.clone()
-        } else {
-            rule_value.clone()
-        };
+        // The rule_value passed in already reflects the evaluated rule from evaluated_schema
+        let evaluated_rule = rule_value;
 
         // Extract rule active status, message, etc
         // Logic depends on rule structure (object with value/message or direct value)
-
-        let (rule_active, rule_message, rule_code, rule_data) = match &evaluated_rule {
+        let (rule_active, rule_message, rule_code, rule_data) = match evaluated_rule {
             Value::Object(rule_obj) => {
                 let active = rule_obj.get("value").unwrap_or(&Value::Bool(false));
 
@@ -312,14 +421,14 @@ impl JSONEval {
 
         match rule_name {
             "required" => {
-                if !disabled_field && rule_active == Value::Bool(true) {
+                if rule_active == Value::Bool(true) {
                     if is_empty {
                         errors.insert(
                             field_path.to_string(),
                             ValidationError {
                                 rule_type: "required".to_string(),
                                 message: rule_message,
-                                code: error_code.clone(),
+                                code: error_code,
                                 pattern: None,
                                 field_value: None,
                                 data: None,
@@ -335,7 +444,7 @@ impl JSONEval {
                         ValidationError {
                             rule_type: rule_name.to_string(),
                             message: rule_message,
-                            code: error_code.clone(),
+                            code: error_code,
                             pattern: None,
                             field_value: None,
                             data: None,
@@ -348,18 +457,28 @@ impl JSONEval {
                 if !is_empty {
                     if let Some(pattern) = rule_active.as_str() {
                         if let Some(text) = field_data.as_str() {
-                            let mut cache = self.regex_cache.write().unwrap();
-                            let regex = cache.entry(pattern.to_string()).or_insert_with(|| {
-                                regex::Regex::new(pattern)
-                                    .unwrap_or_else(|_| regex::Regex::new("(?:)").unwrap())
-                            });
+                            let cached_regex = if let Ok(cache) = self.regex_cache.read() {
+                                cache.get(pattern).cloned()
+                            } else {
+                                None
+                            };
+                            let regex = match cached_regex {
+                                Some(r) => r,
+                                None => {
+                                    let mut cache = self.regex_cache.write().unwrap();
+                                    cache.entry(pattern.to_string()).or_insert_with(|| {
+                                        regex::Regex::new(pattern)
+                                            .unwrap_or_else(|_| regex::Regex::new("(?:)").unwrap())
+                                    }).clone()
+                                }
+                            };
                             if !regex.is_match(text) {
                                 errors.insert(
                                     field_path.to_string(),
                                     ValidationError {
                                         rule_type: "pattern".to_string(),
                                         message: rule_message,
-                                        code: error_code.clone(),
+                                        code: error_code,
                                         pattern: Some(pattern.to_string()),
                                         field_value: Some(text.to_string()),
                                         data: None,
@@ -373,7 +492,7 @@ impl JSONEval {
             "evaluation" => {
                 // Handle array of evaluation rules
                 // Format: "evaluation": [{ "code": "...", "message": "...", "$evaluation": {...} }]
-                if let Value::Array(eval_array) = &evaluated_rule {
+                if let Value::Array(eval_array) = evaluated_rule {
                     for (idx, eval_item) in eval_array.iter().enumerate() {
                         if let Value::Object(eval_obj) = eval_item {
                             // Get the evaluated value (should be in "value" key after evaluation)
@@ -430,7 +549,7 @@ impl JSONEval {
                         ValidationError {
                             rule_type: "evaluation".to_string(),
                             message: rule_message,
-                            code: error_code.clone(),
+                            code: error_code,
                             pattern: None,
                             field_value: None,
                             data: rule_data,

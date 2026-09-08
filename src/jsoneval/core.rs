@@ -30,6 +30,7 @@ impl Clone for JSONEval {
             others_evaluations: self.others_evaluations.clone(),
             value_evaluations: self.value_evaluations.clone(),
             layout_paths: self.layout_paths.clone(),
+            root_layout_paths: self.root_layout_paths.clone(),
             layout_field_refs: self.layout_field_refs.clone(),
             options_templates: self.options_templates.clone(),
             subforms: self.subforms.clone(),
@@ -47,6 +48,7 @@ impl Clone for JSONEval {
             static_arrays: self.static_arrays.clone(),
             regex_cache: RwLock::new(HashMap::new()),
             layout_state: RwLock::new(crate::jsoneval::layout::LayoutResolutionState::default()),
+            validation_cache: RwLock::new(self.validation_cache.read().unwrap().clone()),
         }
     }
 }
@@ -101,6 +103,7 @@ impl JSONEval {
                     others_evaluations: Arc::new(Vec::new()),
                     value_evaluations: Arc::new(Vec::new()),
                     layout_paths: Arc::new(Vec::new()),
+                    root_layout_paths: Arc::new(Vec::new()),
                     layout_field_refs: Arc::new(indexmap::IndexSet::new()),
                     options_templates: Arc::new(Vec::new()),
                     subforms: IndexMap::new(),
@@ -123,6 +126,7 @@ impl JSONEval {
                     static_arrays,
                     regex_cache: RwLock::new(HashMap::new()),
                     layout_state: RwLock::new(crate::jsoneval::layout::LayoutResolutionState::default()),
+                    validation_cache: RwLock::new(crate::jsoneval::validation_cache::ValidationCache::default()),
                 }
             });
             time_block!("  parse_schema", {
@@ -163,6 +167,7 @@ impl JSONEval {
                     others_evaluations: Arc::new(Vec::new()),
                     value_evaluations: Arc::new(Vec::new()),
                     layout_paths: Arc::new(Vec::new()),
+                    root_layout_paths: Arc::new(Vec::new()),
                     layout_field_refs: Arc::new(indexmap::IndexSet::new()),
                     options_templates: Arc::new(Vec::new()),
                     subforms: IndexMap::new(),
@@ -185,6 +190,7 @@ impl JSONEval {
                     static_arrays,
                     regex_cache: RwLock::new(HashMap::new()),
                     layout_state: RwLock::new(crate::jsoneval::layout::LayoutResolutionState::default()),
+                    validation_cache: RwLock::new(crate::jsoneval::validation_cache::ValidationCache::default()),
                 }
             });
             time_block!("  parse_schema", {
@@ -252,6 +258,7 @@ impl JSONEval {
             others_evaluations: Arc::new(Vec::new()),
             value_evaluations: Arc::new(Vec::new()),
             layout_paths: Arc::new(Vec::new()),
+            root_layout_paths: Arc::new(Vec::new()),
             layout_field_refs: Arc::new(indexmap::IndexSet::new()),
             options_templates: Arc::new(Vec::new()),
             subforms: IndexMap::new(),
@@ -270,6 +277,7 @@ impl JSONEval {
             static_arrays,
             regex_cache: RwLock::new(HashMap::new()),
             layout_state: RwLock::new(crate::jsoneval::layout::LayoutResolutionState::default()),
+            validation_cache: RwLock::new(crate::jsoneval::validation_cache::ValidationCache::default()),
         };
         parse_schema::legacy::parse_schema(&mut instance)?;
         Ok(instance)
@@ -341,6 +349,7 @@ impl JSONEval {
             others_evaluations: Arc::clone(&parsed.others_evaluations),
             value_evaluations: Arc::clone(&parsed.value_evaluations),
             layout_paths: Arc::clone(&parsed.layout_paths),
+            root_layout_paths: Arc::clone(&parsed.root_layout_paths),
             layout_field_refs: Arc::clone(&parsed.layout_field_refs),
             options_templates: Arc::clone(&parsed.options_templates),
             subforms,
@@ -359,6 +368,7 @@ impl JSONEval {
             static_arrays: Arc::clone(&parsed.static_arrays),
             regex_cache: RwLock::new(HashMap::new()),
             layout_state: RwLock::new(crate::jsoneval::layout::LayoutResolutionState::default()),
+            validation_cache: RwLock::new(crate::jsoneval::validation_cache::ValidationCache::default()),
         };
         Ok(instance)
     }
@@ -405,6 +415,7 @@ impl JSONEval {
         self.others_evaluations = Arc::new(Vec::new());
         self.value_evaluations = Arc::new(Vec::new());
         self.layout_paths = Arc::new(Vec::new());
+        self.root_layout_paths = Arc::new(Vec::new());
         self.options_templates = Arc::new(Vec::new());
         self.reffed_by = Arc::new(IndexMap::new());
         self.dep_formula_triggers = Arc::new(IndexMap::new());
@@ -424,6 +435,7 @@ impl JSONEval {
         // Clear MessagePack cache since schema has been mutated
         self.cached_msgpack_schema = None;
         self.invalidate_layout_cache();
+        self.invalidate_validation_cache();
 
         Ok(())
     }
@@ -519,6 +531,7 @@ impl JSONEval {
         self.others_evaluations = Arc::new(Vec::new());
         self.value_evaluations = Arc::new(Vec::new());
         self.layout_paths = Arc::new(Vec::new());
+        self.root_layout_paths = Arc::new(Vec::new());
         self.options_templates = Arc::new(Vec::new());
         self.reffed_by = Arc::new(IndexMap::new());
         self.dep_formula_triggers = Arc::new(IndexMap::new());
@@ -538,6 +551,7 @@ impl JSONEval {
         // Cache the MessagePack for future retrievals
         self.cached_msgpack_schema = Some(schema_msgpack.to_vec());
         self.invalidate_layout_cache();
+        self.invalidate_validation_cache();
 
         Ok(())
     }
@@ -577,6 +591,7 @@ impl JSONEval {
         self.others_evaluations = parsed.others_evaluations.clone();
         self.value_evaluations = parsed.value_evaluations.clone();
         self.layout_paths = parsed.layout_paths.clone();
+        self.root_layout_paths = parsed.root_layout_paths.clone();
         self.layout_field_refs = parsed.layout_field_refs.clone();
         self.options_templates = parsed.options_templates.clone();
         self.reffed_by = parsed.reffed_by.clone();
@@ -613,6 +628,7 @@ impl JSONEval {
         // Clear MessagePack cache since we're loading from ParsedSchema
         self.cached_msgpack_schema = None;
         self.invalidate_layout_cache();
+        self.invalidate_validation_cache();
 
         Ok(())
     }

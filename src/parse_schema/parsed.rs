@@ -56,7 +56,10 @@ pub fn parse_schema_into(parsed: &mut ParsedSchema) -> Result<(), String> {
         depth_b.cmp(&depth_a)
     });
 
+    let root_layout_paths =
+        crate::JSONEval::compute_root_layout_paths(&layout_paths, &parsed.schema);
     parsed.layout_paths = Arc::new(layout_paths);
+    parsed.root_layout_paths = Arc::new(root_layout_paths);
     let mut layout_field_refs = IndexSet::new();
     crate::parse_schema::common::collect_layout_field_refs(&parsed.schema, &mut layout_field_refs);
     parsed.layout_field_refs = Arc::new(layout_field_refs);

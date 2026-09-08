@@ -8,6 +8,8 @@ use serde_json::Value;
 impl JSONEval {
     /// Check if a field is effectively hidden by checking its condition and all parents
     /// Also checks for $layout.hideLayout.all on parents
+    /// Check if a field is effectively hidden by checking its condition and all parents
+    /// Also checks for $layout.hideLayout.all on parents
     pub(crate) fn is_effective_hidden(&self, schema_pointer: &str) -> bool {
         self.ensure_layout_resolved();
         let schema_pointer = schema_pointer.trim_start_matches('#');
@@ -25,6 +27,97 @@ impl JSONEval {
         }
 
         self.is_schema_effective_hidden(schema_pointer)
+    }
+
+    /// Check if a field is effectively hidden using pre-acquired layout hidden refs and a local cache.
+    pub(crate) fn is_effective_hidden_with_cache(
+        &self,
+        schema_pointer: &str,
+        layout_hidden_refs: &indexmap::IndexSet<String>,
+        cache: &mut std::collections::HashMap<String, bool>,
+    ) -> bool {
+        let schema_pointer = schema_pointer.trim_start_matches('#');
+        if let Some(&is_hidden) = cache.get(schema_pointer) {
+            return is_hidden;
+        }
+
+        if layout_hidden_refs.iter().any(|hidden_ref| {
+            schema_pointer == hidden_ref
+                || schema_pointer
+                    .strip_prefix(hidden_ref)
+                    .is_some_and(|suffix| {
+                        suffix.starts_with("/properties/") || suffix.starts_with("/items/")
+                    })
+        }) {
+            cache.insert(schema_pointer.to_string(), true);
+            return true;
+        }
+
+        let is_hidden = self.is_schema_effective_hidden_cached(schema_pointer, cache);
+        cache.insert(schema_pointer.to_string(), is_hidden);
+        is_hidden
+    }
+
+    /// Check if a field is effectively hidden in the schema hierarchy with ancestor caching.
+    pub(crate) fn is_schema_effective_hidden_cached(
+        &self,
+        schema_pointer: &str,
+        cache: &mut std::collections::HashMap<String, bool>,
+    ) -> bool {
+        let schema_pointer = schema_pointer.trim_start_matches('#');
+        let mut end = schema_pointer.len();
+
+        loop {
+            let current_path = &schema_pointer[..end];
+
+            if let Some(&ancestor_hidden) = cache.get(current_path) {
+                if ancestor_hidden {
+                    return true;
+                }
+                break;
+            }
+
+            if let Some(schema_node) = self.evaluated_schema.pointer(current_path) {
+                if let Value::Object(map) = schema_node {
+                    if let Some(Value::Object(condition)) = map.get("condition") {
+                        if let Some(Value::Bool(true)) = condition.get("hidden") {
+                            cache.insert(current_path.to_string(), true);
+                            return true;
+                        }
+                    }
+
+                    if let Some(Value::Object(layout)) = map.get("$layout") {
+                        if let Some(Value::Object(hide_layout)) = layout.get("hideLayout") {
+                            if let Some(Value::Bool(true)) = hide_layout.get("all") {
+                                cache.insert(current_path.to_string(), true);
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if end == 0 {
+                break;
+            }
+
+            match schema_pointer[..end].rfind('/') {
+                Some(0) | None => {
+                    end = 0;
+                }
+                Some(last_slash) => {
+                    end = last_slash;
+                    let parent = &schema_pointer[..end];
+                    if parent.ends_with("/properties") {
+                        end -= "/properties".len();
+                    } else if parent.ends_with("/items") {
+                        end -= "/items".len();
+                    }
+                }
+            }
+        }
+
+        false
     }
 
     /// Check if a field is effectively hidden in the schema hierarchy (condition.hidden or $layout.hideLayout.all)

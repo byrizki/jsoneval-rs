@@ -39,6 +39,7 @@ pub mod table_evaluate;
 pub mod table_metadata;
 pub mod types;
 pub mod validation;
+pub mod validation_cache;
 
 pub struct JSONEval {
     pub schema: Arc<Value>,
@@ -54,6 +55,7 @@ pub struct JSONEval {
     pub others_evaluations: Arc<Vec<String>>,
     pub value_evaluations: Arc<Vec<String>>,
     pub layout_paths: Arc<Vec<String>>,
+    pub root_layout_paths: Arc<Vec<String>>,
     /// Field schema pointers referenced by one or more `$layout` elements.
     pub layout_field_refs: Arc<IndexSet<String>>,
     pub options_templates: Arc<Vec<(String, String, String)>>,
@@ -80,4 +82,5 @@ pub struct JSONEval {
     pub(crate) cached_msgpack_schema: Option<Vec<u8>>,
     pub(crate) layout_state: std::sync::RwLock<crate::jsoneval::layout::LayoutResolutionState>,
     pub(crate) regex_cache: std::sync::RwLock<HashMap<String, regex::Regex>>,
+    pub(crate) validation_cache: std::sync::RwLock<validation_cache::ValidationCache>,
 }
