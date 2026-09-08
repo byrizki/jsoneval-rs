@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.117] - 2026-09-08
+
+- feat: refine formula evaluation and compilation
+
+
 ## [0.0.116] - 2026-08-04
 
 - chore: add wasm package patch build fix
