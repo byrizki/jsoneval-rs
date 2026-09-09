@@ -144,7 +144,55 @@ fn test_ffi_methods_parity() {
         );
         json_eval_free_result(result);
 
-        // 8. Cleanup
+        // 8. Validate with include_subforms parity
+        let v_schema = json!({
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "rules": { "required": { "value": true, "message": "Title is required" } }
+                },
+                "contacts": {
+                    "type": "array",
+                    "items": {
+                        "properties": {
+                            "phone": {
+                                "type": "string",
+                                "rules": { "required": { "value": true, "message": "Phone is required" } }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        let v_schema_str = CString::new(serde_json::to_string(&v_schema).unwrap()).unwrap();
+        let v_handle = json_eval_new(v_schema_str.as_ptr(), std::ptr::null(), std::ptr::null());
+        let v_data_str = CString::new(r#"{"title":"","contacts":[{"phone":""}]}"#).unwrap();
+
+        // 8a. include_subforms = false
+        let res_without = json_eval_validate(v_handle, v_data_str.as_ptr(), std::ptr::null(), false, false);
+        assert!(res_without.success);
+        let res_without_val: serde_json::Value =
+            serde_json::from_slice(std::slice::from_raw_parts(res_without.data_ptr, res_without.data_len)).unwrap();
+        assert_eq!(res_without_val["has_error"], true);
+        assert!(res_without_val["error"]["title"].is_object());
+        assert!(res_without_val["error"]["contacts.0.phone"].is_null());
+        json_eval_free_result(res_without);
+
+        // 8b. include_subforms = true
+        let res_with = json_eval_validate(v_handle, v_data_str.as_ptr(), std::ptr::null(), false, true);
+        assert!(res_with.success);
+        let res_with_val: serde_json::Value =
+            serde_json::from_slice(std::slice::from_raw_parts(res_with.data_ptr, res_with.data_len)).unwrap();
+        assert_eq!(res_with_val["has_error"], true);
+        assert!(res_with_val["error"]["title"].is_object());
+        assert!(res_with_val["error"]["contacts.0.phone"].is_object());
+        assert_eq!(res_with_val["error"]["contacts.0.phone"]["code"], "contacts.0.phone.required");
+        json_eval_free_result(res_with);
+
+        json_eval_free(v_handle);
+
+        // 9. Cleanup
         json_eval_free(handle);
     }
 }

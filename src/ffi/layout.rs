@@ -86,7 +86,9 @@ pub unsafe extern "C" fn json_eval_validate_paths(
 
             let result_json = serde_json::json!({
                 "hasError": validation_result.has_error,
-                "error": errors_map
+                "has_error": validation_result.has_error,
+                "error": errors_map,
+                "errors": errors_map
             });
 
             let result_bytes = serde_json::to_vec(&result_json).unwrap_or_default();

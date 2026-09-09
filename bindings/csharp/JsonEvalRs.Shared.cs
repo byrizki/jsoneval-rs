@@ -50,6 +50,9 @@ namespace JsonEvalRs
 
         [JsonProperty("error")]
         public Dictionary<string, ValidationError> Error { get; set; } = new Dictionary<string, ValidationError>();
+
+        [JsonIgnore]
+        public Dictionary<string, ValidationError> Errors => Error;
     }
 
 

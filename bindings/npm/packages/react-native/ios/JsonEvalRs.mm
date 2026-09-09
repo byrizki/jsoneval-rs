@@ -220,6 +220,7 @@ RCT_EXPORT_METHOD(validate:(NSString *)handle
                   data:(NSString *)data
                   context:(NSString *)context
                   validateReadonly:(BOOL)validateReadonly
+                  includeSubforms:(BOOL)includeSubforms
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 {
@@ -227,7 +228,7 @@ RCT_EXPORT_METHOD(validate:(NSString *)handle
     std::string dataStr = [self stdStringFromNSString:data];
     std::string contextStr = [self stdStringFromNSString:context];
     
-    JsonEvalBridge::validateAsync(handleStr, dataStr, contextStr, validateReadonly,
+    JsonEvalBridge::validateAsync(handleStr, dataStr, contextStr, validateReadonly, includeSubforms,
         [resolve, reject](const std::string& result, const std::string& error) {
             if (error.empty()) {
                 resolve([NSString stringWithUTF8String:result.c_str()]);
@@ -540,6 +541,7 @@ RCT_EXPORT_METHOD(validatePaths:(NSString *)handle
                   context:(NSString *)context
                   paths:(NSArray *)paths
                   validateReadonly:(BOOL)validateReadonly
+                  includeSubforms:(BOOL)includeSubforms
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 {
@@ -548,7 +550,7 @@ RCT_EXPORT_METHOD(validatePaths:(NSString *)handle
     std::string contextStr = [self stdStringFromNSString:context];
     std::string pathsJson = paths ? [self stdStringFromNSString:[self arrayToJsonString:paths]] : "";
     
-    JsonEvalBridge::validatePathsAsync(handleStr, dataStr, contextStr, pathsJson, validateReadonly,
+    JsonEvalBridge::validatePathsAsync(handleStr, dataStr, contextStr, pathsJson, validateReadonly, includeSubforms,
         [resolve, reject](const std::string& result, const std::string& error) {
             if (error.empty()) {
                 resolve([NSString stringWithUTF8String:result.c_str()]);

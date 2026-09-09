@@ -70,9 +70,10 @@ class JsonEvalRsModule(
         data: String,
         context: String?,
         validateReadonly: Boolean,
+        includeSubforms: Boolean,
         promise: Promise,
     ) {
-        nativeValidateAsync(handle, data, context ?: "", validateReadonly, promise)
+        nativeValidateAsync(handle, data, context ?: "", validateReadonly, includeSubforms, promise)
     }
 
     @ReactMethod
@@ -280,10 +281,11 @@ class JsonEvalRsModule(
         context: String?,
         paths: ReadableArray?,
         validateReadonly: Boolean,
+        includeSubforms: Boolean,
         promise: Promise,
     ) {
         val pathsJson = if (paths != null) arrayToJsonString(paths) else ""
-        nativeValidatePathsAsync(handle, data, context ?: "", pathsJson, validateReadonly, promise)
+        nativeValidatePathsAsync(handle, data, context ?: "", pathsJson, validateReadonly, includeSubforms, promise)
     }
 
     @ReactMethod
@@ -616,6 +618,7 @@ class JsonEvalRsModule(
         data: String,
         context: String,
         validateReadonly: Boolean,
+        includeSubforms: Boolean,
         promise: Promise,
     )
 
@@ -719,6 +722,7 @@ class JsonEvalRsModule(
         context: String,
         pathsJson: String,
         validateReadonly: Boolean,
+        includeSubforms: Boolean,
         promise: Promise,
     )
 

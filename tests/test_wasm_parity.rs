@@ -92,4 +92,42 @@ fn test_wasm_methods_parity() {
 
     // 5c. hasSubform
     assert!(wasm_eval.has_subform("#/riders"));
+
+    // 6. validate_to_value with include_subforms
+    let v_schema = json!({
+        "type": "object",
+        "properties": {
+            "title": {
+                "type": "string",
+                "rules": { "required": { "value": true, "message": "Title is required" } }
+            },
+            "contacts": {
+                "type": "array",
+                "items": {
+                    "properties": {
+                        "phone": {
+                            "type": "string",
+                            "rules": { "required": { "value": true, "message": "Phone is required" } }
+                        }
+                    }
+                }
+            }
+        }
+    });
+    let mut wasm_val_eval = JSONEvalWasm::new(&v_schema.to_string(), None, None).unwrap();
+    let v_data = json!({
+        "title": "",
+        "contacts": [{ "phone": "" }]
+    }).to_string();
+
+    let res_without = wasm_val_eval.validate_to_value(&v_data, None, None, None, Some(false)).unwrap();
+    assert_eq!(res_without["has_error"], true);
+    assert!(res_without["error"]["title"].is_object());
+    assert!(res_without["error"]["contacts.0.phone"].is_null());
+
+    let res_with = wasm_val_eval.validate_to_value(&v_data, None, None, None, Some(true)).unwrap();
+    assert_eq!(res_with["has_error"], true);
+    assert!(res_with["error"]["title"].is_object());
+    assert!(res_with["error"]["contacts.0.phone"].is_object());
+    assert_eq!(res_with["error"]["contacts.0.phone"]["code"], "contacts.0.phone.required");
 }

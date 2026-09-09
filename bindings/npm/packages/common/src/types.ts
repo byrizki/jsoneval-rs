@@ -64,8 +64,12 @@ export interface ValidationError {
 export interface ValidationResult {
   /** Whether any validation errors occurred */
   has_error: boolean;
+  /** CamelCase alias for React Native / C# consumers */
+  hasError?: boolean;
   /** Map of validation errors keyed by field path */
   error: Record<string, ValidationError>;
+  /** Plural alias for parity */
+  errors?: Record<string, ValidationError>;
 }
 
 /**

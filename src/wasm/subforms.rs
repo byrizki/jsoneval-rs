@@ -596,7 +596,9 @@ impl JSONEvalWasm {
 
                 Ok(serde_json::json!({
                     "has_error": result.has_error,
+                    "hasError": result.has_error,
                     "error": errors_map,
+                    "errors": errors_map,
                 }))
             }
             Err(e) => Err(e.to_string()),

@@ -345,15 +345,17 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeValidateAsync(
     jstring data,
     jstring context,
     jboolean validateReadonly,
+    jboolean includeSubforms,
     jobject promise
 ) {
     std::string handleStr = jstringToString(env, handle);
     std::string dataStr = jstringToString(env, data);
     std::string contextStr = jstringToString(env, context);
     bool validateReadonlyVal = static_cast<bool>(validateReadonly);
+    bool includeSubformsVal = static_cast<bool>(includeSubforms);
     
-    runAsyncWithPromise(env, promise, "VALIDATE_ERROR", [handleStr, dataStr, contextStr, validateReadonlyVal](auto callback) {
-        JsonEvalBridge::validateAsync(handleStr, dataStr, contextStr, validateReadonlyVal, callback);
+    runAsyncWithPromise(env, promise, "VALIDATE_ERROR", [handleStr, dataStr, contextStr, validateReadonlyVal, includeSubformsVal](auto callback) {
+        JsonEvalBridge::validateAsync(handleStr, dataStr, contextStr, validateReadonlyVal, includeSubformsVal, callback);
     });
 }
 
@@ -366,6 +368,7 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeValidatePathsAsync(
     jstring context,
     jstring pathsJson,
     jboolean validateReadonly,
+    jboolean includeSubforms,
     jobject promise
 ) {
     std::string handleStr = jstringToString(env, handle);
@@ -373,9 +376,10 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeValidatePathsAsync(
     std::string contextStr = jstringToString(env, context);
     std::string pathsJsonStr = jstringToString(env, pathsJson);
     bool validateReadonlyVal = static_cast<bool>(validateReadonly);
+    bool includeSubformsVal = static_cast<bool>(includeSubforms);
     
-    runAsyncWithPromise(env, promise, "VALIDATE_PATHS_ERROR", [handleStr, dataStr, contextStr, pathsJsonStr, validateReadonlyVal](auto callback) {
-        JsonEvalBridge::validatePathsAsync(handleStr, dataStr, contextStr, pathsJsonStr, validateReadonlyVal, callback);
+    runAsyncWithPromise(env, promise, "VALIDATE_PATHS_ERROR", [handleStr, dataStr, contextStr, pathsJsonStr, validateReadonlyVal, includeSubformsVal](auto callback) {
+        JsonEvalBridge::validatePathsAsync(handleStr, dataStr, contextStr, pathsJsonStr, validateReadonlyVal, includeSubformsVal, callback);
     });
 }
 
