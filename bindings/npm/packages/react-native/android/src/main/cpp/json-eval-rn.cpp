@@ -10,6 +10,9 @@ using namespace jsoneval;
 static jclass gPromiseClass = nullptr;
 static jmethodID gResolveMethodID = nullptr;
 static jmethodID gRejectMethodID = nullptr;
+static jclass gWritableArrayClass = nullptr;
+static jmethodID gWritableArrayConstructor = nullptr;
+static jmethodID gPushIntMethodID = nullptr;
 
 // Copy JNI UTF-8 chars before releasing Java string.
 static std::string jstringToString(JNIEnv* env, jstring jStr) {
@@ -43,6 +46,15 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
     gResolveMethodID = env->GetMethodID(gPromiseClass, "resolve", "(Ljava/lang/Object;)V");
     gRejectMethodID = env->GetMethodID(gPromiseClass, "reject", "(Ljava/lang/String;Ljava/lang/String;)V");
     env->DeleteLocalRef(promiseClass);
+
+    // Cache WritableNativeArray class and methods
+    jclass arrayClass = env->FindClass("com/facebook/react/bridge/WritableNativeArray");
+    if (arrayClass != nullptr) {
+        gWritableArrayClass = reinterpret_cast<jclass>(env->NewGlobalRef(arrayClass));
+        gWritableArrayConstructor = env->GetMethodID(gWritableArrayClass, "<init>", "()V");
+        gPushIntMethodID = env->GetMethodID(gWritableArrayClass, "pushInt", "(I)V");
+        env->DeleteLocalRef(arrayClass);
+    }
     
     return JNI_VERSION_1_6;
 }
@@ -63,7 +75,21 @@ void rejectPromise(JNIEnv* env, jobject promise, const std::string& code, const 
 }
 
 void resolveByteArrayPromise(JNIEnv* env, jobject promise, const std::string& result) {
+    if (gWritableArrayClass != nullptr && gWritableArrayConstructor != nullptr && gPushIntMethodID != nullptr) {
+        jobject array = env->NewObject(gWritableArrayClass, gWritableArrayConstructor);
+        for (unsigned char byte : result) {
+            env->CallVoidMethod(array, gPushIntMethodID, static_cast<jint>(byte));
+        }
+        env->CallVoidMethod(promise, gResolveMethodID, array);
+        env->DeleteLocalRef(array);
+        return;
+    }
+
     jclass arrayClass = env->FindClass("com/facebook/react/bridge/WritableNativeArray");
+    if (arrayClass == nullptr) {
+        rejectPromise(env, promise, "MSGPACK_ERROR", "Failed to find WritableNativeArray class");
+        return;
+    }
     jmethodID constructor = env->GetMethodID(arrayClass, "<init>", "()V");
     jmethodID pushInt = env->GetMethodID(arrayClass, "pushInt", "(I)V");
     jobject array = env->NewObject(arrayClass, constructor);
@@ -318,14 +344,16 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeValidateAsync(
     jstring handle,
     jstring data,
     jstring context,
+    jboolean validateReadonly,
     jobject promise
 ) {
     std::string handleStr = jstringToString(env, handle);
     std::string dataStr = jstringToString(env, data);
     std::string contextStr = jstringToString(env, context);
+    bool validateReadonlyVal = static_cast<bool>(validateReadonly);
     
-    runAsyncWithPromise(env, promise, "VALIDATE_ERROR", [handleStr, dataStr, contextStr](auto callback) {
-        JsonEvalBridge::validateAsync(handleStr, dataStr, contextStr, callback);
+    runAsyncWithPromise(env, promise, "VALIDATE_ERROR", [handleStr, dataStr, contextStr, validateReadonlyVal](auto callback) {
+        JsonEvalBridge::validateAsync(handleStr, dataStr, contextStr, validateReadonlyVal, callback);
     });
 }
 
@@ -337,15 +365,17 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeValidatePathsAsync(
     jstring data,
     jstring context,
     jstring pathsJson,
+    jboolean validateReadonly,
     jobject promise
 ) {
     std::string handleStr = jstringToString(env, handle);
     std::string dataStr = jstringToString(env, data);
     std::string contextStr = jstringToString(env, context);
     std::string pathsJsonStr = jstringToString(env, pathsJson);
+    bool validateReadonlyVal = static_cast<bool>(validateReadonly);
     
-    runAsyncWithPromise(env, promise, "VALIDATE_PATHS_ERROR", [handleStr, dataStr, contextStr, pathsJsonStr](auto callback) {
-        JsonEvalBridge::validatePathsAsync(handleStr, dataStr, contextStr, pathsJsonStr, callback);
+    runAsyncWithPromise(env, promise, "VALIDATE_PATHS_ERROR", [handleStr, dataStr, contextStr, pathsJsonStr, validateReadonlyVal](auto callback) {
+        JsonEvalBridge::validatePathsAsync(handleStr, dataStr, contextStr, pathsJsonStr, validateReadonlyVal, callback);
     });
 }
 
@@ -764,15 +794,17 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeValidateSubformAsync(
     jstring subformPath,
     jstring data,
     jstring context,
+    jboolean validateReadonly,
     jobject promise
 ) {
     std::string handleStr = jstringToString(env, handle);
     std::string subformPathStr = jstringToString(env, subformPath);
     std::string dataStr = jstringToString(env, data);
     std::string contextStr = jstringToString(env, context);
+    bool validateReadonlyVal = static_cast<bool>(validateReadonly);
     
-    runAsyncWithPromise(env, promise, "VALIDATE_SUBFORM_ERROR", [handleStr, subformPathStr, dataStr, contextStr](auto callback) {
-        JsonEvalBridge::validateSubformAsync(handleStr, subformPathStr, dataStr, contextStr, callback);
+    runAsyncWithPromise(env, promise, "VALIDATE_SUBFORM_ERROR", [handleStr, subformPathStr, dataStr, contextStr, validateReadonlyVal](auto callback) {
+        JsonEvalBridge::validateSubformAsync(handleStr, subformPathStr, dataStr, contextStr, validateReadonlyVal, callback);
     });
 }
 

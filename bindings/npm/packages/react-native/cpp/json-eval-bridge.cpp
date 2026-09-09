@@ -80,7 +80,7 @@ extern "C" {
     FFIResult json_eval_evaluate(JSONEvalHandle* handle, const char* data, const char* context, const char* paths_json);
     FFIResult json_eval_get_evaluated_schema_msgpack(JSONEvalHandle* handle);
     FFIResult json_eval_get_evaluated_schema_resolved_msgpack(JSONEvalHandle* handle);
-    FFIResult json_eval_validate(JSONEvalHandle* handle, const char* data, const char* context);
+    FFIResult json_eval_validate(JSONEvalHandle* handle, const char* data, const char* context, bool validate_readonly);
     FFIResult json_eval_evaluate_dependents(JSONEvalHandle* handle, const char* changed_path, const char* data, const char* context, int re_evaluate, int include_subforms);
     FFIResult json_eval_get_evaluated_schema(JSONEvalHandle* handle);
     FFIResult json_eval_get_schema_value(JSONEvalHandle* handle);
@@ -102,12 +102,12 @@ extern "C" {
     FFIResult json_eval_reload_schema_msgpack(JSONEvalHandle* handle, const uint8_t* schema_msgpack, size_t schema_len, const char* context, const char* data);
     FFIResult json_eval_reload_schema_from_cache(JSONEvalHandle* handle, const char* cache_key, const char* context, const char* data);
     JSONEvalHandle* json_eval_new_from_cache(const char* cache_key, const char* context, const char* data);
-    FFIResult json_eval_validate_paths(JSONEvalHandle* handle, const char* data, const char* context, const char* paths_json);
+    FFIResult json_eval_validate_paths(JSONEvalHandle* handle, const char* data, const char* context, const char* paths_json, bool validate_readonly);
     FFIResult json_eval_evaluate_logic_pure(const char* logic_str, const char* data, const char* context);
     
     // Subform FFI methods
     FFIResult json_eval_evaluate_subform(JSONEvalHandle* handle, const char* subform_path, const char* data, const char* context, const char* paths_json);
-    FFIResult json_eval_validate_subform(JSONEvalHandle* handle, const char* subform_path, const char* data, const char* context);
+    FFIResult json_eval_validate_subform(JSONEvalHandle* handle, const char* subform_path, const char* data, const char* context, bool validate_readonly);
     FFIResult json_eval_evaluate_dependents_subform(JSONEvalHandle* handle, const char* subform_path, const char* changed_path, const char* data, const char* context, int re_evaluate, int include_subforms);
     FFIResult json_eval_resolve_layout_subform(JSONEvalHandle* handle, const char* subform_path, bool evaluate);
     FFIResult json_eval_get_evaluated_schema_subform(JSONEvalHandle* handle, const char* subform_path);

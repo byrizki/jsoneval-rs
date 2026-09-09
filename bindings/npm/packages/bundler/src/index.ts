@@ -32,6 +32,21 @@ export class JSONEval extends JSONEvalCore {
   }
 
   /**
+   * Create a new JSONEval instance from a MessagePack schema
+   * @param schemaMsgpack - MessagePack-encoded schema bytes (Uint8Array)
+   * @param context - Optional context data
+   * @param data - Optional initial data
+   * @returns New instance
+   */
+  static fromMsgpack(schemaMsgpack: Uint8Array, context?: any, data?: any): JSONEval {
+    return new JSONEval({
+      schema: schemaMsgpack,
+      context,
+      data,
+    });
+  }
+
+  /**
    * Evaluate logic expression without creating an instance
    * @param logicStr - JSON Logic expression (string or object)
    * @param data - Optional data (string or object)

@@ -214,150 +214,166 @@ impl JSONEval {
         for (idx, element) in elements.iter().enumerate() {
             let element_idx = idx;
             let (resolved, ref_path) = self.resolve_element_ref(element, ref_cache);
-            let Value::Object(map) = resolved else {
-                continue;
-            };
-
-            const EXCLUDED: &[&str] = &[
-                "$ref",
-                "elements",
-                "properties",
-                "items",
-                "required",
-                "additionalProperties",
-            ];
             let mut overlay = IndexMap::new();
-            for (key, value) in &map {
-                if !EXCLUDED.contains(&key.as_str()) {
-                    overlay.insert(key.clone(), value.clone());
-                }
-            }
 
-            // Inject $fullpath for ALL elements (ref and non-ref)
-            if !overlay.contains_key("$fullpath") {
-                if !ref_path.is_empty() {
-                    let last_segment = ref_path.split('.').last().unwrap_or(&ref_path);
-                    overlay.insert("$fullpath".to_string(), Value::String(ref_path.clone()));
-                    overlay.insert("$path".to_string(), Value::String(last_segment.to_string()));
-                } else {
-                    let base = Self::layout_path_to_structural_path(layout_path);
-                    let fullpath = if base.is_empty() {
-                        format!("{}", element_idx)
+            if let Value::Object(map) = resolved {
+                const EXCLUDED: &[&str] = &[
+                    "$ref",
+                    "elements",
+                    "properties",
+                    "items",
+                    "required",
+                    "additionalProperties",
+                ];
+                for (key, value) in &map {
+                    if !EXCLUDED.contains(&key.as_str()) {
+                        overlay.insert(key.clone(), value.clone());
+                    }
+                }
+
+                // Inject $fullpath for ALL elements (ref and non-ref)
+                if !overlay.contains_key("$fullpath") {
+                    if !ref_path.is_empty() {
+                        let last_segment = ref_path.split('.').last().unwrap_or(&ref_path);
+                        overlay.insert("$fullpath".to_string(), Value::String(ref_path.clone()));
+                        overlay.insert("$path".to_string(), Value::String(last_segment.to_string()));
                     } else {
-                        format!("{}.{}", base, element_idx)
-                    };
-                    let last_segment = fullpath.split('.').last().unwrap_or(&fullpath).to_string();
-                    overlay.insert("$fullpath".to_string(), Value::String(fullpath));
-                    overlay.insert("$path".to_string(), Value::String(last_segment));
+                        let base = Self::layout_path_to_structural_path(layout_path);
+                        let fullpath = if base.is_empty() {
+                            format!("{}", element_idx)
+                        } else {
+                            format!("{}.{}", base, element_idx)
+                        };
+                        let last_segment = fullpath.split('.').last().unwrap_or(&fullpath).to_string();
+                        overlay.insert("$fullpath".to_string(), Value::String(fullpath));
+                        overlay.insert("$path".to_string(), Value::String(last_segment));
+                    }
                 }
-            }
 
-            overlay.insert("$parentHide".to_string(), Value::Bool(parent_hidden));
+                overlay.insert("$parentHide".to_string(), Value::Bool(parent_hidden));
 
-            // Parent condition cascade
-            let mut element_hidden = parent_hidden;
-            let mut element_condition_hidden = parent_condition_hidden;
-            let mut element_disabled = parent_disabled;
+                // Parent condition cascade
+                let mut element_hidden = parent_hidden;
+                let mut element_condition_hidden = parent_condition_hidden;
+                let mut element_disabled = parent_disabled;
 
-            if let Some(Value::Bool(d)) = overlay.get("disabled") {
-                element_disabled = element_disabled || *d;
-            }
-            if let Some(Value::Bool(r)) = overlay.get("readonly") {
-                element_disabled = element_disabled || *r;
-            }
-            if let Some(Value::Bool(r)) = overlay.get("readOnly") {
-                element_disabled = element_disabled || *r;
-            }
-
-            if let Some(Value::Object(cond)) = overlay.get("condition") {
-                if let Some(Value::Bool(true)) = cond.get("hidden") {
-                    element_hidden = true;
-                    element_condition_hidden = true;
-                }
-                if let Some(Value::Bool(d)) = cond.get("disabled") {
+                if let Some(Value::Bool(d)) = overlay.get("disabled") {
                     element_disabled = element_disabled || *d;
                 }
-                if let Some(Value::Bool(r)) = cond.get("readonly") {
+                if let Some(Value::Bool(r)) = overlay.get("readonly") {
                     element_disabled = element_disabled || *r;
                 }
-                if let Some(Value::Bool(r)) = cond.get("readOnly") {
+                if let Some(Value::Bool(r)) = overlay.get("readOnly") {
                     element_disabled = element_disabled || *r;
                 }
-            }
 
-            if let Some(Value::Object(hide)) = overlay.get("hideLayout") {
-                if let Some(Value::Bool(true)) = hide.get("all") {
-                    element_hidden = true;
+                if let Some(Value::Object(cond)) = overlay.get("condition") {
+                    if let Some(Value::Bool(true)) = cond.get("hidden") {
+                        element_hidden = true;
+                        element_condition_hidden = true;
+                    }
+                    if let Some(Value::Bool(d)) = cond.get("disabled") {
+                        element_disabled = element_disabled || *d;
+                    }
+                    if let Some(Value::Bool(r)) = cond.get("readonly") {
+                        element_disabled = element_disabled || *r;
+                    }
+                    if let Some(Value::Bool(r)) = cond.get("readOnly") {
+                        element_disabled = element_disabled || *r;
+                    }
                 }
-            }
 
-            if !ref_path.is_empty() {
+                if let Some(Value::Object(hide)) = overlay.get("hideLayout") {
+                    if let Some(Value::Bool(true)) = hide.get("all") {
+                        element_hidden = true;
+                    }
+                }
+
+                if !ref_path.is_empty() {
+                    let pointer = path_utils::normalize_to_json_pointer(
+                        &path_utils::dot_notation_to_schema_pointer(&ref_path),
+                    )
+                    .trim_start_matches('#')
+                    .to_string();
+                    if element_hidden {
+                        state.layout_hidden_refs.insert(pointer.clone());
+                        if element_condition_hidden {
+                            state.layout_condition_hidden_refs.insert(pointer.clone());
+                        }
+                    } else {
+                        state.layout_visible_refs.insert(pointer.clone());
+                    }
+                    if element_disabled {
+                        state.layout_disabled_refs.insert(pointer);
+                    }
+                }
+
+                let show_condition_cascade =
+                    parent_hidden || parent_disabled || element_hidden || element_disabled;
+
+                if show_condition_cascade {
+                    let mut merged_cond = serde_json::Map::new();
+                    if let Some(Value::Object(existing)) = overlay.get("condition") {
+                        for (k, v) in existing.iter() {
+                            merged_cond.insert(k.clone(), v.clone());
+                        }
+                    }
+                    if parent_hidden || element_hidden {
+                        merged_cond.insert("hidden".to_string(), Value::Bool(true));
+                    }
+                    if parent_disabled || element_disabled {
+                        merged_cond.insert("disabled".to_string(), Value::Bool(true));
+                    }
+                    overlay.insert("condition".to_string(), Value::Object(merged_cond));
+
+                    if (parent_hidden || element_hidden)
+                        && (map.get("hideLayout").is_some() || map.get("type").is_some())
+                    {
+                        let mut hide_layout = if let Some(Value::Object(h)) = map.get("hideLayout") {
+                            h.clone()
+                        } else {
+                            serde_json::Map::new()
+                        };
+                        hide_layout.insert("all".to_string(), Value::Bool(true));
+                        overlay.insert("hideLayout".to_string(), Value::Object(hide_layout));
+                    }
+                }
+
+                // Recurse into nested elements (if any)
+                if let Some(Value::Array(children)) = map.get("elements") {
+                    let child_layout_path = format!(
+                        "{}/{}/elements",
+                        layout_path.trim_end_matches('/'),
+                        element_idx
+                    );
+                    self.resolve_and_collect_overlays(
+                        children,
+                        &child_layout_path,
+                        element_hidden,
+                        element_condition_hidden,
+                        element_disabled,
+                        state,
+                        ref_cache,
+                        all_entries,
+                    );
+                }
+            } else if !ref_path.is_empty() {
                 let pointer = path_utils::normalize_to_json_pointer(
                     &path_utils::dot_notation_to_schema_pointer(&ref_path),
                 )
                 .trim_start_matches('#')
                 .to_string();
-                if element_hidden {
+                if parent_hidden {
                     state.layout_hidden_refs.insert(pointer.clone());
-                    if element_condition_hidden {
+                    if parent_condition_hidden {
                         state.layout_condition_hidden_refs.insert(pointer.clone());
                     }
                 } else {
                     state.layout_visible_refs.insert(pointer.clone());
                 }
-                if element_disabled {
+                if parent_disabled {
                     state.layout_disabled_refs.insert(pointer);
                 }
-            }
-
-            let show_condition_cascade =
-                parent_hidden || parent_disabled || element_hidden || element_disabled;
-
-            if show_condition_cascade {
-                let mut merged_cond = serde_json::Map::new();
-                if let Some(Value::Object(existing)) = overlay.get("condition") {
-                    for (k, v) in existing.iter() {
-                        merged_cond.insert(k.clone(), v.clone());
-                    }
-                }
-                if parent_hidden || element_hidden {
-                    merged_cond.insert("hidden".to_string(), Value::Bool(true));
-                }
-                if parent_disabled || element_disabled {
-                    merged_cond.insert("disabled".to_string(), Value::Bool(true));
-                }
-                overlay.insert("condition".to_string(), Value::Object(merged_cond));
-
-                if (parent_hidden || element_hidden)
-                    && (map.get("hideLayout").is_some() || map.get("type").is_some())
-                {
-                    let mut hide_layout = if let Some(Value::Object(h)) = map.get("hideLayout") {
-                        h.clone()
-                    } else {
-                        serde_json::Map::new()
-                    };
-                    hide_layout.insert("all".to_string(), Value::Bool(true));
-                    overlay.insert("hideLayout".to_string(), Value::Object(hide_layout));
-                }
-            }
-
-            // Recurse into nested elements (if any)
-            if let Some(Value::Array(children)) = map.get("elements") {
-                let child_layout_path = format!(
-                    "{}/{}/elements",
-                    layout_path.trim_end_matches('/'),
-                    element_idx
-                );
-                self.resolve_and_collect_overlays(
-                    children,
-                    &child_layout_path,
-                    element_hidden,
-                    element_condition_hidden,
-                    element_disabled,
-                    state,
-                    ref_cache,
-                    all_entries,
-                );
             }
 
             all_entries.push(LayoutOverlayEntry {
