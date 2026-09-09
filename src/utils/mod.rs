@@ -59,6 +59,12 @@ pub fn enable_timing() {
     });
 }
 
+pub fn enable_debug_cache() {
+    DEBUG_CACHE_ENABLED.with(|enabled| {
+        *enabled.borrow_mut() = true;
+    });
+}
+
 /// Disable timing
 pub fn disable_timing() {
     TIMING_ENABLED.with(|enabled| {

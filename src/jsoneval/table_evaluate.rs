@@ -76,6 +76,50 @@ fn evaluate_table_inner(
 
     let table_pointer_path = path_utils::normalize_to_json_pointer(eval_key).into_owned();
 
+    let mut external_deps = indexmap::IndexSet::new();
+    let pointer_data_prefix =
+        crate::jsoneval::path_utils::schema_path_to_data_pointer(&table_pointer_path).into_owned();
+    let pointer_data_prefix_slash = format!("{}/", pointer_data_prefix);
+
+    if let Some(deps) = lib.dependencies.get(eval_key) {
+        for dep in deps {
+            let is_params_dep = dep.contains("$params");
+            let is_other_system_dep = !is_params_dep
+                && !dep.contains("$context")
+                && (dep.starts_with("/$") || dep.starts_with("$"));
+
+            if is_other_system_dep {
+                continue;
+            }
+
+            let dep_data_path = crate::jsoneval::path_utils::schema_path_to_data_pointer(dep);
+            if dep_data_path == pointer_data_prefix
+                || dep_data_path.starts_with(&pointer_data_prefix_slash)
+            {
+                continue;
+            }
+
+            external_deps.insert(dep.clone());
+        }
+    }
+
+    if crate::utils::is_debug_cache_enabled() && external_deps.is_empty() {
+        if !metadata.data_plans.is_empty() {
+            eprintln!(
+                "[jsoneval DEBUG] table {} has zero external_deps but \
+                 non-empty data_plans — $params changes may not \
+                 invalidate its cache",
+                eval_key
+            );
+        }
+    }
+
+    if let Some(cached_result) = lib.eval_cache.check_table_cache(eval_key, &external_deps) {
+        if cached_result.is_array() {
+            return Ok((cached_result, None)); // Signal that we had a cache hit
+        }
+    }
+
     // PHASE 0: Evaluate $datas first.
     // Instead of writing to a sandbox, we collect overrides into `data_ctx` which
     // gets merged into ctx_value (internal_context). The evaluator checks
@@ -107,47 +151,6 @@ fn evaluate_table_inner(
             data_ctx.insert(key, value);
         }
     });
-
-    let mut external_deps = indexmap::IndexSet::new();
-    let pointer_data_prefix =
-        crate::jsoneval::path_utils::schema_path_to_data_pointer(&table_pointer_path).into_owned();
-    let pointer_data_prefix_slash = format!("{}/", pointer_data_prefix);
-    if let Some(deps) = lib.dependencies.get(eval_key) {
-        for dep in deps {
-            let is_params_dep = dep.contains("$params");
-            let is_other_system_dep = !is_params_dep
-                && !dep.contains("$context")
-                && (dep.starts_with("/$") || dep.starts_with("$"));
-
-            if is_other_system_dep {
-                continue;
-            }
-
-            let dep_data_path = crate::jsoneval::path_utils::schema_path_to_data_pointer(dep);
-            if dep_data_path != pointer_data_prefix
-                && !dep_data_path.starts_with(&pointer_data_prefix_slash)
-            {
-                external_deps.insert(dep.clone());
-            }
-        }
-    }
-
-    if crate::utils::is_debug_cache_enabled() && external_deps.is_empty() {
-        if !metadata.data_plans.is_empty() {
-            eprintln!(
-                "[jsoneval DEBUG] table {} has zero external_deps but \
-                 non-empty data_plans — $params changes may not \
-                 invalidate its cache",
-                eval_key
-            );
-        }
-    }
-
-    if let Some(cached_result) = lib.eval_cache.check_table_cache(eval_key, &external_deps) {
-        if cached_result.is_array() {
-            return Ok((cached_result, None)); // Signal that we had a cache hit
-        }
-    }
 
     // PHASE 1: Evaluate $skip
     let mut should_skip = metadata.skip_literal;

@@ -580,10 +580,6 @@ pub fn collect_table_dependencies(
                 && eval_key.as_bytes().get(table_key.len()) == Some(&b'/');
 
             if is_child {
-                if eval_key.contains("/$datas/") {
-                    continue;
-                }
-
                 for dep in deps {
                     let dep_data_path = path_utils::normalize_to_json_pointer(dep)
                         .replace("/properties/", "/")
@@ -595,6 +591,7 @@ pub fn collect_table_dependencies(
                     {
                         continue;
                     }
+
                     let is_params_dep = dep.contains("$params");
                     let is_inline_system = !is_params_dep
                         && !dep.contains("$context")

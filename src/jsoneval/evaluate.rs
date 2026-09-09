@@ -432,7 +432,14 @@ impl JSONEval {
                         let all_hit = batch.iter().all(|eval_key| {
                             let empty_deps = indexmap::IndexSet::new();
                             let deps = self.dependencies.get(eval_key).unwrap_or(&empty_deps);
-                            if let Some(cached) = self.eval_cache.check_cache(eval_key, deps) {
+                            let cached = if self.table_metadata.contains_key(eval_key) {
+                                self.eval_cache
+                                    .check_table_cache(eval_key, deps)
+                                    .map(|arc| Value::clone(&arc))
+                            } else {
+                                self.eval_cache.check_cache(eval_key, deps)
+                            };
+                            if let Some(cached) = cached {
                                 let pointer_path =
                                     path_utils::normalize_to_json_pointer(eval_key).into_owned();
                                 batch_hits.push((pointer_path, cached));

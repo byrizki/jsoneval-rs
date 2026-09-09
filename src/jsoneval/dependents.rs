@@ -746,14 +746,45 @@ impl JSONEval {
             // graph-driven: no product/field path policy belongs in evaluator code. Tables
             // remain excluded because evaluating a `$params` table with one rider payload can
             // overwrite shared parent cache rows.
-            let parent_dependency_paths: Vec<String> = parent_changed_paths
+            let mut parent_affected: std::collections::HashSet<String> = parent_changed_paths
                 .iter()
+                .filter(|path| {
+                    !path.starts_with(&subform_dot_path)
+                        && !path.starts_with(&field_prefix)
+                        && !path.starts_with(&format!("{}.", field_key))
+                })
                 .map(|path| {
                     path_utils::dot_notation_to_schema_pointer(path)
                         .trim_start_matches('#')
+                        .trim_start_matches('/')
                         .to_string()
                 })
                 .collect();
+
+
+            // Transitively expand parent_affected through self.dependencies
+            // (e.g. prem_freq -> WOP_ZLOB_PREMI_TABLE -> wop_rider_premi)
+            let mut queue: std::collections::VecDeque<String> =
+                parent_affected.iter().cloned().collect();
+            while let Some(current) = queue.pop_front() {
+                for (target, deps) in self.dependencies.iter() {
+                    let clean_target = target.trim_start_matches('#').trim_start_matches('/');
+                    if !parent_affected.contains(clean_target) {
+                        let is_affected = deps.iter().any(|dep| {
+                            let clean_dep = dep.trim_start_matches('#').trim_start_matches('/');
+                            clean_dep == current
+                                || (current.starts_with(clean_dep)
+                                    && current.as_bytes().get(clean_dep.len()) == Some(&b'/'))
+                        });
+                        if is_affected {
+                            let target_str = clean_target.to_string();
+                            parent_affected.insert(target_str.clone());
+                            queue.push_back(target_str);
+                        }
+                    }
+                }
+            }
+
             let dependent_value_paths: Vec<String> = self
                 .subforms
                 .get(&subform_path)
@@ -765,14 +796,64 @@ impl JSONEval {
                             !subform.table_metadata.contains_key(*key)
                                 && !key.starts_with("#/$params/")
                                 && key.ends_with("/value")
-                                && parent_dependency_paths
-                                    .iter()
-                                    .any(|dependency| deps.contains(dependency))
+                                && deps.iter().any(|dep| {
+                                    let clean_dep = dep.trim_start_matches('#').trim_start_matches('/');
+                                    parent_affected.contains(clean_dep)
+                                        || parent_affected.iter().any(|p| {
+                                            p.starts_with(clean_dep)
+                                                && p.as_bytes().get(clean_dep.len()) == Some(&b'/')
+                                        })
+                                })
                         })
                         .map(|(key, _)| key.clone())
                         .collect()
                 })
                 .unwrap_or_default();
+
+            // Detect table-backed outputs downstream of parent-derived rider values once per subform.
+            let refresh_table_outputs = self
+                .subforms
+                .get(&subform_path)
+                .map(|subform| {
+                    dependent_value_paths.iter().any(|source| {
+                        let source_clean = source.trim_end_matches("/value").trim_start_matches('#');
+                        let affected_tables: Vec<&String> = subform
+                            .table_metadata
+                            .keys()
+                            .filter(|table| table.starts_with("#/$params"))
+                            .filter(|table| {
+                                subform.dependencies.get(*table).is_some_and(|deps| {
+                                    deps.iter().any(|dep| dep.trim_start_matches('#') == source_clean)
+                                })
+                            })
+                            .collect();
+
+                        !affected_tables.is_empty()
+                            && subform.evaluations.iter().any(|(target, _)| {
+                                target.ends_with("/value")
+                                    && subform.dependencies.get(target).is_some_and(|deps| {
+                                        deps.iter().any(|dep| {
+                                            affected_tables.iter().any(|table| {
+                                                dep.trim_start_matches('#')
+                                                    == table.trim_start_matches('#')
+                                            })
+                                        })
+                                    })
+                            })
+                    })
+                })
+                .unwrap_or(false);
+
+            // Sync parent params and static arrays to subform once before the item loop
+            if let Some(subform) = self.subforms.get_mut(&subform_path) {
+                if let Some(params) = self.evaluated_schema.pointer("/$params") {
+                    if let Some(sub_params) = subform.evaluated_schema.pointer_mut("/$params") {
+                        *sub_params = params.clone();
+                    }
+                }
+                subform.static_arrays = std::sync::Arc::clone(&self.static_arrays);
+                subform.engine.set_static_arrays(std::sync::Arc::clone(&subform.static_arrays));
+            }
 
             for idx in 0..item_count {
                 // Map absolute changed paths → subform-internal paths for this item index
@@ -853,37 +934,6 @@ impl JSONEval {
                         .expect("subform exists");
                     subform.eval_data = EvalData::new(scoped_view);
                     std::mem::swap(&mut subform.eval_cache, &mut overlay_cache);
-
-                    // Detect table-backed outputs downstream of parent-derived rider values.
-                    // They must be recalculated and emitted even when stored data is non-null:
-                    // after a relation change an existing WOP01 premium may otherwise remain
-                    // stale when rider WOP remaps to WOP02.
-                    let refresh_table_outputs = dependent_value_paths.iter().any(|source| {
-                        let source = source.trim_end_matches("/value").trim_start_matches('#');
-                        let affected_tables: Vec<&String> = subform
-                            .table_metadata
-                            .keys()
-                            .filter(|table| table.starts_with("#/$params"))
-                            .filter(|table| {
-                                subform.dependencies.get(*table).is_some_and(|deps| {
-                                    deps.iter().any(|dep| dep.trim_start_matches('#') == source)
-                                })
-                            })
-                            .collect();
-
-                        !affected_tables.is_empty()
-                            && subform.evaluations.iter().any(|(target, _)| {
-                                target.ends_with("/value")
-                                    && subform.dependencies.get(target).is_some_and(|deps| {
-                                        deps.iter().any(|dep| {
-                                            affected_tables.iter().any(|table| {
-                                                dep.trim_start_matches('#')
-                                                    == table.trim_start_matches('#')
-                                            })
-                                        })
-                                    })
-                            })
-                    });
                     subform.evaluate_internal(Some(&dependent_value_paths), token)?;
 
                     let mut overlay_result = Vec::new();
@@ -930,6 +980,7 @@ impl JSONEval {
                         result.push(Value::Object(change));
                     }
 
+
                     Self::process_dependents_queue(
                         &subform.engine,
                         &subform.evaluations,
@@ -955,9 +1006,6 @@ impl JSONEval {
                     }
 
                     if refresh_table_outputs {
-                        // Parent-derived source values can feed table-backed computed fields with
-                        // no explicit schema dependents. Re-run their formula graph in the
-                        // disposable overlay even if prior rider data contains a value.
                         subform.run_re_evaluate_pass(
                             token,
                             &mut overlay_queue,
@@ -1082,29 +1130,6 @@ impl JSONEval {
                     c.item_snapshot = new_item_val;
                 }
 
-                // Propagate paths NEWLY bumped by this diff into parent_cache.data_versions so that
-                // check_table_cache (which validates T2 global entries against self.data_versions)
-                // correctly detects changes to rider fields like `sa` and returns Cache MISS.
-                if let (Some(ref pre), Some(c)) = (
-                    &pre_diff_item_versions,
-                    parent_cache.subform_caches.get(&idx),
-                ) {
-                    let field_prefix_slash = format!("/{}/", field_key);
-                    let newly_bumped: Vec<String> = c
-                        .data_versions
-                        .versions()
-                        .filter(|(k, &v)| k.starts_with(&field_prefix_slash) && v > pre.get(k))
-                        .map(|(k, _)| k.to_string())
-                        .collect();
-                    if !newly_bumped.is_empty() {
-                        for k in newly_bumped {
-                            parent_cache
-                                .data_versions
-                                .bump(&k, "propagate_newly_bumped");
-                        }
-                        parent_cache.eval_generation += 1;
-                    }
-                }
 
                 // Invalidate stale T2 $params table entries whose deps overlap any path newly
                 //
@@ -1146,9 +1171,16 @@ impl JSONEval {
                                     .get(*k)
                                     .map(|deps| {
                                         deps.iter().any(|dep| {
+                                            let clean_dep = dep.trim_start_matches('#');
                                             newly_bumped_schema_paths
                                                 .iter()
-                                                .any(|b| dep == b || dep.starts_with(b.as_str()))
+                                                .any(|b| {
+                                                    let clean_b = b.trim_start_matches('#');
+                                                    clean_dep == clean_b
+                                                        || clean_dep.starts_with(clean_b)
+                                                        || b == dep
+                                                        || dep.starts_with(b.as_str())
+                                                })
                                         })
                                     })
                                     .unwrap_or(false)

@@ -396,20 +396,22 @@ impl EvalCache {
                 }
             }
 
-            // Local rider changes invalidate item-dependent T2 tables.
-            let has_item_data_dependency = deps.iter().any(|dep| {
-                !crate::jsoneval::path_utils::schema_path_to_data_pointer(dep)
-                    .starts_with("/$params")
+            // If the table has an item dependency that was bumped for this active item,
+            // the active item must not reuse the global T2 table.
+            let has_changed_item_dep = self.subform_caches.get(&idx).is_some_and(|cache| {
+                deps.iter().any(|dep| {
+                    let p = crate::jsoneval::path_utils::schema_path_to_data_pointer(dep);
+                    if p.starts_with("/$params") {
+                        false
+                    } else {
+                        cache.data_versions.get(&p) > self.data_versions.get(&p)
+                    }
+                })
             });
-            let active_item_changed = self.subform_caches.get(&idx).is_some_and(|cache| {
-                cache
-                    .data_versions
-                    .versions()
-                    .any(|(path, version)| path.starts_with("/riders/") && *version > 0)
-            });
-            if has_item_data_dependency && active_item_changed {
+            if has_changed_item_dep {
                 return None;
             }
+
 
             let result = self.validate_entry(eval_key, deps, &self.entries, &self.data_versions);
             if result.is_some() {
@@ -436,6 +438,12 @@ impl EvalCache {
 
             let current_ver = if data_dep_path.starts_with("/$params") {
                 self.params_versions.get(&data_dep_path)
+            } else if let Some(idx) = self.active_item_index {
+                self.subform_caches
+                    .get(&idx)
+                    .map(|c| c.data_versions.get(&data_dep_path))
+                    .filter(|&v| v > 0)
+                    .unwrap_or_else(|| data_versions.get(&data_dep_path))
             } else {
                 data_versions.get(&data_dep_path)
             };
@@ -745,6 +753,9 @@ fn diff_and_update_versions_internal(
             }
         }
         (Value::Array(a), Value::Array(b)) => {
+            if a != b {
+                tracker.bump(pointer, source);
+            }
             let max_len = a.len().max(b.len());
             for i in 0..max_len {
                 let a_val = a.get(i).unwrap_or(&Value::Null);
