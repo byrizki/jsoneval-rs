@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.119] - 2026-09-09
+
+- fix: improve evaluate dependents
+
+
 ## [0.0.118] - 2026-09-08
 
 - feat: [RN] [C#] [Web] add readonly field validation

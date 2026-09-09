@@ -1,6 +1,6 @@
 {
   "name": "@json-eval-rs/vanilla",
-  "version": "0.0.118",
+  "version": "0.0.119",
   "description": "JSON Eval RS for direct browser usage (vanilla JS) or manual WASM loading (Next.js Turbopack compat)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -35,7 +35,7 @@
     "directory": "bindings/npm/packages/vanilla"
   },
   "dependencies": {
-    "@json-eval-rs/webcore": "0.0.118"
+    "@json-eval-rs/webcore": "0.0.119"
   },
   "sideEffects": false
 }
