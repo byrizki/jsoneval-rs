@@ -26,6 +26,8 @@ pub struct ValidationCache {
     pub last_context_str: Option<String>,
     /// Whether last whole-form validation validated readonly fields
     pub last_validate_readonly: bool,
+    /// Whether last whole-form validation included subforms
+    pub last_include_subforms: bool,
     /// Last full validation result
     pub last_result: Option<ValidationResult>,
     /// Per-field validation cache
@@ -44,8 +46,11 @@ impl ValidationCache {
         data: &str,
         context: Option<&str>,
         validate_readonly: bool,
+        include_subforms: bool,
     ) -> Option<ValidationResult> {
-        if self.last_validate_readonly != validate_readonly {
+        if self.last_validate_readonly != validate_readonly
+            || self.last_include_subforms != include_subforms
+        {
             return None;
         }
 
@@ -121,11 +126,13 @@ impl ValidationCache {
         data_str: String,
         context_str: Option<String>,
         validate_readonly: bool,
+        include_subforms: bool,
         result: ValidationResult,
     ) {
         self.last_data_str = Some(data_str);
         self.last_context_str = context_str;
         self.last_validate_readonly = validate_readonly;
+        self.last_include_subforms = include_subforms;
         self.last_result = Some(result);
     }
 
@@ -135,6 +142,7 @@ impl ValidationCache {
         self.last_data_str = None;
         self.last_context_str = None;
         self.last_validate_readonly = false;
+        self.last_include_subforms = false;
         self.last_result = None;
     }
 
@@ -144,6 +152,7 @@ impl ValidationCache {
         self.last_data_str = None;
         self.last_context_str = None;
         self.last_validate_readonly = false;
+        self.last_include_subforms = false;
         self.last_result = None;
         self.field_cache.clear();
     }

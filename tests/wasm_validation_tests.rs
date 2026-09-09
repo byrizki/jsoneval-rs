@@ -36,7 +36,7 @@ mod tests {
 
         // Validate using the testable helper
         let result = wasm_eval
-            .validate_to_value(&data_str, None, None, None)
+            .validate_to_value(&data_str, None, None, None, None)
             .expect("Validation failed");
 
         println!("WASM Validate Output: {}", result);

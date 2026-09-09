@@ -85,7 +85,8 @@ namespace JsonEvalRs
             IntPtr handle,
             byte[]? data,
             byte[]? context,
-            [MarshalAs(UnmanagedType.I1)] bool validateReadonly
+            [MarshalAs(UnmanagedType.I1)] bool validateReadonly,
+            [MarshalAs(UnmanagedType.I1)] bool includeSubforms
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
@@ -157,7 +158,8 @@ namespace JsonEvalRs
             byte[]? data,
             byte[]? context,
             byte[]? pathsJson,
-            [MarshalAs(UnmanagedType.I1)] bool validateReadonly
+            [MarshalAs(UnmanagedType.I1)] bool validateReadonly,
+            [MarshalAs(UnmanagedType.I1)] bool includeSubforms
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]

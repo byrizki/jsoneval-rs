@@ -299,7 +299,7 @@ export class JSONEval {
     try {
       const dataStr = stringifyValue(options.data);
       const contextStr = options.context ? stringifyValue(options.context) : null;
-      return await this._callNativeJson('validate', dataStr, contextStr, options.validateReadonly ?? false);
+      return await this._callNativeJson('validate', dataStr, contextStr, options.validateReadonly ?? false, options.includeSubforms ?? false);
     } catch (error) {
       throw new Error(`Validation failed: ${extractErrorMessage(error)}`);
     }
@@ -660,7 +660,7 @@ export class JSONEval {
     const dataStr = stringifyValue(options.data);
     const contextStr = options.context ? stringifyValue(options.context) : null;
     const paths = options.paths || null;
-    return await this._callNativeJson('validatePaths', dataStr, contextStr, paths, options.validateReadonly ?? false);
+    return await this._callNativeJson('validatePaths', dataStr, contextStr, paths, options.validateReadonly ?? false, options.includeSubforms ?? false);
   }
 
   /**

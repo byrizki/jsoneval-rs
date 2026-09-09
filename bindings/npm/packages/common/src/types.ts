@@ -138,6 +138,8 @@ export interface ValidateOptions {
   context?: any;
   /** Optional flag to validate readonly/disabled fields (default: false) */
   validateReadonly?: boolean;
+  /** Optional flag to include subforms validation across all array subform data (default: false) */
+  includeSubforms?: boolean;
 }
 
 /**
@@ -152,6 +154,8 @@ export interface ValidatePathsOptions {
   paths?: string[];
   /** Optional flag to validate readonly/disabled fields (default: false) */
   validateReadonly?: boolean;
+  /** Optional flag to include subforms validation across all array subform data (default: false) */
+  includeSubforms?: boolean;
 }
 
 /**

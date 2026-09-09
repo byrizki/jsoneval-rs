@@ -14,6 +14,7 @@ impl JSONEvalWasm {
     /// @param data - JSON data string
     /// @param context - Optional context data JSON string
     /// @param validate_readonly - Optional flag to also validate readonly fields
+    /// @param include_subforms - Optional flag to also validate array subforms
     /// @returns ValidationResult
     #[wasm_bindgen]
     pub fn validate(
@@ -21,11 +22,19 @@ impl JSONEvalWasm {
         data: &str,
         context: Option<String>,
         validate_readonly: Option<bool>,
+        include_subforms: Option<bool>,
     ) -> Result<ValidationResult, JsValue> {
         let ctx = context.as_deref();
 
         let token = self.reset_token();
-        match self.inner.validate(data, ctx, None, token.as_ref(), validate_readonly) {
+        match self.inner.validate(
+            data,
+            ctx,
+            None,
+            token.as_ref(),
+            validate_readonly,
+            include_subforms,
+        ) {
             Ok(result) => {
                 let mut errors: std::collections::HashMap<String, ValidationError> =
                     std::collections::HashMap::new();
@@ -49,6 +58,7 @@ impl JSONEvalWasm {
     /// @param data - JSON data string
     /// @param context - Optional context data JSON string
     /// @param validate_readonly - Optional flag to also validate readonly fields
+    /// @param include_subforms - Optional flag to also validate array subforms
     /// @returns Plain JavaScript object with validation result
     #[wasm_bindgen(js_name = validateJS)]
     pub fn validate_js(
@@ -56,8 +66,9 @@ impl JSONEvalWasm {
         data: &str,
         context: Option<String>,
         validate_readonly: Option<bool>,
+        include_subforms: Option<bool>,
     ) -> Result<JsValue, JsValue> {
-        match self.validate_to_value(data, context, None, validate_readonly) {
+        match self.validate_to_value(data, context, None, validate_readonly, include_subforms) {
             Ok(validation_result) => super::to_value(&validation_result).map_err(|e| {
                 let error_msg = format!("Failed to serialize validation result: {}", e);
                 console_log(&format!("[WASM ERROR] {}", error_msg));
@@ -81,12 +92,20 @@ impl JSONEvalWasm {
         context: Option<String>,
         paths: Option<Vec<String>>,
         validate_readonly: Option<bool>,
+        include_subforms: Option<bool>,
     ) -> Result<serde_json::Value, String> {
         let ctx = context.as_deref();
         let paths_ref = paths.as_ref().map(|v| v.as_slice());
 
         let token = self.reset_token();
-        match self.inner.validate(data, ctx, paths_ref, token.as_ref(), validate_readonly) {
+        match self.inner.validate(
+            data,
+            ctx,
+            paths_ref,
+            token.as_ref(),
+            validate_readonly,
+            include_subforms,
+        ) {
             Ok(result) => {
                 let mut errors_map = serde_json::Map::new();
 
@@ -122,6 +141,7 @@ impl JSONEvalWasm {
     /// @param context - Optional context data JSON string
     /// @param paths - Optional array of paths to validate (null for all)
     /// @param validate_readonly - Optional flag to also validate readonly fields
+    /// @param include_subforms - Optional flag to also validate array subforms
     /// @returns ValidationResult
     #[wasm_bindgen(js_name = validatePaths)]
     pub fn validate_paths(
@@ -130,12 +150,20 @@ impl JSONEvalWasm {
         context: Option<String>,
         paths: Option<Vec<String>>,
         validate_readonly: Option<bool>,
+        include_subforms: Option<bool>,
     ) -> Result<ValidationResult, JsValue> {
         let ctx = context.as_deref();
         let paths_ref = paths.as_ref().map(|v| v.as_slice());
 
         let token = self.reset_token();
-        match self.inner.validate(data, ctx, paths_ref, token.as_ref(), validate_readonly) {
+        match self.inner.validate(
+            data,
+            ctx,
+            paths_ref,
+            token.as_ref(),
+            validate_readonly,
+            include_subforms,
+        ) {
             Ok(result) => {
                 let mut errors: std::collections::HashMap<String, ValidationError> =
                     std::collections::HashMap::new();
@@ -160,6 +188,7 @@ impl JSONEvalWasm {
     /// @param context - Optional context data JSON string
     /// @param paths - Optional array of paths to validate (null for all)
     /// @param validate_readonly - Optional flag to also validate readonly fields
+    /// @param include_subforms - Optional flag to also validate array subforms
     /// @returns Plain JavaScript object with validation result
     #[wasm_bindgen(js_name = validatePathsJS)]
     pub fn validate_paths_js(
@@ -168,8 +197,15 @@ impl JSONEvalWasm {
         context: Option<String>,
         paths: Option<Vec<String>>,
         validate_readonly: Option<bool>,
+        include_subforms: Option<bool>,
     ) -> Result<JsValue, JsValue> {
-        match self.validate_to_value(data, context, paths, validate_readonly) {
+        match self.validate_to_value(
+            data,
+            context,
+            paths,
+            validate_readonly,
+            include_subforms,
+        ) {
             Ok(validation_result) => super::to_value(&validation_result).map_err(|e| {
                 let error_msg = format!("Failed to serialize validation result: {}", e);
                 console_log(&format!("[WASM ERROR] {}", error_msg));

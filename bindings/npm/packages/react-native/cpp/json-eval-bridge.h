@@ -97,6 +97,7 @@ public:
         const std::string& data,
         const std::string& context,
         bool validateReadonly,
+        bool includeSubforms,
         std::function<void(const std::string&, const std::string&)> callback
     );
 
@@ -104,9 +105,19 @@ public:
         const std::string& handle,
         const std::string& data,
         const std::string& context,
+        bool validateReadonly,
         std::function<void(const std::string&, const std::string&)> callback
     ) {
-        validateAsync(handle, data, context, false, callback);
+        validateAsync(handle, data, context, validateReadonly, false, callback);
+    }
+
+    static void validateAsync(
+        const std::string& handle,
+        const std::string& data,
+        const std::string& context,
+        std::function<void(const std::string&, const std::string&)> callback
+    ) {
+        validateAsync(handle, data, context, false, false, callback);
     }
 
     /**
@@ -413,6 +424,7 @@ public:
         const std::string& context,
         const std::string& pathsJson,
         bool validateReadonly,
+        bool includeSubforms,
         std::function<void(const std::string&, const std::string&)> callback
     );
 
@@ -421,9 +433,20 @@ public:
         const std::string& data,
         const std::string& context,
         const std::string& pathsJson,
+        bool validateReadonly,
         std::function<void(const std::string&, const std::string&)> callback
     ) {
-        validatePathsAsync(handle, data, context, pathsJson, false, callback);
+        validatePathsAsync(handle, data, context, pathsJson, validateReadonly, false, callback);
+    }
+
+    static void validatePathsAsync(
+        const std::string& handle,
+        const std::string& data,
+        const std::string& context,
+        const std::string& pathsJson,
+        std::function<void(const std::string&, const std::string&)> callback
+    ) {
+        validatePathsAsync(handle, data, context, pathsJson, false, false, callback);
     }
 
     /**

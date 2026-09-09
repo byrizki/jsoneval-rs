@@ -27,8 +27,10 @@ impl JSONEval {
         paths: Option<&[String]>,
         token: Option<&CancellationToken>,
         validate_readonly: Option<bool>,
+        include_subforms: Option<bool>,
     ) -> Result<ValidationResult, String> {
         let validate_ro = validate_readonly.unwrap_or(false);
+        let inc_subforms = include_subforms.unwrap_or(false);
         if let Some(t) = token {
             if t.is_cancelled() {
                 return Err("Cancelled".to_string());
@@ -39,7 +41,9 @@ impl JSONEval {
         // return cached full result immediately.
         if paths.is_none() || paths.is_some_and(|p| p.is_empty()) {
             if let Ok(cache) = self.validation_cache.read() {
-                if let Some(cached) = cache.get_cached_full_result(data, context, validate_ro) {
+                if let Some(cached) =
+                    cache.get_cached_full_result(data, context, validate_ro, inc_subforms)
+                {
                     return Ok(cached);
                 }
             }
@@ -66,7 +70,7 @@ impl JSONEval {
             // Update eval_data with new data/context
             time_block!("  replace_data_and_context", {
                 self.eval_data
-                    .replace_data_and_context(data_value.clone(), context_value);
+                    .replace_data_and_context(data_value.clone(), context_value.clone());
             });
 
             // Drop lock before calling evaluate_others which needs mutable access
@@ -100,10 +104,17 @@ impl JSONEval {
                     if let Some(filter_paths) = paths {
                         if !filter_paths.is_empty()
                             && !filter_paths.iter().any(|p| {
-                                field_path.starts_with(p.as_str()) || p.starts_with(field_path.as_str())
+                                field_path.starts_with(p.as_str())
+                                    || p.starts_with(field_path.as_str())
                             })
                         {
                             continue;
+                        }
+                    }
+
+                    if let Some(t) = token {
+                        if t.is_cancelled() {
+                            return Err("Cancelled".to_string());
                         }
                     }
 
@@ -117,16 +128,158 @@ impl JSONEval {
                         validate_ro,
                         &mut errors,
                     );
+                }
+            });
 
+            drop(layout_state);
+
+            if inc_subforms {
+                let subform_keys: Vec<String> = self.subforms.keys().cloned().collect();
+
+                for subform_path in subform_keys {
                     if let Some(t) = token {
                         if t.is_cancelled() {
                             return Err("Cancelled".to_string());
                         }
                     }
-                }
-            });
 
-            drop(layout_state);
+                    let data_ptr = path_utils::schema_path_to_data_pointer(&subform_path);
+                    let subform_dot_path = data_ptr.trim_start_matches('/').replace('/', ".");
+
+                    let schema_pointer = if subform_path.starts_with("#/") {
+                        &subform_path[1..]
+                    } else if subform_path.starts_with('#') {
+                        &subform_path[1..]
+                    } else {
+                        &subform_path
+                    };
+
+                    let original_field_key = subform_path
+                        .split('/')
+                        .filter(|seg| !seg.is_empty() && *seg != "properties")
+                        .last()
+                        .unwrap_or(&subform_path)
+                        .to_string();
+
+                    let root_key = path_utils::get_value_by_pointer(&self.schema, schema_pointer)
+                        .and_then(|node| node.get("itemsRootKey"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(&original_field_key)
+                        .to_string();
+
+                    let item_count = self
+                        .eval_data
+                        .data()
+                        .pointer(&data_ptr)
+                        .and_then(Value::as_array)
+                        .map(|a| a.len())
+                        .unwrap_or(0);
+
+                    if item_count == 0 {
+                        continue;
+                    }
+
+                    for idx in 0..item_count {
+                        if let Some(t) = token {
+                            if t.is_cancelled() {
+                                return Err("Cancelled".to_string());
+                            }
+                        }
+
+                        let item_prefix = format!("{}.{}.", subform_dot_path, idx);
+                        let item_path_exact = format!("{}.{}", subform_dot_path, idx);
+
+                        let sub_paths: Option<Vec<String>> = if let Some(filter_paths) = paths {
+                            if filter_paths.is_empty() {
+                                None
+                            } else {
+                                let applies = filter_paths.iter().any(|p| {
+                                    p == &item_path_exact
+                                        || p == &subform_dot_path
+                                        || p.starts_with(&item_prefix)
+                                        || subform_dot_path.starts_with(p.as_str())
+                                });
+                                if !applies {
+                                    continue;
+                                }
+
+                                let has_whole_match = filter_paths.iter().any(|p| {
+                                    p == &item_path_exact
+                                        || p == &subform_dot_path
+                                        || subform_dot_path.starts_with(p.as_str())
+                                });
+
+                                if has_whole_match {
+                                    None
+                                } else {
+                                    let mapped: Vec<String> = filter_paths
+                                        .iter()
+                                        .filter_map(|p| {
+                                            p.strip_prefix(&item_prefix)
+                                                .map(|sub| format!("{}.{}", root_key, sub))
+                                        })
+                                        .collect();
+
+                                    if mapped.is_empty() {
+                                        continue;
+                                    }
+                                    Some(mapped)
+                                }
+                            }
+                        } else {
+                            None
+                        };
+
+                        let sub_paths_ref = sub_paths.as_deref();
+
+                        let sub_result = self.with_item_cache_swap(
+                            &subform_path,
+                            idx,
+                            data_value.clone(),
+                            context_value.clone(),
+                            |sf| {
+                                sf.evaluate_internal_pre_diffed(sub_paths_ref, token)?;
+                                let sub_data = sf.eval_data.snapshot_data_clone();
+                                sf.validate_pre_set(
+                                    sub_data,
+                                    sub_paths_ref,
+                                    token,
+                                    validate_readonly,
+                                )
+                            },
+                        )?;
+
+                        let root_prefix = format!("{}.", root_key);
+                        for (field_name, mut error) in sub_result.errors {
+                            let sub_field =
+                                if let Some(stripped) = field_name.strip_prefix(&root_prefix) {
+                                    stripped
+                                } else if field_name == root_key {
+                                    ""
+                                } else {
+                                    &field_name
+                                };
+
+                            let parent_path = if sub_field.is_empty() {
+                                format!("{}.{}", subform_dot_path, idx)
+                            } else {
+                                format!("{}.{}.{}", subform_dot_path, idx, sub_field)
+                            };
+
+                            if let Some(ref c) = error.code {
+                                if c == &format!("{}.{}", field_name, error.rule_type)
+                                    || c == &format!("{}.{}", sub_field, error.rule_type)
+                                {
+                                    error.code =
+                                        Some(format!("{}.{}", parent_path, error.rule_type));
+                                }
+                            }
+
+                            errors.insert(parent_path, error);
+                        }
+                    }
+                }
+            }
 
             let has_error = !errors.is_empty();
             let result = ValidationResult { has_error, errors };
@@ -137,6 +290,7 @@ impl JSONEval {
                         data.to_string(),
                         context.map(|s| s.to_string()),
                         validate_ro,
+                        inc_subforms,
                         result.clone(),
                     );
                 }
@@ -175,6 +329,18 @@ impl JSONEval {
         let mut readonly_cache =
             std::collections::HashMap::with_capacity(self.fields_with_rules.len());
 
+        let eval_data_val = self.eval_data.snapshot_data_clone();
+        let target_data = if data_value.is_object()
+            && self.fields_with_rules.iter().any(|f| {
+                let root = f.split('.').next().unwrap_or(f);
+                data_value.get(root).is_some()
+            })
+        {
+            &data_value
+        } else {
+            &eval_data_val
+        };
+
         for field_path in self.fields_with_rules.iter() {
             if let Some(filter_paths) = paths {
                 if !filter_paths.is_empty()
@@ -192,7 +358,7 @@ impl JSONEval {
             }
             self.validate_field_cached(
                 field_path,
-                &data_value,
+                target_data,
                 layout_hidden_refs,
                 layout_disabled_refs,
                 &mut hidden_cache,

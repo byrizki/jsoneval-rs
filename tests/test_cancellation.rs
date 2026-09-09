@@ -54,7 +54,7 @@ fn test_validate_pre_cancelled() {
     let token = CancellationToken::new();
     token.cancel();
 
-    let result = eval.validate(r#"{"a": "short"}"#, None, None, Some(&token), None);
+    let result = eval.validate(r#"{"a": "short"}"#, None, None, Some(&token), None, None);
     assert_eq!(result, Err("Cancelled".to_string()));
 }
 

@@ -209,7 +209,7 @@ fn dynamic_parent_hidden_ref_repopulates_when_visible() {
     );
     assert!(
         !eval
-            .validate(r#"{"toggle":true}"#, None, None, None, None)
+            .validate(r#"{"toggle":true}"#, None, None, None, None, None)
             .unwrap()
             .errors
             .contains_key("target"),
@@ -232,7 +232,7 @@ fn dynamic_parent_hidden_ref_repopulates_when_visible() {
         "getter must restore ref visibility after parent becomes visible"
     );
     assert!(
-        eval.validate(r#"{"toggle":false}"#, None, None, None, None)
+        eval.validate(r#"{"toggle":false}"#, None, None, None, None, None)
             .unwrap()
             .errors
             .contains_key("target"),
@@ -316,7 +316,7 @@ fn shared_layout_ref_uses_each_attached_parent_visibility() {
         "one visible attachment must keep schema getter value"
     );
     assert!(
-        eval.validate("{}", None, None, None, None)
+        eval.validate("{}", None, None, None, None, None)
             .unwrap()
             .errors
             .contains_key("target"),
@@ -369,7 +369,7 @@ fn hidden_super_parent_cascades_through_deep_child_layouts() {
     );
     assert!(
         !eval
-            .validate(r#"{"hide_root":true}"#, None, None, None, None)
+            .validate(r#"{"hide_root":true}"#, None, None, None, None, None)
             .unwrap()
             .errors
             .contains_key("leaf"),
@@ -392,7 +392,7 @@ fn hidden_super_parent_cascades_through_deep_child_layouts() {
         "deep ref must become visible when super-parent does"
     );
     assert!(
-        eval.validate(r#"{"hide_root":false}"#, None, None, None, None)
+        eval.validate(r#"{"hide_root":false}"#, None, None, None, None, None)
             .unwrap()
             .errors
             .contains_key("leaf"),

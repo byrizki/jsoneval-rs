@@ -133,7 +133,7 @@ impl JSONEval {
     ///
     /// This ensures all three operations (evaluate / validate / evaluate_dependents)
     /// share parent-form Tier-2 cache entries, without duplicating the swap boilerplate.
-    fn with_item_cache_swap<F, T>(
+    pub(crate) fn with_item_cache_swap<F, T>(
         &mut self,
         base_path: &str,
         idx: usize,
@@ -607,7 +607,7 @@ impl JSONEval {
                 .subforms
                 .get_mut(base_path.as_ref() as &str)
                 .ok_or_else(|| format!("Subform not found: {}", base_path))?;
-            subform.validate(data, context, paths, token, validate_readonly)
+            subform.validate(data, context, paths, token, validate_readonly, None)
         }
     }
 

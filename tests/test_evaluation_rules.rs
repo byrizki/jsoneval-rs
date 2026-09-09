@@ -91,7 +91,7 @@ fn test_evaluation_array_format() {
     let data_invalid_str = serde_json::to_string(&data_invalid).unwrap();
 
     eval.evaluate(&data_invalid_str, None, None, None).unwrap();
-    let validation_invalid = eval.validate(&data_invalid_str, None, None, None, None).unwrap();
+    let validation_invalid = eval.validate(&data_invalid_str, None, None, None, None, None).unwrap();
 
     assert!(
         validation_invalid.has_error,
@@ -133,7 +133,7 @@ fn test_evaluation_array_format() {
     let data_valid_str = serde_json::to_string(&data_valid).unwrap();
 
     eval.evaluate(&data_valid_str, None, None, None).unwrap();
-    let validation_valid = eval.validate(&data_valid_str, None, None, None, None).unwrap();
+    let validation_valid = eval.validate(&data_valid_str, None, None, None, None, None).unwrap();
 
     assert!(
         !validation_valid.has_error,
@@ -155,7 +155,7 @@ fn test_evaluation_array_format() {
     let data_other_str = serde_json::to_string(&data_other_relation).unwrap();
 
     eval.evaluate(&data_other_str, None, None, None).unwrap();
-    let validation_other = eval.validate(&data_other_str, None, None, None, None).unwrap();
+    let validation_other = eval.validate(&data_other_str, None, None, None, None, None).unwrap();
 
     assert!(
         !validation_other.has_error,
@@ -215,7 +215,7 @@ fn test_custom_evaluation_rule() {
     let data_invalid_str = serde_json::to_string(&data_invalid).unwrap();
 
     eval.evaluate(&data_invalid_str, None, None, None).unwrap();
-    let validation_invalid = eval.validate(&data_invalid_str, None, None, None, None).unwrap();
+    let validation_invalid = eval.validate(&data_invalid_str, None, None, None, None, None).unwrap();
 
     assert!(
         validation_invalid.has_error,
@@ -249,7 +249,7 @@ fn test_custom_evaluation_rule() {
     let data_valid_str = serde_json::to_string(&data_valid).unwrap();
 
     eval.evaluate(&data_valid_str, None, None, None).unwrap();
-    let validation_valid = eval.validate(&data_valid_str, None, None, None, None).unwrap();
+    let validation_valid = eval.validate(&data_valid_str, None, None, None, None, None).unwrap();
 
     assert!(
         !validation_valid.has_error,
@@ -311,7 +311,7 @@ fn test_evaluation_rule_with_dynamic_message() {
     let data_critical_str = serde_json::to_string(&data_critical).unwrap();
 
     eval.evaluate(&data_critical_str, None, None, None).unwrap();
-    let validation = eval.validate(&data_critical_str, None, None, None, None).unwrap();
+    let validation = eval.validate(&data_critical_str, None, None, None, None, None).unwrap();
 
     assert!(validation.has_error);
     let error = validation.errors.get("score").unwrap();
@@ -324,7 +324,7 @@ fn test_evaluation_rule_with_dynamic_message() {
     let data_low_str = serde_json::to_string(&data_low).unwrap();
 
     eval.evaluate(&data_low_str, None, None, None).unwrap();
-    let validation2 = eval.validate(&data_low_str, None, None, None, None).unwrap();
+    let validation2 = eval.validate(&data_low_str, None, None, None, None, None).unwrap();
 
     assert!(validation2.has_error);
     let error2 = validation2.errors.get("score").unwrap();
@@ -374,7 +374,7 @@ fn test_evaluation_rule_with_evaluated_data() {
     let data_str = serde_json::to_string(&data).unwrap();
 
     eval.evaluate(&data_str, None, None, None).unwrap();
-    let validation = eval.validate(&data_str, None, None, None, None).unwrap();
+    let validation = eval.validate(&data_str, None, None, None, None, None).unwrap();
 
     assert!(validation.has_error);
     let error = validation.errors.get("quantity").unwrap();

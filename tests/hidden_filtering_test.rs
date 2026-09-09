@@ -309,7 +309,7 @@ fn test_hidden_field_validation() {
 
     // Validate
     let result = eval
-        .validate(&data_str, None, None, None, None)
+        .validate(&data_str, None, None, None, None, None)
         .expect("Validation failed");
 
     // Check errors
@@ -385,7 +385,7 @@ fn test_layout_structure_hiding() {
 
     // Ensure layout paths are found and processed.
     let result = eval
-        .validate(&data_str, None, None, None, None)
+        .validate(&data_str, None, None, None, None, None)
         .expect("Validation failed");
 
     // "target_field" should be hidden because it is inside "section" (hidden).

@@ -268,6 +268,7 @@ export class JSONEvalCore {
 		data,
 		context,
 		validateReadonly,
+		includeSubforms,
 	}: ValidateOptions): Promise<ValidationResult> {
 		await this.init();
 		try {
@@ -275,6 +276,7 @@ export class JSONEvalCore {
 				stringifyOrNull(data)!,
 				stringifyOrNull(context),
 				validateReadonly,
+				includeSubforms,
 			);
 		} catch (error: any) {
 			throw new Error(`Validation failed: ${extractErrorMessage(error)}`);
@@ -667,6 +669,7 @@ export class JSONEvalCore {
 		context,
 		paths,
 		validateReadonly,
+		includeSubforms,
 	}: ValidatePathsOptions): Promise<ValidationResult> {
 		await this.init();
 		try {
@@ -675,6 +678,7 @@ export class JSONEvalCore {
 				stringifyOrNull(context),
 				paths || null,
 				validateReadonly,
+				includeSubforms,
 			);
 		} catch (error: any) {
 			throw new Error(`Validation failed: ${extractErrorMessage(error)}`);
@@ -690,6 +694,7 @@ export class JSONEvalCore {
 		context,
 		paths,
 		validateReadonly,
+		includeSubforms,
 	}: ValidatePathsOptions): Promise<any> {
 		await this.init();
 		try {
@@ -698,6 +703,7 @@ export class JSONEvalCore {
 				stringifyOrNull(context),
 				paths || null,
 				validateReadonly,
+				includeSubforms,
 			);
 		} catch (error: any) {
 			throw new Error(`Validation failed: ${extractErrorMessage(error)}`);

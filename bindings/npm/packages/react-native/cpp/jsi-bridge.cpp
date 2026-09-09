@@ -17,8 +17,8 @@ extern "C" {
     FFIResult json_eval_get_schema_value(JSONEvalHandle* handle);
     FFIResult json_eval_get_schema_value_array(JSONEvalHandle* handle);
     FFIResult json_eval_get_schema_value_object(JSONEvalHandle* handle);
-    FFIResult json_eval_validate(JSONEvalHandle* handle, const char* data, const char* context, bool validate_readonly);
-    FFIResult json_eval_validate_paths(JSONEvalHandle* handle, const char* data, const char* context, const char* paths_json, bool validate_readonly);
+    FFIResult json_eval_validate(JSONEvalHandle* handle, const char* data, const char* context, bool validate_readonly, bool include_subforms);
+    FFIResult json_eval_validate_paths(JSONEvalHandle* handle, const char* data, const char* context, const char* paths_json, bool validate_readonly, bool include_subforms);
     FFIResult json_eval_evaluate_dependents(JSONEvalHandle* handle, const char* changed_path, const char* data, const char* context, int re_evaluate, int include_subforms);
     FFIResult json_eval_get_evaluated_schema_by_path(JSONEvalHandle* handle, const char* path);
     FFIResult json_eval_get_evaluated_schema_by_paths(JSONEvalHandle* handle, const char* paths_json, uint8_t format);
@@ -487,13 +487,15 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 auto data = stringFromValue(rt, args[1]);
                 auto ctx = count > 2 ? stringFromValue(rt, args[2]) : "";
                 bool validateReadonly = count > 3 && args[3].isBool() ? args[3].asBool() : false;
+                bool includeSubforms = count > 4 && args[4].isBool() ? args[4].asBool() : false;
                 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_validate(
                     handle,
                     data.c_str(),
                     ctx.empty() ? nullptr : ctx.c_str(),
-                    validateReadonly
+                    validateReadonly,
+                    includeSubforms
                 );
                 return ffiResultToJsiValue(rt, result);
             }
@@ -510,6 +512,7 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                 auto ctx = count > 2 ? stringFromValue(rt, args[2]) : "";
                 auto paths = count > 3 ? stringFromValue(rt, args[3]) : "";
                 bool validateReadonly = count > 4 && args[4].isBool() ? args[4].asBool() : false;
+                bool includeSubforms = count > 5 && args[5].isBool() ? args[5].asBool() : false;
                 
                 auto [handle, lock] = lockHandleById(handleId);
                 FFIResult result = json_eval_validate_paths(
@@ -517,7 +520,8 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
                     data.c_str(),
                     ctx.empty() ? nullptr : ctx.c_str(),
                     paths.empty() ? nullptr : paths.c_str(),
-                    validateReadonly
+                    validateReadonly,
+                    includeSubforms
                 );
                 return ffiResultToJsiValue(rt, result);
             }

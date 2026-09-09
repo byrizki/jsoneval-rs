@@ -14,8 +14,8 @@ export interface JsonEvalJSIGlobal {
     dispose(handle: string): void;
     evaluateOnly(handle: string, data: string, context: string | null, paths: string | null): void;
     evaluate(handle: string, data: string, context: string | null, paths: string | null): string;
-    validate(handle: string, data: string, context: string | null, validateReadonly?: boolean): string;
-    validatePaths(handle: string, data: string, context: string | null, paths: string | null, validateReadonly?: boolean): string;
+    validate(handle: string, data: string, context: string | null, validateReadonly?: boolean, includeSubforms?: boolean): string;
+    validatePaths(handle: string, data: string, context: string | null, paths: string | null, validateReadonly?: boolean, includeSubforms?: boolean): string;
     evaluateDependents(handle: string, changedPaths: string, data: string | null, context: string | null, reEvaluate: boolean, includeSubforms: boolean): string;
     getEvaluatedSchema(handle: string): string;
     getEvaluatedSchemaMsgpack(handle: string): ArrayBuffer;

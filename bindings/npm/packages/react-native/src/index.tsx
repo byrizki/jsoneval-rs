@@ -418,7 +418,8 @@ export class JSONEval {
         'validate',
         dataStr,
         contextStr,
-        options.validateReadonly ?? false
+        options.validateReadonly ?? false,
+        options.includeSubforms ?? false
       );
     } catch (error) {
       throw new Error(`Validation failed: ${extractErrorMessage(error)}`);
@@ -889,7 +890,8 @@ export class JSONEval {
       dataStr,
       contextStr,
       paths,
-      options.validateReadonly ?? false
+      options.validateReadonly ?? false,
+      options.includeSubforms ?? false
     );
   }
 
