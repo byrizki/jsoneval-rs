@@ -47,23 +47,22 @@
   - _...24 more_
 - `bindings/npm/packages/bundler/src/index.ts` — function version: () => string, class JSONEval
 - `bindings/npm/packages/common/src/utils.ts`
+  - function parseJsonWithBigInt: (json) => any
+  - function stringifyJsonWithBigInt: (value) => string | undefined
   - function stringifyValue: (value) => string
   - function parseValue: (value) => any
   - function stringifyOrNull: (value) => string | null
   - function extractErrorMessage: (error) => string
-  - function mergeLayoutOverlay: (schema, overlayEntries) => any
-  - function resolveEvaluatedLayout: (getSchema) => void
+  - _...2 more_
 - `bindings/npm/packages/node/src/index.ts` — function version: () => string, class JSONEval
+- `bindings/npm/packages/react-native/lib/module/index.js`
+  - function useJSONEval: (options) => void
+  - function multiply
+  - class JSONEval
+- `bindings/npm/packages/react-native/lib/module/jsi-bridge.js` — function getJSIGlobal: () => void, function isJSIAvailable: () => void
 - `bindings/npm/packages/react-native/src/jsi-bridge.ts`
   - function getJSIGlobal: () => JsonEvalJSIGlobal | null
   - function isJSIAvailable: () => boolean
   - interface JsonEvalJSIGlobal
-- `bindings/npm/packages/vanilla/pkg/json_eval_rs.js`
-  - function getVersion: () => void
-  - function init: () => void
-  - function version: () => void
-  - class JSONEvalWasm
-  - class ValidationError
-  - class ValidationResult
 - `bindings/npm/packages/vanilla/src/index.ts` — function version: () => string, class JSONEval
 - `bindings/npm/packages/webcore/src/index.ts` — function getVersion: (wasmModule) => string, class JSONEvalCore

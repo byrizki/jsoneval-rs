@@ -120,6 +120,8 @@ jobs:
       - uses: actions/checkout@v6
       - id: check
         name: Check for [RN] flag
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           SHOULD_RUN=false
           # Check latest changes in CHANGELOG.md for [RN]
@@ -135,8 +137,8 @@ jobs:
             fi
           fi
 
-          # Check commit message for [RN]
-          if [[ "${{ github.event.head_commit.message }}" == *"[RN]"* ]]; then
+          # Check commit message for [RN] via env to avoid shell injection.
+          if [[ "$COMMIT_MESSAGE" == *"[RN]"* ]]; then
             echo "Found [RN] in commit message"
             SHOULD_RUN=true
           fi

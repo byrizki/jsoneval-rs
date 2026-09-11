@@ -3,9 +3,9 @@
 > **Stack:** aspnet, nuxt | none | react | mixed
 > **Monorepo:** csharp, json-eval-rs-npm-monorepo, documentation, products
 
-> 0 routes | 0 models | 8 components | 14 lib files | 0 env vars | 2 middleware | 0% test coverage
-> **Token savings:** this file is ~3,000 tokens. Without it, AI exploration would cost ~13,900 tokens. **Saves ~11,000 tokens per conversation.**
-> **Last scanned:** 2026-07-20 04:18 — re-run after significant changes
+> 0 routes | 0 models | 11 components | 15 lib files | 0 env vars | 2 middleware | 0% test coverage
+> **Token savings:** this file is ~3,200 tokens. Without it, AI exploration would cost ~15,900 tokens. **Saves ~12,700 tokens per conversation.**
+> **Last scanned:** 2026-09-11 11:47 — re-run after significant changes
 
 ---
 
@@ -18,6 +18,9 @@
 - **App** — props: Component, pageProps — `bindings/npm/examples/nextjs/pages/_app.tsx`
 - **Home** — `bindings/npm/examples/nextjs/pages/index.tsx`
 - **App** — `bindings/npm/examples/rncli/App.tsx`
+- **DependentFieldsScreen** — `bindings/npm/examples/rncli/src/screens/DependentFieldsScreen.tsx`
+- **FormValidationScreen** — `bindings/npm/examples/rncli/src/screens/FormValidationScreen.tsx`
+- **InsuranceFormScreen** — `bindings/npm/examples/rncli/src/screens/InsuranceFormScreen.tsx`
 - **LINKING_ERROR** — `bindings/npm/packages/react-native/src/index.tsx`
 
 ---
@@ -71,24 +74,23 @@
   - _...24 more_
 - `bindings/npm/packages/bundler/src/index.ts` — function version: () => string, class JSONEval
 - `bindings/npm/packages/common/src/utils.ts`
+  - function parseJsonWithBigInt: (json) => any
+  - function stringifyJsonWithBigInt: (value) => string | undefined
   - function stringifyValue: (value) => string
   - function parseValue: (value) => any
   - function stringifyOrNull: (value) => string | null
   - function extractErrorMessage: (error) => string
-  - function mergeLayoutOverlay: (schema, overlayEntries) => any
-  - function resolveEvaluatedLayout: (getSchema) => void
+  - _...2 more_
 - `bindings/npm/packages/node/src/index.ts` — function version: () => string, class JSONEval
+- `bindings/npm/packages/react-native/lib/module/index.js`
+  - function useJSONEval: (options) => void
+  - function multiply
+  - class JSONEval
+- `bindings/npm/packages/react-native/lib/module/jsi-bridge.js` — function getJSIGlobal: () => void, function isJSIAvailable: () => void
 - `bindings/npm/packages/react-native/src/jsi-bridge.ts`
   - function getJSIGlobal: () => JsonEvalJSIGlobal | null
   - function isJSIAvailable: () => boolean
   - interface JsonEvalJSIGlobal
-- `bindings/npm/packages/vanilla/pkg/json_eval_rs.js`
-  - function getVersion: () => void
-  - function init: () => void
-  - function version: () => void
-  - class JSONEvalWasm
-  - class ValidationError
-  - class ValidationResult
 - `bindings/npm/packages/vanilla/src/index.ts` — function version: () => string, class JSONEval
 - `bindings/npm/packages/webcore/src/index.ts` — function getVersion: (wasmModule) => string, class JSONEvalCore
 
@@ -119,12 +121,16 @@
 - `examples/common.rs` — imported by **3** files
 - `bindings/npm/packages/node/pkg/json_eval_rs.js` — imported by **2** files
 - `bindings/npm/examples/rncli/App.tsx` — imported by **2** files
+- `bindings/npm/examples/rncli/src/screens/FormValidationScreen.tsx` — imported by **1** files
+- `bindings/npm/examples/rncli/src/screens/DependentFieldsScreen.tsx` — imported by **1** files
 - `bindings/npm/packages/bundler/pkg/json_eval_rs_bg.js` — imported by **1** files
 - `bindings/npm/packages/bundler/pkg/json_eval_rs.js` — imported by **1** files
 - `bindings/npm/packages/common/src/utils.ts` — imported by **1** files
 - `bindings/npm/packages/common/src/types.ts` — imported by **1** files
+- `bindings/npm/packages/react-native/lib/commonjs/jsi-bridge.js` — imported by **1** files
+- `bindings/npm/packages/react-native/lib/module/jsi-bridge.js` — imported by **1** files
+- `bindings/npm/packages/react-native/src/index.tsx` — imported by **1** files
 - `bindings/npm/packages/react-native/src/jsi-bridge.ts` — imported by **1** files
-- `bindings/npm/packages/vanilla/pkg/json_eval_rs.js` — imported by **1** files
 - `tests/common.rs` — imported by **1** files
 
 ## Import Map (who imports what)
@@ -132,20 +138,20 @@
 - `examples/common.rs` ← `examples/basic.rs`, `examples/basic_parsed.rs`, `examples/benchmark.rs`
 - `bindings/npm/packages/node/pkg/json_eval_rs.js` ← `bindings/npm/examples/nodejs-benchmark/simulate_cache_miss.js`, `bindings/npm/packages/node/src/index.ts`
 - `bindings/npm/examples/rncli/App.tsx` ← `bindings/npm/examples/rncli/__tests__/App.test.tsx`, `bindings/npm/examples/rncli/index.js`
+- `bindings/npm/examples/rncli/src/screens/FormValidationScreen.tsx` ← `bindings/npm/examples/rncli/App.tsx`
+- `bindings/npm/examples/rncli/src/screens/DependentFieldsScreen.tsx` ← `bindings/npm/examples/rncli/App.tsx`
 - `bindings/npm/packages/bundler/pkg/json_eval_rs_bg.js` ← `bindings/npm/packages/bundler/pkg/json_eval_rs.js`
 - `bindings/npm/packages/bundler/pkg/json_eval_rs.js` ← `bindings/npm/packages/bundler/src/index.ts`
 - `bindings/npm/packages/common/src/utils.ts` ← `bindings/npm/packages/common/src/index.ts`
 - `bindings/npm/packages/common/src/types.ts` ← `bindings/npm/packages/common/src/utils.ts`
-- `bindings/npm/packages/react-native/src/jsi-bridge.ts` ← `bindings/npm/packages/react-native/src/index.tsx`
-- `bindings/npm/packages/vanilla/pkg/json_eval_rs.js` ← `bindings/npm/packages/vanilla/src/index.ts`
-- `tests/common.rs` ← `tests/json_eval_tests.rs`
+- `bindings/npm/packages/react-native/lib/commonjs/jsi-bridge.js` ← `bindings/npm/packages/react-native/lib/commonjs/index.js`
 
 ---
 
 # Test Coverage
 
 > **0%** of routes and models are covered by tests
-> 65 test files found
+> 75 test files found
 
 ---
 

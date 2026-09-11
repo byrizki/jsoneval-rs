@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@json-eval-rs/bundler": "*",
-    "next": "15.5.24",
+    "next": "15.5.25",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
