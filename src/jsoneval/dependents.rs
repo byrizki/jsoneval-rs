@@ -1705,6 +1705,7 @@ impl JSONEval {
         while let Some((current_path, is_transitive, target_indices)) = queue.pop() {
             if let Some(t) = token {
                 if t.is_cancelled() {
+
                     if let Some(cp) = canceled_paths {
                         cp.push(current_path.clone());
                         for (path, _, _) in queue.iter() {
@@ -1774,22 +1775,24 @@ impl JSONEval {
             // These are fields that have a dependent formula that checks `current_path` as a
             // contextual condition (e.g., ins_occ's formula for ph_occupation checks phins_relation).
             // When `current_path` changes, we need to re-evaluate those source fields' dependents.
-            if let Some(formula_sources) = dep_formula_triggers.get(&current_data_path) {
-                let mut targets_by_source: std::collections::HashMap<String, Vec<usize>> =
-                    std::collections::HashMap::new();
-                for (source_schema_path, dep_idx) in formula_sources {
-                    let source_ptr = path_utils::dot_notation_to_schema_pointer(source_schema_path);
-                    targets_by_source
-                        .entry(source_ptr)
-                        .or_default()
-                        .push(*dep_idx);
-                }
-                for (source_ptr, targets) in targets_by_source {
-                    // Check if it's already entirely processed
-                    if let Some(None) = processed.get(&source_ptr) {
-                        continue;
+            if target_indices.is_none() {
+                if let Some(formula_sources) = dep_formula_triggers.get(&current_data_path) {
+                    let mut targets_by_source: std::collections::HashMap<String, Vec<usize>> =
+                        std::collections::HashMap::new();
+                    for (source_schema_path, dep_idx) in formula_sources {
+                        let source_ptr = path_utils::dot_notation_to_schema_pointer(source_schema_path);
+                        targets_by_source
+                            .entry(source_ptr)
+                            .or_default()
+                            .push(*dep_idx);
                     }
-                    queue.push((source_ptr, true, Some(targets)));
+                    for (source_ptr, targets) in targets_by_source {
+                        // Check if it's already entirely processed
+                        if let Some(None) = processed.get(&source_ptr) {
+                            continue;
+                        }
+                        queue.push((source_ptr, true, Some(targets)));
+                    }
                 }
             }
 
@@ -1844,19 +1847,24 @@ impl JSONEval {
                         };
 
                         if clear_bool {
+                            let was_already_null = current_ref_value == Value::Null;
                             if data_path == current_data_path {
                                 current_value = Value::Null;
                             }
                             eval_data.set(&data_path, Value::Null);
+
                             eval_cache.bump_data_version(&data_path);
                             clear_applied = true;
-                            add_transitive = true;
+                            if !was_already_null {
+                                add_transitive = true;
+                            }
                             add_deps = true;
                         }
                     }
 
                     // Process value
-                    if let Some(value_val) = &dep_item.value {
+                    if !clear_applied {
+                        if let Some(value_val) = &dep_item.value {
                         let computed_value = Self::evaluate_dependent_value_static(
                             engine,
                             evaluations,
@@ -1881,6 +1889,7 @@ impl JSONEval {
                             add_deps = true;
                         }
                     }
+                }
 
                     // add only when has clear / value
                     if add_deps {
