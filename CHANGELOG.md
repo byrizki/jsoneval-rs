@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.121] - 2026-09-11
+
+- fix: evaluate dependents improvement
+
+
 ## [0.0.120] - 2026-09-09
 
 - feat: [RN] [C#] [Web] add opts to include subform in validate method
