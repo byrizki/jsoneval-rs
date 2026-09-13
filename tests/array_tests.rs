@@ -306,25 +306,25 @@ mod array_tests {
     fn test_real_world_table_processing() {
         let mut engine = RLogic::new();
 
-        // Real-world scenario: Process insurance rider premium table
+        // Scenario: Process item price table
         let data = json!({
-            "riders": [
-                {"code": "RIDER_A", "premium": 100000, "loading": 1.05},
-                {"code": "RIDER_B", "premium": 200000, "loading": 1.10},
-                {"code": "RIDER_C", "premium": 150000, "loading": 1.08}
+            "items": [
+                {"code": "ITEM_A", "price": 100000, "multiplier": 1.05},
+                {"code": "ITEM_B", "price": 200000, "multiplier": 1.10},
+                {"code": "ITEM_C", "price": 150000, "multiplier": 1.08}
             ],
             "frequency": 12,
             "discount_rate": 0.95
         });
 
-        // Calculate total annual premium with loading and discount
+        // Calculate total annual amount with multiplier and discount
         let logic_id = engine
             .compile(&json!({
                 "*": [
                     {"sum": [
                         {"map": [
-                            {"var": "riders"},
-                            {"*": [{"var": "premium"}, {"var": "loading"}]}
+                            {"var": "items"},
+                            {"*": [{"var": "price"}, {"var": "multiplier"}]}
                         ]}
                     ]},
                     {"var": "frequency"},

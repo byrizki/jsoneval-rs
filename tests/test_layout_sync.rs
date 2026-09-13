@@ -6,7 +6,7 @@ fn test_get_evaluated_schema_layout_sync() {
     // UNEVALUATED: Schema with layout containing a reference
     let schema = json!({
         "$params": {},
-        "illustration": {
+        "form": {
             "type": "object",
             "properties": {
                 "hide_flag": {
@@ -20,7 +20,7 @@ fn test_get_evaluated_schema_layout_sync() {
                     "condition": {
                         "hidden": {
                             "$evaluation": {
-                                "$ref": "#/illustration/properties/hide_flag"
+                                "$ref": "#/form/properties/hide_flag"
                             }
                         }
                     }
@@ -31,7 +31,7 @@ fn test_get_evaluated_schema_layout_sync() {
                         "$layout": {
                             "elements": [
                                 {
-                                    "$ref": "#/illustration/properties/target_field"
+                                    "$ref": "#/form/properties/target_field"
                                 }
                             ]
                         }
@@ -46,12 +46,12 @@ fn test_get_evaluated_schema_layout_sync() {
 
     // EVALUATE: hide_flag = true
     // Expected: condition.hidden should be true
-    eval.evaluate(r#"{"illustration": {"hide_flag": true}}"#, None, None, None)
+    eval.evaluate(r#"{"form": {"hide_flag": true}}"#, None, None, None)
         .unwrap();
     let result_true = eval.get_evaluated_schema_resolved();
 
     let layout_elem_true = result_true
-        .pointer("/illustration/properties/container/properties/$layout/elements/0")
+        .pointer("/form/properties/container/properties/$layout/elements/0")
         .expect("Should have layout element");
 
     assert_field_matches(
@@ -65,7 +65,7 @@ fn test_get_evaluated_schema_layout_sync() {
     // EVALUATE: hide_flag = false
     // Expected: condition.hidden should be false (layout should re-sync from updated evaluation)
     eval.evaluate(
-        r#"{"illustration": {"hide_flag": false}}"#,
+        r#"{"form": {"hide_flag": false}}"#,
         None,
         None,
         None,
@@ -74,7 +74,7 @@ fn test_get_evaluated_schema_layout_sync() {
     let result_false = eval.get_evaluated_schema_resolved();
 
     let layout_elem_false = result_false
-        .pointer("/illustration/properties/container/properties/$layout/elements/0")
+        .pointer("/form/properties/container/properties/$layout/elements/0")
         .expect("Should have layout element");
 
     assert_field_matches(

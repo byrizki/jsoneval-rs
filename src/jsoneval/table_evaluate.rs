@@ -183,7 +183,7 @@ fn evaluate_table_inner(
                 // Validate the dep's current value against its schema rules on-demand.
                 // If the value is absent from scope_data (Null), skip validation entirely —
                 // the dep belongs to a different evaluation context (e.g., a subform path
-                // like /riders/prem_pay_period evaluated during main-form context). Treating
+                // like /subform/field evaluated during main-form context). Treating
                 // an absent dep as a required-rule failure causes spurious cache misses.
                 let dep_value = scope_data.get_without_properties(dep);
                 let dep_value = match dep_value {
@@ -564,7 +564,7 @@ fn evaluate_table_inner(
                                         unknown_deps[fwd_idx] = true;
                                     }
                                 } else {
-                                    // External schema path (e.g. #/illustration/...): invariant during table evaluation
+                                    // External schema path (e.g. #/properties/...): invariant during table evaluation
                                     continue;
                                 }
                             }

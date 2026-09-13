@@ -5,9 +5,9 @@ fn evaluator_with_static_array() -> JSONEval {
     let schema = json!({
         "$params": {
             "references": {
-                "RIDER_TABLE": {
+                "ITEMS_TABLE": {
                     "$table": [
-                        { "$repeat": [0, 2, { "PREM_RIDER_PER_PAY": { "$evaluation": { "$ref": "$iteration" } } }] }
+                        { "$repeat": [0, 2, { "ITEM_VAL_PER_PAY": { "$evaluation": { "$ref": "$iteration" } } }] }
                     ]
                 }
             }
@@ -26,8 +26,8 @@ fn evaluated_schema_path_resolves_static_array_row() {
     let mut evaluator = evaluator_with_static_array();
 
     assert_eq!(
-        evaluator.get_evaluated_schema_by_path("$params.references.RIDER_TABLE.1"),
-        Some(json!({ "PREM_RIDER_PER_PAY": 1 }))
+        evaluator.get_evaluated_schema_by_path("$params.references.ITEMS_TABLE.1"),
+        Some(json!({ "ITEM_VAL_PER_PAY": 1 }))
     );
 }
 
@@ -37,7 +37,7 @@ fn evaluated_schema_path_resolves_static_array_cell() {
 
     assert_eq!(
         evaluator
-            .get_evaluated_schema_by_path("$params.references.RIDER_TABLE.1.PREM_RIDER_PER_PAY"),
+            .get_evaluated_schema_by_path("$params.references.ITEMS_TABLE.1.ITEM_VAL_PER_PAY"),
         Some(json!(1))
     );
 }
@@ -46,8 +46,8 @@ fn evaluated_schema_path_resolves_static_array_cell() {
 fn evaluated_schema_paths_resolve_static_array_cells() {
     let mut evaluator = evaluator_with_static_array();
     let paths = vec![
-        "$params.references.RIDER_TABLE.1.PREM_RIDER_PER_PAY".to_string(),
-        "$params.references.RIDER_TABLE.2.PREM_RIDER_PER_PAY".to_string(),
+        "$params.references.ITEMS_TABLE.1.ITEM_VAL_PER_PAY".to_string(),
+        "$params.references.ITEMS_TABLE.2.ITEM_VAL_PER_PAY".to_string(),
     ];
 
     assert_eq!(

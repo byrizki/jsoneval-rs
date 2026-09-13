@@ -13,7 +13,7 @@ fn test_wasm_methods_parity() {
                 "type": "string",
                 "options": ["A", "B"]
             },
-            "riders": {
+            "items": {
                 "type": "array",
                 "items": {
                     "type": "object",
@@ -24,7 +24,7 @@ fn test_wasm_methods_parity() {
                 "$layout": {
                     "type": "VerticalLayout",
                     "elements": [
-                        { "$ref": "#/riders/properties/name" }
+                        { "$ref": "#/items/properties/name" }
                     ]
                 }
             },
@@ -47,7 +47,7 @@ fn test_wasm_methods_parity() {
 
     // 2. evaluate
     let data = json!({
-        "riders": [{"name": "Rider 1"}]
+        "items": [{"name": "Item 1"}]
     });
     let data_str = serde_json::to_string(&data).unwrap();
     wasm_eval
@@ -77,21 +77,21 @@ fn test_wasm_methods_parity() {
     assert_eq!(options_val, json!(["A", "B"]));
 
     // 5. Subform methods
-    let subform_path = "#/riders/0";
+    let subform_path = "#/items/0";
 
     // 5a. getEvaluatedSchemaSubform (returns String in WASM)
     let subform_schema_json = wasm_eval.get_evaluated_schema_subform(subform_path);
     let subform_schema: serde_json::Value = serde_json::from_str(&subform_schema_json).unwrap();
-    assert!(subform_schema.get("riders").is_some());
+    assert!(subform_schema.get("items").is_some());
 
     // 5b. get_evaluated_schema_resolved_subform_to_value (Rust test helper)
     let subform_resolved = wasm_eval.get_evaluated_schema_resolved_subform_to_value(subform_path);
     assert!(subform_resolved
-        .pointer("/riders/$layout/elements/0/$fullpath")
+        .pointer("/items/$layout/elements/0/$fullpath")
         .is_some());
 
     // 5c. hasSubform
-    assert!(wasm_eval.has_subform("#/riders"));
+    assert!(wasm_eval.has_subform("#/items"));
 
     // 6. validate_to_value with include_subforms
     let v_schema = json!({

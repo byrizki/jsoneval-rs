@@ -232,8 +232,8 @@ mod basic_tests {
     fn test_complex_nested_structures() {
         let mut engine = RLogic::new();
         let data = json!({
-            "policy": {
-                "insured": {
+            "entity": {
+                "profile": {
                     "name": "John Doe",
                     "age": 35,
                     "dependents": [
@@ -241,11 +241,11 @@ mod basic_tests {
                         {"name": "Bob", "age": 5, "relation": "child"}
                     ]
                 },
-                "coverage": {
+                "details": {
                     "amount": 500000,
-                    "riders": [
-                        {"type": "critical_illness", "premium": 150},
-                        {"type": "disability", "premium": 200}
+                    "items": [
+                        {"type": "category_a", "fee": 150},
+                        {"type": "category_b", "fee": 200}
                     ]
                 }
             }
@@ -253,17 +253,17 @@ mod basic_tests {
 
         // Deep nested access
         let logic_id = engine
-            .compile(&json!({"var": "policy.insured.dependents.0.name"}))
+            .compile(&json!({"var": "entity.profile.dependents.0.name"}))
             .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("Jane"));
 
-        // Access coverage details
+        // Access details
         let logic_id = engine
-            .compile(&json!({"var": "policy.coverage.riders.1.type"}))
+            .compile(&json!({"var": "entity.details.items.1.type"}))
             .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
-        assert_eq!(result, json!("disability"));
+        assert_eq!(result, json!("category_b"));
     }
 
     #[test]
@@ -351,37 +351,37 @@ mod basic_tests {
     fn test_real_world_data_access() {
         let mut engine = RLogic::new();
 
-        // Simulate real insurance product data
+        // Simulate structured product data
         let data = json!({
             "$params": {
                 "constants": {
-                    "MAX_POL_AGE": 100,
-                    "MORT_MULTIPLIER": 0.97
+                    "MAX_AGE": 100,
+                    "FACTOR_MULTIPLIER": 0.97
                 },
                 "references": {
                     "PRODUCT_PACKAGE": [
                         {"PROD_PACKAGE": "Essential", "COMP_CODE": "ESS"},
-                        {"PROD_PACKAGE": "Premium", "COMP_CODE": "PREM"}
+                        {"PROD_PACKAGE": "Standard", "COMP_CODE": "STD"}
                     ]
                 }
             },
-            "illustration": {
-                "product_benefit": {
-                    "benefit_type": {
-                        "prem_freq": 12,
-                        "prem_pay_period": 10
+            "form": {
+                "config": {
+                    "settings": {
+                        "frequency": 12,
+                        "period": 10
                     }
                 },
-                "insured": {
-                    "insage": 30,
-                    "ins_dob": "1995-01-01"
+                "user": {
+                    "age": 30,
+                    "dob": "1995-01-01"
                 }
             }
         });
 
         // Access constants
         let logic_id = engine
-            .compile(&json!({"$ref": "$params.constants.MAX_POL_AGE"}))
+            .compile(&json!({"$ref": "$params.constants.MAX_AGE"}))
             .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!(100));
@@ -395,10 +395,10 @@ mod basic_tests {
         let result = engine.run(&logic_id, &data).unwrap();
         assert_eq!(result, json!("ESS"));
 
-        // Access illustration data
+        // Access form data
         let logic_id = engine
             .compile(&json!({
-                "var": "illustration.product_benefit.benefit_type.prem_freq"
+                "var": "form.config.settings.frequency"
             }))
             .unwrap();
         let result = engine.run(&logic_id, &data).unwrap();

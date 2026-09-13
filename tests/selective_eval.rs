@@ -5,7 +5,7 @@ use serde_json::json;
 fn test_selective_evaluation_basic() {
     let schema = json!({
         "$params": {
-            "type": "illustration",
+            "type": "form",
             "accessList": {
                 "$evaluation": {
                     "if": [
@@ -57,7 +57,7 @@ fn test_selective_evaluation_basic() {
                             "/": [
                                 4000000,
                                 {
-                                "$ref": "#/illustration/properties/product_benefit/properties/benefit_type/properties/prem_freq"
+                                "$ref": "#/form/properties/product_benefit/properties/benefit_type/properties/prem_freq"
                                 }
                             ]
                             },

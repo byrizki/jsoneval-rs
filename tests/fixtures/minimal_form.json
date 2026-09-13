@@ -1,7 +1,7 @@
 {
     "$schema": "https://raw.githubusercontent.com/QuadrantSynergyInternational/form-schema/refs/heads/main/schema.json",
     "$params": {
-        "type": "illustration",
+        "type": "form",
         "productCode": "TEST",
         "productName": "Test Product",
         "productType": "TR",
@@ -17,7 +17,7 @@
                     "-": [
                         100,
                         {
-                            "$ref": "#/illustration/properties/insured/properties/age"
+                            "$ref": "#/form/properties/user/properties/age"
                         }
                     ]
                 }
@@ -30,11 +30,11 @@
                     "CODE": "B1"
                 },
                 {
-                    "TYPE": "Premium",
+                    "TYPE": "Advanced",
                     "CODE": "P1"
                 }
             ],
-            "PREMIUM_RATES": [
+            "RATES": [
                 {
                     "AGE": 20,
                     "MALE_RATE": 1.5,
@@ -88,19 +88,19 @@
             ]
         }
     },
-    "illustration": {
+    "form": {
         "type": "object",
         "$layout": {
             "type": "VerticalLayout",
             "elements": [
                 {
-                    "$ref": "#/illustration/properties/header"
+                    "$ref": "#/form/properties/header"
                 },
                 {
-                    "$ref": "#/illustration/properties/insured"
+                    "$ref": "#/form/properties/user"
                 },
                 {
-                    "$ref": "#/illustration/properties/policy_container"
+                    "$ref": "#/form/properties/details"
                 }
             ]
         },
@@ -112,16 +112,16 @@
                     "template": "FormHeader",
                     "elements": [
                         {
-                            "$ref": "#/illustration/properties/header/properties/form_number"
+                            "$ref": "#/form/properties/header/properties/form_number"
                         },
                         {
-                            "$ref": "#/illustration/properties/header/properties/form_date"
+                            "$ref": "#/form/properties/header/properties/form_date"
                         },
                         {
-                            "$ref": "#/illustration/properties/header/properties/extra_comments"
+                            "$ref": "#/form/properties/header/properties/extra_comments"
                         },
                         {
-                            "$ref": "#/illustration/properties/header/properties/recursive_test"
+                            "$ref": "#/form/properties/header/properties/recursive_test"
                         }
                     ]
                 },
@@ -160,13 +160,13 @@
                             "type": "VerticalLayout",
                             "elements": [
                                 {
-                                    "$ref": "#/illustration/properties/header/properties/recursive_test/properties/field_c"
+                                    "$ref": "#/form/properties/header/properties/recursive_test/properties/field_c"
                                 },
                                 {
-                                    "$ref": "#/illustration/properties/header/properties/recursive_test/properties/field_b"
+                                    "$ref": "#/form/properties/header/properties/recursive_test/properties/field_b"
                                 },
                                 {
-                                    "$ref": "#/illustration/properties/header/properties/recursive_test/properties/field_a"
+                                    "$ref": "#/form/properties/header/properties/recursive_test/properties/field_a"
                                 }
                             ]
                         },
@@ -185,7 +185,7 @@
                                         "$evaluation": {
                                             "==": [
                                                 {
-                                                    "$ref": "#/illustration/properties/header/properties/recursive_test/properties/field_c"
+                                                    "$ref": "#/form/properties/header/properties/recursive_test/properties/field_c"
                                                 },
                                                 true
                                             ]
@@ -202,7 +202,7 @@
                                         "$evaluation": {
                                             "ISEMPTY": [
                                                 {
-                                                    "$ref": "#/illustration/properties/header/properties/recursive_test/properties/field_b"
+                                                    "$ref": "#/form/properties/header/properties/recursive_test/properties/field_b"
                                                 }
                                             ]
                                         }
@@ -220,7 +220,7 @@
                                 "$evaluation": {
                                     "==": [
                                         {
-                                            "$ref": "#/illustration/properties/header/properties/form_number"
+                                            "$ref": "#/form/properties/header/properties/form_number"
                                         },
                                         "HIDE"
                                     ]
@@ -235,35 +235,35 @@
                     }
                 }
             },
-            "insured": {
+            "user": {
                 "type": "object",
-                "title": "Insured Person",
+                "title": "User Profile",
                 "$layout": {
                     "type": "VerticalLayout",
                     "elements": [
                         {
-                            "$ref": "#/illustration/properties/insured/properties/name"
+                            "$ref": "#/form/properties/user/properties/name"
                         },
                         {
-                            "$ref": "#/illustration/properties/insured/properties/date_of_birth"
+                            "$ref": "#/form/properties/user/properties/date_of_birth"
                         },
                         {
-                            "$ref": "#/illustration/properties/insured/properties/age"
+                            "$ref": "#/form/properties/user/properties/age"
                         },
                         {
-                            "$ref": "#/illustration/properties/insured/properties/gender"
+                            "$ref": "#/form/properties/user/properties/gender"
                         },
                         {
-                            "$ref": "#/illustration/properties/insured/properties/is_smoker"
+                            "$ref": "#/form/properties/user/properties/is_smoker"
                         },
                         {
-                            "$ref": "#/illustration/properties/insured/properties/occupation"
+                            "$ref": "#/form/properties/user/properties/occupation"
                         },
                         {
-                            "$ref": "#/illustration/properties/insured/properties/occupation_class"
+                            "$ref": "#/form/properties/user/properties/occupation_class"
                         },
                         {
-                            "$ref": "#/illustration/properties/insured/properties/risk_category"
+                            "$ref": "#/form/properties/user/properties/risk_category"
                         }
                     ]
                 },
@@ -285,7 +285,7 @@
                         "fieldType": "datepicker",
                         "dependents": [
                             {
-                                "$ref": "#/illustration/properties/insured/properties/age",
+                                "$ref": "#/form/properties/user/properties/age",
                                 "value": {
                                     "$evaluation": {
                                         "DATEDIF": [
@@ -338,13 +338,13 @@
                         "fieldType": "checkbox",
                         "dependents": [
                             {
-                                "$ref": "#/illustration/properties/insured/properties/occupation",
+                                "$ref": "#/form/properties/user/properties/occupation",
                                 "clear": {
                                     "$evaluation": true
                                 }
                             },
                             {
-                                "$ref": "#/illustration/properties/insured/properties/risk_category",
+                                "$ref": "#/form/properties/user/properties/risk_category",
                                 "value": {
                                     "$evaluation": {
                                         "if": [
@@ -383,7 +383,7 @@
                         ],
                         "dependents": [
                             {
-                                "$ref": "#/illustration/properties/insured/properties/occupation_class",
+                                "$ref": "#/form/properties/user/properties/occupation_class",
                                 "value": {
                                     "$evaluation": {
                                         "if": [
@@ -438,7 +438,7 @@
                         },
                         "dependents": [
                             {
-                                "$ref": "#/illustration/properties/insured/properties/risk_category",
+                                "$ref": "#/form/properties/user/properties/risk_category",
                                 "value": {
                                     "$evaluation": {
                                         "if": [
@@ -481,31 +481,31 @@
                     }
                 }
             },
-            "policy_container": {
+            "details": {
                 "type": "object",
-                "title": "Policy Details",
+                "title": "Details",
                 "$layout": {
                     "type": "VerticalLayout",
                     "elements": [
                         {
-                            "$ref": "#/illustration/properties/policy_container/properties/has_additional_coverage"
+                            "$ref": "#/form/properties/details/properties/has_additional_option"
                         },
                         {
-                            "$ref": "#/illustration/properties/policy_container/properties/coverage_type"
+                            "$ref": "#/form/properties/details/properties/option_type"
                         },
                         {
-                            "$ref": "#/illustration/properties/policy_container/properties/coverage_details"
+                            "$ref": "#/form/properties/details/properties/option_details"
                         }
                     ]
                 },
                 "properties": {
-                    "has_additional_coverage": {
+                    "has_additional_option": {
                         "type": "boolean",
-                        "title": "Add Additional Coverage?",
+                        "title": "Add Additional Option?",
                         "fieldType": "checkbox",
                         "dependents": [
                             {
-                                "$ref": "#/illustration/properties/policy_container/properties/coverage_type",
+                                "$ref": "#/form/properties/details/properties/option_type",
                                 "clear": {
                                     "$evaluation": {
                                         "if": [
@@ -525,21 +525,21 @@
                             }
                         ]
                     },
-                    "coverage_type": {
+                    "option_type": {
                         "type": "string",
-                        "title": "Coverage Type",
+                        "title": "Option Type",
                         "fieldType": "select",
                         "options": [
                             {
-                                "label": "Standard Coverage",
+                                "label": "Standard Option",
                                 "value": "STANDARD"
                             },
                             {
-                                "label": "Premium Coverage",
-                                "value": "PREMIUM"
+                                "label": "Advanced Option",
+                                "value": "ADVANCED"
                             },
                             {
-                                "label": "Custom Coverage",
+                                "label": "Custom Option",
                                 "value": "CUSTOM"
                             }
                         ],
@@ -548,7 +548,7 @@
                                 "$evaluation": {
                                     "!=": [
                                         {
-                                            "$ref": "#/illustration/properties/policy_container/properties/has_additional_coverage"
+                                            "$ref": "#/form/properties/details/properties/has_additional_option"
                                         },
                                         true
                                     ]
@@ -560,14 +560,14 @@
                                         {
                                             "ISEMPTY": [
                                                 {
-                                                    "$ref": "#/illustration/properties/policy_container/properties/has_additional_coverage"
+                                                    "$ref": "#/form/properties/details/properties/has_additional_option"
                                                 }
                                             ]
                                         },
                                         {
                                             "==": [
                                                 {
-                                                    "$ref": "#/illustration/properties/policy_container/properties/has_additional_coverage"
+                                                    "$ref": "#/form/properties/details/properties/has_additional_option"
                                                 },
                                                 false
                                             ]
@@ -578,27 +578,27 @@
                         },
                         "dependents": [
                             {
-                                "$ref": "#/illustration/properties/policy_container/properties/coverage_details",
+                                "$ref": "#/form/properties/details/properties/option_details",
                                 "clear": {
                                     "$evaluation": true
                                 }
                             }
                         ]
                     },
-                    "coverage_details": {
+                    "option_details": {
                         "type": "object",
-                        "title": "Coverage Details",
+                        "title": "Option Details",
                         "$layout": {
                             "type": "VerticalLayout",
                             "elements": [
                                 {
-                                    "$ref": "#/illustration/properties/policy_container/properties/coverage_details/properties/sum_assured"
+                                    "$ref": "#/form/properties/details/properties/option_details/properties/amount"
                                 },
                                 {
-                                    "$ref": "#/illustration/properties/policy_container/properties/coverage_details/properties/premium_amount"
+                                    "$ref": "#/form/properties/details/properties/option_details/properties/fee"
                                 },
                                 {
-                                    "$ref": "#/illustration/properties/policy_container/properties/coverage_details/properties/custom_options"
+                                    "$ref": "#/form/properties/details/properties/option_details/properties/custom_options"
                                 }
                             ]
                         },
@@ -609,14 +609,14 @@
                                         {
                                             "ISEMPTY": [
                                                 {
-                                                    "$ref": "#/illustration/properties/policy_container/properties/coverage_type"
+                                                    "$ref": "#/form/properties/details/properties/option_type"
                                                 }
                                             ]
                                         },
                                         {
                                             "!=": [
                                                 {
-                                                    "$ref": "#/illustration/properties/policy_container/properties/has_additional_coverage"
+                                                    "$ref": "#/form/properties/details/properties/has_additional_option"
                                                 },
                                                 true
                                             ]
@@ -626,9 +626,9 @@
                             }
                         },
                         "properties": {
-                            "sum_assured": {
+                            "amount": {
                                 "type": "number",
-                                "title": "Sum Assured",
+                                "title": "Amount",
                                 "fieldType": "numberinput",
                                 "condition": {
                                     "disabled": {
@@ -637,14 +637,14 @@
                                                 {
                                                     "ISEMPTY": [
                                                         {
-                                                            "$ref": "#/illustration/properties/policy_container/properties/coverage_type"
+                                                            "$ref": "#/form/properties/details/properties/option_type"
                                                         }
                                                     ]
                                                 },
                                                 {
                                                     "!=": [
                                                         {
-                                                            "$ref": "#/illustration/properties/policy_container/properties/has_additional_coverage"
+                                                            "$ref": "#/form/properties/details/properties/has_additional_option"
                                                         },
                                                         true
                                                     ]
@@ -655,7 +655,7 @@
                                 },
                                 "dependents": [
                                     {
-                                        "$ref": "#/illustration/properties/policy_container/properties/coverage_details/properties/premium_amount",
+                                        "$ref": "#/form/properties/details/properties/option_details/properties/fee",
                                         "value": {
                                             "$evaluation": {
                                                 "*": [
@@ -669,9 +669,9 @@
                                     }
                                 ]
                             },
-                            "premium_amount": {
+                            "fee": {
                                 "type": "number",
-                                "title": "Premium Amount",
+                                "title": "Fee Amount",
                                 "fieldType": "numberinput",
                                 "condition": {
                                     "disabled": true,
@@ -681,14 +681,14 @@
                                                 {
                                                     "ISEMPTY": [
                                                         {
-                                                            "$ref": "#/illustration/properties/policy_container/properties/coverage_type"
+                                                            "$ref": "#/form/properties/details/properties/option_type"
                                                         }
                                                     ]
                                                 },
                                                 {
                                                     "ISEMPTY": [
                                                         {
-                                                            "$ref": "#/illustration/properties/policy_container/properties/coverage_details/properties/sum_assured"
+                                                            "$ref": "#/form/properties/details/properties/option_details/properties/amount"
                                                         }
                                                     ]
                                                 }
@@ -704,10 +704,10 @@
                                     "type": "VerticalLayout",
                                     "elements": [
                                         {
-                                            "$ref": "#/illustration/properties/policy_container/properties/coverage_details/properties/custom_options/properties/option_a"
+                                            "$ref": "#/form/properties/details/properties/option_details/properties/custom_options/properties/option_a"
                                         },
                                         {
-                                            "$ref": "#/illustration/properties/policy_container/properties/coverage_details/properties/custom_options/properties/option_b"
+                                            "$ref": "#/form/properties/details/properties/option_details/properties/custom_options/properties/option_b"
                                         }
                                     ]
                                 },
@@ -716,7 +716,7 @@
                                         "$evaluation": {
                                             "!=": [
                                                 {
-                                                    "$ref": "#/illustration/properties/policy_container/properties/coverage_type"
+                                                    "$ref": "#/form/properties/details/properties/option_type"
                                                 },
                                                 "CUSTOM"
                                             ]
@@ -735,7 +735,7 @@
                                                         {
                                                             "!=": [
                                                                 {
-                                                                    "$ref": "#/illustration/properties/policy_container/properties/coverage_type"
+                                                                    "$ref": "#/form/properties/details/properties/option_type"
                                                                 },
                                                                 "CUSTOM"
                                                             ]
@@ -743,7 +743,7 @@
                                                         {
                                                             "!=": [
                                                                 {
-                                                                    "$ref": "#/illustration/properties/policy_container/properties/has_additional_coverage"
+                                                                    "$ref": "#/form/properties/details/properties/has_additional_option"
                                                                 },
                                                                 true
                                                             ]
@@ -764,7 +764,7 @@
                                                         {
                                                             "!=": [
                                                                 {
-                                                                    "$ref": "#/illustration/properties/policy_container/properties/coverage_type"
+                                                                    "$ref": "#/form/properties/details/properties/option_type"
                                                                 },
                                                                 "CUSTOM"
                                                             ]
@@ -772,7 +772,7 @@
                                                         {
                                                             "ISEMPTY": [
                                                                 {
-                                                                    "$ref": "#/illustration/properties/policy_container/properties/coverage_details/properties/custom_options/properties/option_a"
+                                                                    "$ref": "#/form/properties/details/properties/option_details/properties/custom_options/properties/option_a"
                                                                 }
                                                             ]
                                                         }
@@ -785,7 +785,7 @@
                                                         {
                                                             "!=": [
                                                                 {
-                                                                    "$ref": "#/illustration/properties/policy_container/properties/coverage_type"
+                                                                    "$ref": "#/form/properties/details/properties/option_type"
                                                                 },
                                                                 "CUSTOM"
                                                             ]
@@ -793,14 +793,14 @@
                                                         {
                                                             "ISEMPTY": [
                                                                 {
-                                                                    "$ref": "#/illustration/properties/policy_container/properties/coverage_details/properties/custom_options/properties/option_a"
+                                                                    "$ref": "#/form/properties/details/properties/option_details/properties/custom_options/properties/option_a"
                                                                 }
                                                             ]
                                                         },
                                                         {
                                                             "!=": [
                                                                 {
-                                                                    "$ref": "#/illustration/properties/policy_container/properties/has_additional_coverage"
+                                                                    "$ref": "#/form/properties/details/properties/has_additional_option"
                                                                 },
                                                                 true
                                                             ]

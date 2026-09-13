@@ -647,15 +647,15 @@ fn test_json_pointer_ref_conversion() {
     let schema = json!({
         "type": "object",
         "properties": {
-            "illustration": {
+            "user_data": {
                 "type": "object",
                 "properties": {
-                    "insured": {
+                    "profile": {
                         "type": "object",
                         "properties": {
-                            "ins_corrname": {
+                            "nickname": {
                                 "type": "string",
-                                "title": "Insured Name"
+                                "title": "Profile Name"
                             }
                         }
                     }
@@ -666,7 +666,7 @@ fn test_json_pointer_ref_conversion() {
                     "type": "VerticalLayout",
                     "elements": [
                         {
-                            "$ref": "#/illustration/properties/insured/properties/ins_corrname"
+                            "$ref": "#/user_data/properties/profile/properties/nickname"
                         }
                     ]
                 }
@@ -692,14 +692,14 @@ fn test_json_pointer_ref_conversion() {
     // $fullpath should be converted to dotted notation
     assert_eq!(
         element.get("$fullpath").and_then(|v| v.as_str()),
-        Some("illustration.properties.insured.properties.ins_corrname"),
+        Some("user_data.properties.profile.properties.nickname"),
         "$fullpath should be in dotted notation"
     );
 
     // $path should be the last segment only
     assert_eq!(
         element.get("$path").and_then(|v| v.as_str()),
-        Some("ins_corrname"),
+        Some("nickname"),
         "$path should be the last segment"
     );
 }

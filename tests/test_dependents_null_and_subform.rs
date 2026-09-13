@@ -84,39 +84,39 @@ fn test_dependent_value_null_emits_clear() {
 //          dependents queue.
 //
 // Schema:
-//   main-form field `plan` has a dependent that clears `riders[*].benefit`
-//   subform item field `benefit` has a dependent that clears `riders[*].loading`
-//   → changing `plan` must cascade: plan → benefit (clear) → loading (clear)
+//   main-form field `group` has a dependent that clears `items[*].category`
+//   subform item field `category` has a dependent that clears `items[*].type_code`
+//   → changing `group` must cascade: group → category (clear) → type_code (clear)
 //
-// Before the fix `loading` was never cleared because the computed change for
-// `riders.0.benefit` was not fed back into run_subform_pass as a changed path.
+// Before the fix `type_code` was never cleared because the computed change for
+// `items.0.category` was not fed back into run_subform_pass as a changed path.
 // ---------------------------------------------------------------------------
 #[test]
 fn test_main_form_dependent_cascades_into_subform_item_dependents() {
     let schema = json!({
-        "plan": {
+        "group": {
             "type": "string",
             "dependents": [
                 {
-                    "$ref": "#/riders/0/benefit",
+                    "$ref": "#/items/0/category",
                     "clear": true
                 }
             ]
         },
-        "riders": {
+        "items": {
             "type": "array",
             "items": {
                 "properties": {
-                    "benefit": {
+                    "category": {
                         "type": "string",
                         "dependents": [
                             {
-                                "$ref": "#/riders/properties/loading",
+                                "$ref": "#/items/properties/type_code",
                                 "clear": true
                             }
                         ]
                     },
-                    "loading": {
+                    "type_code": {
                         "type": "string"
                     }
                 }
@@ -127,27 +127,27 @@ fn test_main_form_dependent_cascades_into_subform_item_dependents() {
     let schema_str = serde_json::to_string(&schema).unwrap();
 
     let initial_data = json!({
-        "plan": "A",
-        "riders": [
-            { "benefit": "WOP", "loading": "TABLE_1" }
+        "group": "A",
+        "items": [
+            { "category": "CAT_A", "type_code": "TABLE_1" }
         ]
     });
     let initial_data_str = serde_json::to_string(&initial_data).unwrap();
 
     let mut eval = JSONEval::new(&schema_str, None, Some(&initial_data_str)).unwrap();
 
-    // Change plan — triggers main-form dependent → clears riders[0].benefit
+    // Change group — triggers main-form dependent → clears items[0].category
     let updated_data = json!({
-        "plan": "B",
-        "riders": [
-            { "benefit": "WOP", "loading": "TABLE_1" }
+        "group": "B",
+        "items": [
+            { "category": "CAT_A", "type_code": "TABLE_1" }
         ]
     });
     let updated_data_str = serde_json::to_string(&updated_data).unwrap();
 
     let result = eval
         .evaluate_dependents(
-            &["plan".to_string()],
+            &["group".to_string()],
             Some(&updated_data_str),
             None,
             false,
@@ -159,44 +159,44 @@ fn test_main_form_dependent_cascades_into_subform_item_dependents() {
 
     let changes = result.as_array().expect("result must be an array");
 
-    // riders.0.benefit must be cleared by the main-form dependent
-    let benefit_change = changes
+    // items.0.category must be cleared by the main-form dependent
+    let category_change = changes
         .iter()
-        .find(|c| c.get("$ref").and_then(|v| v.as_str()) == Some("riders.0.benefit"))
-        .expect("riders.0.benefit must be cleared by main-form plan dependent");
+        .find(|c| c.get("$ref").and_then(|v| v.as_str()) == Some("items.0.category"))
+        .expect("items.0.category must be cleared by main-form group dependent");
 
     assert_eq!(
-        benefit_change.get("clear"),
+        category_change.get("clear"),
         Some(&json!(true)),
-        "riders.0.benefit must carry clear:true"
+        "items.0.category must carry clear:true"
     );
 
-    // riders.0.loading must be cleared by the subform item's benefit.dependents
-    let loading_change = changes
+    // items.0.type_code must be cleared by the subform item's category.dependents
+    let type_code_change = changes
         .iter()
         .find(|c| {
-            c.get("$ref").and_then(|v| v.as_str()) == Some("riders.0.loading")
+            c.get("$ref").and_then(|v| v.as_str()) == Some("items.0.type_code")
         })
         .expect(
-            "riders.0.loading must be cleared as cascade from benefit.dependents inside the subform",
+            "items.0.type_code must be cleared as cascade from category.dependents inside the subform",
         );
 
     assert_eq!(
-        loading_change.get("clear"),
+        type_code_change.get("clear"),
         Some(&json!(true)),
-        "riders.0.loading must carry clear:true from subform dependent cascade"
+        "items.0.type_code must carry clear:true from subform dependent cascade"
     );
 
     // Confirm final eval_data state
     let data = eval.eval_data.data();
-    let benefit_val = data.pointer("/riders/0/benefit");
+    let category_val = data.pointer("/items/0/category");
     assert!(
-        benefit_val.is_none() || benefit_val == Some(&json!(null)),
-        "riders[0].benefit must be null in eval_data"
+        category_val.is_none() || category_val == Some(&json!(null)),
+        "items[0].category must be null in eval_data"
     );
-    let loading_val = data.pointer("/riders/0/loading");
+    let type_code_val = data.pointer("/items/0/type_code");
     assert!(
-        loading_val.is_none() || loading_val == Some(&json!(null)),
-        "riders[0].loading must be null in eval_data after cascade"
+        type_code_val.is_none() || type_code_val == Some(&json!(null)),
+        "items[0].type_code must be null in eval_data after cascade"
     );
 }

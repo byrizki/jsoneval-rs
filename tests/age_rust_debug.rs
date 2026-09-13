@@ -13,17 +13,17 @@ fn test_age_calculation_from_dob() {
     let schema = json!({
         "type": "object",
         "properties": {
-            "illustration": {
+            "form": {
                 "type": "object",
                 "properties": {
-                    "insured": {
+                    "user": {
                         "type": "object",
                         "properties": {
-                            "ins_dob": {
+                            "dob": {
                                 "type": "string",
                                 "dependents": [
                                   {
-                                    "$ref": "#/illustration/properties/insured/properties/insage",
+                                    "$ref": "#/form/properties/user/properties/age",
                                     "value": {
                                       "$evaluation": {
                                         "-": [
@@ -129,7 +129,7 @@ fn test_age_calculation_from_dob() {
                                   }
                                 ]
                             },
-                            "insage": { "type": "number" }
+                            "age": { "type": "number" }
                         }
                     }
                 }
@@ -138,10 +138,10 @@ fn test_age_calculation_from_dob() {
     });
 
     let mut data = json!({
-        "illustration": {
-            "insured": {
-                "ins_dob": "",
-                "insage": 0
+        "form": {
+            "user": {
+                "dob": "",
+                "age": 0
             }
         }
     });
@@ -155,12 +155,12 @@ fn test_age_calculation_from_dob() {
         .expect("Initial evaluate failed");
 
     // Change DOB to trigger dependents
-    data["illustration"]["insured"]["ins_dob"] = "1986-05-31".into();
+    data["form"]["user"]["dob"] = "1986-05-31".into();
 
     // Trigger evaluate_dependents on trigger_field
     let deps_result = eval
         .evaluate_dependents(
-            &["#/properties/illustration/properties/insured/properties/ins_dob".to_string()],
+            &["#/properties/form/properties/user/properties/dob".to_string()],
             Some(&data.to_string()),
             None,
             true,
@@ -173,13 +173,13 @@ fn test_age_calculation_from_dob() {
     println!("Evaluation dependents result: {}", deps_result);
 
     let deps_array = deps_result.as_array().expect("deps should be array");
-    let insage_dep = deps_array.iter().find(|item| {
-        item.get("$ref").and_then(|r| r.as_str()) == Some("illustration.insured.insage")
+    let age_dep = deps_array.iter().find(|item| {
+        item.get("$ref").and_then(|r| r.as_str()) == Some("form.user.age")
     });
 
-    assert!(insage_dep.is_some(), "insage should be updated");
-    let insage_val = insage_dep.unwrap().get("value").unwrap();
-    println!("Computed insage value: {}", insage_val);
+    assert!(age_dep.is_some(), "age should be updated");
+    let age_val = age_dep.unwrap().get("value").unwrap();
+    println!("Computed age value: {}", age_val);
 }
 
 #[test]
@@ -187,17 +187,17 @@ fn test_age_calculation_datedif() {
     let schema = json!({
         "type": "object",
         "properties": {
-            "illustration": {
+            "form": {
                 "type": "object",
                 "properties": {
-                    "insured": {
+                    "user": {
                         "type": "object",
                         "properties": {
-                            "ins_dob": {
+                            "dob": {
                                 "type": "string",
                                 "dependents": [
                                   {
-                                    "$ref": "#/illustration/properties/insured/properties/insage",
+                                    "$ref": "#/form/properties/user/properties/age",
                                     "value": {
                                       "$evaluation": {
                                         "DATEDIF": [
@@ -210,7 +210,7 @@ fn test_age_calculation_datedif() {
                                   }
                                 ]
                             },
-                            "insage": { "type": "number" }
+                            "age": { "type": "number" }
                         }
                     }
                 }
@@ -219,10 +219,10 @@ fn test_age_calculation_datedif() {
     });
 
     let mut data = json!({
-        "illustration": {
-            "insured": {
-                "ins_dob": "",
-                "insage": 0
+        "form": {
+            "user": {
+                "dob": "",
+                "age": 0
             }
         }
     });
@@ -233,11 +233,11 @@ fn test_age_calculation_datedif() {
     eval.evaluate(&data.to_string(), None, None, None)
         .expect("Initial evaluate failed");
 
-    data["illustration"]["insured"]["ins_dob"] = "1986-05-31".into();
+    data["form"]["user"]["dob"] = "1986-05-31".into();
 
     let deps_result = eval
         .evaluate_dependents(
-            &["#/properties/illustration/properties/insured/properties/ins_dob".to_string()],
+            &["#/properties/form/properties/user/properties/dob".to_string()],
             Some(&data.to_string()),
             None,
             true,
@@ -248,14 +248,14 @@ fn test_age_calculation_datedif() {
         .expect("evaluate_dependents failed");
 
     let deps_array = deps_result.as_array().expect("deps should be array");
-    let insage_dep = deps_array.iter().find(|item| {
-        item.get("$ref").and_then(|r| r.as_str()) == Some("illustration.insured.insage")
+    let age_dep = deps_array.iter().find(|item| {
+        item.get("$ref").and_then(|r| r.as_str()) == Some("form.user.age")
     });
 
-    assert!(insage_dep.is_some(), "insage should be updated");
-    let insage_val = insage_dep.unwrap().get("value").unwrap();
-    println!("DATEDIF computed insage value: {}", insage_val);
-    assert_eq!(insage_val, &json!(age_on_current_utc_date(1986, 5, 31)));
+    assert!(age_dep.is_some(), "age should be updated");
+    let age_val = age_dep.unwrap().get("value").unwrap();
+    println!("DATEDIF computed age value: {}", age_val);
+    assert_eq!(age_val, &json!(age_on_current_utc_date(1986, 5, 31)));
 }
 
 #[test]
@@ -263,17 +263,17 @@ fn test_age_calculation_opt_b() {
     let schema = json!({
         "type": "object",
         "properties": {
-            "illustration": {
+            "form": {
                 "type": "object",
                 "properties": {
-                    "insured": {
+                    "user": {
                         "type": "object",
                         "properties": {
-                            "ins_dob": {
+                            "dob": {
                                 "type": "string",
                                 "dependents": [
                                   {
-                                    "$ref": "#/illustration/properties/insured/properties/insage",
+                                    "$ref": "#/form/properties/user/properties/age",
                                     "value": {
                                       "$evaluation": {
                                         "-": [
@@ -317,7 +317,7 @@ fn test_age_calculation_opt_b() {
                                   }
                                 ]
                             },
-                            "insage": { "type": "number" }
+                            "age": { "type": "number" }
                         }
                     }
                 }
@@ -326,10 +326,10 @@ fn test_age_calculation_opt_b() {
     });
 
     let mut data = json!({
-        "illustration": {
-            "insured": {
-                "ins_dob": "",
-                "insage": 0
+        "form": {
+            "user": {
+                "dob": "",
+                "age": 0
             }
         }
     });
@@ -340,11 +340,11 @@ fn test_age_calculation_opt_b() {
     eval.evaluate(&data.to_string(), None, None, None)
         .expect("Initial evaluate failed");
 
-    data["illustration"]["insured"]["ins_dob"] = "1986-05-31".into();
+    data["form"]["user"]["dob"] = "1986-05-31".into();
 
     let deps_result = eval
         .evaluate_dependents(
-            &["#/properties/illustration/properties/insured/properties/ins_dob".to_string()],
+            &["#/properties/form/properties/user/properties/dob".to_string()],
             Some(&data.to_string()),
             None,
             true,
@@ -355,14 +355,14 @@ fn test_age_calculation_opt_b() {
         .expect("evaluate_dependents failed");
 
     let deps_array = deps_result.as_array().expect("deps should be array");
-    let insage_dep = deps_array.iter().find(|item| {
-        item.get("$ref").and_then(|r| r.as_str()) == Some("illustration.insured.insage")
+    let age_dep = deps_array.iter().find(|item| {
+        item.get("$ref").and_then(|r| r.as_str()) == Some("form.user.age")
     });
 
-    assert!(insage_dep.is_some(), "insage should be updated");
-    let insage_val = insage_dep.unwrap().get("value").unwrap();
-    println!("Option B computed insage value: {}", insage_val);
-    assert_eq!(insage_val, &json!(age_on_current_utc_date(1986, 5, 31)));
+    assert!(age_dep.is_some(), "age should be updated");
+    let age_val = age_dep.unwrap().get("value").unwrap();
+    println!("Option B computed age value: {}", age_val);
+    assert_eq!(age_val, &json!(age_on_current_utc_date(1986, 5, 31)));
 }
 
 #[test]
@@ -370,21 +370,21 @@ fn test_age_calculation_timezone_case() {
     let schema = json!({
         "type": "object",
         "properties": {
-            "illustration": {
+            "form": {
                 "type": "object",
                 "properties": {
-                    "insured": {
+                    "user": {
                         "type": "object",
                         "properties": {
-                            "ins_dob": {
+                            "dob": {
                                 "type": "string",
                                 "dependents": [
                                   {
-                                    "$ref": "#/illustration/properties/insured/properties/insage",
+                                    "$ref": "#/form/properties/user/properties/age",
                                     "value": {
                                       "$evaluation": {
                                         "-": [
-                                          { "YEAR": [{ "$ref": "#/illustration/properties/insured/properties/today_mock" }] },
+                                          { "YEAR": [{ "$ref": "#/form/properties/user/properties/today_mock" }] },
                                           { "YEAR": [{ "$ref": "$value" }] },
                                           {
                                             "if": [
@@ -392,7 +392,7 @@ fn test_age_calculation_timezone_case() {
                                                 "or": [
                                                   {
                                                     "<": [
-                                                      { "MONTH": [{ "$ref": "#/illustration/properties/insured/properties/today_mock" }] },
+                                                      { "MONTH": [{ "$ref": "#/form/properties/user/properties/today_mock" }] },
                                                       { "MONTH": [{ "$ref": "$value" }] }
                                                     ]
                                                   },
@@ -400,13 +400,13 @@ fn test_age_calculation_timezone_case() {
                                                     "and": [
                                                       {
                                                         "==": [
-                                                          { "MONTH": [{ "$ref": "#/illustration/properties/insured/properties/today_mock" }] },
+                                                          { "MONTH": [{ "$ref": "#/form/properties/user/properties/today_mock" }] },
                                                           { "MONTH": [{ "$ref": "$value" }] }
                                                         ]
                                                       },
                                                       {
                                                         "<": [
-                                                          { "DAY": [{ "$ref": "#/illustration/properties/insured/properties/today_mock" }] },
+                                                          { "DAY": [{ "$ref": "#/form/properties/user/properties/today_mock" }] },
                                                           { "DAY": [{ "$ref": "$value" }] }
                                                         ]
                                                       }
@@ -424,7 +424,7 @@ fn test_age_calculation_timezone_case() {
                                   }
                                 ]
                             },
-                            "insage": { "type": "number" },
+                            "age": { "type": "number" },
                             "today_mock": { "type": "string" }
                         }
                     }
@@ -434,10 +434,10 @@ fn test_age_calculation_timezone_case() {
     });
 
     let mut data = json!({
-        "illustration": {
-            "insured": {
-                "ins_dob": "",
-                "insage": 0,
+        "form": {
+            "user": {
+                "dob": "",
+                "age": 0,
                 "today_mock": "2026-05-30"
             }
         }
@@ -451,12 +451,12 @@ fn test_age_calculation_timezone_case() {
 
     // Case 1: DOB is "1986-05-30T17:00:00.000Z", today_mock is "2026-05-30" (without offset)
     // The naive parser parses DOB as "1986-05-30". Since today is "2026-05-30", they are exactly 40.
-    data["illustration"]["insured"]["ins_dob"] = "1986-05-30T17:00:00.000Z".into();
-    data["illustration"]["insured"]["today_mock"] = "2026-05-30".into();
+    data["form"]["user"]["dob"] = "1986-05-30T17:00:00.000Z".into();
+    data["form"]["user"]["today_mock"] = "2026-05-30".into();
 
     let deps_result = eval
         .evaluate_dependents(
-            &["#/properties/illustration/properties/insured/properties/ins_dob".to_string()],
+            &["#/properties/form/properties/user/properties/dob".to_string()],
             Some(&data.to_string()),
             None,
             true,
@@ -467,15 +467,15 @@ fn test_age_calculation_timezone_case() {
         .expect("evaluate_dependents failed");
 
     let deps_array = deps_result.as_array().expect("deps should be array");
-    let insage_dep = deps_array.iter().find(|item| {
-        item.get("$ref").and_then(|r| r.as_str()) == Some("illustration.insured.insage")
+    let age_dep = deps_array.iter().find(|item| {
+        item.get("$ref").and_then(|r| r.as_str()) == Some("form.user.age")
     });
 
-    assert!(insage_dep.is_some(), "insage should be updated");
-    let insage_val = insage_dep.unwrap().get("value").unwrap();
+    assert!(age_dep.is_some(), "age should be updated");
+    let age_val = age_dep.unwrap().get("value").unwrap();
     println!(
         "Evaluation with DOB 1986-05-30T17:00:00.000Z on 2026-05-30: {}",
-        insage_val
+        age_val
     );
-    assert_eq!(insage_val, &json!(40));
+    assert_eq!(age_val, &json!(40));
 }

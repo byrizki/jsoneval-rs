@@ -11,7 +11,7 @@ use wasm_bindgen::prelude::*;
 impl JSONEvalWasm {
     /// Evaluate a subform with data
     ///
-    /// @param subformPath - Path to the subform (e.g., "#/riders")
+    /// @param subformPath - Path to the subform (e.g., "#/properties/items")
     /// @param data - JSON data string for the subform
     /// @param context - Optional context data JSON string
     /// @param paths - Optional array of paths to evaluate (JSON string array)

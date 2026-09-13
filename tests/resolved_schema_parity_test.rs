@@ -89,14 +89,14 @@ fn merge_layout_overlay(schema: &mut Value, overlay_entries: &[LayoutOverlayEntr
 fn resolved_schema_omits_params_and_stamps_properties_and_inline_layout_items() {
     let schema = json!({
         "$params": { "internal": true },
-        "illustration": {
+        "form": {
             "type": "object",
             "properties": {
                 "name": { "type": "string" }
             },
             "$layout": {
                 "elements": [
-                    { "$ref": "#/illustration/properties/name" },
+                    { "$ref": "#/form/properties/name" },
                     { "type": "CustomLayout" }
                 ]
             }
@@ -116,21 +116,21 @@ fn resolved_schema_omits_params_and_stamps_properties_and_inline_layout_items() 
     );
 
     let property = resolved
-        .pointer("/illustration/properties/name")
+        .pointer("/form/properties/name")
         .expect("property must exist");
     assert_eq!(
         property.pointer("/$fullpath"),
-        Some(&json!("illustration.properties.name"))
+        Some(&json!("form.properties.name"))
     );
     assert_eq!(property.pointer("/$path"), Some(&json!("name")));
     assert_eq!(property.pointer("/$parentHide"), Some(&json!(false)));
 
     let inline_layout = resolved
-        .pointer("/illustration/$layout/elements/1")
+        .pointer("/form/$layout/elements/1")
         .expect("inline custom layout item must exist");
     assert_eq!(
         inline_layout.pointer("/$fullpath"),
-        Some(&json!("illustration.$layout.elements.1"))
+        Some(&json!("form.$layout.elements.1"))
     );
     assert_eq!(inline_layout.pointer("/$path"), Some(&json!("1")));
     assert_eq!(inline_layout.pointer("/$parentHide"), Some(&json!(false)));
@@ -145,12 +145,12 @@ fn resolved_schema_omits_params_and_stamps_properties_and_inline_layout_items() 
 fn resolved_subform_schema_omits_params_and_stamps_inline_layout_items() {
     let schema = json!({
         "$params": { "internal": true },
-        "illustrations": {
+        "items": {
             "type": "array",
             "items": {
                 "$layout": {
                     "elements": [
-                        { "$ref": "#/illustrations/properties/name" },
+                        { "$ref": "#/items/properties/name" },
                         { "type": "TabLayout" }
                     ]
                 },
@@ -164,22 +164,22 @@ fn resolved_subform_schema_omits_params_and_stamps_inline_layout_items() {
     let mut eval = JSONEval::new(&schema, None, None).unwrap();
     eval.evaluate("{}", None, None, None).unwrap();
 
-    let resolved = eval.get_evaluated_schema_resolved_subform("#/illustrations");
+    let resolved = eval.get_evaluated_schema_resolved_subform("#/items");
     let mut compact_plus_overlay =
-        eval.get_evaluated_schema_without_params_subform("#/illustrations");
+        eval.get_evaluated_schema_without_params_subform("#/items");
     merge_layout_overlay(
         &mut compact_plus_overlay,
-        &eval.get_resolved_layout_subform("#/illustrations"),
+        &eval.get_resolved_layout_subform("#/items"),
     );
 
     assert!(resolved.get("$params").is_none());
     assert_eq!(
-        resolved.pointer("/illustrations/properties/name/$fullpath"),
-        Some(&json!("illustrations.properties.name"))
+        resolved.pointer("/items/properties/name/$fullpath"),
+        Some(&json!("items.properties.name"))
     );
     assert_eq!(
-        resolved.pointer("/illustrations/$layout/elements/1/$fullpath"),
-        Some(&json!("illustrations.$layout.elements.1"))
+        resolved.pointer("/items/$layout/elements/1/$fullpath"),
+        Some(&json!("items.$layout.elements.1"))
     );
     assert_eq!(
         resolved, compact_plus_overlay,

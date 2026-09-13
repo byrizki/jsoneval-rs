@@ -175,7 +175,7 @@ impl Evaluator {
         }
 
         // Fast intercept for static arrays to handle deep lookup paths
-        // e.g., name = "/$params/references/WOP_BENEFIT" or "/$params/R_PROD_RIDER/0/PLAN_NAME" or "/$table/..."
+        // e.g., name = "/$params/references/REF_TABLE" or "/$params/STATIC_ARRAY/0/FIELD" or "/$table/..."
         let static_arrays = unsafe { self.static_arrays_ref() };
         if let Some(arrays) = static_arrays {
             if name.starts_with("/$params/references/") && name.len() > 20 {

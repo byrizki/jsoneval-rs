@@ -24,7 +24,7 @@ fn test_evaluate_basic() {
     assert!(result.is_object(), "Result should be an object");
     // The evaluated_schema contains the schema structure
     assert!(
-        result.pointer("/illustration").is_some(),
+        result.pointer("/form").is_some(),
         "Schema structure should exist"
     );
 }
@@ -75,7 +75,7 @@ fn test_validate_required_field_missing() {
     let schema = create_test_schema();
     let mut data = get_minimal_form_data();
     // Remove required field name
-    data["illustration"]["insured"]
+    data["form"]["user"]
         .as_object_mut()
         .unwrap()
         .remove("name");
@@ -94,11 +94,11 @@ fn test_validate_required_field_missing() {
         "Should have validation error for missing required field"
     );
     assert!(
-        validation.errors.contains_key("illustration.insured.name"),
+        validation.errors.contains_key("form.user.name"),
         "Should have error for missing name field"
     );
 
-    let error = &validation.errors["illustration.insured.name"];
+    let error = &validation.errors["form.user.name"];
     assert_eq!(
         error.rule_type, "required",
         "Error should be for required rule"
@@ -115,7 +115,7 @@ fn test_validate_min_max_value() {
 
     // Test 1: Age below minimum (0 < 1)
     let mut data_min = get_minimal_form_data();
-    data_min["illustration"]["insured"]["age"] = json!(0);
+    data_min["form"]["user"]["age"] = json!(0);
     let data_min_str = data_min.to_string();
 
     let mut eval =
@@ -130,11 +130,11 @@ fn test_validate_min_max_value() {
         "Should have validation error for age below minimum"
     );
     assert!(
-        validation.errors.contains_key("illustration.insured.age"),
+        validation.errors.contains_key("form.user.age"),
         "Should have error for age field"
     );
 
-    let error = &validation.errors["illustration.insured.age"];
+    let error = &validation.errors["form.user.age"];
     assert_eq!(
         error.rule_type, "minValue",
         "Error should be for minValue rule"
@@ -146,7 +146,7 @@ fn test_validate_min_max_value() {
 
     // Test 2: Age above maximum (101 > 100)
     let mut data_max = get_minimal_form_data();
-    data_max["illustration"]["insured"]["age"] = json!(101);
+    data_max["form"]["user"]["age"] = json!(101);
     let data_max_str = data_max.to_string();
 
     let mut eval2 =
@@ -161,11 +161,11 @@ fn test_validate_min_max_value() {
         "Should have validation error for age above maximum"
     );
     assert!(
-        validation2.errors.contains_key("illustration.insured.age"),
+        validation2.errors.contains_key("form.user.age"),
         "Should have error for age field"
     );
 
-    let error2 = &validation2.errors["illustration.insured.age"];
+    let error2 = &validation2.errors["form.user.age"];
     assert_eq!(
         error2.rule_type, "maxValue",
         "Error should be for maxValue rule"
@@ -177,7 +177,7 @@ fn test_validate_min_max_value() {
 
     // Test 3: Age within valid range (should pass)
     let mut data_valid = get_minimal_form_data();
-    data_valid["illustration"]["insured"]["age"] = json!(50);
+    data_valid["form"]["user"]["age"] = json!(50);
     let data_valid_str = data_valid.to_string();
 
     let mut eval3 =
@@ -192,7 +192,7 @@ fn test_validate_min_max_value() {
         "Should have no validation error for valid age"
     );
     assert!(
-        !validation3.errors.contains_key("illustration.insured.age"),
+        !validation3.errors.contains_key("form.user.age"),
         "Should have no error for age field when value is valid"
     );
 }
@@ -201,8 +201,8 @@ fn test_validate_min_max_value() {
 fn test_validate_skip_hidden_fields() {
     let schema = create_test_schema();
     let mut data = get_minimal_form_data();
-    // coverage_type is hidden when has_additional_coverage is false
-    data["illustration"]["policy_container"]["has_additional_coverage"] = json!(false);
+    // option_type is hidden when has_additional_option is false
+    data["form"]["details"]["has_additional_option"] = json!(false);
     let data_str = data.to_string();
 
     let mut eval =
@@ -223,8 +223,8 @@ fn test_validate_with_path_filter() {
     let schema = create_test_schema();
     let mut data = get_minimal_form_data();
     // Make age field invalid (below min) and remove required name field
-    data["illustration"]["insured"]["age"] = json!(0);
-    data["illustration"]["insured"]
+    data["form"]["user"]["age"] = json!(0);
+    data["form"]["user"]
         .as_object_mut()
         .unwrap()
         .remove("name");
@@ -247,18 +247,18 @@ fn test_validate_with_path_filter() {
     assert!(
         validation_all
             .errors
-            .contains_key("illustration.insured.age"),
+            .contains_key("form.user.age"),
         "Should have error for age"
     );
     assert!(
         validation_all
             .errors
-            .contains_key("illustration.insured.name"),
+            .contains_key("form.user.name"),
         "Should have error for name"
     );
 
     // Test 2: Validate only age field using path filter
-    let paths = vec!["illustration.insured.age".to_string()];
+    let paths = vec!["form.user.age".to_string()];
     let validation_filtered = eval
         .validate(&data_str, None, Some(&paths), None, None, None)
         .expect("Validation failed");
@@ -275,13 +275,13 @@ fn test_validate_with_path_filter() {
     assert!(
         validation_filtered
             .errors
-            .contains_key("illustration.insured.age"),
+            .contains_key("form.user.age"),
         "Should have error for age"
     );
     assert!(
         !validation_filtered
             .errors
-            .contains_key("illustration.insured.name"),
+            .contains_key("form.user.name"),
         "Should not have error for name when filtered to age only"
     );
 }
@@ -301,13 +301,13 @@ fn test_evaluate_dependents_basic() {
 
     // Update date_of_birth field and trigger age calculation
     let mut updated_data = get_minimal_form_data();
-    updated_data["illustration"]["insured"]["date_of_birth"] = json!("2000-01-01");
+    updated_data["form"]["user"]["date_of_birth"] = json!("2000-01-01");
     let updated_data_str = updated_data.to_string();
 
     let result = eval
         .evaluate_dependents(
             &[String::from(
-                "#/illustration/properties/insured/properties/date_of_birth",
+                "#/form/properties/user/properties/date_of_birth",
             )],
             Some(&updated_data_str),
             None,
@@ -348,11 +348,11 @@ fn test_evaluate_dependents_basic() {
 
 #[test]
 fn test_evaluate_dependents_with_clear() {
-    // Use actual minimal_form.json schema with has_additional_coverage -> coverage_type clear logic
+    // Use actual minimal_form.json schema with has_additional_option -> option_type clear logic
     let schema = create_test_schema();
     let mut initial_data = get_minimal_form_data();
-    initial_data["illustration"]["policy_container"]["has_additional_coverage"] = json!(true);
-    initial_data["illustration"]["policy_container"]["coverage_type"] = json!("PREMIUM");
+    initial_data["form"]["details"]["has_additional_option"] = json!(true);
+    initial_data["form"]["details"]["option_type"] = json!("ADVANCED");
     let initial_data_str = initial_data.to_string();
 
     let mut eval =
@@ -363,13 +363,13 @@ fn test_evaluate_dependents_with_clear() {
 
     // Toggle off - should trigger dependent evaluation
     let mut updated_data = initial_data.clone();
-    updated_data["illustration"]["policy_container"]["has_additional_coverage"] = json!(false);
+    updated_data["form"]["details"]["has_additional_option"] = json!(false);
     let updated_data_str = updated_data.to_string();
 
     let result = eval
         .evaluate_dependents(
             &[String::from(
-                "#/illustration/properties/policy_container/properties/has_additional_coverage",
+                "#/form/properties/details/properties/has_additional_option",
             )],
             Some(&updated_data_str),
             None,
@@ -388,25 +388,25 @@ fn test_evaluate_dependents_with_clear() {
         "Should have at least 1 dependent triggered"
     );
 
-    // Find the coverage_type change
-    let coverage_type_change = changes
+    // Find the option_type change
+    let option_type_change = changes
         .iter()
-        .find(|c| c["$ref"].as_str().unwrap().contains("coverage_type"))
-        .expect("Should have coverage_type in dependents");
+        .find(|c| c["$ref"].as_str().unwrap().contains("option_type"))
+        .expect("Should have option_type in dependents");
 
     // Verify the change contains field information
     assert!(
-        coverage_type_change.get("$field").is_some(),
-        "coverage_type change should have $field information"
+        option_type_change.get("$field").is_some(),
+        "option_type change should have $field information"
     );
     assert_eq!(
-        coverage_type_change["transitive"].as_bool(),
+        option_type_change["transitive"].as_bool(),
         Some(false),
-        "coverage_type should be direct dependent (not transitive)"
+        "option_type should be direct dependent (not transitive)"
     );
 
-    // The dependent should have clear logic in its dependents (coverage_details)
-    let field = &coverage_type_change["$field"];
+    // The dependent should have clear logic in its dependents (option_details)
+    let field = &option_type_change["$field"];
     if let Some(deps) = field.get("dependents") {
         assert!(deps.is_array(), "Field should have dependents array");
         assert!(
@@ -422,8 +422,8 @@ fn test_evaluate_dependents_transitive() {
     let schema = create_test_schema();
     let mut initial_data = get_minimal_form_data();
     // Start with PROFESSIONAL to ensure clean state
-    initial_data["illustration"]["insured"]["occupation"] = json!("PROFESSIONAL");
-    initial_data["illustration"]["insured"]["occupation_class"] = json!("1");
+    initial_data["form"]["user"]["occupation"] = json!("PROFESSIONAL");
+    initial_data["form"]["user"]["occupation_class"] = json!("1");
     let initial_data_str = initial_data.to_string();
 
     let mut eval =
@@ -434,13 +434,13 @@ fn test_evaluate_dependents_transitive() {
 
     // Update occupation - should cascade to occupation_class and risk_category
     let mut updated_data = initial_data.clone();
-    updated_data["illustration"]["insured"]["occupation"] = json!("MANUAL");
+    updated_data["form"]["user"]["occupation"] = json!("MANUAL");
     let updated_data_str = updated_data.to_string();
 
     let result = eval
         .evaluate_dependents(
             &[String::from(
-                "#/illustration/properties/insured/properties/occupation",
+                "#/form/properties/user/properties/occupation",
             )],
             Some(&updated_data_str),
             None,
@@ -832,7 +832,7 @@ fn test_evaluate_dependents_with_dot_notation_input() {
     // Test with DOT NOTATION - should work now!
     let result = eval
         .evaluate_dependents(
-            &[String::from("illustration.insured.date_of_birth")], // Dot notation instead of "#/illustration/properties/insured/properties/date_of_birth"
+            &[String::from("form.user.date_of_birth")], // Dot notation instead of "#/form/properties/user/properties/date_of_birth"
             None,
             None,
             false,
@@ -874,7 +874,7 @@ fn test_evaluate_dependents_dot_vs_schema_path() {
     let result1 = eval1
         .evaluate_dependents(
             &[String::from(
-                "#/illustration/properties/insured/properties/occupation",
+                "#/form/properties/user/properties/occupation",
             )],
             None,
             None,
@@ -893,7 +893,7 @@ fn test_evaluate_dependents_dot_vs_schema_path() {
 
     let result2 = eval2
         .evaluate_dependents(
-            &[String::from("illustration.insured.occupation")], // Same field, dot notation
+            &[String::from("form.user.occupation")], // Same field, dot notation
             None,
             None,
             false,

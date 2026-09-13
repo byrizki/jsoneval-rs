@@ -15,7 +15,7 @@ use serde_json::Value;
 /// (snapshot that may contain computed formula outputs alongside raw input fields).
 ///
 /// A full `==` comparison fails when `old_item` has extra keys written by formula evaluation
-/// (e.g., `wop_rider_premi`, `first_prem`) that are absent from the raw `new_item`. This helper
+/// (e.g., computed fields, calculated formulas) that are absent from the raw `new_item`. This helper
 /// compares only the fields present in `new_item`, ignoring extra keys in `old_item`:
 ///
 /// - If both are objects: every key in `new` must match the same key in `old`.
@@ -173,7 +173,7 @@ impl JSONEval {
     ) {
         for (subform_path, _) in &self.subforms {
             // Resolve the data pointer for this subform
-            // (e.g., `/illustration/product_benefit/riders`)
+            // (e.g., `/items/sub_items`)
             let subform_ptr =
                 crate::jsoneval::path_utils::schema_path_to_data_pointer(subform_path).to_string();
 
@@ -221,7 +221,7 @@ impl JSONEval {
             });
 
             // Bump params_versions for every evicted T2 entry so downstream $params formulas
-            // (SA_WOP_RIDER, TOTAL_WOP_SA, etc.) correctly miss their caches.
+            // (e.g., aggregate formulas over items) correctly miss their caches.
             for path in &evicted_paths {
                 self.eval_cache
                     .params_versions
@@ -229,7 +229,7 @@ impl JSONEval {
             }
 
             // Clear T1 per-item caches for indices where item identity has shifted.
-            // This prevents stale per-rider results being reused for a different rider
+            // This prevents stale per-item results being reused for a different item
             // occupying the same array slot after a reorder.
             for idx in 0..min_len {
                 let old_item = old_items.and_then(|a| a.get(idx));
@@ -259,7 +259,7 @@ impl JSONEval {
     /// 4. Set `active_item_index = Some(idx)` on the swapped-in cache.
     ///
     /// Skipping the expensive `snapshot_data_clone()` × 2 and `diff_and_update_versions`
-    /// saves ~40–80ms per rider on a 5 MB parent payload.
+    /// saves significant overhead per subform item on large payloads.
     pub(crate) fn evaluate_internal_pre_diffed(
         &mut self,
         paths: Option<&[String]>,
@@ -273,8 +273,8 @@ impl JSONEval {
 
         // Always delegate to evaluate_internal so that evaluated_schema is populated correctly
         // for every item. The previous generation-based skip here left evaluated_schema stale
-        // (with the prior rider's values) when no deps changed — causing get_evaluated_schema_subform
-        // to return wrong values for all but the last-evaluated rider.
+        // (with the prior item's values) when no deps changed — causing get_evaluated_schema_subform
+        // to return wrong values for all but the last-evaluated item.
         //
         // evaluate_internal's all-hit fast path (lines ~314–338) handles the no-change case
         // efficiently: it writes eval_data + evaluated_schema per formula from T1 cache and

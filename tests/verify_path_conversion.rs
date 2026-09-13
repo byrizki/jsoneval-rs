@@ -15,35 +15,34 @@ fn test_minimal_form_path_conversion() {
 
     let evaluated = eval.get_evaluated_schema_resolved();
 
-    // Test 1: Check the insured element (original ref: "#/illustration/properties/insured")
-    let insured_element = evaluated
-        .pointer("/illustration/$layout/elements/1")
-        .expect("Insured element should exist at illustration layout");
+    // Test 1: Check the user element (original ref: "#/form/properties/user")
+    let user_element = evaluated
+        .pointer("/form/$layout/elements/1")
+        .expect("User element should exist at form layout");
 
-    // Verify $fullpath is in dotted notation (original ref: "#/illustration/properties/insured")
+    // Verify $fullpath is in dotted notation (original ref: "#/form/properties/user")
     assert_eq!(
-        insured_element.get("$fullpath").and_then(|v| v.as_str()),
-        Some("illustration.properties.insured"),
+        user_element.get("$fullpath").and_then(|v| v.as_str()),
+        Some("form.properties.user"),
         "$fullpath should be in dotted notation"
     );
 
     // Verify $path is the last segment only
     assert_eq!(
-        insured_element.get("$path").and_then(|v| v.as_str()),
-        Some("insured"),
+        user_element.get("$path").and_then(|v| v.as_str()),
+        Some("user"),
         "$path should be the last segment only"
     );
 
-    // Test 2: Check a deeply nested element (from insured's layout)
-    // Original ref: "#/illustration/properties/insured/properties/name" (line 159 in fixture)
+    // Test 2: Check a deeply nested element (from user's layout)
     let name_element = evaluated
-        .pointer("/illustration/$layout/elements/1/elements/0")
-        .expect("Insured name element should exist");
+        .pointer("/form/$layout/elements/1/elements/0")
+        .expect("User name element should exist");
 
     // Verify deeply nested path conversion
     assert_eq!(
         name_element.get("$fullpath").and_then(|v| v.as_str()),
-        Some("illustration.properties.insured.properties.name"),
+        Some("form.properties.user.properties.name"),
         "$fullpath should convert deep JSON pointer to dotted notation"
     );
 

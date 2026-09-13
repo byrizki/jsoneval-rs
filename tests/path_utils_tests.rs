@@ -51,8 +51,8 @@ fn test_fast_value_access() {
 fn test_dot_notation_to_schema_pointer() {
     // Dot notation to schema pointer conversion
     assert_eq!(
-        dot_notation_to_schema_pointer("illustration.insured.name"),
-        "#/illustration/properties/insured/properties/name"
+        dot_notation_to_schema_pointer("user.profile.name"),
+        "#/user/properties/profile/properties/name"
     );
 
     assert_eq!(
@@ -61,8 +61,8 @@ fn test_dot_notation_to_schema_pointer() {
     );
 
     assert_eq!(
-        dot_notation_to_schema_pointer("insured.date_of_birth"),
-        "#/insured/properties/date_of_birth"
+        dot_notation_to_schema_pointer("profile.birth_date"),
+        "#/profile/properties/birth_date"
     );
 
     // Single field (no dots)
@@ -70,28 +70,28 @@ fn test_dot_notation_to_schema_pointer() {
 
     // Already in schema pointer format - should return as-is
     assert_eq!(
-        dot_notation_to_schema_pointer("#/illustration/properties/insured/properties/name"),
-        "#/illustration/properties/insured/properties/name"
+        dot_notation_to_schema_pointer("#/user/properties/profile/properties/name"),
+        "#/user/properties/profile/properties/name"
     );
 
     assert_eq!(
-        dot_notation_to_schema_pointer("/illustration/properties/insured"),
-        "/illustration/properties/insured"
+        dot_notation_to_schema_pointer("/user/properties/profile"),
+        "/user/properties/profile"
     );
 
     // Explicit schema pointer with schema keywords should be preserved
     assert_eq!(
         dot_notation_to_schema_pointer(
-            "illustration.properties.header.properties.app_version.value"
+            "form.properties.header.properties.app_version.value"
         ),
-        "#/illustration/properties/header/properties/app_version/value"
+        "#/form/properties/header/properties/app_version/value"
     );
 
     assert_eq!(
         dot_notation_to_schema_pointer(
-            "illustration.properties.header.properties.app_version.type"
+            "form.properties.header.properties.app_version.type"
         ),
-        "#/illustration/properties/header/properties/app_version/type"
+        "#/form/properties/header/properties/app_version/type"
     );
 }
 
@@ -99,8 +99,8 @@ fn test_dot_notation_to_schema_pointer() {
 fn test_pointer_to_dot_notation() {
     // JSON Schema pointer to dotted notation
     assert_eq!(
-        pointer_to_dot_notation("#/illustration/properties/insured/properties/ins_corrname"),
-        "illustration.properties.insured.properties.ins_corrname"
+        pointer_to_dot_notation("#/user/properties/profile/properties/nickname"),
+        "user.properties.profile.properties.nickname"
     );
 
     assert_eq!(
@@ -117,8 +117,8 @@ fn test_pointer_to_dot_notation() {
     assert_eq!(pointer_to_dot_notation("person.name"), "person.name");
 
     assert_eq!(
-        pointer_to_dot_notation("illustration.insured.age"),
-        "illustration.insured.age"
+        pointer_to_dot_notation("user.profile.age"),
+        "user.profile.age"
     );
 
     // Single field
@@ -164,8 +164,8 @@ fn test_canonicalize_schema_path() {
         "/a/properties/b/properties/c"
     );
     assert_eq!(
-        canonicalize_schema_path("illustration.insured.name"),
-        "/illustration/properties/insured/properties/name"
+        canonicalize_schema_path("user.profile.name"),
+        "/user/properties/profile/properties/name"
     );
 
     // System paths
@@ -196,8 +196,8 @@ fn test_canonicalize_schema_path() {
 
     // Schema refs
     assert_eq!(
-        canonicalize_schema_path("#/illustration/properties/insured"),
-        "/illustration/properties/insured"
+        canonicalize_schema_path("#/user/properties/profile"),
+        "/user/properties/profile"
     );
 
     // Simple top-level fields
@@ -206,13 +206,13 @@ fn test_canonicalize_schema_path() {
 
     // Explicit schema pointer with schema keywords should be preserved
     assert_eq!(
-        canonicalize_schema_path("illustration.properties.header.properties.app_version.value"),
-        "/illustration/properties/header/properties/app_version/value"
+        canonicalize_schema_path("form.properties.header.properties.app_version.value"),
+        "/form/properties/header/properties/app_version/value"
     );
 
     assert_eq!(
-        canonicalize_schema_path("#/illustration/properties/header/properties/app_version/value"),
-        "/illustration/properties/header/properties/app_version/value"
+        canonicalize_schema_path("#/form/properties/header/properties/app_version/value"),
+        "/form/properties/header/properties/app_version/value"
     );
 
     // Empty

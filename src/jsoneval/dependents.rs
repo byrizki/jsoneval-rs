@@ -61,7 +61,7 @@ impl JSONEval {
         // Drop the lock before calling sub-methods that need &mut self
         drop(_lock);
 
-        // When a subform array changes structurally (riders added/removed/reordered),
+        // When a subform array changes structurally (items added/removed/reordered),
         // evict stale T2 global cache entries whose dep paths use the subform-local key
         // format that is never bumped by the parent-level diff.
         if let Some((old_data, new_data)) = structural_change_data {
@@ -113,7 +113,7 @@ impl JSONEval {
         }
 
         if include_subforms {
-            // A collection changed path identifies no rider index. Parent evaluation above has
+            // A collection changed path identifies no item index. Parent evaluation above has
             // prepared canonical state, so request a refresh for every concrete item. These
             // sentinels are consumed only by `run_subform_pass`; they are not field deltas.
             let collection_refresh_paths: Vec<String> = self
@@ -144,7 +144,7 @@ impl JSONEval {
 
             // Augment changed_paths with every subform item field already written into result
             // by the dependents queue and re-evaluate pass. Without this, when a main-form
-            // dependent rule writes to e.g. `riders.0.benefit`, that path never appears in
+            // dependent rule writes to e.g. `items.0.benefit`, that path never appears in
             // `item_changed_paths` inside run_subform_pass → the item is skipped → the
             // subform item's own `benefit.dependents` never fire.
             let extended_paths: Vec<String> = {
@@ -279,7 +279,7 @@ impl JSONEval {
         self.evaluate_internal(None, token)?;
 
         // First evaluation can reveal a field that was hidden when the initial
-        // default pass ran (e.g. ZIA's ph_em after WOP is enabled). Materialize
+        // default pass ran (e.g. conditional fields revealed after a flag is enabled). Materialize
         // that newly visible static default, then recalculate formulas which
         // consume it. Defaults remain non-triggering: only caller paths enter
         // the dependent queue.
@@ -443,7 +443,7 @@ impl JSONEval {
 
                 // The first readonly snapshot predates the table refresh. Re-read readonly
                 // values so dependent response patches reflect refreshed derived values (for
-                // example `wop_basic_premi` after `wop_basic_benefit` selects a WOP table row).
+                // example derived fee after selecting a table row).
                 readonly_values.clear();
                 for path in self.conditional_readonly_fields.iter() {
                     let normalized = path_utils::normalize_to_json_pointer(path);
@@ -734,19 +734,19 @@ impl JSONEval {
             }
 
             // Evict stale per-item caches for indices that no longer exist in the array.
-            // This prevents memory leaks when riders are removed and the array shrinks.
+            // This prevents memory leaks when items are removed and the array shrinks.
             self.eval_cache.prune_subform_caches(item_count);
 
-            // Snapshot the parent's version trackers once, before iterating any riders.
-            // Using the live `parent_cache.data_versions` inside the loop would let rider N's
-            // evaluation bumps contaminate the merge_from baseline for rider M (M ≠ N),
-            // causing cache misses and wrong re-evaluations on subsequent visits to rider M.
+            // Snapshot the parent's version trackers once, before iterating any subform items.
+            // Using the live `parent_cache.data_versions` inside the loop would let item N's
+            // evaluation bumps contaminate the merge_from baseline for item M (M ≠ N),
+            // causing cache misses and wrong re-evaluations on subsequent visits to item M.
             let parent_data_versions_snapshot = self.eval_cache.data_versions.clone();
             let parent_params_versions_snapshot = self.eval_cache.params_versions.clone();
 
-            // Project parent changes into directly dependent rider value formulas. This is
+            // Project parent changes into directly dependent subform value formulas. This is
             // graph-driven: no product/field path policy belongs in evaluator code. Tables
-            // remain excluded because evaluating a `$params` table with one rider payload can
+            // remain excluded because evaluating a `$params` table with one item payload can
             // overwrite shared parent cache rows.
             let mut parent_affected: std::collections::HashSet<String> = parent_changed_paths
                 .iter()
@@ -765,7 +765,7 @@ impl JSONEval {
 
 
             // Transitively expand parent_affected through self.dependencies
-            // (e.g. prem_freq -> WOP_ZLOB_PREMI_TABLE -> wop_rider_premi)
+            // (e.g. parent_field -> lookup_table -> subform_field)
             let mut queue: std::collections::VecDeque<String> =
                 parent_affected.iter().cloned().collect();
             while let Some(current) = queue.pop_front() {
@@ -812,7 +812,7 @@ impl JSONEval {
                 })
                 .unwrap_or_default();
 
-            // Detect table-backed outputs downstream of parent-derived rider values once per subform.
+            // Detect table-backed outputs downstream of parent-derived subform values once per subform.
             let refresh_table_outputs = self
                 .subforms
                 .get(&subform_path)
@@ -894,16 +894,16 @@ impl JSONEval {
 
                 if item_changed_paths.is_empty() && !dependent_value_paths.is_empty() {
                     // Parent-only changes need an item-local overlay. Computed item values must
-                    // be visible to their own `dependents` (for example wop_flag=false clears
-                    // both WOP rider fields), but publishing into parent eval_data or its cache
-                    // makes later rider/table passes observe a synthetic input change.
+                    // be visible to their own `dependents` (for example a toggle flag clearing
+                    // dependent subform fields), but publishing into parent eval_data or its cache
+                    // makes later item/table passes observe a synthetic input change.
                     let parent_cache = std::mem::take(&mut self.eval_cache);
                     let mut overlay_cache = parent_cache.clone();
                     overlay_cache.ensure_active_item_cache(idx);
                     if let Some(item_cache) = overlay_cache.subform_caches.get_mut(&idx) {
                         // T1 checks use item versions, not parent versions. Merge parent changes
                         // into disposable overlay state so relation-driven formulas cannot reuse
-                        // an earlier rider result (e.g. cached wop_flag=true).
+                        // an earlier item result from cache.
                         item_cache
                             .data_versions
                             .merge_from(&parent_data_versions_snapshot);
@@ -953,7 +953,7 @@ impl JSONEval {
                         // Make this computed value available only to direct dependent formulas.
                         // The overlay is discarded below, but its version must still advance: the
                         // re-evaluation pass uses it to invalidate formulas and tables derived
-                        // from this value (for example wop_rider_premi after its benefit changes).
+                        // from this value (for example calculated fee after an input changes).
                         let source_path = formula_path.trim_end_matches("/value").to_string();
                         if subform.eval_data.get(&data_path) != Some(&value) {
                             subform.eval_data.set(&data_path, value.clone());
@@ -1112,7 +1112,7 @@ impl JSONEval {
 
                 if let Some(c) = parent_cache.subform_caches.get_mut(&idx) {
                     // Merge all data versions from the parent snapshot. We must include non-$params
-                    // paths so that parent field updates (like wop_basic_benefit changing) correctly
+                    // paths so that parent field updates correctly
                     // invalidate subform per-item cache entries that depend on them.
                     c.data_versions.merge_from(&parent_data_versions_snapshot);
                     // Always reflect the latest $params (schema-level, index-independent).
@@ -1128,7 +1128,7 @@ impl JSONEval {
                         );
                     }
                     // Parent evaluation prepared this item before the refresh. Its computed
-                    // leaves establish the cache baseline, not a rider-input mutation.
+                    // leaves establish the cache baseline, not a subform item input mutation.
                     c.item_snapshot = new_item_val;
                 }
 
@@ -1136,8 +1136,8 @@ impl JSONEval {
                 // Invalidate stale T2 $params table entries whose deps overlap any path newly
                 //
                 // These tables MUST be re-evaluated by the subform engine (not here) because
-                // their formulas read subform-local paths like #/riders/properties/sa which
-                // only resolve correctly when the active item is injected under the riders key.
+                // their formulas read subform-local paths which
+                // only resolve correctly when the active item is injected under the subform key.
                 {
                     let field_prefix_slash = format!("/{}/", field_key);
                     let newly_bumped_schema_paths: Vec<String> = if let (Some(ref pre), Some(c)) = (
@@ -1148,8 +1148,8 @@ impl JSONEval {
                             .versions()
                             .filter(|(k, &v)| k.starts_with(&field_prefix_slash) && v > pre.get(k))
                             .map(|(k, _)| {
-                                // Convert data-version path (e.g. /riders/sa) to schema dep
-                                // format (e.g. /riders/properties/sa) for dep matching against
+                                // Convert data-version path (e.g. /items/prop) to schema dep
+                                // format (e.g. /items/properties/prop) for dep matching against
                                 // self.dependencies, which stores paths WITHOUT the '#' prefix.
                                 let sub = k.trim_start_matches(&field_prefix_slash);
                                 format!(
@@ -1200,7 +1200,7 @@ impl JSONEval {
                 parent_cache.set_active_item(idx);
                 std::mem::swap(&mut subform.eval_cache, &mut parent_cache);
 
-                let subform_result = time_block!("    [subform_pass] rider evaluate_dependents", {
+                let subform_result = time_block!("    [subform_pass] subform item evaluate_dependents", {
                     subform.evaluate_dependents(
                         &item_changed_paths,
                         None,
@@ -1366,7 +1366,7 @@ impl JSONEval {
                     if let Some(schema_value) = map.get("value") {
                         let data_path = path_utils::schema_path_to_data_pointer(path)
                             // Strip the schema /value/ wrapper that appears in subform array item
-                            // paths, e.g. #/riders/value/0/sa → /riders/0/sa (correct data pointer).
+                            // paths, e.g. #/items/value/0/prop → /items/0/prop (correct data pointer).
                             .replace("/value/", "/");
 
                         let current_data = self
@@ -1938,9 +1938,8 @@ impl JSONEval {
 /// Extract the field key from a subform path.
 ///
 /// Examples:
-/// - `#/riders`                               → `riders`
-/// - `#/properties/form/properties/riders`    → `riders`
 /// - `#/items`                                → `items`
+/// - `#/properties/form/properties/items`     → `items`
 fn subform_field_key(subform_path: &str) -> String {
     // Strip leading `#/`
     let stripped = subform_path.trim_start_matches('#').trim_start_matches('/');

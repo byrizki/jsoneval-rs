@@ -119,7 +119,7 @@ pub fn schema_path_to_data_pointer(path: &str) -> Cow<'_, str> {
 /// This is used for schema paths where properties are nested under `/properties/`
 ///
 /// Examples:
-/// - "illustration.insured.name" -> "#/illustration/properties/insured/properties/name"
+/// - "user.profile.name" -> "#/user/properties/profile/properties/name"
 /// - "header.form_number" -> "#/header/properties/form_number"
 /// - "#/already/formatted" -> "#/already/formatted" (no change)
 #[inline]
@@ -164,7 +164,7 @@ pub fn dot_notation_to_schema_pointer(path: &str) -> String {
 /// This converts various pointer formats back to dotted notation:
 ///
 /// Examples:
-/// - "#/illustration/properties/insured/properties/ins_corrname" -> "illustration.properties.insured.properties.ins_corrname"
+/// - "#/user/properties/profile/properties/name" -> "user.properties.profile.properties.name"
 /// - "/user/name" -> "user.name"
 /// - "person.name" -> "person.name" (already dotted, no change)
 #[inline]

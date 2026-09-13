@@ -136,7 +136,7 @@ fn create_subform_parsed(
     subforms: &mut IndexMap<String, Arc<ParsedSchema>>,
     parsed: &ParsedSchema,
 ) -> Result<(), String> {
-    // Extract field key from path (e.g., "#/properties/riders" -> "riders")
+    // Extract field key from path (e.g., "#/properties/items" -> "items")
     let field_key = path.split('/').last().unwrap_or(path);
 
     // Support itemsRootKey to allow subforms to be wrapped in a different key

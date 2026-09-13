@@ -13,7 +13,7 @@ fn test_ffi_methods_parity() {
                 "type": "string",
                 "options": ["A", "B"]
             },
-            "riders": {
+            "items": {
                 "type": "array",
                 "items": {
                     "type": "object",
@@ -24,7 +24,7 @@ fn test_ffi_methods_parity() {
                 "$layout": {
                     "type": "VerticalLayout",
                     "elements": [
-                        { "$ref": "#/riders/properties/name" }
+                        { "$ref": "#/items/properties/name" }
                     ]
                 }
             },
@@ -48,7 +48,7 @@ fn test_ffi_methods_parity() {
 
         // 2. json_eval_evaluate
         let data = json!({
-            "riders": [{"name": "Rider 1"}]
+            "items": [{"name": "Item 1"}]
         });
         let data_str = CString::new(serde_json::to_string(&data).unwrap()).unwrap();
         let result = json_eval_evaluate(
@@ -117,7 +117,7 @@ fn test_ffi_methods_parity() {
         json_eval_free_result(result);
 
         // 7. Subform methods parity
-        let subform_path = CString::new("#/riders/0").unwrap();
+        let subform_path = CString::new("#/items/0").unwrap();
 
         // 7a. json_eval_get_resolved_layout_subform
         let result = json_eval_get_resolved_layout_subform(handle, subform_path.as_ptr());
@@ -135,10 +135,10 @@ fn test_ffi_methods_parity() {
         let subform_schema: serde_json::Value =
             serde_json::from_slice(subform_schema_bytes).unwrap();
         // Check for $fullpath in subform layout
-        // In the subform instance, the schema is wrapped in the root key (riders)
+        // In the subform instance, the schema is wrapped in the root key (items)
         assert!(
             subform_schema
-                .pointer("/riders/$layout/elements/0/$fullpath")
+                .pointer("/items/$layout/elements/0/$fullpath")
                 .is_some(),
             "$fullpath should be present in subform resolved layout"
         );

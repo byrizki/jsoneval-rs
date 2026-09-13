@@ -80,7 +80,7 @@ pub struct ParsedSchema {
     pub options_templates: Arc<Vec<(String, String, String)>>,
 
     /// Subforms: cached ParsedSchema instances for array fields with items
-    /// Key is the schema path (e.g., "#/riders"), value is Arc<ParsedSchema> for cheap cloning
+    /// Key is the schema path (e.g., "#/properties/items"), value is Arc<ParsedSchema> for cheap cloning
     /// This allows subforms to be shared across multiple JSONEval instances efficiently
     pub subforms: IndexMap<String, Arc<ParsedSchema>>,
 

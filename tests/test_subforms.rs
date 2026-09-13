@@ -7,28 +7,28 @@ fn test_subform_detection_and_creation() {
     let schema = json!({
         "$params": {
             "constants": {
-                "MAX_RIDERS": 5
+                "MAX_ITEMS": 5
             }
         },
-        "riders": {
+        "items": {
             "type": "array",
-            "title": "Riders",
+            "title": "Items",
             "items": {
                 "$layout": {
                     "type": "VerticalLayout",
                     "elements": [
-                        { "$ref": "#/riders/properties/name" },
-                        { "$ref": "#/riders/properties/premium" }
+                        { "$ref": "#/items/properties/name" },
+                        { "$ref": "#/items/properties/amount" }
                     ]
                 },
                 "properties": {
                     "name": {
                         "type": "string",
-                        "title": "Rider Name"
+                        "title": "Item Name"
                     },
-                    "premium": {
+                    "amount": {
                         "type": "number",
-                        "title": "Premium Amount"
+                        "title": "Amount"
                     }
                 }
             }
@@ -40,14 +40,14 @@ fn test_subform_detection_and_creation() {
 
     // Check that subform was created
     assert!(
-        eval.has_subform("#/riders"),
-        "Subform should be created for riders array"
+        eval.has_subform("#/items"),
+        "Subform should be created for items array"
     );
 
     // Get subform paths
     let subform_paths = eval.get_subform_paths();
     assert_eq!(subform_paths.len(), 1);
-    assert_eq!(subform_paths[0], "#/riders");
+    assert_eq!(subform_paths[0], "#/items");
 }
 
 #[test]
@@ -56,7 +56,7 @@ fn test_subform_schema_structure() {
     let schema = json!({
         "$params": {
             "constants": {
-                "MIN_PREMIUM": 100
+                "MIN_AMOUNT": 100
             }
         },
         "benefits": {
@@ -95,7 +95,7 @@ fn test_subform_schema_structure() {
         "Subform should have $params"
     );
     assert_eq!(
-        subform_schema.pointer("/$params/constants/MIN_PREMIUM"),
+        subform_schema.pointer("/$params/constants/MIN_AMOUNT"),
         Some(&json!(100))
     );
 
@@ -351,7 +351,7 @@ fn test_multiple_subforms() {
                 "MAX_ITEMS": 10
             }
         },
-        "riders": {
+        "items": {
             "type": "array",
             "items": {
                 "properties": {
@@ -384,7 +384,7 @@ fn test_multiple_subforms() {
     let subform_paths = eval.get_subform_paths();
     assert_eq!(subform_paths.len(), 3, "Should have 3 subforms");
 
-    assert!(eval.has_subform("#/riders"));
+    assert!(eval.has_subform("#/items"));
     assert!(eval.has_subform("#/benefits"));
     assert!(eval.has_subform("#/contacts"));
 }
@@ -463,15 +463,15 @@ fn test_get_schema_value_subform() {
 #[test]
 fn get_schema_value_subform_does_not_mutate_parent_data_with_active_item() {
     let schema = json!({
-        "illustration": {
+        "form": {
             "type": "object",
             "properties": {
                 "product_benefit": {
                     "type": "object",
                     "properties": {
-                        "riders": {
+                        "items": {
                             "type": "array",
-                            "itemsRootKey": "riders",
+                            "itemsRootKey": "items",
                             "items": {
                                 "properties": {
                                     "code": { "type": "string" }
@@ -484,9 +484,9 @@ fn get_schema_value_subform_does_not_mutate_parent_data_with_active_item() {
         }
     });
     let data = json!({
-        "illustration": {
+        "form": {
             "product_benefit": {
-                "riders": [{ "code": "ZLOB" }]
+                "items": [{ "code": "CODE_A" }]
             }
         }
     });
@@ -495,9 +495,9 @@ fn get_schema_value_subform_does_not_mutate_parent_data_with_active_item() {
     let mut eval = JSONEval::new(&schema_str, None, Some(&data_str)).unwrap();
     eval.evaluate(&data_str, None, None, None).unwrap();
 
-    let item_payload = json!({ "riders": { "code": "ZLOB" } }).to_string();
+    let item_payload = json!({ "items": { "code": "CODE_A" } }).to_string();
     eval.evaluate_subform(
-        "illustration.product_benefit.riders.0",
+        "form.product_benefit.items.0",
         &item_payload,
         None,
         None,
@@ -508,15 +508,15 @@ fn get_schema_value_subform_does_not_mutate_parent_data_with_active_item() {
     let parent_before = eval.data.clone();
     let subform_data_before = eval
         .subforms
-        .get("#/illustration/properties/product_benefit/properties/riders")
+        .get("#/form/properties/product_benefit/properties/items")
         .unwrap()
         .data
         .clone();
-    let values = eval.get_schema_value_subform("illustration.product_benefit.riders.0");
+    let values = eval.get_schema_value_subform("form.product_benefit.items.0");
 
     assert_eq!(
         values,
-        json!({ "riders": { "code": "ZLOB" } }),
+        json!({ "items": { "code": "CODE_A" } }),
         "get_schema_value_subform must expose only subform-root data"
     );
     assert_eq!(
@@ -525,11 +525,11 @@ fn get_schema_value_subform_does_not_mutate_parent_data_with_active_item() {
     );
     assert_eq!(
         eval.subforms
-            .get("#/illustration/properties/product_benefit/properties/riders")
+            .get("#/form/properties/product_benefit/properties/items")
             .unwrap()
             .data,
         subform_data_before,
-        "get_schema_value_subform must not append indexed rider root to subform data"
+        "get_schema_value_subform must not append indexed item root to subform data"
     );
 }
 
@@ -597,7 +597,7 @@ fn test_nested_subform_key() {
             "form": {
                 "type": "object",
                 "properties": {
-                    "riders": {
+                    "items": {
                         "type": "array",
                         "items": {
                             "properties": {
@@ -613,16 +613,16 @@ fn test_nested_subform_key() {
     let schema_str = serde_json::to_string(&schema).unwrap();
     let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
 
-    // Subform path should be #/properties/form/properties/riders
-    assert!(eval.has_subform("#/properties/form/properties/riders"));
+    // Subform path should be #/properties/form/properties/items
+    assert!(eval.has_subform("#/properties/form/properties/items"));
 
     // Get schema without params
     let schema_without_params =
-        eval.get_evaluated_schema_without_params_subform("#/properties/form/properties/riders");
+        eval.get_evaluated_schema_without_params_subform("#/properties/form/properties/items");
 
-    // Should have "riders" key instead of "properties/form/properties/riders"
+    // Should have "items" key instead of "properties/form/properties/items"
     assert!(
-        schema_without_params.get("riders").is_some(),
+        schema_without_params.get("items").is_some(),
         "Should extract only the last segment of the path as key"
     );
     assert!(
@@ -639,7 +639,7 @@ fn test_evaluate_dependents_subform_array_iteration() {
                 "MULTIPLIER": 2
             }
         },
-        "riders": {
+        "items": {
             "type": "array",
             "items": {
                 "properties": {
@@ -647,11 +647,11 @@ fn test_evaluate_dependents_subform_array_iteration() {
                         "type": "number",
                         "dependents": [
                             {
-                                "$ref": "#/riders/properties/calculated/value",
+                                "$ref": "#/items/properties/calculated/value",
                                 "value": {
                                     "$evaluation": {
                                         "*": [
-                                            { "$ref": "#/riders/properties/base" },
+                                            { "$ref": "#/items/properties/base" },
                                             { "$ref": "#/$params/constants/MULTIPLIER" }
                                         ]
                                     }
@@ -674,28 +674,28 @@ fn test_evaluate_dependents_subform_array_iteration() {
     let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
 
     let data = json!({
-        "riders": [
+        "items": [
             { "base": 10 },
             { "base": 20 }
         ]
     });
     let data_str = serde_json::to_string(&data).unwrap();
 
-    let subform_schema = eval.get_evaluated_schema_subform("#/riders");
+    let subform_schema = eval.get_evaluated_schema_subform("#/items");
     println!(
         "Subform schema: {}",
         serde_json::to_string_pretty(&subform_schema).unwrap()
     );
 
     // Check subform internally before and after
-    let subform_values_before = eval.get_schema_value_object_subform("#/riders");
+    let subform_values_before = eval.get_schema_value_object_subform("#/items");
     println!("Subform values before: {:?}", subform_values_before);
 
     // Trigger dependents evaluation. We use explicit paths to trigger the dependents on each item
-    // changed_paths = ["riders[0].base", "riders[1].base"], include_subforms = true
+    // changed_paths = ["items[0].base", "items[1].base"], include_subforms = true
     let result = eval
         .evaluate_dependents(
-            &["riders[0].base".to_string(), "riders[1].base".to_string()],
+            &["items[0].base".to_string(), "items[1].base".to_string()],
             Some(&data_str),
             None,
             true,
@@ -708,7 +708,7 @@ fn test_evaluate_dependents_subform_array_iteration() {
     // result should be an array of flat subform execution results
     let result_arr = result.as_array().expect("result should be an array");
 
-    // There should be two entries in the array: "riders.0.calculated.value" and "riders.1.calculated.value"
+    // There should be two entries in the array: "items.0.calculated.value" and "items.1.calculated.value"
     assert_eq!(result_arr.len(), 2, "Should have 2 subform result items");
 
     let mut found_0 = false;
@@ -718,15 +718,15 @@ fn test_evaluate_dependents_subform_array_iteration() {
         let path = item.get("$ref").unwrap().as_str().unwrap();
         let value = item.get("value").unwrap().as_f64().unwrap();
 
-        if path == "riders.0.calculated.value" {
+        if path == "items.0.calculated.value" {
             assert_eq!(value, 20.0);
             found_0 = true;
-        } else if path == "riders.1.calculated.value" {
+        } else if path == "items.1.calculated.value" {
             assert_eq!(value, 40.0);
             found_1 = true;
         }
     }
 
-    assert!(found_0, "Should have found evaluation for riders[0]");
-    assert!(found_1, "Should have found evaluation for riders[1]");
+    assert!(found_0, "Should have found evaluation for items[0]");
+    assert!(found_1, "Should have found evaluation for items[1]");
 }

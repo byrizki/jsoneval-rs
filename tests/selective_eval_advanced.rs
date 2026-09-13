@@ -101,7 +101,7 @@ fn test_selective_eval_explicit_properties() {
     let schema = json!({
         "type": "object",
         "properties": {
-            "illustration": {
+            "form": {
                 "type": "object",
                 "properties": {
                     "user": {
@@ -152,7 +152,7 @@ fn test_selective_eval_explicit_properties() {
     let result = eval.get_evaluated_schema();
     assert_eq!(
         *result
-            .pointer("/properties/illustration/properties/user/properties/fullname/value")
+            .pointer("/properties/form/properties/user/properties/fullname/value")
             .unwrap(),
         json!("John Doe")
     );
@@ -165,19 +165,19 @@ fn test_selective_eval_explicit_properties() {
     let updated_data_str = serde_json::to_string(&updated_data).unwrap();
 
     // Test both path formats
-    let paths_dot = vec!["illustration.user.fullname".to_string()];
+    let paths_dot = vec!["form.user.fullname".to_string()];
     eval.evaluate(&updated_data_str, None, Some(&paths_dot), None)
         .unwrap();
 
     let result2 = eval.get_evaluated_schema();
     let fullname = result2
-        .pointer("/properties/illustration/properties/user/properties/fullname/value")
+        .pointer("/properties/form/properties/user/properties/fullname/value")
         .unwrap();
     assert_eq!(*fullname, json!("Jane Smith"), "fullname should be updated");
 
     // firstName should NOT be updated (kept old value from schema)
     let firstname = result2
-        .pointer("/properties/illustration/properties/user/properties/firstName/value")
+        .pointer("/properties/form/properties/user/properties/firstName/value")
         .unwrap();
     assert_eq!(*firstname, json!("John"), "firstName should NOT be updated");
 }
@@ -188,7 +188,7 @@ fn test_selective_eval_explicit_properties_path() {
     let schema = json!({
         "type": "object",
         "properties": {
-            "illustration": {
+            "form": {
                 "type": "object",
                 "properties": {
                     "user": {
@@ -237,13 +237,13 @@ fn test_selective_eval_explicit_properties_path() {
     let updated_data_str = serde_json::to_string(&updated_data).unwrap();
 
     // User's exact path format
-    let paths = vec!["illustration.properties.user.properties.fullname".to_string()];
+    let paths = vec!["form.properties.user.properties.fullname".to_string()];
     eval.evaluate(&updated_data_str, None, Some(&paths), None)
         .unwrap();
 
     let result = eval.get_evaluated_schema();
     let fullname = result
-        .pointer("/properties/illustration/properties/user/properties/fullname/value")
+        .pointer("/properties/form/properties/user/properties/fullname/value")
         .unwrap();
     assert_eq!(*fullname, json!("Jane Smith"));
 }

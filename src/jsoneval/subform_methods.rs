@@ -8,21 +8,21 @@ use serde_json::Value;
 
 /// Decomposes a subform path that may optionally include a trailing item index,
 /// and normalizes the base portion to the canonical schema-pointer key used in the
-/// subform registry (e.g. `"#/illustration/properties/product_benefit/properties/riders"`).
+/// subform registry (e.g. `"#/properties/users/properties/items"`).
 ///
 /// Accepted formats for the **base** portion:
-/// - Schema pointer:    `"#/illustration/properties/product_benefit/properties/riders"`
-/// - Raw JSON pointer:  `"/illustration/properties/product_benefit/properties/riders"`
-/// - Dot notation:      `"illustration.product_benefit.riders"`
+/// - Schema pointer:    `"#/properties/users/properties/items"`
+/// - Raw JSON pointer:  `"/properties/users/properties/items"`
+/// - Dot notation:      `"users.items"`
 ///
 /// Accepted formats for the **index** suffix (stripped before lookup):
-/// - Trailing dot-index:     `"…riders.1"`
-/// - Trailing slash-index:   `"…riders/1"`
-/// - Bracket array index:    `"…riders[1]"` or `"…riders[1]."`
+/// - Trailing dot-index:     `"…items.1"`
+/// - Trailing slash-index:   `"…items/1"`
+/// - Bracket array index:    `"…items[1]"` or `"…items[1]."`
 ///
 /// Returns `(canonical_base_path, optional_index)`.
 fn resolve_subform_path(path: &str) -> (String, Option<usize>) {
-    // --- Step 1: strip a trailing bracket array index, e.g. "riders[2]" or "riders[2]."
+    // --- Step 1: strip a trailing bracket array index, e.g. "items[2]" or "items[2]."
     let path = path.trim_end_matches('.');
     let (path, bracket_idx) = if let Some(bracket_start) = path.rfind('[') {
         let after = &path[bracket_start + 1..];
@@ -92,14 +92,14 @@ fn normalize_to_subform_key(path: &str) -> String {
         return format!("#{}", path);
     }
 
-    // Dot-notation: "illustration.product_benefit.riders"
-    // → "#/illustration/properties/product_benefit/properties/riders"
+    // Dot-notation: "form.subform"
+    // → "#/properties/form/properties/subform"
     crate::jsoneval::path_utils::dot_notation_to_schema_pointer(path)
 }
 
 impl JSONEval {
-    /// Resolves the subform path, allowing aliases like "riders" to match the full
-    /// schema pointer "#/illustration/properties/product_benefit/properties/riders".
+    /// Resolves the subform path, allowing aliases like "subform" to match the full
+    /// schema pointer "#/properties/form/properties/subform".
     /// This ensures alias paths and full paths share the same underlying subform store and cache.
     pub(crate) fn resolve_subform_path_alias(&self, path: &str) -> (String, Option<usize>) {
         let (mut canonical, idx) = resolve_subform_path(path);
@@ -398,7 +398,7 @@ impl JSONEval {
                 .filter(|k| k.starts_with("#/$params"))
                 .filter(|k| {
                     if is_new_item {
-                        return true; // new rider: invalidate all tables
+                        return true; // new item: invalidate all tables
                     }
                     // Invalidate tables with changed dependencies.
                     let Some(ref bumped) = newly_bumped_paths else {
@@ -511,8 +511,8 @@ impl JSONEval {
     /// array element and enable the two-tier cache-swap strategy automatically:
     ///
     /// ```text
-    /// // Evaluate riders item 1 with index-aware cache
-    /// eval.evaluate_subform("illustration.product_benefit.riders.1", data, ctx, None, None)?;
+    /// // Evaluate subform item 1 with index-aware cache
+    /// eval.evaluate_subform("users.items.1", data, ctx, None, None)?;
     /// ```
     ///
     /// Without a trailing index, the subform is evaluated in isolation (no cache swap).
@@ -668,7 +668,7 @@ impl JSONEval {
                 },
             )?;
             // Public indexed-subform patches retain subform-local refs so callers can apply
-            // them directly to their `{ riders: item }` editing payload. Internal dependent
+            // them directly to their subform item editing payload. Internal dependent
             // evaluation stays canonical; only active-item result refs are projected here.
             let subform_dot_path =
                 crate::jsoneval::path_utils::pointer_to_dot_notation(base_path.as_ref())

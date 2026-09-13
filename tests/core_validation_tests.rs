@@ -661,18 +661,18 @@ fn test_validate_with_include_subforms_nested_and_items_root_key() {
     let schema = json!({
         "type": "object",
         "properties": {
-            "illustration": {
+            "form": {
                 "type": "object",
                 "properties": {
-                    "riders": {
+                    "items": {
                         "type": "array",
-                        "itemsRootKey": "riders",
+                        "itemsRootKey": "items",
                         "items": {
                             "properties": {
-                                "sa": {
+                                "amount": {
                                     "type": "number",
                                     "rules": {
-                                        "minValue": { "value": 1000, "message": "Min SA is 1000" }
+                                        "minValue": { "value": 1000, "message": "Min amount is 1000" }
                                     }
                                 }
                             }
@@ -687,10 +687,10 @@ fn test_validate_with_include_subforms_nested_and_items_root_key() {
     let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
 
     let data = json!({
-        "illustration": {
-            "riders": [
-                { "sa": 500 },
-                { "sa": 2000 }
+        "form": {
+            "items": [
+                { "amount": 500 },
+                { "amount": 2000 }
             ]
         }
     });
@@ -699,9 +699,9 @@ fn test_validate_with_include_subforms_nested_and_items_root_key() {
     let res = eval.validate(&data_str, None, None, None, None, Some(true)).unwrap();
     assert!(res.has_error);
     assert_eq!(res.errors.len(), 1);
-    let err = res.errors.get("illustration.riders.0.sa").expect("Should map to illustration.riders.0.sa");
-    assert_eq!(err.message, "Min SA is 1000");
-    assert_eq!(err.code, Some("illustration.riders.0.sa.minValue".to_string()));
+    let err = res.errors.get("form.items.0.amount").expect("Should map to form.items.0.amount");
+    assert_eq!(err.message, "Min amount is 1000");
+    assert_eq!(err.code, Some("form.items.0.amount.minValue".to_string()));
 }
 
 

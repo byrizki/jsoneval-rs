@@ -88,28 +88,28 @@ mod tests {
     #[test]
     fn maps_indexed_local_item_to_canonical_parent_array() {
         let scope = SubformScope::new(
-            "#/illustration/properties/product_benefit/properties/riders",
-            "/illustration/product_benefit/riders",
+            "#/properties/users/properties/items",
+            "/users/items",
             Some(1),
         );
 
         assert_eq!(
-            scope.canonical_path("/riders/wop_rider_benefit"),
-            "/illustration/product_benefit/riders/1/wop_rider_benefit"
+            scope.canonical_path("/items/benefit"),
+            "/users/items/1/benefit"
         );
     }
 
     #[test]
     fn evaluation_view_aliases_active_item_without_changing_parent_lookup() {
-        let scope = SubformScope::new("#/riders", "/illustration/riders", Some(1));
+        let scope = SubformScope::new("#/items", "/users/items", Some(1));
         let data = serde_json::json!({
-            "illustration": { "riders": [{ "amount": 11 }, { "amount": 23 }] }
+            "users": { "items": [{ "amount": 11 }, { "amount": 23 }] }
         });
         let view = scope.evaluation_view(&data);
 
-        assert_eq!(view.pointer("/riders/amount"), Some(&serde_json::json!(23)));
+        assert_eq!(view.pointer("/items/amount"), Some(&serde_json::json!(23)));
         assert_eq!(
-            view.pointer("/illustration/riders/1/amount"),
+            view.pointer("/users/items/1/amount"),
             Some(&serde_json::json!(23))
         );
     }
@@ -117,23 +117,23 @@ mod tests {
     #[test]
     fn trailing_schema_separator_keeps_parent_paths_unscoped() {
         let scope = SubformScope::new(
-            "#/illustration/properties/riders/",
-            "/illustration/riders",
+            "#/properties/users/properties/items/",
+            "/users/items",
             Some(0),
         );
         assert_eq!(
-            scope.canonical_path("/illustration/insured/age"),
-            "/illustration/insured/age"
+            scope.canonical_path("/users/profile/age"),
+            "/users/profile/age"
         );
     }
 
     #[test]
     fn leaves_parent_and_system_paths_unchanged() {
-        let scope = SubformScope::new("#/riders", "/illustration/riders", Some(0));
+        let scope = SubformScope::new("#/items", "/users/items", Some(0));
 
         assert_eq!(
-            scope.canonical_path("/illustration/insured/age"),
-            "/illustration/insured/age"
+            scope.canonical_path("/users/profile/age"),
+            "/users/profile/age"
         );
         assert_eq!(
             scope.canonical_path("/$params/constants/RATE"),
@@ -143,11 +143,11 @@ mod tests {
 
     #[test]
     fn maps_unindexed_collection_root() {
-        let scope = SubformScope::new("#/riders", "/illustration/riders", None);
-        assert_eq!(scope.canonical_path("/riders"), "/illustration/riders");
+        let scope = SubformScope::new("#/items", "/users/items", None);
+        assert_eq!(scope.canonical_path("/items"), "/users/items");
         assert_eq!(
-            scope.canonical_path("/riders/0/code"),
-            "/illustration/riders/0/code"
+            scope.canonical_path("/items/0/code"),
+            "/users/items/0/code"
         );
     }
 }

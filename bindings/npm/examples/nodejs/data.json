@@ -1,10 +1,10 @@
 {
-  "illustration": {
+  "form": {
     "header": {
       "form_number": "123456789",
       "form_date": "2023-01-01"
     },
-    "insured": {
+    "user": {
       "name": "John Doe",
       "date_of_birth": "1990-01-01",
       "age": 33,
@@ -14,12 +14,12 @@
       "occupation_class": "1",
       "risk_category": "Low"
     },
-    "policy_container": {
-      "has_additional_coverage": true,
-      "coverage_type": "STANDARD",
-      "coverage_details": {
-        "sum_assured": 1000000,
-        "premium_amount": 50000
+    "details": {
+      "has_additional_option": true,
+      "option_type": "STANDARD",
+      "option_details": {
+        "amount": 1000000,
+        "fee": 50000
       }
     }
   }

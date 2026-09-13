@@ -482,7 +482,7 @@ impl JSONEval {
     /// ## Examples
     ///
     /// ```text
-    /// "#/illustration/$layout/elements" → "illustration.$layout.elements"
+    /// "#/form/$layout/elements" → "form.$layout.elements"
     /// "#/properties/form/$layout/elements" → "properties.form.$layout.elements"
     /// ```
     fn layout_path_to_structural_path(layout_path: &str) -> String {

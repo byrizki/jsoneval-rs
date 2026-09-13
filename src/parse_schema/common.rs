@@ -291,9 +291,9 @@ pub fn walk_schema(
                     .into_iter()
                     .map(|dep| path_utils::canonicalize_schema_path(&dep).into_owned())
                     .filter(|dep| {
-                        // Filter out simple column references (e.g., "/INSAGE_YEAR", "/PREM_PP")
+                        // Filter out simple column references (e.g., "/COL_A", "/COL_B")
                         // These are FINDINDEX/MATCH column names, not actual data dependencies
-                        // Real dependencies have multiple path segments (e.g., "/illustration/properties/...")
+                        // Real dependencies have multiple path segments (e.g., "/properties/form/properties/...")
                         // Update: allow top-level fields only if they are system paths or deeper paths
                         dep.matches('/').count() > 1 || dep.starts_with("/$")
                     })

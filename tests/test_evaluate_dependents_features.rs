@@ -21,8 +21,8 @@ fn test_evaluate_dependents_recursive_chain() {
 
     // Initial state: OFFICE
     let data = r#"{ 
-        "illustration": {
-            "insured": {
+        "form": {
+            "user": {
                 "occupation": "OFFICE",
                 "occupation_class": "1",
                 "risk_category": "Low"
@@ -34,14 +34,14 @@ fn test_evaluate_dependents_recursive_chain() {
 
     // Update occupation to MANUAL
     let new_data_snippet = r#"{ 
-        "illustration": {
-            "insured": {
+        "form": {
+            "user": {
                 "occupation": "MANUAL"
             }
         }
     }"#;
 
-    let changed_paths = vec!["illustration.insured.occupation".to_string()];
+    let changed_paths = vec!["form.user.occupation".to_string()];
 
     let result = je
         .evaluate_dependents(
@@ -61,7 +61,7 @@ fn test_evaluate_dependents_recursive_chain() {
     let class_change = changes
         .iter()
         .find(|c| {
-            c.get("$ref").and_then(|r| r.as_str()) == Some("illustration.insured.occupation_class")
+            c.get("$ref").and_then(|r| r.as_str()) == Some("form.user.occupation_class")
         })
         .expect("occupation_class should change");
 
@@ -74,7 +74,7 @@ fn test_evaluate_dependents_recursive_chain() {
     let risk_change = changes
         .iter()
         .find(|c| {
-            c.get("$ref").and_then(|r| r.as_str()) == Some("illustration.insured.risk_category")
+            c.get("$ref").and_then(|r| r.as_str()) == Some("form.user.risk_category")
         })
         .expect("risk_category should change recursively");
 
@@ -86,11 +86,11 @@ fn test_evaluate_dependents_recursive_chain() {
     // Check final data state
     let data = je.eval_data.data();
     assert_eq!(
-        data.pointer("/illustration/insured/occupation_class"),
+        data.pointer("/form/user/occupation_class"),
         Some(&Value::String("2".to_string()))
     );
     assert_eq!(
-        data.pointer("/illustration/insured/risk_category"),
+        data.pointer("/form/user/risk_category"),
         Some(&Value::String("Medium".to_string()))
     );
 }
@@ -99,13 +99,13 @@ fn test_evaluate_dependents_recursive_chain() {
 fn test_evaluate_dependents_keep_hidden_value() {
     let schema = load_fixture_schema();
 
-    // Field: illustration.header.extra_comments
+    // Field: form.header.extra_comments
     // Condition: Hidden if form_number == "HIDE"
     // Config: keepHiddenValue = true
 
     // Initial state: form_number="SHOW", extra_comments="Existing Data"
     let data = r#"{ 
-        "illustration": {
+        "form": {
             "header": {
                 "form_number": "SHOW",
                 "extra_comments": "Existing Data"
@@ -119,7 +119,7 @@ fn test_evaluate_dependents_keep_hidden_value() {
     // Note: replace_data_and_context replaces top-level objects, so we must provide the full object or use a different update method.
     // For this test, we provide the full header to ensure extra_comments isn't lost due to data loading.
     let new_data_snippet = r#"{ 
-        "illustration": {
+        "form": {
             "header": {
                 "form_number": "HIDE",
                 "extra_comments": "Existing Data"
@@ -127,7 +127,7 @@ fn test_evaluate_dependents_keep_hidden_value() {
         }
     }"#;
 
-    let changed_paths = vec!["illustration.header.form_number".to_string()];
+    let changed_paths = vec!["form.header.form_number".to_string()];
 
     let result = je
         .evaluate_dependents(
@@ -147,7 +147,7 @@ fn test_evaluate_dependents_keep_hidden_value() {
     // Note: implementation details might vary. The key requirement is DATA PRESERVATION.
 
     let comments_change = changes.iter().find(|c| {
-        c.get("$ref").and_then(|r| r.as_str()) == Some("illustration.header.extra_comments")
+        c.get("$ref").and_then(|r| r.as_str()) == Some("form.header.extra_comments")
     });
 
     if let Some(change) = comments_change {
@@ -171,7 +171,7 @@ fn test_evaluate_dependents_keep_hidden_value() {
 
     // Verify Data is STILL there
     let data = je.eval_data.data();
-    let comments_val = data.pointer("/illustration/header/extra_comments");
+    let comments_val = data.pointer("/form/header/extra_comments");
     assert_eq!(
         comments_val,
         Some(&Value::String("Existing Data".to_string())),
@@ -187,7 +187,7 @@ fn test_recursive_clearing() {
     // Initial state: C=false, B=false, A="Initial"
     // All visible.
     let data = r#"{ 
-        "illustration": {
+        "form": {
             "header": {
                 "recursive_test": {
                     "field_c": false,
@@ -206,7 +206,7 @@ fn test_recursive_clearing() {
     //   A hidden if B is EMPTY. B gets cleared (null). So A becomes hidden.
 
     let new_data_snippet = r#"{ 
-        "illustration": {
+        "form": {
             "header": {
                 "recursive_test": {
                     "field_c": true,
@@ -217,7 +217,7 @@ fn test_recursive_clearing() {
         }
     }"#;
 
-    let changed_paths = vec!["illustration.header.recursive_test.field_c".to_string()];
+    let changed_paths = vec!["form.header.recursive_test.field_c".to_string()];
 
     let result = je
         .evaluate_dependents(
@@ -235,14 +235,14 @@ fn test_recursive_clearing() {
     let data = je.eval_data.data();
 
     // Verify B is cleared
-    let val_b = data.pointer("/illustration/header/recursive_test/field_b");
+    let val_b = data.pointer("/form/header/recursive_test/field_b");
     assert!(
         val_b.is_none() || val_b == Some(&Value::Null),
         "Field B should be cleared"
     );
 
     // Verify A is cleared
-    let val_a = data.pointer("/illustration/header/recursive_test/field_a");
+    let val_a = data.pointer("/form/header/recursive_test/field_a");
     assert!(
         val_a.is_none() || val_a == Some(&Value::Null),
         "Field A should be cleared recursively"
@@ -255,7 +255,7 @@ fn test_recursive_clearing() {
         .iter()
         .find(|c| {
             c.get("$ref").and_then(|r| r.as_str())
-                == Some("illustration.header.recursive_test.field_b")
+                == Some("form.header.recursive_test.field_b")
         })
         .expect("Should report field_b change");
 
@@ -263,7 +263,7 @@ fn test_recursive_clearing() {
 
     // A might be in the changes list, or just implicit. But structurally it should be reported.
     let a_change = changes.iter().find(|c| {
-        c.get("$ref").and_then(|r| r.as_str()) == Some("illustration.header.recursive_test.field_a")
+        c.get("$ref").and_then(|r| r.as_str()) == Some("form.header.recursive_test.field_a")
     });
     // depending on depth of recursion, it should be there because we iterate until stable or process queue
     assert!(a_change.is_some(), "Field A change should be reported");

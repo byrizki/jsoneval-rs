@@ -3,33 +3,33 @@ use serde_json::json;
 
 #[test]
 fn test_evaluation_array_format() {
-    // Schema with "evaluation" as array of objects (zlw.json format)
+    // Schema with "evaluation" as array of objects
     let schema = json!({
         "type": "object",
         "properties": {
-            "illustration": {
+            "form": {
                 "type": "object",
                 "properties": {
-                    "policyholder": {
+                    "owner": {
                         "type": "object",
                         "properties": {
-                            "ph_gender": {
+                            "gender": {
                                 "type": "string",
-                                "title": "Jenis Kelamin Pemegang Polis",
+                                "title": "Owner Gender",
                                 "fieldType": "options"
                             }
                         }
                     },
-                    "insured": {
+                    "member": {
                         "type": "object",
                         "properties": {
-                            "phins_relation": {
+                            "relation": {
                                 "type": "string",
-                                "title": "Hubungan"
+                                "title": "Relation"
                             },
-                            "ins_gender": {
+                            "gender": {
                                 "type": "string",
-                                "title": "Jenis Kelamin Tertanggung",
+                                "title": "Member Gender",
                                 "rules": {
                                     "required": {
                                         "value": true,
@@ -37,14 +37,14 @@ fn test_evaluation_array_format() {
                                     },
                                     "evaluation": [
                                         {
-                                            "code": "phins_relation.gender.is.same",
-                                            "message": "Jenis Kelamin di data Tertanggung dengan Pemegang Polis tidak boleh sama.",
+                                            "code": "relation.gender.is.same",
+                                            "message": "Member gender and owner gender cannot be the same when relation is 2.",
                                             "$evaluation": {
                                                 "if": [
                                                     {
                                                         "==": [
                                                             {
-                                                                "$ref": "#/illustration/properties/insured/properties/phins_relation"
+                                                                "$ref": "#/form/properties/member/properties/relation"
                                                             },
                                                             "2"
                                                         ]
@@ -52,10 +52,10 @@ fn test_evaluation_array_format() {
                                                     {
                                                         "!=": [
                                                             {
-                                                                "$ref": "#/illustration/properties/policyholder/properties/ph_gender"
+                                                                "$ref": "#/form/properties/owner/properties/gender"
                                                             },
                                                             {
-                                                                "$ref": "#/illustration/properties/insured/properties/ins_gender"
+                                                                "$ref": "#/form/properties/member/properties/gender"
                                                             }
                                                         ]
                                                     },
@@ -78,13 +78,13 @@ fn test_evaluation_array_format() {
 
     // Test 1: Validation fails when relation is "2" and genders are same
     let data_invalid = json!({
-        "illustration": {
-            "policyholder": {
-                "ph_gender": "M"
+        "form": {
+            "owner": {
+                "gender": "M"
             },
-            "insured": {
-                "phins_relation": "2",
-                "ins_gender": "M"
+            "member": {
+                "relation": "2",
+                "gender": "M"
             }
         }
     });
@@ -100,33 +100,33 @@ fn test_evaluation_array_format() {
     assert!(
         validation_invalid
             .errors
-            .contains_key("illustration.insured.ins_gender"),
-        "Should have error for ins_gender"
+            .contains_key("form.member.gender"),
+        "Should have error for gender"
     );
 
     let error = validation_invalid
         .errors
-        .get("illustration.insured.ins_gender")
+        .get("form.member.gender")
         .unwrap();
     assert_eq!(error.rule_type, "evaluation");
     assert_eq!(
         error.code,
-        Some("phins_relation.gender.is.same".to_string())
+        Some("relation.gender.is.same".to_string())
     );
     assert_eq!(
         error.message,
-        "Jenis Kelamin di data Tertanggung dengan Pemegang Polis tidak boleh sama."
+        "Member gender and owner gender cannot be the same when relation is 2."
     );
 
     // Test 2: Validation passes when relation is "2" and genders are different
     let data_valid = json!({
-        "illustration": {
-            "policyholder": {
-                "ph_gender": "M"
+        "form": {
+            "owner": {
+                "gender": "M"
             },
-            "insured": {
-                "phins_relation": "2",
-                "ins_gender": "F"
+            "member": {
+                "relation": "2",
+                "gender": "F"
             }
         }
     });
@@ -142,13 +142,13 @@ fn test_evaluation_array_format() {
 
     // Test 3: Validation passes when relation is not "2"
     let data_other_relation = json!({
-        "illustration": {
-            "policyholder": {
-                "ph_gender": "M"
+        "form": {
+            "owner": {
+                "gender": "M"
             },
-            "insured": {
-                "phins_relation": "1",
-                "ins_gender": "M"
+            "member": {
+                "relation": "1",
+                "gender": "M"
             }
         }
     });

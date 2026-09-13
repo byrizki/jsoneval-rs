@@ -188,7 +188,7 @@ impl EvalCache {
     /// Invalidate all `$params`-scoped table cache entries for a specific item.
     ///
     /// Called when a brand-new subform item is introduced so that `$params` tables
-    /// that aggregate array data (e.g. WOP_RIDERS) are forced to recompute instead
+    /// that aggregate array data (e.g. aggregate tables) are forced to recompute instead
     /// of returning stale results cached from a prior main-form evaluation that ran
     /// when the item was absent (and thus saw zero/null for that item's values).
     pub fn invalidate_params_tables_for_item(&mut self, idx: usize, table_keys: &[String]) {
@@ -622,12 +622,12 @@ mod cache_tests {
         let mut cache = EvalCache::new();
         cache.set_active_item(1);
 
-        let eval_key = "#/$params/references/RIDER_RATE";
-        let deps = IndexSet::from_iter(["#/riders/properties/benefit".to_string()]);
+        let eval_key = "#/$params/references/LOOKUP_RATE";
+        let deps = IndexSet::from_iter(["#/items/properties/benefit".to_string()]);
         cache.entries.insert(
             eval_key.to_string(),
             CacheEntry {
-                dep_versions: HashMap::from([("/riders/benefit".to_string(), 0)]),
+                dep_versions: HashMap::from([("/items/benefit".to_string(), 0)]),
                 result: Arc::new(json!([{"rate": 97}])),
                 computed_for_item: None,
             },
@@ -636,7 +636,7 @@ mod cache_tests {
         assert_eq!(
             cache.check_table_cache(eval_key, &deps),
             Some(Arc::new(json!([{"rate": 97}]))),
-            "a scoped alias may reuse the parent result for its unchanged canonical rider"
+            "a scoped alias may reuse the parent result for its unchanged canonical item"
         );
     }
 
@@ -649,14 +649,14 @@ mod cache_tests {
             .get_mut(&1)
             .expect("active item cache must exist")
             .data_versions
-            .bump("/riders/benefit", "test rider input change");
+            .bump("/items/benefit", "test item input change");
 
-        let eval_key = "#/$params/references/RIDER_RATE";
-        let deps = IndexSet::from_iter(["#/riders/properties/benefit".to_string()]);
+        let eval_key = "#/$params/references/LOOKUP_RATE";
+        let deps = IndexSet::from_iter(["#/items/properties/benefit".to_string()]);
         cache.entries.insert(
             eval_key.to_string(),
             CacheEntry {
-                dep_versions: HashMap::from([("/riders/benefit".to_string(), 0)]),
+                dep_versions: HashMap::from([("/items/benefit".to_string(), 0)]),
                 result: Arc::new(json!([{"rate": 97}])),
                 computed_for_item: None,
             },
@@ -664,7 +664,7 @@ mod cache_tests {
 
         assert!(
             cache.check_table_cache(eval_key, &deps).is_none(),
-            "a changed rider input must force item-scoped table recomputation"
+            "a changed item input must force item-scoped table recomputation"
         );
     }
 
@@ -819,19 +819,19 @@ mod tests {
     #[test]
     fn merge_excluding_prefix_keeps_item_versions_isolated() {
         let mut item = VersionTracker::new();
-        item.bump("/riders/wop_flag", "test");
+        item.bump("/items/flag", "test");
 
         let mut parent = VersionTracker::new();
-        parent.bump("/illustration/insured/phins_relation", "test");
-        parent.bump("/riders/wop_flag", "test");
+        parent.bump("/users/profile/name", "test");
+        parent.bump("/items/flag", "test");
 
-        item.merge_excluding_prefix(&parent, "/riders/");
+        item.merge_excluding_prefix(&parent, "/items/");
 
-        assert_eq!(item.get("/illustration/insured/phins_relation"), 1);
+        assert_eq!(item.get("/users/profile/name"), 1);
         assert_eq!(
-            item.get("/riders/wop_flag"),
+            item.get("/items/flag"),
             1,
-            "another rider's parent-tracker bump must not alter this item's version"
+            "another item's parent-tracker bump must not alter this item's version"
         );
     }
 }
