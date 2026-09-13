@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.122] - 2026-09-13
+
+- chore: update terms
+- fix: improve concurrency with test
+
+
 ## [0.0.121] - 2026-09-11
 
 - fix: evaluate dependents improvement
