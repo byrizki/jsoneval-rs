@@ -22,7 +22,7 @@ impl Evaluator {
             CompiledLogic::Number(n) => Ok(Some(*n)),
             CompiledLogic::Var(name, default) => {
                 unsafe {
-                    if let Some(ts) = (*self.table_scope.get()).as_ref() {
+                    if let Some(ts) = (self.table_scope_ref()).as_ref() {
                         if !name.is_empty()
                             && (*name == ts.path
                                 || name.trim_start_matches('#') == ts.path_no_hash.as_str())
@@ -83,7 +83,7 @@ impl Evaluator {
             }
             CompiledLogic::Ref(path, default) => {
                 unsafe {
-                    if let Some(ts) = (*self.table_scope.get()).as_ref() {
+                    if let Some(ts) = (self.table_scope_ref()).as_ref() {
                         if !path.is_empty()
                             && (*path == ts.path
                                 || path.trim_start_matches('#') == ts.path_no_hash.as_str())
@@ -498,7 +498,7 @@ impl Evaluator {
                     _ => None,
                 };
                 if let Some(name) = var_name {
-                    let scope = unsafe { &*self.table_scope.get() };
+                    let scope = unsafe { self.table_scope_ref() };
                     if let Some(ts) = scope.as_ref() {
                         if (name == ts.path
                             || name.trim_start_matches('#') == ts.path_no_hash.as_str())

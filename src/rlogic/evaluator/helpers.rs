@@ -104,16 +104,14 @@ impl Evaluator {
 
         // Fast intercept for $iteration and $threshold in active table scope
         if name == "/$iteration" || name == "$iteration" {
-            // SAFETY: single-threaded (eval_lock held during this scope), UnsafeCell
-            let scope = unsafe { &*self.table_scope.get() };
+            let scope = unsafe { self.table_scope_ref() };
             if let Some(ts) = scope.as_ref() {
                 if let Some(ref val) = ts.iteration_val {
                     return Some(val);
                 }
             }
         } else if name == "/$threshold" || name == "$threshold" {
-            // SAFETY: single-threaded (eval_lock held during this scope), UnsafeCell
-            let scope = unsafe { &*self.table_scope.get() };
+            let scope = unsafe { self.table_scope_ref() };
             if let Some(ts) = scope.as_ref() {
                 if let Some(ref val) = ts.threshold_val {
                     return Some(val);
@@ -138,8 +136,7 @@ impl Evaluator {
         };
 
         if let Some(field) = col_ref {
-            // SAFETY: single-threaded (eval_lock held during this scope), UnsafeCell
-            let scope = unsafe { &*self.table_scope.get() };
+            let scope = unsafe { self.table_scope_ref() };
             if let Some(ts) = scope.as_ref() {
                 // Ultra-fast path: direct flat_cells lookup via precomputed current_row_base
                 if !ts.current_row_base.is_null() {
@@ -179,7 +176,7 @@ impl Evaluator {
 
         // Fast intercept for static arrays to handle deep lookup paths
         // e.g., name = "/$params/references/WOP_BENEFIT" or "/$params/R_PROD_RIDER/0/PLAN_NAME" or "/$table/..."
-        let static_arrays = unsafe { &*self.static_arrays.get() };
+        let static_arrays = unsafe { self.static_arrays_ref() };
         if let Some(arrays) = static_arrays {
             if name.starts_with("/$params/references/") && name.len() > 20 {
                 let end_idx = name[20..].find('/').map(|i| i + 20).unwrap_or(name.len());

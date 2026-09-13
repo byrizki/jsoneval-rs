@@ -297,6 +297,8 @@ impl JSONEval {
         time_block!("  evaluate_internal() [total]", {
             // Acquire lock for synchronous execution
             let _lock = self.eval_lock.lock().unwrap();
+            let _static_guard =
+                self.engine.bind_static_arrays_scope(Arc::clone(&self.static_arrays));
 
             // Normalize paths to schema pointers for correct filtering
             let normalized_paths_storage; // Keep alive

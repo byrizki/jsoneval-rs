@@ -80,12 +80,28 @@ impl TableScope {
     }
 }
 
-// SAFETY: table evaluation is protected by eval_lock (single-threaded access).
-// UnsafeCell provides interior mutability without adding Sync constraints.
-// The raw *const pointer in TableScope is only accessed under eval_lock.
+thread_local! {
+    static TABLE_SCOPE: UnsafeCell<Option<TableScope>> = const { UnsafeCell::new(None) };
+    static STATIC_ARRAYS: UnsafeCell<Option<std::sync::Arc<indexmap::IndexMap<String, std::sync::Arc<Value>>>>> = const { UnsafeCell::new(None) };
+}
+
+// SAFETY: TableScope and STATIC_ARRAYS are accessed only by the current thread via thread_local storage.
 unsafe impl Send for TableScope {}
 unsafe impl Send for Evaluator {}
 unsafe impl Sync for Evaluator {}
+
+/// RAII guard that restores the previous active STATIC_ARRAYS on drop
+pub struct StaticArraysGuard {
+    previous: Option<std::sync::Arc<indexmap::IndexMap<String, std::sync::Arc<Value>>>>,
+}
+
+impl Drop for StaticArraysGuard {
+    fn drop(&mut self) {
+        STATIC_ARRAYS.with(|cell| unsafe {
+            *cell.get() = self.previous.take();
+        });
+    }
+}
 
 /// RAII guard that clears the active TableScope on drop
 pub struct TableScopeGuard<'a> {
@@ -94,9 +110,8 @@ pub struct TableScopeGuard<'a> {
 
 impl<'a> Drop for TableScopeGuard<'a> {
     fn drop(&mut self) {
-        // SAFETY: single-threaded (eval_lock), no concurrent access
         unsafe {
-            *self.evaluator.table_scope.get() = None;
+            *self.evaluator.table_scope_mut() = None;
         }
     }
 }
@@ -115,11 +130,6 @@ pub struct Evaluator {
     config: RLogicConfig,
     /// Upfront indices for large tables (name -> index)
     indices: RwLock<HashMap<String, TableIndex>>,
-    /// Extracted large static arrays for zero-copy resolution
-    static_arrays:
-        UnsafeCell<Option<std::sync::Arc<indexmap::IndexMap<String, std::sync::Arc<Value>>>>>,
-    /// Active self-table scope during table evaluation (None outside table eval)
-    pub(crate) table_scope: UnsafeCell<Option<TableScope>>,
 }
 
 impl Evaluator {
@@ -127,9 +137,31 @@ impl Evaluator {
         Self {
             config: RLogicConfig::default(),
             indices: RwLock::new(HashMap::new()),
-            static_arrays: UnsafeCell::new(None),
-            table_scope: UnsafeCell::new(None),
         }
+    }
+
+    #[inline(always)]
+    pub(crate) unsafe fn table_scope_ref(&self) -> &Option<TableScope> {
+        TABLE_SCOPE.with(|cell| &*cell.get())
+    }
+
+    #[inline(always)]
+    pub(crate) unsafe fn table_scope_mut(&self) -> &mut Option<TableScope> {
+        TABLE_SCOPE.with(|cell| &mut *cell.get())
+    }
+
+    #[inline(always)]
+    pub(crate) unsafe fn static_arrays_ref(
+        &self,
+    ) -> &Option<std::sync::Arc<indexmap::IndexMap<String, std::sync::Arc<Value>>>> {
+        STATIC_ARRAYS.with(|cell| &*cell.get())
+    }
+
+    #[inline(always)]
+    pub(crate) unsafe fn static_arrays_mut(
+        &self,
+    ) -> &mut Option<std::sync::Arc<indexmap::IndexMap<String, std::sync::Arc<Value>>>> {
+        STATIC_ARRAYS.with(|cell| &mut *cell.get())
     }
 
     /// Register a table scope for self-reference interception.
@@ -145,9 +177,8 @@ impl Evaluator {
         rows: &Vec<Value>,
     ) -> TableScopeGuard<'a> {
         let path_no_hash = path.trim_start_matches('#').to_string();
-        // SAFETY: single-threaded (eval_lock held by caller)
         unsafe {
-            *self.table_scope.get() = Some(TableScope {
+            *self.table_scope_mut() = Some(TableScope {
                 path,
                 path_no_hash,
                 rows: rows as *const Vec<Value>,
@@ -177,9 +208,8 @@ impl Evaluator {
         existing_row_count: usize,
         col_map: rapidhash::RapidHashMap<String, usize>,
     ) {
-        // SAFETY: single-threaded (eval_lock held by caller)
         unsafe {
-            if let Some(ts) = (*self.table_scope.get()).as_mut() {
+            if let Some(ts) = (*self.table_scope_mut()).as_mut() {
                 ts.flat_cells = cells;
                 ts.col_count = col_count;
                 ts.total_rows = total_rows;
@@ -193,9 +223,8 @@ impl Evaluator {
 
     /// Update the rows pointer in the active table scope.
     pub(crate) fn update_table_scope_rows(&self, rows: &Vec<Value>) {
-        // SAFETY: single-threaded (eval_lock held by caller)
         unsafe {
-            if let Some(ts) = (*self.table_scope.get()).as_mut() {
+            if let Some(ts) = (*self.table_scope_mut()).as_mut() {
                 ts.rows = rows as *const Vec<Value>;
             }
         }
@@ -203,9 +232,8 @@ impl Evaluator {
 
     /// Set the row cursor for the active table scope
     pub(crate) fn set_table_scope_row(&self, row_idx: Option<usize>) {
-        // SAFETY: single-threaded (eval_lock held by caller)
         unsafe {
-            if let Some(ts) = (*self.table_scope.get()).as_mut() {
+            if let Some(ts) = (*self.table_scope_mut()).as_mut() {
                 ts.current_row = row_idx;
                 if let Some(r) = row_idx {
                     if ts.col_count > 0
@@ -228,9 +256,8 @@ impl Evaluator {
 
     /// Set the row cursor and pre-computed iteration value for the active table scope
     pub(crate) fn set_table_scope_cursor(&self, row_idx: Option<usize>, iteration: Option<i64>) {
-        // SAFETY: single-threaded (eval_lock held by caller)
         unsafe {
-            if let Some(ts) = (*self.table_scope.get()).as_mut() {
+            if let Some(ts) = (*self.table_scope_mut()).as_mut() {
                 ts.current_row = row_idx;
                 ts.iteration_raw = iteration;
                 ts.iteration_val = iteration.map(Value::from);
@@ -255,9 +282,8 @@ impl Evaluator {
 
     /// Set the threshold value for the active table scope
     pub(crate) fn set_table_scope_threshold(&self, threshold: i64) {
-        // SAFETY: single-threaded (eval_lock held by caller)
         unsafe {
-            if let Some(ts) = (*self.table_scope.get()).as_mut() {
+            if let Some(ts) = (*self.table_scope_mut()).as_mut() {
                 ts.threshold_val = Some(Value::from(threshold));
             }
         }
@@ -268,14 +294,33 @@ impl Evaluator {
         self
     }
 
-    /// Set static arrays for evaluation context
+    /// Bind static arrays to the current thread for the duration of a scope
+    pub fn bind_static_arrays_scope(
+        &self,
+        static_arrays: std::sync::Arc<indexmap::IndexMap<String, std::sync::Arc<Value>>>,
+    ) -> StaticArraysGuard {
+        let previous = STATIC_ARRAYS.with(|cell| unsafe {
+            let prev = (*cell.get()).take();
+            *cell.get() = Some(static_arrays);
+            prev
+        });
+        StaticArraysGuard { previous }
+    }
+
+    /// Set static arrays for evaluation context on the current thread
     pub fn set_static_arrays(
         &self,
         static_arrays: std::sync::Arc<indexmap::IndexMap<String, std::sync::Arc<Value>>>,
     ) {
-        // SAFETY: single-threaded (eval_lock held by caller)
         unsafe {
-            *self.static_arrays.get() = Some(static_arrays);
+            *self.static_arrays_mut() = Some(static_arrays);
+        }
+    }
+
+    /// Clear static arrays for the current thread
+    pub fn clear_static_arrays(&self) {
+        unsafe {
+            *self.static_arrays_mut() = None;
         }
     }
 
@@ -894,8 +939,7 @@ impl Evaluator {
         // that resolve to the table's own path (e.g. used in MAP/FILTER/REDUCE over self)
         // must see local_rows, not stale data in scope_data.
         if !name.is_empty() {
-            // SAFETY: single-threaded (eval_lock), UnsafeCell
-            let scope = unsafe { &*self.table_scope.get() };
+            let scope = unsafe { self.table_scope_ref() };
             if let Some(ts) = scope.as_ref() {
                 if name == ts.path || name.trim_start_matches('#') == ts.path_no_hash.as_str() {
                     if ts.col_count > 0 && !ts.flat_cells.is_null() {

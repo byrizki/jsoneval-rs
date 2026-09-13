@@ -20,7 +20,7 @@ pub use bytecode::{try_lower_to_bytecode, TableBytecode, TableOp};
 pub use compiled::{CompiledLogic, CompiledLogicStore, LogicId};
 pub use compiled_logic_store::{CompiledLogicId, CompiledLogicStoreStats};
 pub use config::RLogicConfig;
-pub use evaluator::{Evaluator, TableScopeGuard};
+pub use evaluator::{Evaluator, StaticArraysGuard, TableScopeGuard};
 
 /// Main RLogic engine combining compilation and evaluation
 pub struct RLogic {
@@ -42,12 +42,25 @@ impl RLogic {
         }
     }
 
-    /// Set static arrays for evaluation context
+    /// Bind static arrays for evaluation context on the current thread for the duration of a scope
+    pub fn bind_static_arrays_scope(
+        &self,
+        static_arrays: std::sync::Arc<indexmap::IndexMap<String, std::sync::Arc<Value>>>,
+    ) -> StaticArraysGuard {
+        self.evaluator.bind_static_arrays_scope(static_arrays)
+    }
+
+    /// Set static arrays for evaluation context on the current thread
     pub fn set_static_arrays(
         &self,
         static_arrays: std::sync::Arc<indexmap::IndexMap<String, std::sync::Arc<Value>>>,
     ) {
         self.evaluator.set_static_arrays(static_arrays);
+    }
+
+    /// Clear static arrays for the current thread
+    pub fn clear_static_arrays(&self) {
+        self.evaluator.clear_static_arrays();
     }
 
     /// Get reference to inner Evaluator

@@ -52,6 +52,8 @@ impl JSONEval {
         time_block!("validate() [total]", {
             // Acquire lock for synchronous execution
             let _lock = self.eval_lock.lock().unwrap();
+            let _static_guard =
+                self.engine.bind_static_arrays_scope(std::sync::Arc::clone(&self.static_arrays));
 
             // Parse and update data
             let (data_value, context_value) = time_block!("  parse data & context", {
@@ -314,6 +316,8 @@ impl JSONEval {
         validate_readonly: Option<bool>,
     ) -> Result<crate::ValidationResult, String> {
         let validate_ro = validate_readonly.unwrap_or(false);
+        let _static_guard =
+            self.engine.bind_static_arrays_scope(std::sync::Arc::clone(&self.static_arrays));
         // Re-evaluate rule evaluations with the current (already-set) data.
         self.evaluate_others(paths, token);
 

@@ -266,8 +266,7 @@ impl Evaluator {
 
             // Fast path: check memoization cache in TableScope for immutable borrowed tables
             if is_borrowed {
-                // SAFETY: single-threaded (eval_lock held during this scope), UnsafeCell
-                let scope = unsafe { &*self.table_scope.get() };
+                let scope = unsafe { self.table_scope_ref() };
                 if let Some(ts) = scope.as_ref() {
                     let key = super::types::CombinedLookupKey {
                         arr_ptr: arr.as_ptr() as usize,
@@ -327,8 +326,7 @@ impl Evaluator {
 
             // Save to cache if inside active TableScope on immutable borrowed table
             if is_borrowed {
-                // SAFETY: single-threaded (eval_lock held during this scope), UnsafeCell
-                let scope = unsafe { &*self.table_scope.get() };
+                let scope = unsafe { self.table_scope_ref() };
                 if let Some(ts) = scope.as_ref() {
                     let key = super::types::CombinedLookupKey {
                         arr_ptr: arr.as_ptr() as usize,

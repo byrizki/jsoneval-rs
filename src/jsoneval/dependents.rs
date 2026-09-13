@@ -33,6 +33,8 @@ impl JSONEval {
             }
         }
         let _lock = self.eval_lock.lock().unwrap();
+        let _static_guard =
+            self.engine.bind_static_arrays_scope(std::sync::Arc::clone(&self.static_arrays));
         let mut structural_change_data = None;
 
         // Update data if provided, diff versions

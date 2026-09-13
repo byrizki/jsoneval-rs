@@ -20,8 +20,7 @@ impl Evaluator {
         };
 
         if let Some(name) = var_name {
-            // SAFETY: single-threaded (eval_lock), UnsafeCell access
-            let scope = unsafe { &*self.table_scope.get() };
+            let scope = unsafe { self.table_scope_ref() };
             if let Some(ts) = scope.as_ref() {
                 if name == ts.path || name.trim_start_matches('#') == ts.path_no_hash.as_str() {
                     if ts.col_count > 0 && !ts.flat_cells.is_null() {
@@ -163,7 +162,7 @@ impl Evaluator {
             CompiledLogic::Var(var, _) | CompiledLogic::Ref(var, _)
                 if (var == "$iteration" || var == "/$iteration") =>
             {
-                let scope = unsafe { &*self.table_scope.get() };
+                let scope = unsafe { self.table_scope_ref() };
                 scope
                     .as_ref()
                     .and_then(|ts| ts.iteration_raw)
@@ -179,7 +178,7 @@ impl Evaluator {
                         CompiledLogic::Number(n),
                         CompiledLogic::Var(var, _) | CompiledLogic::Ref(var, _),
                     ) if (var == "$iteration" || var == "/$iteration") => {
-                        let scope = unsafe { &*self.table_scope.get() };
+                        let scope = unsafe { self.table_scope_ref() };
                         scope
                             .as_ref()
                             .and_then(|ts| ts.iteration_raw)
@@ -214,7 +213,7 @@ impl Evaluator {
                         CompiledLogic::Var(var, _) | CompiledLogic::Ref(var, _),
                         CompiledLogic::Number(n),
                     ) if (var == "$iteration" || var == "/$iteration") => {
-                        let scope = unsafe { &*self.table_scope.get() };
+                        let scope = unsafe { self.table_scope_ref() };
                         scope
                             .as_ref()
                             .and_then(|ts| ts.iteration_raw)
@@ -272,8 +271,7 @@ impl Evaluator {
             _ => None,
         };
         if let Some(name) = var_name {
-            // SAFETY: single-threaded (eval_lock), UnsafeCell access
-            let scope = unsafe { &*self.table_scope.get() };
+            let scope = unsafe { self.table_scope_ref() };
             if let Some(ts) = scope.as_ref() {
                 if (name == ts.path || name.trim_start_matches('#') == ts.path_no_hash.as_str())
                     && ts.col_count > 0

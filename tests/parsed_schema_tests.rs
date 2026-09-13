@@ -140,3 +140,67 @@ fn test_parsed_schema_reuse_multiple_evaluators() {
         Some(&json!(50)) // 25 * 2
     );
 }
+
+#[test]
+fn test_concurrent_table_calculation_stress() {
+    let schema_json = serde_json::json!({
+      "$params": {
+        "references": {
+          "CALC_TABLE": {
+            "$table": [
+              {
+                "$repeat": [
+                  0,
+                  4,
+                  {
+                    "STEP": { "$evaluation": { "$ref": "$iteration" } },
+                    "VAL": {
+                      "$evaluation": {
+                        "*": [
+                          { "$ref": "$STEP" },
+                          { "var": "multiplier" }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "type": "object",
+      "properties": {
+        "multiplier": { "type": "number" },
+        "result": {
+          "type": "number",
+          "$evaluation": {
+            "logic": {
+              "VALUEAT": [
+                { "$ref": "#/$params/references/CALC_TABLE" },
+                4,
+                "VAL"
+              ]
+            }
+          }
+        }
+      }
+    }).to_string();
+
+    let parsed = Arc::new(ParsedSchema::parse(&schema_json).expect("Failed to parse schema"));
+
+    let handles: Vec<_> = (1..=50).map(|i| {
+        let parsed_clone = Arc::clone(&parsed);
+        std::thread::spawn(move || {
+            let data = serde_json::json!({ "multiplier": i }).to_string();
+            let mut eval = JSONEval::with_parsed_schema(parsed_clone, None, Some(&data)).expect("init");
+            eval.evaluate(&data, None, None, None).expect("evaluate");
+            let res = eval.get_evaluated_schema();
+            assert_eq!(res.pointer("/properties/result"), Some(&serde_json::json!(4 * i)));
+        })
+    }).collect();
+
+    for h in handles {
+        h.join().unwrap();
+    }
+}
