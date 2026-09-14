@@ -79,4 +79,55 @@ public class ValidationTests
         Assert.Single(resPaths.Errors);
         Assert.True(resPaths.Errors.ContainsKey("contacts.0.phone"));
     }
+
+    [Fact]
+    public void Validate_ErrorData_Contains_Title_Description_And_Constraints()
+    {
+        var schema = """
+        {
+          "type": "object",
+          "properties": {
+            "age": {
+              "type": "number",
+              "title": "Age",
+              "description": "Applicant age",
+              "rules": {
+                "minValue": { "value": 18, "message": "Min age 18" },
+                "maxValue": { "value": 65, "message": "Max age 65" }
+              }
+            },
+            "name": {
+              "type": "string",
+              "title": "Name",
+              "rules": {
+                "required": { "value": true, "message": "Name is required" }
+              }
+            }
+          }
+        }
+        """;
+
+        var data = """{"age": 15, "name": ""}""";
+
+        using var eval = new JSONEval(schema);
+        var res = eval.Validate(data);
+        Assert.True(res.HasError);
+        Assert.Equal(2, res.Errors.Count);
+
+        var ageErr = res.Errors["age"];
+        Assert.NotNull(ageErr.Data);
+        var ageData = Assert.IsType<JObject>(ageErr.Data);
+        Assert.Equal("Age", (string?)ageData["title"]);
+        Assert.Equal("Applicant age", (string?)ageData["description"]);
+        Assert.Equal(18, (int?)ageData["minValue"]);
+        Assert.Equal(65, (int?)ageData["maxValue"]);
+        Assert.Null(ageData["min"]);
+        Assert.Null(ageData["max"]);
+
+        var nameErr = res.Errors["name"];
+        Assert.NotNull(nameErr.Data);
+        var nameData = Assert.IsType<JObject>(nameErr.Data);
+        Assert.Equal("Name", (string?)nameData["title"]);
+        Assert.Equal(true, (bool?)nameData["required"]);
+    }
 }

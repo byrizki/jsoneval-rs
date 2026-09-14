@@ -66,8 +66,12 @@ fn test_validation_error_has_all_fields() {
     );
     assert_eq!(email_error.field_value.as_ref().unwrap(), "invalid-email");
     assert!(
-        email_error.data.is_none(),
-        "Pattern error should not have data field"
+        email_error.data.is_some(),
+        "Pattern error should have data field with field title"
+    );
+    assert_eq!(
+        email_error.data.as_ref().unwrap()["title"],
+        "Email"
     );
 
     // Check minValue error has code but not pattern/field_value
@@ -84,9 +88,14 @@ fn test_validation_error_has_all_fields() {
         "minValue error should not have field_value"
     );
     assert!(
-        age_error.data.is_none(),
-        "minValue error should not have data"
+        age_error.data.is_some(),
+        "minValue error should have data"
     );
+    let age_data = age_error.data.as_ref().unwrap();
+    assert_eq!(age_data["title"], "Age");
+    assert_eq!(age_data["minValue"], 1);
+    assert!(age_data.get("min").is_none(), "Should not have redundant min key");
+    assert!(age_data.get("max").is_none(), "Should not have redundant max key");
 }
 
 #[test]
@@ -169,7 +178,7 @@ fn test_validation_error_serialization() {
     // Optional fields should not be present when None
     assert!(!error.as_object().unwrap().contains_key("pattern"));
     assert!(!error.as_object().unwrap().contains_key("fieldValue"));
-    assert!(!error.as_object().unwrap().contains_key("data"));
+    assert_eq!(error["data"]["required"], true);
 
     // Test with fieldValue present
     let schema_pattern = json!({
@@ -205,6 +214,7 @@ fn test_validation_error_serialization() {
     let error_pattern = &parsed_pattern["errors"]["code"];
     assert_eq!(error_pattern["type"], "pattern");
     assert_eq!(error_pattern["fieldValue"], "abc");
+    assert!(!error_pattern.as_object().unwrap().contains_key("data"));
 }
 
 #[test]
@@ -702,6 +712,343 @@ fn test_validate_with_include_subforms_nested_and_items_root_key() {
     let err = res.errors.get("form.items.0.amount").expect("Should map to form.items.0.amount");
     assert_eq!(err.message, "Min amount is 1000");
     assert_eq!(err.code, Some("form.items.0.amount.minValue".to_string()));
+    assert!(err.data.is_some());
+    let err_data = err.data.as_ref().unwrap();
+    assert_eq!(err_data["minValue"], 1000);
+    assert!(err_data.get("min").is_none(), "Should not have redundant min key");
 }
+
+#[test]
+fn test_validation_data_numeric_range_and_companion_rules() {
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "score": {
+                "type": "number",
+                "rules": {
+                    "minValue": { "value": 10, "message": "Min score is 10" },
+                    "maxValue": { "value": 100, "message": "Max score is 100" }
+                }
+            }
+        }
+    });
+
+    let schema_str = serde_json::to_string(&schema).unwrap();
+    let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
+
+    // Test failing minValue
+    let data_low = json!({ "score": 5 });
+    let res_low = eval.validate(&serde_json::to_string(&data_low).unwrap(), None, None, None, None, None).unwrap();
+    assert!(res_low.has_error);
+    let err_low = res_low.errors.get("score").unwrap();
+    assert_eq!(err_low.rule_type, "minValue");
+    assert!(err_low.data.is_some());
+    let data_low_obj = err_low.data.as_ref().unwrap();
+    assert_eq!(data_low_obj["minValue"], 10);
+    assert_eq!(data_low_obj["maxValue"], 100);
+    assert!(data_low_obj.get("min").is_none(), "Should not have redundant min key");
+    assert!(data_low_obj.get("max").is_none(), "Should not have redundant max key");
+
+    // Test failing maxValue
+    let data_high = json!({ "score": 150 });
+    let res_high = eval.validate(&serde_json::to_string(&data_high).unwrap(), None, None, None, None, None).unwrap();
+    assert!(res_high.has_error);
+    let err_high = res_high.errors.get("score").unwrap();
+    assert_eq!(err_high.rule_type, "maxValue");
+    assert!(err_high.data.is_some());
+    let data_high_obj = err_high.data.as_ref().unwrap();
+    assert_eq!(data_high_obj["minValue"], 10);
+    assert_eq!(data_high_obj["maxValue"], 100);
+    assert!(data_high_obj.get("min").is_none(), "Should not have redundant min key");
+    assert!(data_high_obj.get("max").is_none(), "Should not have redundant max key");
+}
+
+#[test]
+fn test_validation_data_length_range_and_companion_rules() {
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "code": {
+                "type": "string",
+                "rules": {
+                    "minLength": { "value": 3, "message": "Min length 3" },
+                    "maxLength": { "value": 8, "message": "Max length 8" }
+                }
+            }
+        }
+    });
+
+    let schema_str = serde_json::to_string(&schema).unwrap();
+    let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
+
+    // Test failing minLength
+    let data_short = json!({ "code": "ab" });
+    let res_short = eval.validate(&serde_json::to_string(&data_short).unwrap(), None, None, None, None, None).unwrap();
+    assert!(res_short.has_error);
+    let err_short = res_short.errors.get("code").unwrap();
+    assert_eq!(err_short.rule_type, "minLength");
+    assert!(err_short.data.is_some());
+    let data_short_obj = err_short.data.as_ref().unwrap();
+    assert_eq!(data_short_obj["minLength"], 3);
+    assert_eq!(data_short_obj["maxLength"], 8);
+    assert!(data_short_obj.get("min").is_none(), "Should not have redundant min key");
+    assert!(data_short_obj.get("max").is_none(), "Should not have redundant max key");
+
+    // Test failing maxLength
+    let data_long = json!({ "code": "toolongcodehere" });
+    let res_long = eval.validate(&serde_json::to_string(&data_long).unwrap(), None, None, None, None, None).unwrap();
+    assert!(res_long.has_error);
+    let err_long = res_long.errors.get("code").unwrap();
+    assert_eq!(err_long.rule_type, "maxLength");
+    assert!(err_long.data.is_some());
+    let data_long_obj = err_long.data.as_ref().unwrap();
+    assert_eq!(data_long_obj["minLength"], 3);
+    assert_eq!(data_long_obj["maxLength"], 8);
+    assert!(data_long_obj.get("min").is_none(), "Should not have redundant min key");
+    assert!(data_long_obj.get("max").is_none(), "Should not have redundant max key");
+}
+
+#[test]
+fn test_validation_data_merge_with_schema_evaluation_data() {
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "premium": {
+                "type": "number",
+                "rules": {
+                    "minValue": {
+                        "value": 50000,
+                        "message": "Minimum premium is 50000",
+                        "data": {
+                            "currency": "IDR",
+                            "multiplier": 1000
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    let schema_str = serde_json::to_string(&schema).unwrap();
+    let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
+
+    let data = json!({ "premium": 25000 });
+    let res = eval.validate(&serde_json::to_string(&data).unwrap(), None, None, None, None, None).unwrap();
+    assert!(res.has_error);
+    let err = res.errors.get("premium").unwrap();
+    assert_eq!(err.rule_type, "minValue");
+    assert!(err.data.is_some());
+    let data_obj = err.data.as_ref().unwrap();
+    // Rule constraints
+    assert_eq!(data_obj["minValue"], 50000);
+    assert!(data_obj.get("min").is_none(), "Should not have redundant min key");
+    // Schema evaluation data merged
+    assert_eq!(data_obj["currency"], "IDR");
+    assert_eq!(data_obj["multiplier"], 1000);
+}
+
+#[test]
+fn test_validation_data_dynamic_evaluation_in_rule_data() {
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "threshold": {
+                "type": "number",
+                "value": 100
+            },
+            "amount": {
+                "type": "number",
+                "rules": {
+                    "minValue": {
+                        "value": {
+                            "$evaluation": { "$ref": "#/properties/threshold" }
+                        },
+                        "message": "Amount is below threshold",
+                        "data": {
+                            "customLimit": {
+                                "$evaluation": { "$ref": "#/properties/threshold" }
+                            },
+                            "unit": "USD"
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    let schema_str = serde_json::to_string(&schema).unwrap();
+    let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
+
+    let data = json!({ "threshold": 200, "amount": 50 });
+    let data_str = serde_json::to_string(&data).unwrap();
+    eval.evaluate(&data_str, None, None, None).unwrap();
+
+    let res = eval.validate(&data_str, None, None, None, None, None).unwrap();
+    assert!(res.has_error);
+    let err = res.errors.get("amount").unwrap();
+    assert_eq!(err.rule_type, "minValue");
+    assert!(err.data.is_some());
+    let data_obj = err.data.as_ref().unwrap();
+    assert_eq!(data_obj["minValue"], 200);
+    assert!(data_obj.get("min").is_none(), "Should not have redundant min key");
+    assert_eq!(data_obj["customLimit"], 200);
+    assert_eq!(data_obj["unit"], "USD");
+}
+
+#[test]
+fn test_validation_data_required_and_pattern_with_schema_data() {
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "username": {
+                "type": "string",
+                "rules": {
+                    "required": {
+                        "value": true,
+                        "message": "Username required",
+                        "data": { "fieldGroup": "auth" }
+                    }
+                }
+            },
+            "phone": {
+                "type": "string",
+                "rules": {
+                    "pattern": {
+                        "value": "^[0-9]+$",
+                        "message": "Digits only",
+                        "data": { "expectedFormat": "numeric" }
+                    }
+                }
+            }
+        }
+    });
+
+    let schema_str = serde_json::to_string(&schema).unwrap();
+    let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
+
+    let data = json!({ "username": "", "phone": "abc" });
+    let res = eval.validate(&serde_json::to_string(&data).unwrap(), None, None, None, None, None).unwrap();
+    assert!(res.has_error);
+
+    let user_err = res.errors.get("username").unwrap();
+    assert_eq!(user_err.rule_type, "required");
+    assert!(user_err.data.is_some());
+    assert_eq!(user_err.data.as_ref().unwrap()["fieldGroup"], "auth");
+
+    let phone_err = res.errors.get("phone").unwrap();
+    assert_eq!(phone_err.rule_type, "pattern");
+    assert!(phone_err.data.is_some());
+    assert_eq!(phone_err.data.as_ref().unwrap()["expectedFormat"], "numeric");
+}
+
+#[test]
+fn test_validation_data_field_title_and_description() {
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "age": {
+                "type": "number",
+                "title": "Age of Applicant",
+                "description": "Must be between 18 and 65 years old",
+                "rules": {
+                    "minValue": { "value": 18, "message": "Too young" },
+                    "maxValue": { "value": 65, "message": "Too old" }
+                }
+            },
+            "fullName": {
+                "type": "string",
+                "title": "Full Legal Name",
+                "description": "As written in national ID card",
+                "rules": {
+                    "required": { "value": true, "message": "Full name is required" }
+                }
+            },
+            "bio": {
+                "type": "string",
+                "title": "User Biography",
+                "description": "Short description of yourself",
+                "rules": {
+                    "maxLength": { "value": 200, "message": "Bio too long" }
+                }
+            }
+        }
+    });
+
+    let schema_str = serde_json::to_string(&schema).unwrap();
+    let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
+
+    let data = json!({
+        "age": 16,
+        "fullName": "",
+        "bio": "a".repeat(205)
+    });
+    let data_str = serde_json::to_string(&data).unwrap();
+    let res = eval.validate(&data_str, None, None, None, None, None).unwrap();
+    assert!(res.has_error);
+    assert_eq!(res.errors.len(), 3);
+
+    // 1. age: has title, description, and boundary rules (minValue, companion maxValue)
+    let age_err = res.errors.get("age").unwrap();
+    let age_data = age_err.data.as_ref().expect("age should have data");
+    assert_eq!(age_data["title"], "Age of Applicant");
+    assert_eq!(age_data["description"], "Must be between 18 and 65 years old");
+    assert_eq!(age_data["minValue"], 18);
+    assert_eq!(age_data["maxValue"], 65);
+    assert!(age_data.get("min").is_none(), "no redundant min");
+    assert!(age_data.get("max").is_none(), "no redundant max");
+    assert!(age_data.get("label").is_none(), "no label key");
+    assert!(age_data.get("desc").is_none(), "no desc key");
+
+    // 2. fullName: uses title and description, and has required: true
+    let name_err = res.errors.get("fullName").unwrap();
+    let name_data = name_err.data.as_ref().expect("fullName should have data");
+    assert_eq!(name_data["title"], "Full Legal Name");
+    assert_eq!(name_data["description"], "As written in national ID card");
+    assert_eq!(name_data["required"], true);
+    assert!(name_data.get("label").is_none(), "no label key");
+    assert!(name_data.get("desc").is_none(), "no desc key");
+
+    // 3. bio: title and description with maxLength
+    let bio_err = res.errors.get("bio").unwrap();
+    let bio_data = bio_err.data.as_ref().expect("bio should have data");
+    assert_eq!(bio_data["title"], "User Biography");
+    assert_eq!(bio_data["description"], "Short description of yourself");
+    assert_eq!(bio_data["maxLength"], 200);
+    assert!(bio_data.get("max").is_none(), "no redundant max");
+    assert!(bio_data.get("label").is_none(), "no label key");
+    assert!(bio_data.get("desc").is_none(), "no desc key");
+}
+
+#[test]
+fn test_validation_data_required_rule_populates_required_true() {
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "email": {
+                "type": "string",
+                "rules": {
+                    "required": {
+                        "value": true,
+                        "message": "Email is required"
+                    }
+                }
+            }
+        }
+    });
+
+    let schema_str = serde_json::to_string(&schema).unwrap();
+    let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
+
+    let data = json!({ "email": "" });
+    let res = eval.validate(&serde_json::to_string(&data).unwrap(), None, None, None, None, None).unwrap();
+    assert!(res.has_error);
+
+    let err = res.errors.get("email").unwrap();
+    assert_eq!(err.rule_type, "required");
+    assert!(err.data.is_some());
+    let data_obj = err.data.as_ref().unwrap();
+    assert_eq!(data_obj["required"], true);
+}
+
 
 

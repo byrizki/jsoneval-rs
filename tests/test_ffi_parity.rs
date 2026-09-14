@@ -150,6 +150,7 @@ fn test_ffi_methods_parity() {
             "properties": {
                 "title": {
                     "type": "string",
+                    "title": "Document Title",
                     "rules": { "required": { "value": true, "message": "Title is required" } }
                 },
                 "contacts": {
@@ -186,8 +187,11 @@ fn test_ffi_methods_parity() {
             serde_json::from_slice(std::slice::from_raw_parts(res_with.data_ptr, res_with.data_len)).unwrap();
         assert_eq!(res_with_val["has_error"], true);
         assert!(res_with_val["error"]["title"].is_object());
+        assert_eq!(res_with_val["error"]["title"]["data"]["title"], "Document Title");
+        assert_eq!(res_with_val["error"]["title"]["data"]["required"], true);
         assert!(res_with_val["error"]["contacts.0.phone"].is_object());
         assert_eq!(res_with_val["error"]["contacts.0.phone"]["code"], "contacts.0.phone.required");
+        assert_eq!(res_with_val["error"]["contacts.0.phone"]["data"]["required"], true);
         json_eval_free_result(res_with);
 
         json_eval_free(v_handle);

@@ -651,7 +651,12 @@ impl JSONEval {
                                 code: error_code,
                                 pattern: None,
                                 field_value: None,
-                                data: None,
+                                data: build_error_data(
+                                    rule_name,
+                                    &rule_active,
+                                    rule_data,
+                                    schema_map,
+                                ),
                             },
                         );
                     }
@@ -667,7 +672,12 @@ impl JSONEval {
                             code: error_code,
                             pattern: None,
                             field_value: None,
-                            data: None,
+                            data: build_error_data(
+                                rule_name,
+                                &rule_active,
+                                rule_data,
+                                schema_map,
+                            ),
                         },
                     );
                 }
@@ -701,7 +711,12 @@ impl JSONEval {
                                         code: error_code,
                                         pattern: Some(pattern.to_string()),
                                         field_value: Some(text.to_string()),
-                                        data: None,
+                                        data: build_error_data(
+                                            rule_name,
+                                            &rule_active,
+                                            rule_data,
+                                            schema_map,
+                                        ),
                                     },
                                 );
                             }
@@ -751,7 +766,12 @@ impl JSONEval {
                                         code: eval_code,
                                         pattern: None,
                                         field_value: None,
-                                        data: eval_data,
+                                        data: build_error_data(
+                                            "evaluation",
+                                            &Value::Null,
+                                            eval_data,
+                                            schema_map,
+                                        ),
                                     },
                                 );
 
@@ -772,7 +792,12 @@ impl JSONEval {
                             code: error_code,
                             pattern: None,
                             field_value: None,
-                            data: rule_data,
+                            data: build_error_data(
+                                rule_name,
+                                &rule_active,
+                                rule_data,
+                                schema_map,
+                            ),
                         },
                     );
                 }
@@ -939,5 +964,114 @@ fn rule_value_fails(
                     || rule_active.as_array().map_or(false, |a| a.is_empty())
             }
         }
+    }
+}
+
+/// Helper to construct and merge the `data` property of a `ValidationError`.
+///
+/// Populates:
+/// - Field metadata: `title` and `description` from the field schema
+/// - Rule constraints: `minValue`, `maxValue`, `minLength`, `maxLength` for the failing rule and companion rules
+/// - Merged schema evaluation data from `rule_data`
+fn build_error_data(
+    rule_name: &str,
+    rule_active: &Value,
+    rule_data: Option<Value>,
+    schema_map: &serde_json::Map<String, Value>,
+) -> Option<Value> {
+    let mut data_map = serde_json::Map::new();
+
+    // 1. Field metadata (title and description)
+    if let Some(title) = schema_map.get("title") {
+        if !title.is_null() {
+            data_map.insert("title".to_string(), title.clone());
+        }
+    }
+    if let Some(description) = schema_map.get("description") {
+        if !description.is_null() {
+            data_map.insert("description".to_string(), description.clone());
+        }
+    }
+
+    let get_rule_val = |r: &Value| -> Option<Value> {
+        match r {
+            Value::Object(obj) => obj.get("value").cloned(),
+            other if !other.is_null() => Some(other.clone()),
+            _ => None,
+        }
+    };
+
+    // 2. Error rule constraints based on the failing rule
+    match rule_name {
+        "required" => {
+            data_map.insert("required".to_string(), Value::Bool(true));
+        }
+        "minValue" => {
+            data_map.insert("minValue".to_string(), rule_active.clone());
+        }
+        "maxValue" => {
+            data_map.insert("maxValue".to_string(), rule_active.clone());
+        }
+        "minLength" => {
+            data_map.insert("minLength".to_string(), rule_active.clone());
+        }
+        "maxLength" => {
+            data_map.insert("maxLength".to_string(), rule_active.clone());
+        }
+        _ => {}
+    }
+
+    // 3. Companion rules from schema_map["rules"]
+    if matches!(rule_name, "minValue" | "maxValue" | "minLength" | "maxLength") {
+        if let Some(Value::Object(rules)) = schema_map.get("rules") {
+            match rule_name {
+                "minValue" => {
+                    if let Some(max_rule) = rules.get("maxValue") {
+                        if let Some(val) = get_rule_val(max_rule) {
+                            data_map.insert("maxValue".to_string(), val);
+                        }
+                    }
+                }
+                "maxValue" => {
+                    if let Some(min_rule) = rules.get("minValue") {
+                        if let Some(val) = get_rule_val(min_rule) {
+                            data_map.insert("minValue".to_string(), val);
+                        }
+                    }
+                }
+                "minLength" => {
+                    if let Some(max_rule) = rules.get("maxLength") {
+                        if let Some(val) = get_rule_val(max_rule) {
+                            data_map.insert("maxLength".to_string(), val);
+                        }
+                    }
+                }
+                "maxLength" => {
+                    if let Some(min_rule) = rules.get("minLength") {
+                        if let Some(val) = get_rule_val(min_rule) {
+                            data_map.insert("minLength".to_string(), val);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // 4. Merge schema evaluation data from rule_data
+    if let Some(rule_d) = rule_data {
+        if let Value::Object(schema_data) = rule_d {
+            for (k, v) in schema_data {
+                data_map.insert(k, v);
+            }
+        } else if data_map.is_empty() {
+            return Some(rule_d);
+        }
+    }
+
+    if data_map.is_empty() {
+        None
+    } else {
+        Some(Value::Object(data_map))
     }
 }

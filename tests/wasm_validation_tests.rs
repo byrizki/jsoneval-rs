@@ -65,4 +65,57 @@ mod tests {
         assert!(obj.contains_key("pattern"));
         assert!(obj.contains_key("fieldValue"));
     }
+
+    #[test]
+    fn test_wasm_validate_error_data_parity() {
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "age": {
+                    "type": "number",
+                    "title": "Age",
+                    "description": "User Age",
+                    "rules": {
+                        "minValue": { "value": 18, "message": "Min age 18" },
+                        "maxValue": { "value": 65, "message": "Max age 65" }
+                    }
+                },
+                "email": {
+                    "type": "string",
+                    "title": "Email Address",
+                    "rules": {
+                        "required": { "value": true, "message": "Email required" }
+                    }
+                }
+            }
+        });
+
+        let schema_str = serde_json::to_string(&schema).unwrap();
+        let mut wasm_eval =
+            JSONEvalWasm::new(&schema_str, None, None).expect("Failed to create WASM instance");
+
+        let data = json!({ "age": 10, "email": "" });
+        let result = wasm_eval
+            .validate_to_value(&serde_json::to_string(&data).unwrap(), None, None, None, None)
+            .expect("Validation failed");
+
+        assert_eq!(result["has_error"], true);
+        let age_err = &result["error"]["age"];
+        let age_data = &age_err["data"];
+        assert_eq!(age_data["title"], "Age");
+        assert_eq!(age_data["description"], "User Age");
+        assert_eq!(age_data["minValue"], 18);
+        assert_eq!(age_data["maxValue"], 65);
+        assert!(age_data.get("min").is_none());
+        assert!(age_data.get("max").is_none());
+        assert!(age_data.get("label").is_none());
+        assert!(age_data.get("desc").is_none());
+
+        let email_err = &result["error"]["email"];
+        let email_data = &email_err["data"];
+        assert_eq!(email_data["title"], "Email Address");
+        assert_eq!(email_data["required"], true);
+        assert!(email_data.get("label").is_none());
+        assert!(email_data.get("desc").is_none());
+    }
 }
