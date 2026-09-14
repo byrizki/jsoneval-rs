@@ -139,8 +139,14 @@ impl JSONEvalWasm {
     /// @param with_static_array - Whether to include static array data (default: false)
     /// @returns Evaluated $params as JavaScript object or null if not found
     #[wasm_bindgen(js_name = getEvaluatedParamsJS)]
-    pub fn get_evaluated_params_js(&mut self, with_static_array: Option<bool>) -> Result<JsValue, JsValue> {
-        match self.inner.get_evaluated_params(with_static_array.unwrap_or(false)) {
+    pub fn get_evaluated_params_js(
+        &mut self,
+        with_static_array: Option<bool>,
+    ) -> Result<JsValue, JsValue> {
+        match self
+            .inner
+            .get_evaluated_params(with_static_array.unwrap_or(false))
+        {
             Some(v) => super::to_value(&v).map_err(|e| JsValue::from_str(&e.to_string())),
             None => Ok(JsValue::NULL),
         }

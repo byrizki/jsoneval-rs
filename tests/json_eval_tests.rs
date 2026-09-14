@@ -75,10 +75,7 @@ fn test_validate_required_field_missing() {
     let schema = create_test_schema();
     let mut data = get_minimal_form_data();
     // Remove required field name
-    data["form"]["user"]
-        .as_object_mut()
-        .unwrap()
-        .remove("name");
+    data["form"]["user"].as_object_mut().unwrap().remove("name");
     let data_str = data.to_string();
 
     let mut eval =
@@ -224,10 +221,7 @@ fn test_validate_with_path_filter() {
     let mut data = get_minimal_form_data();
     // Make age field invalid (below min) and remove required name field
     data["form"]["user"]["age"] = json!(0);
-    data["form"]["user"]
-        .as_object_mut()
-        .unwrap()
-        .remove("name");
+    data["form"]["user"].as_object_mut().unwrap().remove("name");
     let data_str = data.to_string();
 
     let mut eval =
@@ -245,15 +239,11 @@ fn test_validate_with_path_filter() {
         "Should have 2 errors (age and name)"
     );
     assert!(
-        validation_all
-            .errors
-            .contains_key("form.user.age"),
+        validation_all.errors.contains_key("form.user.age"),
         "Should have error for age"
     );
     assert!(
-        validation_all
-            .errors
-            .contains_key("form.user.name"),
+        validation_all.errors.contains_key("form.user.name"),
         "Should have error for name"
     );
 
@@ -273,15 +263,11 @@ fn test_validate_with_path_filter() {
         "Should have only 1 error when filtered"
     );
     assert!(
-        validation_filtered
-            .errors
-            .contains_key("form.user.age"),
+        validation_filtered.errors.contains_key("form.user.age"),
         "Should have error for age"
     );
     assert!(
-        !validation_filtered
-            .errors
-            .contains_key("form.user.name"),
+        !validation_filtered.errors.contains_key("form.user.name"),
         "Should not have error for name when filtered to age only"
     );
 }
@@ -439,9 +425,7 @@ fn test_evaluate_dependents_transitive() {
 
     let result = eval
         .evaluate_dependents(
-            &[String::from(
-                "#/form/properties/user/properties/occupation",
-            )],
+            &[String::from("#/form/properties/user/properties/occupation")],
             Some(&updated_data_str),
             None,
             false,
@@ -873,9 +857,7 @@ fn test_evaluate_dependents_dot_vs_schema_path() {
 
     let result1 = eval1
         .evaluate_dependents(
-            &[String::from(
-                "#/form/properties/user/properties/occupation",
-            )],
+            &[String::from("#/form/properties/user/properties/occupation")],
             None,
             None,
             false,

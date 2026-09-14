@@ -43,7 +43,9 @@ fn test_validation_error_has_all_fields() {
     let data_str = serde_json::to_string(&data).unwrap();
 
     eval.evaluate(&data_str, None, None, None).unwrap();
-    let validation = eval.validate(&data_str, None, None, None, None, None).unwrap();
+    let validation = eval
+        .validate(&data_str, None, None, None, None, None)
+        .unwrap();
 
     assert!(validation.has_error, "Should have validation errors");
     assert_eq!(validation.errors.len(), 2, "Should have 2 errors");
@@ -69,10 +71,7 @@ fn test_validation_error_has_all_fields() {
         email_error.data.is_some(),
         "Pattern error should have data field with field title"
     );
-    assert_eq!(
-        email_error.data.as_ref().unwrap()["title"],
-        "Email"
-    );
+    assert_eq!(email_error.data.as_ref().unwrap()["title"], "Email");
 
     // Check minValue error has code but not pattern/field_value
     let age_error = validation.errors.get("age").expect("Should have age error");
@@ -87,15 +86,18 @@ fn test_validation_error_has_all_fields() {
         age_error.field_value.is_none(),
         "minValue error should not have field_value"
     );
-    assert!(
-        age_error.data.is_some(),
-        "minValue error should have data"
-    );
+    assert!(age_error.data.is_some(), "minValue error should have data");
     let age_data = age_error.data.as_ref().unwrap();
     assert_eq!(age_data["title"], "Age");
     assert_eq!(age_data["minValue"], 1);
-    assert!(age_data.get("min").is_none(), "Should not have redundant min key");
-    assert!(age_data.get("max").is_none(), "Should not have redundant max key");
+    assert!(
+        age_data.get("min").is_none(),
+        "Should not have redundant min key"
+    );
+    assert!(
+        age_data.get("max").is_none(),
+        "Should not have redundant max key"
+    );
 }
 
 #[test]
@@ -123,7 +125,9 @@ fn test_validation_error_default_code() {
     let data_str = serde_json::to_string(&data).unwrap();
 
     eval.evaluate(&data_str, None, None, None).unwrap();
-    let validation = eval.validate(&data_str, None, None, None, None, None).unwrap();
+    let validation = eval
+        .validate(&data_str, None, None, None, None, None)
+        .unwrap();
 
     assert!(validation.has_error);
     let error = validation
@@ -160,7 +164,9 @@ fn test_validation_error_serialization() {
     let data_str = serde_json::to_string(&data).unwrap();
 
     eval.evaluate(&data_str, None, None, None).unwrap();
-    let validation = eval.validate(&data_str, None, None, None, None, None).unwrap();
+    let validation = eval
+        .validate(&data_str, None, None, None, None, None)
+        .unwrap();
 
     // Serialize the validation result
     let json_str = serde_json::to_string(&validation).unwrap();
@@ -243,13 +249,17 @@ fn test_validate_cache_identical_data() {
     let data = json!({ "name": "Alice", "score": 40 });
     let data_str = serde_json::to_string(&data).unwrap();
 
-    let res1 = eval.validate(&data_str, None, None, None, None, None).unwrap();
+    let res1 = eval
+        .validate(&data_str, None, None, None, None, None)
+        .unwrap();
     assert!(res1.has_error);
     assert_eq!(res1.errors.len(), 1);
     assert!(res1.errors.contains_key("score"));
 
     // Second validate call with identical data should hit cache and return matching result
-    let res2 = eval.validate(&data_str, None, None, None, None, None).unwrap();
+    let res2 = eval
+        .validate(&data_str, None, None, None, None, None)
+        .unwrap();
     assert_eq!(res1.has_error, res2.has_error);
     assert_eq!(res1.errors.len(), res2.errors.len());
     assert_eq!(
@@ -325,38 +335,56 @@ fn test_validate_disabled_field_with_rules() {
     // Missing value on disabled field -> skipped, NO validation error
     let d1 = serde_json::to_string(&json!({})).unwrap();
     let r1_default = eval.validate(&d1, None, None, None, None, None).unwrap();
-    assert!(!r1_default.has_error, "Disabled field must be skipped by default");
+    assert!(
+        !r1_default.has_error,
+        "Disabled field must be skipped by default"
+    );
     assert!(!r1_default.errors.contains_key("fixed_id"));
 
-    let r1_false = eval.validate(&d1, None, None, None, Some(false), None).unwrap();
-    assert!(!r1_false.has_error, "Disabled field must be skipped when validate_readonly=false");
+    let r1_false = eval
+        .validate(&d1, None, None, None, Some(false), None)
+        .unwrap();
+    assert!(
+        !r1_false.has_error,
+        "Disabled field must be skipped when validate_readonly=false"
+    );
 
     // When validate_readonly = Some(true):
     // Missing value on disabled field -> fails required rule
-    let r1_true = eval.validate(&d1, None, None, None, Some(true), None).unwrap();
-    assert!(r1_true.has_error, "Disabled field with required rule must be validated when validate_readonly=true");
+    let r1_true = eval
+        .validate(&d1, None, None, None, Some(true), None)
+        .unwrap();
+    assert!(
+        r1_true.has_error,
+        "Disabled field with required rule must be validated when validate_readonly=true"
+    );
     assert!(r1_true.errors.contains_key("fixed_id"));
     assert_eq!(r1_true.errors["fixed_id"].rule_type, "required");
 
     // Invalid length on disabled field with validate_readonly=true -> should fail minLength rule
     let d2 = serde_json::to_string(&json!({ "fixed_id": "AB" })).unwrap();
-    let r2_true = eval.validate(&d2, None, None, None, Some(true), None).unwrap();
+    let r2_true = eval
+        .validate(&d2, None, None, None, Some(true), None)
+        .unwrap();
     assert!(r2_true.has_error);
     assert!(r2_true.errors.contains_key("fixed_id"));
     assert_eq!(r2_true.errors["fixed_id"].rule_type, "minLength");
 
     // With validate_readonly=false, invalid length on disabled field is skipped
-    let r2_false = eval.validate(&d2, None, None, None, Some(false), None).unwrap();
+    let r2_false = eval
+        .validate(&d2, None, None, None, Some(false), None)
+        .unwrap();
     assert!(!r2_false.has_error);
 
     // Valid value on disabled field -> should pass in both modes
     let d3 = serde_json::to_string(&json!({ "fixed_id": "ABC" })).unwrap();
     let r3_default = eval.validate(&d3, None, None, None, None, None).unwrap();
     assert!(!r3_default.has_error);
-    let r3_true = eval.validate(&d3, None, None, None, Some(true), None).unwrap();
+    let r3_true = eval
+        .validate(&d3, None, None, None, Some(true), None)
+        .unwrap();
     assert!(!r3_true.has_error);
 }
-
 
 #[test]
 fn test_validate_unmapped_field_missing_from_data_and_eval_data() {
@@ -376,7 +404,9 @@ fn test_validate_unmapped_field_missing_from_data_and_eval_data() {
     let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
 
     let data_str = "{}";
-    let res = eval.validate(data_str, None, None, None, None, None).unwrap();
+    let res = eval
+        .validate(data_str, None, None, None, None, None)
+        .unwrap();
     assert!(res.has_error);
     assert!(res.errors.contains_key("unmapped_required_code"));
     assert_eq!(res.errors["unmapped_required_code"].rule_type, "required");
@@ -415,9 +445,13 @@ fn test_validate_cache_invalidation_on_reload() {
     assert!(!r1.has_error, "50 >= 10");
 
     // Reload with schema2 where min is 100
-    eval.reload_schema(&schema2.to_string(), None, None).unwrap();
+    eval.reload_schema(&schema2.to_string(), None, None)
+        .unwrap();
     let r2 = eval.validate(&d, None, None, None, None, None).unwrap();
-    assert!(r2.has_error, "50 < 100, cache should have been invalidated on reload");
+    assert!(
+        r2.has_error,
+        "50 < 100, cache should have been invalidated on reload"
+    );
     assert_eq!(r2.errors["val"].message, "Min 100");
 }
 
@@ -455,7 +489,9 @@ fn test_validate_readonly_field_direct_and_conditional() {
     let data_empty = "{}";
 
     // Default (validate_readonly = None or false): only active_field should have error
-    let res_default = eval.validate(data_empty, None, None, None, None, None).unwrap();
+    let res_default = eval
+        .validate(data_empty, None, None, None, None, None)
+        .unwrap();
     assert!(res_default.has_error);
     assert_eq!(res_default.errors.len(), 1);
     assert!(res_default.errors.contains_key("active_field"));
@@ -463,7 +499,9 @@ fn test_validate_readonly_field_direct_and_conditional() {
     assert!(!res_default.errors.contains_key("cond_ro_field"));
 
     // validate_readonly = Some(true): ro_field, cond_ro_field, and active_field must all be validated
-    let res_true = eval.validate(data_empty, None, None, None, Some(true), None).unwrap();
+    let res_true = eval
+        .validate(data_empty, None, None, None, Some(true), None)
+        .unwrap();
     assert!(res_true.has_error);
     assert_eq!(res_true.errors.len(), 3);
     assert!(res_true.errors.contains_key("active_field"));
@@ -501,12 +539,22 @@ fn test_validate_layout_disabled_ref() {
     eval.resolve_layout(false).unwrap();
 
     // Default: layout disabled field is skipped
-    let res_default = eval.validate(data_empty, None, None, None, None, None).unwrap();
-    assert!(!res_default.has_error, "Layout disabled ref should be skipped by default");
+    let res_default = eval
+        .validate(data_empty, None, None, None, None, None)
+        .unwrap();
+    assert!(
+        !res_default.has_error,
+        "Layout disabled ref should be skipped by default"
+    );
 
     // validate_readonly = Some(true): layout disabled field is validated
-    let res_true = eval.validate(data_empty, None, None, None, Some(true), None).unwrap();
-    assert!(res_true.has_error, "Layout disabled ref should be validated when validate_readonly=true");
+    let res_true = eval
+        .validate(data_empty, None, None, None, Some(true), None)
+        .unwrap();
+    assert!(
+        res_true.has_error,
+        "Layout disabled ref should be validated when validate_readonly=true"
+    );
     assert!(res_true.errors.contains_key("elem"));
 }
 
@@ -556,7 +604,9 @@ fn test_validate_with_include_subforms_flag() {
     let data_str = serde_json::to_string(&data).unwrap();
 
     // 1. include_subforms = None (default): only root fields validated
-    let res_default = eval.validate(&data_str, None, None, None, None, None).unwrap();
+    let res_default = eval
+        .validate(&data_str, None, None, None, None, None)
+        .unwrap();
     assert!(res_default.has_error);
     assert_eq!(res_default.errors.len(), 1);
     assert!(res_default.errors.contains_key("title"));
@@ -564,13 +614,17 @@ fn test_validate_with_include_subforms_flag() {
     assert!(!res_default.errors.contains_key("contacts.1.name"));
 
     // 2. include_subforms = Some(false): only root fields validated
-    let res_false = eval.validate(&data_str, None, None, None, None, Some(false)).unwrap();
+    let res_false = eval
+        .validate(&data_str, None, None, None, None, Some(false))
+        .unwrap();
     assert!(res_false.has_error);
     assert_eq!(res_false.errors.len(), 1);
     assert!(res_false.errors.contains_key("title"));
 
     // 3. include_subforms = Some(true): root + all array subform items validated
-    let res_true = eval.validate(&data_str, None, None, None, None, Some(true)).unwrap();
+    let res_true = eval
+        .validate(&data_str, None, None, None, None, Some(true))
+        .unwrap();
     assert!(res_true.has_error);
     assert_eq!(res_true.errors.len(), 3);
     assert!(res_true.errors.contains_key("title"));
@@ -581,11 +635,17 @@ fn test_validate_with_include_subforms_flag() {
 
     let err_c0_phone = &res_true.errors["contacts.0.phone"];
     assert_eq!(err_c0_phone.message, "Phone is required");
-    assert_eq!(err_c0_phone.code, Some("contacts.0.phone.required".to_string()));
+    assert_eq!(
+        err_c0_phone.code,
+        Some("contacts.0.phone.required".to_string())
+    );
 
     let err_c1_name = &res_true.errors["contacts.1.name"];
     assert_eq!(err_c1_name.message, "Name is required");
-    assert_eq!(err_c1_name.code, Some("contacts.1.name.required".to_string()));
+    assert_eq!(
+        err_c1_name.code,
+        Some("contacts.1.name.required".to_string())
+    );
 }
 
 #[test]
@@ -635,14 +695,25 @@ fn test_validate_with_include_subforms_paths_filter_and_cache() {
 
     // 1. Selective path: only contacts.0.phone
     let paths_item0 = vec!["contacts.0.phone".to_string()];
-    let res_item0 = eval.validate(&data_str, None, Some(&paths_item0), None, None, Some(true)).unwrap();
+    let res_item0 = eval
+        .validate(&data_str, None, Some(&paths_item0), None, None, Some(true))
+        .unwrap();
     assert!(res_item0.has_error);
     assert_eq!(res_item0.errors.len(), 1);
     assert!(res_item0.errors.contains_key("contacts.0.phone"));
 
     // 2. Selective path: whole item 0 -> should validate item 0 fields only
     let paths_whole_item0 = vec!["contacts.0".to_string()];
-    let res_whole0 = eval.validate(&data_str, None, Some(&paths_whole_item0), None, None, Some(true)).unwrap();
+    let res_whole0 = eval
+        .validate(
+            &data_str,
+            None,
+            Some(&paths_whole_item0),
+            None,
+            None,
+            Some(true),
+        )
+        .unwrap();
     assert!(res_whole0.has_error);
     assert_eq!(res_whole0.errors.len(), 1);
     assert!(res_whole0.errors.contains_key("contacts.0.phone"));
@@ -650,20 +721,36 @@ fn test_validate_with_include_subforms_paths_filter_and_cache() {
 
     // 3. Selective path: title only
     let paths_title = vec!["title".to_string()];
-    let res_title = eval.validate(&data_str, None, Some(&paths_title), None, None, Some(true)).unwrap();
+    let res_title = eval
+        .validate(&data_str, None, Some(&paths_title), None, None, Some(true))
+        .unwrap();
     assert!(res_title.has_error);
     assert_eq!(res_title.errors.len(), 1);
     assert!(res_title.errors.contains_key("title"));
 
     // 4. Cache isolation: full validate with include_subforms=true then include_subforms=false
-    let r_full_true = eval.validate(&data_str, None, None, None, None, Some(true)).unwrap();
+    let r_full_true = eval
+        .validate(&data_str, None, None, None, None, Some(true))
+        .unwrap();
     assert_eq!(r_full_true.errors.len(), 3);
 
-    let r_full_false = eval.validate(&data_str, None, None, None, None, Some(false)).unwrap();
-    assert_eq!(r_full_false.errors.len(), 1, "Cache hit must not leak subform errors when include_subforms=false");
+    let r_full_false = eval
+        .validate(&data_str, None, None, None, None, Some(false))
+        .unwrap();
+    assert_eq!(
+        r_full_false.errors.len(),
+        1,
+        "Cache hit must not leak subform errors when include_subforms=false"
+    );
 
-    let r_full_true_again = eval.validate(&data_str, None, None, None, None, Some(true)).unwrap();
-    assert_eq!(r_full_true_again.errors.len(), 3, "Cached subforms result returned when include_subforms=true");
+    let r_full_true_again = eval
+        .validate(&data_str, None, None, None, None, Some(true))
+        .unwrap();
+    assert_eq!(
+        r_full_true_again.errors.len(),
+        3,
+        "Cached subforms result returned when include_subforms=true"
+    );
 }
 
 #[test]
@@ -706,16 +793,24 @@ fn test_validate_with_include_subforms_nested_and_items_root_key() {
     });
     let data_str = serde_json::to_string(&data).unwrap();
 
-    let res = eval.validate(&data_str, None, None, None, None, Some(true)).unwrap();
+    let res = eval
+        .validate(&data_str, None, None, None, None, Some(true))
+        .unwrap();
     assert!(res.has_error);
     assert_eq!(res.errors.len(), 1);
-    let err = res.errors.get("form.items.0.amount").expect("Should map to form.items.0.amount");
+    let err = res
+        .errors
+        .get("form.items.0.amount")
+        .expect("Should map to form.items.0.amount");
     assert_eq!(err.message, "Min amount is 1000");
     assert_eq!(err.code, Some("form.items.0.amount.minValue".to_string()));
     assert!(err.data.is_some());
     let err_data = err.data.as_ref().unwrap();
     assert_eq!(err_data["minValue"], 1000);
-    assert!(err_data.get("min").is_none(), "Should not have redundant min key");
+    assert!(
+        err_data.get("min").is_none(),
+        "Should not have redundant min key"
+    );
 }
 
 #[test]
@@ -738,7 +833,16 @@ fn test_validation_data_numeric_range_and_companion_rules() {
 
     // Test failing minValue
     let data_low = json!({ "score": 5 });
-    let res_low = eval.validate(&serde_json::to_string(&data_low).unwrap(), None, None, None, None, None).unwrap();
+    let res_low = eval
+        .validate(
+            &serde_json::to_string(&data_low).unwrap(),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
     assert!(res_low.has_error);
     let err_low = res_low.errors.get("score").unwrap();
     assert_eq!(err_low.rule_type, "minValue");
@@ -746,12 +850,27 @@ fn test_validation_data_numeric_range_and_companion_rules() {
     let data_low_obj = err_low.data.as_ref().unwrap();
     assert_eq!(data_low_obj["minValue"], 10);
     assert_eq!(data_low_obj["maxValue"], 100);
-    assert!(data_low_obj.get("min").is_none(), "Should not have redundant min key");
-    assert!(data_low_obj.get("max").is_none(), "Should not have redundant max key");
+    assert!(
+        data_low_obj.get("min").is_none(),
+        "Should not have redundant min key"
+    );
+    assert!(
+        data_low_obj.get("max").is_none(),
+        "Should not have redundant max key"
+    );
 
     // Test failing maxValue
     let data_high = json!({ "score": 150 });
-    let res_high = eval.validate(&serde_json::to_string(&data_high).unwrap(), None, None, None, None, None).unwrap();
+    let res_high = eval
+        .validate(
+            &serde_json::to_string(&data_high).unwrap(),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
     assert!(res_high.has_error);
     let err_high = res_high.errors.get("score").unwrap();
     assert_eq!(err_high.rule_type, "maxValue");
@@ -759,8 +878,14 @@ fn test_validation_data_numeric_range_and_companion_rules() {
     let data_high_obj = err_high.data.as_ref().unwrap();
     assert_eq!(data_high_obj["minValue"], 10);
     assert_eq!(data_high_obj["maxValue"], 100);
-    assert!(data_high_obj.get("min").is_none(), "Should not have redundant min key");
-    assert!(data_high_obj.get("max").is_none(), "Should not have redundant max key");
+    assert!(
+        data_high_obj.get("min").is_none(),
+        "Should not have redundant min key"
+    );
+    assert!(
+        data_high_obj.get("max").is_none(),
+        "Should not have redundant max key"
+    );
 }
 
 #[test]
@@ -783,7 +908,16 @@ fn test_validation_data_length_range_and_companion_rules() {
 
     // Test failing minLength
     let data_short = json!({ "code": "ab" });
-    let res_short = eval.validate(&serde_json::to_string(&data_short).unwrap(), None, None, None, None, None).unwrap();
+    let res_short = eval
+        .validate(
+            &serde_json::to_string(&data_short).unwrap(),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
     assert!(res_short.has_error);
     let err_short = res_short.errors.get("code").unwrap();
     assert_eq!(err_short.rule_type, "minLength");
@@ -791,12 +925,27 @@ fn test_validation_data_length_range_and_companion_rules() {
     let data_short_obj = err_short.data.as_ref().unwrap();
     assert_eq!(data_short_obj["minLength"], 3);
     assert_eq!(data_short_obj["maxLength"], 8);
-    assert!(data_short_obj.get("min").is_none(), "Should not have redundant min key");
-    assert!(data_short_obj.get("max").is_none(), "Should not have redundant max key");
+    assert!(
+        data_short_obj.get("min").is_none(),
+        "Should not have redundant min key"
+    );
+    assert!(
+        data_short_obj.get("max").is_none(),
+        "Should not have redundant max key"
+    );
 
     // Test failing maxLength
     let data_long = json!({ "code": "toolongcodehere" });
-    let res_long = eval.validate(&serde_json::to_string(&data_long).unwrap(), None, None, None, None, None).unwrap();
+    let res_long = eval
+        .validate(
+            &serde_json::to_string(&data_long).unwrap(),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
     assert!(res_long.has_error);
     let err_long = res_long.errors.get("code").unwrap();
     assert_eq!(err_long.rule_type, "maxLength");
@@ -804,8 +953,14 @@ fn test_validation_data_length_range_and_companion_rules() {
     let data_long_obj = err_long.data.as_ref().unwrap();
     assert_eq!(data_long_obj["minLength"], 3);
     assert_eq!(data_long_obj["maxLength"], 8);
-    assert!(data_long_obj.get("min").is_none(), "Should not have redundant min key");
-    assert!(data_long_obj.get("max").is_none(), "Should not have redundant max key");
+    assert!(
+        data_long_obj.get("min").is_none(),
+        "Should not have redundant min key"
+    );
+    assert!(
+        data_long_obj.get("max").is_none(),
+        "Should not have redundant max key"
+    );
 }
 
 #[test]
@@ -833,7 +988,16 @@ fn test_validation_data_merge_with_schema_evaluation_data() {
     let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
 
     let data = json!({ "premium": 25000 });
-    let res = eval.validate(&serde_json::to_string(&data).unwrap(), None, None, None, None, None).unwrap();
+    let res = eval
+        .validate(
+            &serde_json::to_string(&data).unwrap(),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
     assert!(res.has_error);
     let err = res.errors.get("premium").unwrap();
     assert_eq!(err.rule_type, "minValue");
@@ -841,7 +1005,10 @@ fn test_validation_data_merge_with_schema_evaluation_data() {
     let data_obj = err.data.as_ref().unwrap();
     // Rule constraints
     assert_eq!(data_obj["minValue"], 50000);
-    assert!(data_obj.get("min").is_none(), "Should not have redundant min key");
+    assert!(
+        data_obj.get("min").is_none(),
+        "Should not have redundant min key"
+    );
     // Schema evaluation data merged
     assert_eq!(data_obj["currency"], "IDR");
     assert_eq!(data_obj["multiplier"], 1000);
@@ -883,14 +1050,19 @@ fn test_validation_data_dynamic_evaluation_in_rule_data() {
     let data_str = serde_json::to_string(&data).unwrap();
     eval.evaluate(&data_str, None, None, None).unwrap();
 
-    let res = eval.validate(&data_str, None, None, None, None, None).unwrap();
+    let res = eval
+        .validate(&data_str, None, None, None, None, None)
+        .unwrap();
     assert!(res.has_error);
     let err = res.errors.get("amount").unwrap();
     assert_eq!(err.rule_type, "minValue");
     assert!(err.data.is_some());
     let data_obj = err.data.as_ref().unwrap();
     assert_eq!(data_obj["minValue"], 200);
-    assert!(data_obj.get("min").is_none(), "Should not have redundant min key");
+    assert!(
+        data_obj.get("min").is_none(),
+        "Should not have redundant min key"
+    );
     assert_eq!(data_obj["customLimit"], 200);
     assert_eq!(data_obj["unit"], "USD");
 }
@@ -927,7 +1099,16 @@ fn test_validation_data_required_and_pattern_with_schema_data() {
     let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
 
     let data = json!({ "username": "", "phone": "abc" });
-    let res = eval.validate(&serde_json::to_string(&data).unwrap(), None, None, None, None, None).unwrap();
+    let res = eval
+        .validate(
+            &serde_json::to_string(&data).unwrap(),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
     assert!(res.has_error);
 
     let user_err = res.errors.get("username").unwrap();
@@ -938,7 +1119,10 @@ fn test_validation_data_required_and_pattern_with_schema_data() {
     let phone_err = res.errors.get("phone").unwrap();
     assert_eq!(phone_err.rule_type, "pattern");
     assert!(phone_err.data.is_some());
-    assert_eq!(phone_err.data.as_ref().unwrap()["expectedFormat"], "numeric");
+    assert_eq!(
+        phone_err.data.as_ref().unwrap()["expectedFormat"],
+        "numeric"
+    );
 }
 
 #[test]
@@ -983,7 +1167,9 @@ fn test_validation_data_field_title_and_description() {
         "bio": "a".repeat(205)
     });
     let data_str = serde_json::to_string(&data).unwrap();
-    let res = eval.validate(&data_str, None, None, None, None, None).unwrap();
+    let res = eval
+        .validate(&data_str, None, None, None, None, None)
+        .unwrap();
     assert!(res.has_error);
     assert_eq!(res.errors.len(), 3);
 
@@ -991,7 +1177,10 @@ fn test_validation_data_field_title_and_description() {
     let age_err = res.errors.get("age").unwrap();
     let age_data = age_err.data.as_ref().expect("age should have data");
     assert_eq!(age_data["title"], "Age of Applicant");
-    assert_eq!(age_data["description"], "Must be between 18 and 65 years old");
+    assert_eq!(
+        age_data["description"],
+        "Must be between 18 and 65 years old"
+    );
     assert_eq!(age_data["minValue"], 18);
     assert_eq!(age_data["maxValue"], 65);
     assert!(age_data.get("min").is_none(), "no redundant min");
@@ -1040,7 +1229,16 @@ fn test_validation_data_required_rule_populates_required_true() {
     let mut eval = JSONEval::new(&schema_str, None, None).unwrap();
 
     let data = json!({ "email": "" });
-    let res = eval.validate(&serde_json::to_string(&data).unwrap(), None, None, None, None, None).unwrap();
+    let res = eval
+        .validate(
+            &serde_json::to_string(&data).unwrap(),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
     assert!(res.has_error);
 
     let err = res.errors.get("email").unwrap();
@@ -1049,6 +1247,3 @@ fn test_validation_data_required_rule_populates_required_true() {
     let data_obj = err.data.as_ref().unwrap();
     assert_eq!(data_obj["required"], true);
 }
-
-
-

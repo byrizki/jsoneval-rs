@@ -27,7 +27,8 @@ mod tests {
             let data_cstr = CString::new(data).unwrap();
 
             // Test 1: json_eval_validate
-            let result = json_eval_validate(handle, data_cstr.as_ptr(), std::ptr::null(), false, false);
+            let result =
+                json_eval_validate(handle, data_cstr.as_ptr(), std::ptr::null(), false, false);
             assert!(result.success);
 
             let slice = std::slice::from_raw_parts(result.data_ptr, result.data_len as usize);

@@ -43,9 +43,7 @@ fn test_get_plain_and_evaluated_params_with_and_without_static_arrays() {
     let mut eval = JSONEval::new(&schema, None, None).expect("Should parse schema successfully");
 
     // 1. Check plain params (always clean, no static array data)
-    let plain = eval
-        .get_plain_params()
-        .expect("Should return plain params");
+    let plain = eval.get_plain_params().expect("Should return plain params");
 
     assert_eq!(
         plain.pointer("/metadata").and_then(|v| v.as_str()),

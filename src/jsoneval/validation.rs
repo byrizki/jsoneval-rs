@@ -52,8 +52,9 @@ impl JSONEval {
         time_block!("validate() [total]", {
             // Acquire lock for synchronous execution
             let _lock = self.eval_lock.lock().unwrap();
-            let _static_guard =
-                self.engine.bind_static_arrays_scope(std::sync::Arc::clone(&self.static_arrays));
+            let _static_guard = self
+                .engine
+                .bind_static_arrays_scope(std::sync::Arc::clone(&self.static_arrays));
 
             // Parse and update data
             let (data_value, context_value) = time_block!("  parse data & context", {
@@ -136,6 +137,8 @@ impl JSONEval {
             drop(layout_state);
 
             if inc_subforms {
+                let initial_eval_cache = self.eval_cache.clone();
+                let initial_static_arrays = std::sync::Arc::clone(&self.static_arrays);
                 let subform_keys: Vec<String> = self.subforms.keys().cloned().collect();
 
                 for subform_path in subform_keys {
@@ -239,14 +242,14 @@ impl JSONEval {
                             idx,
                             data_value.clone(),
                             context_value.clone(),
+                            false,
                             |sf| {
-                                sf.evaluate_internal_pre_diffed(sub_paths_ref, token)?;
-                                let sub_data = sf.eval_data.snapshot_data_clone();
                                 sf.validate_pre_set(
-                                    sub_data,
+                                    None,
                                     sub_paths_ref,
                                     token,
                                     validate_readonly,
+                                    true,
                                 )
                             },
                         )?;
@@ -281,6 +284,24 @@ impl JSONEval {
                         }
                     }
                 }
+
+                // Reset scratch subforms state to avoid holding duplicate trees in memory
+                for subform in self.subforms.values_mut() {
+                    subform.eval_data = crate::jsoneval::eval_data::EvalData::new(Value::Null);
+                    subform.evaluated_schema = (*subform.schema).clone();
+                    subform.eval_cache.clear();
+                    subform.static_arrays = std::sync::Arc::new(IndexMap::new());
+                    subform
+                        .engine
+                        .set_static_arrays(std::sync::Arc::clone(&subform.static_arrays));
+                    subform.invalidate_layout_cache();
+                    subform.invalidate_validation_cache();
+                }
+                self.eval_cache = initial_eval_cache;
+                self.static_arrays = initial_static_arrays;
+                self.engine
+                    .set_static_arrays(std::sync::Arc::clone(&self.static_arrays));
+                self.invalidate_layout_cache();
             }
 
             let has_error = !errors.is_empty();
@@ -310,16 +331,20 @@ impl JSONEval {
     /// cache-swap closure to avoid redundant work when the subform data is already set.
     pub(crate) fn validate_pre_set(
         &mut self,
-        data_value: Value,
+        data_value: Option<&Value>,
         paths: Option<&[String]>,
         token: Option<&CancellationToken>,
         validate_readonly: Option<bool>,
+        re_evaluate_others: bool,
     ) -> Result<crate::ValidationResult, String> {
         let validate_ro = validate_readonly.unwrap_or(false);
-        let _static_guard =
-            self.engine.bind_static_arrays_scope(std::sync::Arc::clone(&self.static_arrays));
-        // Re-evaluate rule evaluations with the current (already-set) data.
-        self.evaluate_others(paths, token);
+        let _static_guard = self
+            .engine
+            .bind_static_arrays_scope(std::sync::Arc::clone(&self.static_arrays));
+        if re_evaluate_others {
+            // Re-evaluate rule evaluations with the current (already-set) data.
+            self.evaluate_others(paths, token);
+        }
 
         self.ensure_layout_resolved();
 
@@ -333,16 +358,19 @@ impl JSONEval {
         let mut readonly_cache =
             std::collections::HashMap::with_capacity(self.fields_with_rules.len());
 
-        let eval_data_val = self.eval_data.snapshot_data_clone();
-        let target_data = if data_value.is_object()
-            && self.fields_with_rules.iter().any(|f| {
-                let root = f.split('.').next().unwrap_or(f);
-                data_value.get(root).is_some()
-            })
-        {
-            &data_value
+        let target_data = if let Some(dv) = data_value {
+            if dv.is_object()
+                && self.fields_with_rules.iter().any(|f| {
+                    let root = f.split('.').next().unwrap_or(f);
+                    dv.get(root).is_some()
+                })
+            {
+                dv
+            } else {
+                self.eval_data.data()
+            }
         } else {
-            &eval_data_val
+            self.eval_data.data()
         };
 
         for field_path in self.fields_with_rules.iter() {
@@ -437,11 +465,8 @@ impl JSONEval {
         };
 
         // Skip hidden fields using cached layout & schema lookup
-        let is_hidden = self.is_effective_hidden_with_cache(
-            &resolved_path,
-            layout_hidden_refs,
-            hidden_cache,
-        );
+        let is_hidden =
+            self.is_effective_hidden_with_cache(&resolved_path, layout_hidden_refs, hidden_cache);
         if is_hidden {
             if let Ok(mut cache) = self.validation_cache.write() {
                 cache.update_field(
@@ -491,7 +516,13 @@ impl JSONEval {
 
             // Check field cache
             let cached_lookup = if let Ok(cache) = self.validation_cache.read() {
-                cache.check_field_cache(field_path, &field_data, false, validate_readonly, rules_val)
+                cache.check_field_cache(
+                    field_path,
+                    &field_data,
+                    false,
+                    validate_readonly,
+                    rules_val,
+                )
             } else {
                 None
             };
@@ -672,12 +703,7 @@ impl JSONEval {
                             code: error_code,
                             pattern: None,
                             field_value: None,
-                            data: build_error_data(
-                                rule_name,
-                                &rule_active,
-                                rule_data,
-                                schema_map,
-                            ),
+                            data: build_error_data(rule_name, &rule_active, rule_data, schema_map),
                         },
                     );
                 }
@@ -696,10 +722,14 @@ impl JSONEval {
                                 Some(r) => r,
                                 None => {
                                     let mut cache = self.regex_cache.write().unwrap();
-                                    cache.entry(pattern.to_string()).or_insert_with(|| {
-                                        regex::Regex::new(pattern)
-                                            .unwrap_or_else(|_| regex::Regex::new("(?:)").unwrap())
-                                    }).clone()
+                                    cache
+                                        .entry(pattern.to_string())
+                                        .or_insert_with(|| {
+                                            regex::Regex::new(pattern).unwrap_or_else(|_| {
+                                                regex::Regex::new("(?:)").unwrap()
+                                            })
+                                        })
+                                        .clone()
                                 }
                             };
                             if !regex.is_match(text) {
@@ -792,12 +822,7 @@ impl JSONEval {
                             code: error_code,
                             pattern: None,
                             field_value: None,
-                            data: build_error_data(
-                                rule_name,
-                                &rule_active,
-                                rule_data,
-                                schema_map,
-                            ),
+                            data: build_error_data(rule_name, &rule_active, rule_data, schema_map),
                         },
                     );
                 }
@@ -1022,7 +1047,10 @@ fn build_error_data(
     }
 
     // 3. Companion rules from schema_map["rules"]
-    if matches!(rule_name, "minValue" | "maxValue" | "minLength" | "maxLength") {
+    if matches!(
+        rule_name,
+        "minValue" | "maxValue" | "minLength" | "maxLength"
+    ) {
         if let Some(Value::Object(rules)) = schema_map.get("rules") {
             match rule_name {
                 "minValue" => {

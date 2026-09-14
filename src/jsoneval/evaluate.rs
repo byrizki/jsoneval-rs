@@ -126,7 +126,7 @@ impl JSONEval {
             // Seed subform caches from loaded data.
             for (subform_path, subform) in &mut self.subforms {
                 let subform_ptr =
-                    crate::jsoneval::path_utils::normalize_to_json_pointer(subform_path);
+                    crate::jsoneval::path_utils::schema_path_to_data_pointer(subform_path);
                 if let Some(items) = new_data.pointer(&subform_ptr).and_then(|v| v.as_array()) {
                     for (idx, item_val) in items.iter().enumerate() {
                         self.eval_cache.ensure_active_item_cache(idx);
@@ -295,10 +295,19 @@ impl JSONEval {
             }
         }
         time_block!("  evaluate_internal() [total]", {
+            if self.eval_cache.subform_roots.is_empty() && !self.subforms.is_empty() {
+                self.eval_cache.subform_roots = self
+                    .subforms
+                    .keys()
+                    .map(|p| format!("/{}", crate::jsoneval::dependents::subform_field_key(p)))
+                    .collect();
+            }
+
             // Acquire lock for synchronous execution
             let _lock = self.eval_lock.lock().unwrap();
-            let _static_guard =
-                self.engine.bind_static_arrays_scope(Arc::clone(&self.static_arrays));
+            let _static_guard = self
+                .engine
+                .bind_static_arrays_scope(Arc::clone(&self.static_arrays));
 
             // Normalize paths to schema pointers for correct filtering
             let normalized_paths_storage; // Keep alive
@@ -327,7 +336,6 @@ impl JSONEval {
             // Process each batch - sequentially
             // Batches are processed sequentially to maintain dependency order
             // Process value evaluations (simple computed fields with no dependencies)
-            let eval_data_values = self.eval_data.clone();
             time_block!("      evaluate values", {
                 for eval_key in self.value_evaluations.iter() {
                     if let Some(t) = token {
@@ -364,7 +372,11 @@ impl JSONEval {
 
                     // Cache miss - evaluate
                     if let Some(logic_id) = self.evaluations.get(eval_key) {
-                        match self.engine.run(logic_id, eval_data_values.data()) {
+                        let val = {
+                            let snap = self.eval_data.snapshot_data();
+                            self.engine.run(logic_id, &*snap)
+                        };
+                        match val {
                             Ok(val) => {
                                 let cleaned_val = clean_float_noise_scalar(val);
                                 self.eval_cache
@@ -429,47 +441,50 @@ impl JSONEval {
                     // Fast path: try to resolve every eval_key in this batch from cache.
                     // If all hit, skip the expensive exclusive_clone() of the full eval_data tree.
                     // This is critical for subforms where eval_data contains the full parent payload.
-                    let all_cache_hit = time_block!("      batch cache fast path", {
-                        let mut batch_hits: Vec<(String, Value)> = Vec::with_capacity(batch.len());
-                        let all_hit = batch.iter().all(|eval_key| {
-                            let empty_deps = indexmap::IndexSet::new();
-                            let deps = self.dependencies.get(eval_key).unwrap_or(&empty_deps);
-                            let cached = if self.table_metadata.contains_key(eval_key) {
-                                self.eval_cache
-                                    .check_table_cache(eval_key, deps)
-                                    .map(|arc| Value::clone(&arc))
-                            } else {
-                                self.eval_cache.check_cache(eval_key, deps)
-                            };
-                            if let Some(cached) = cached {
-                                let pointer_path =
-                                    path_utils::normalize_to_json_pointer(eval_key).into_owned();
-                                batch_hits.push((pointer_path, cached));
-                                true
-                            } else {
-                                false
-                            }
-                        });
+                    let mut batch_hits: Vec<(String, String, std::sync::Arc<Value>)> =
+                        Vec::with_capacity(batch.len());
+                    let all_hit = batch.iter().all(|eval_key| {
+                        let empty_deps = indexmap::IndexSet::new();
+                        let deps = self.dependencies.get(eval_key).unwrap_or(&empty_deps);
+                        let cached = if self.table_metadata.contains_key(eval_key) {
+                            self.eval_cache.check_table_cache(eval_key, deps)
+                        } else {
+                            self.eval_cache.check_cache_arc(eval_key, deps)
+                        };
+                        if let Some(cached_arc) = cached {
+                            let pointer_path =
+                                path_utils::normalize_to_json_pointer(eval_key).into_owned();
+                            batch_hits.push((eval_key.clone(), pointer_path, cached_arc));
+                            true
+                        } else {
+                            false
+                        }
+                    });
 
-                        if all_hit {
-                            // Populate eval_data AND evaluated_schema so both downstream batches
-                            // and get_evaluated_schema callers see the correct per-item values.
-                            // Previously only eval_data was written here, leaving evaluated_schema
-                            // with stale values from the last full-miss evaluation (e.g. the first
-                            // rider), causing all riders to report the same schema outputs.
-                            for (ptr, val) in batch_hits {
-                                self.eval_data.set(&ptr, val.clone());
+                    if all_hit {
+                        // Populate eval_data AND evaluated_schema so both downstream batches
+                        // and get_evaluated_schema callers see the correct per-item values.
+                        for (eval_key, ptr, arc_val) in batch_hits {
+                            if self.table_metadata.contains_key(&eval_key) {
+                                let static_key = format!("/$table{}", ptr);
+                                Arc::make_mut(&mut self.static_arrays)
+                                    .insert(static_key.clone(), std::sync::Arc::clone(&arc_val));
+                                let marker = serde_json::json!({ "$static_array": static_key });
+                                self.eval_data.set(&ptr, marker.clone());
+                                self.engine
+                                    .set_static_arrays(std::sync::Arc::clone(&self.static_arrays));
                                 if let Some(schema_value) = self.evaluated_schema.pointer_mut(&ptr)
                                 {
-                                    *schema_value = val;
+                                    *schema_value = marker;
+                                }
+                            } else {
+                                self.eval_data.set(&ptr, (*arc_val).clone());
+                                if let Some(schema_value) = self.evaluated_schema.pointer_mut(&ptr)
+                                {
+                                    *schema_value = (*arc_val).clone();
                                 }
                             }
                         }
-                        // Partial or full miss — fall through to the normal exclusive_clone path below.
-                        // batch_hits is dropped here; cache lookups will repeat but that's cheap.
-                        all_hit
-                    });
-                    if all_cache_hit {
                         continue;
                     }
 
@@ -504,6 +519,28 @@ impl JSONEval {
                             let is_table = self.table_metadata.contains_key(eval_key);
 
                             if is_table {
+                                let empty_deps = indexmap::IndexSet::new();
+                                let deps = self.dependencies.get(eval_key).unwrap_or(&empty_deps);
+                                if let Some(cached_arc) =
+                                    self.eval_cache.check_table_cache(eval_key, deps)
+                                {
+                                    let static_key = format!("/$table{}", pointer_path);
+                                    Arc::make_mut(&mut self.static_arrays).insert(
+                                        static_key.clone(),
+                                        std::sync::Arc::clone(&cached_arc),
+                                    );
+                                    let marker = serde_json::json!({ "$static_array": static_key });
+                                    self.eval_data.set(&pointer_path, marker.clone());
+                                    self.engine.set_static_arrays(std::sync::Arc::clone(
+                                        &self.static_arrays,
+                                    ));
+                                    if let Some(schema_value) =
+                                        self.evaluated_schema.pointer_mut(&pointer_path)
+                                    {
+                                        *schema_value = marker;
+                                    }
+                                    continue;
+                                }
                                 time_block!("        table eval", {
                                     // Snapshot for table read access: Arc::clone is O(1).
                                     // Scoped so it's dropped before self.eval_data.set() below,
@@ -541,10 +578,9 @@ impl JSONEval {
                                             std::sync::Arc::clone(&arc_value),
                                         );
 
-                                        self.eval_data.set(&pointer_path, (*arc_value).clone());
-
                                         let marker =
                                             serde_json::json!({ "$static_array": static_key });
+                                        self.eval_data.set(&pointer_path, marker.clone());
                                         self.engine
                                             .set_static_arrays(Arc::clone(&self.static_arrays));
 
@@ -797,37 +833,32 @@ impl JSONEval {
     /// Computed values are exposed only for this refresh; shared form data, cache entries and
     /// version trackers remain untouched, preventing subform/table cascade contamination.
     fn refresh_computed_value_dependents(&mut self, token: Option<&CancellationToken>) {
-        let computed_values: Vec<(String, Value)> = self
-            .evaluations
-            .keys()
-            .filter_map(|key| {
-                let field_path = key.strip_suffix("/value")?;
-                if !field_path.contains("/properties/") || key.contains("/rules/") {
-                    return None;
-                }
-                let schema_pointer = path_utils::normalize_to_json_pointer(key);
-                let value = self.evaluated_schema.pointer(&schema_pointer)?;
-                if value.is_object() && value.get("$evaluation").is_some() {
-                    return None;
-                }
-                Some((
-                    path_utils::schema_path_to_data_pointer(field_path).into_owned(),
-                    value.clone(),
-                ))
-            })
-            .collect();
-        if computed_values.is_empty() {
-            return;
-        }
+        let mut changed = Vec::new();
+        let mut dep_matchers = indexmap::IndexSet::new();
 
-        let mut overlay = EvalData::new(self.eval_data.snapshot_data_clone());
-        let mut changed = indexmap::IndexSet::new();
-        for (data_path, value) in computed_values {
-            if overlay.get(&data_path) != Some(&value) {
-                overlay.set(&data_path, value);
-                changed.insert(data_path);
+        for key in self.evaluations.keys() {
+            let Some(field_path) = key.strip_suffix("/value") else {
+                continue;
+            };
+            if !field_path.contains("/properties/") || key.contains("/rules/") {
+                continue;
+            }
+            let schema_pointer = path_utils::normalize_to_json_pointer(key);
+            let Some(value) = self.evaluated_schema.pointer(&schema_pointer) else {
+                continue;
+            };
+            if value.is_object() && value.get("$evaluation").is_some() {
+                continue;
+            }
+            let data_path = path_utils::schema_path_to_data_pointer(field_path).into_owned();
+            if self.eval_data.get(&data_path) != Some(value) {
+                dep_matchers.insert(data_path.clone());
+                dep_matchers.insert(field_path.to_string());
+                dep_matchers.insert(field_path.trim_start_matches('#').to_string());
+                changed.push((data_path, value.clone()));
             }
         }
+
         if changed.is_empty() {
             return;
         }
@@ -841,14 +872,24 @@ impl JSONEval {
                     && !self.tables.keys().any(|table| key.starts_with(table))
                     && self.dependencies.get(*key).is_some_and(|dependencies| {
                         dependencies.iter().any(|dependency| {
-                            changed.contains(
-                                path_utils::schema_path_to_data_pointer(dependency).as_ref(),
-                            )
+                            dep_matchers.contains(dependency.as_str())
+                                || dep_matchers.contains(
+                                    path_utils::schema_path_to_data_pointer(dependency).as_ref(),
+                                )
                         })
                     })
             })
             .cloned()
             .collect();
+
+        if targets.is_empty() {
+            return;
+        }
+
+        let mut overlay = EvalData::new(self.eval_data.snapshot_data_clone());
+        for (data_path, value) in changed {
+            overlay.set(&data_path, value);
+        }
 
         for key in targets {
             if token.is_some_and(CancellationToken::is_cancelled) {

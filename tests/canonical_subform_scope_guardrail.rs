@@ -89,13 +89,7 @@ fn indexed_subform_full_parent_and_item_wrapper_have_identical_results() {
     let mut full_eval = JSONEval::new(&schema, None, Some(&parent_input)).unwrap();
     full_eval.evaluate(&parent_input, None, None, None).unwrap();
     full_eval
-        .evaluate_subform(
-            "form.product.items.1",
-            &parent_input,
-            None,
-            None,
-            None,
-        )
+        .evaluate_subform("form.product.items.1", &parent_input, None, None, None)
         .unwrap();
 
     let item_wrapper = json!({
@@ -107,19 +101,10 @@ fn indexed_subform_full_parent_and_item_wrapper_have_identical_results() {
         .evaluate(&parent_input, None, None, None)
         .unwrap();
     wrapper_eval
-        .evaluate_subform(
-            "form.product.items.1",
-            &item_wrapper,
-            None,
-            None,
-            None,
-        )
+        .evaluate_subform("form.product.items.1", &item_wrapper, None, None, None)
         .unwrap();
 
-    assert_eq!(
-        item_values(&mut full_eval),
-        item_values(&mut wrapper_eval)
-    );
+    assert_eq!(item_values(&mut full_eval), item_values(&mut wrapper_eval));
     assert_eq!(item_values(&mut wrapper_eval), (json!(23), json!(23)));
 }
 
@@ -228,14 +213,8 @@ fn indexed_subform_local_and_parent_table_paths_read_same_active_item() {
     .to_string();
     let mut eval = JSONEval::new(&schema, None, Some(&parent_input)).unwrap();
     eval.evaluate(&parent_input, None, None, None).unwrap();
-    eval.evaluate_subform(
-        "form.product.items.1",
-        &item_wrapper,
-        None,
-        None,
-        None,
-    )
-    .unwrap();
+    eval.evaluate_subform("form.product.items.1", &item_wrapper, None, None, None)
+        .unwrap();
 
     let (local_amount, parent_amount) = item_values(&mut eval);
     assert_eq!(local_amount, json!(23));

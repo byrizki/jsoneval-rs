@@ -170,9 +170,7 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_without_params(
 /// - handle must be a valid pointer from json_eval_new
 /// - Caller must call json_eval_free_result when done
 #[no_mangle]
-pub unsafe extern "C" fn json_eval_get_plain_params(
-    handle: *mut JSONEvalHandle,
-) -> FFIResult {
+pub unsafe extern "C" fn json_eval_get_plain_params(handle: *mut JSONEvalHandle) -> FFIResult {
     if handle.is_null() {
         return FFIResult::error("Invalid handle pointer".to_string());
     }

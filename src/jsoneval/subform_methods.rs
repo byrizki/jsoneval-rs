@@ -139,6 +139,7 @@ impl JSONEval {
         idx: usize,
         data_value: Value,
         context_value: Value,
+        persist_evaluated_schema: bool,
         f: F,
     ) -> Result<T, String>
     where
@@ -203,19 +204,33 @@ impl JSONEval {
                 .map(|c| c.item_snapshot.clone())
                 .unwrap_or(Value::Null);
 
-            // Merge parent payload when available.
-            let mut scoped_data = EvalData::new(self.eval_data.snapshot_data_clone());
-            if full_parent_payload || payload_has_parent_context {
-                scoped_data.replace_data_and_context(data_value.clone(), context_value.clone());
-            }
-            scoped_data.set(&item_path, normalized_item.clone());
-            let canonical_parent = scoped_data.snapshot_data_clone();
             let scope = crate::jsoneval::subform_scope::SubformScope::new(
                 base_path,
                 &array_path,
                 Some(idx),
             );
-            let mut scoped_view = scope.evaluation_view(&canonical_parent);
+
+            let mut scoped_view = if self.eval_data.get(&item_path) == Some(&normalized_item) {
+                scope.evaluation_view(self.eval_data.data())
+            } else {
+                let mut scoped_data = self.eval_data.snapshot_data_clone();
+                if full_parent_payload || payload_has_parent_context {
+                    if let Some(obj) = scoped_data.as_object_mut() {
+                        if let Some(input_obj) = data_value.as_object() {
+                            for (k, v) in input_obj {
+                                obj.insert(k.clone(), v.clone());
+                            }
+                        }
+                    }
+                }
+                crate::jsoneval::eval_data::EvalData::set_by_pointer(
+                    &mut scoped_data,
+                    &item_path,
+                    normalized_item.clone(),
+                );
+                scope.evaluation_view(&scoped_data)
+            };
+
             if let Some(view) = scoped_view.as_object_mut() {
                 view.insert("$context".to_string(), context_value.clone());
             }
@@ -240,18 +255,28 @@ impl JSONEval {
 
         let mut parent_cache = std::mem::take(&mut self.eval_cache);
         if full_parent_payload {
-            let old_parent_data = self.eval_data.snapshot_data_clone();
-            self.eval_data
-                .replace_data_and_context(data_value.clone(), context_value.clone());
-            let new_parent_data = self.eval_data.snapshot_data_clone();
-            crate::jsoneval::eval_cache::diff_and_update_versions(
-                &mut parent_cache.data_versions,
-                "",
-                &old_parent_data,
-                &new_parent_data,
-                "sync_full_subform_payload",
-            );
+            let needs_parent_sync = if let Some(input_obj) = data_value.as_object() {
+                let current = self.eval_data.data();
+                input_obj.iter().any(|(k, v)| current.get(k) != Some(v))
+                    || current.get("$context") != Some(&context_value)
+            } else {
+                *self.eval_data.snapshot_data() != data_value
+            };
+            if needs_parent_sync {
+                let old_parent_data = self.eval_data.snapshot_data();
+                self.eval_data
+                    .replace_data_and_context(data_value.clone(), context_value.clone());
+                let new_parent_data = self.eval_data.snapshot_data();
+                crate::jsoneval::eval_cache::diff_and_update_versions(
+                    &mut parent_cache.data_versions,
+                    "",
+                    &old_parent_data,
+                    &new_parent_data,
+                    "sync_full_subform_payload",
+                );
+            }
         }
+
         parent_cache.ensure_active_item_cache(idx);
 
         if let Some(c) = parent_cache.subform_caches.get_mut(&idx) {
@@ -323,14 +348,17 @@ impl JSONEval {
                         continue;
                     }
                     // Validate all dep versions against the current item data_versions.
-                    let still_valid = v.dep_versions.iter().all(|(dep_path, &cached_ver)| {
-                        let current_ver = if dep_path.starts_with("/$params") {
-                            parent_cache.params_versions.get(dep_path)
-                        } else {
-                            current_dv.get(dep_path)
-                        };
-                        current_ver == cached_ver
-                    });
+                    let still_valid =
+                        v.dep_versions
+                            .iter()
+                            .all(|(dep_path, &cached_ver): (&String, &u64)| {
+                                let current_ver = if dep_path.starts_with("/$params") {
+                                    parent_cache.params_versions.get(dep_path)
+                                } else {
+                                    current_dv.get(dep_path)
+                                };
+                                current_ver == cached_ver
+                            });
                     if still_valid {
                         c.entries.insert(k, v);
                     }
@@ -473,6 +501,10 @@ impl JSONEval {
         // Step 3: swap parent cache into subform so Tier 1 + Tier 2 entries are visible.
         {
             let subform = self.subforms.get_mut(base_path).unwrap();
+            subform.static_arrays = std::sync::Arc::clone(&self.static_arrays);
+            subform
+                .engine
+                .set_static_arrays(std::sync::Arc::clone(&self.static_arrays));
             std::mem::swap(&mut subform.eval_cache, &mut parent_cache);
         }
 
@@ -494,11 +526,16 @@ impl JSONEval {
         {
             let subform = self.subforms.get_mut(base_path).unwrap();
             if let Some(item_cache) = self.eval_cache.subform_caches.get_mut(&idx) {
-                item_cache.evaluated_schema = Some(subform.evaluated_schema.clone());
-                subform
-                    .eval_cache
-                    .subform_caches
-                    .insert(idx, item_cache.clone());
+                if persist_evaluated_schema {
+                    item_cache.evaluated_schema = Some(subform.evaluated_schema.clone());
+                }
+                subform.eval_cache.ensure_active_item_cache(idx);
+                if let Some(sub_cache) = subform.eval_cache.subform_caches.get_mut(&idx) {
+                    sub_cache.item_snapshot = item_cache.item_snapshot.clone();
+                }
+            }
+            if !persist_evaluated_schema {
+                subform.eval_data = crate::jsoneval::eval_data::EvalData::new(Value::Null);
             }
         }
 
@@ -555,7 +592,7 @@ impl JSONEval {
             Value::Object(serde_json::Map::new())
         };
 
-        self.with_item_cache_swap(base_path, idx, data_value, context_value, |sf| {
+        self.with_item_cache_swap(base_path, idx, data_value, context_value, true, |sf| {
             // Match main-form lifecycle: resolve visibility, hydrate missing visible static
             // defaults and their dependents, then re-evaluate only when data was written.
             sf.evaluate_internal_pre_diffed(paths, token)?;
@@ -596,10 +633,17 @@ impl JSONEval {
                 idx,
                 data_value,
                 context_value,
+                false,
                 move |sf| {
                     // Warm the evaluation cache before running rule checks.
                     sf.evaluate_internal_pre_diffed(paths, token)?;
-                    sf.validate_pre_set(data_for_validation, paths, token, validate_readonly)
+                    sf.validate_pre_set(
+                        Some(&data_for_validation),
+                        paths,
+                        token,
+                        validate_readonly,
+                        false,
+                    )
                 },
             )
         } else {
@@ -641,19 +685,38 @@ impl JSONEval {
                 };
                 (dv, cv)
             } else {
-                // No new data provided — snapshot current subform state so diff is a no-op.
+                // No new data provided — snapshot current state (subform or parent) so diff is a no-op.
                 let subform = self
                     .subforms
                     .get(base_path.as_ref() as &str)
                     .ok_or_else(|| format!("Subform not found: {}", base_path))?;
-                let dv = subform.eval_data.snapshot_data_clone();
-                (dv, Value::Object(serde_json::Map::new()))
+                let dv = if !subform.eval_data.data().is_null() {
+                    subform.eval_data.snapshot_data_clone()
+                } else {
+                    self.eval_data.snapshot_data_clone()
+                };
+                let cv = if !subform.eval_data.data().is_null() {
+                    subform
+                        .eval_data
+                        .data()
+                        .get("$context")
+                        .cloned()
+                        .unwrap_or_else(|| Value::Object(serde_json::Map::new()))
+                } else {
+                    self.eval_data
+                        .data()
+                        .get("$context")
+                        .cloned()
+                        .unwrap_or_else(|| Value::Object(serde_json::Map::new()))
+                };
+                (dv, cv)
             };
             let changes = self.with_item_cache_swap(
                 base_path.as_ref(),
                 idx,
                 data_value,
                 context_value,
+                false,
                 |sf| {
                     // Data is already set by with_item_cache_swap; pass None to avoid re-parsing.
                     sf.evaluate_dependents(
@@ -829,10 +892,7 @@ impl JSONEval {
     }
 
     /// Get plain $params from subform.
-    pub fn get_plain_params_subform(
-        &self,
-        subform_path: &str,
-    ) -> Option<Value> {
+    pub fn get_plain_params_subform(&self, subform_path: &str) -> Option<Value> {
         let (base_path, _) = self.resolve_subform_path_alias(subform_path);
         let subform = self.subforms.get(base_path.as_ref() as &str)?;
         subform.get_plain_params()

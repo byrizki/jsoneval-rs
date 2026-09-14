@@ -236,7 +236,8 @@ impl JSONEval {
                     if !ref_path.is_empty() {
                         let last_segment = ref_path.split('.').last().unwrap_or(&ref_path);
                         overlay.insert("$fullpath".to_string(), Value::String(ref_path.clone()));
-                        overlay.insert("$path".to_string(), Value::String(last_segment.to_string()));
+                        overlay
+                            .insert("$path".to_string(), Value::String(last_segment.to_string()));
                     } else {
                         let base = Self::layout_path_to_structural_path(layout_path);
                         let fullpath = if base.is_empty() {
@@ -244,7 +245,8 @@ impl JSONEval {
                         } else {
                             format!("{}.{}", base, element_idx)
                         };
-                        let last_segment = fullpath.split('.').last().unwrap_or(&fullpath).to_string();
+                        let last_segment =
+                            fullpath.split('.').last().unwrap_or(&fullpath).to_string();
                         overlay.insert("$fullpath".to_string(), Value::String(fullpath));
                         overlay.insert("$path".to_string(), Value::String(last_segment));
                     }
@@ -329,7 +331,8 @@ impl JSONEval {
                     if (parent_hidden || element_hidden)
                         && (map.get("hideLayout").is_some() || map.get("type").is_some())
                     {
-                        let mut hide_layout = if let Some(Value::Object(h)) = map.get("hideLayout") {
+                        let mut hide_layout = if let Some(Value::Object(h)) = map.get("hideLayout")
+                        {
                             h.clone()
                         } else {
                             serde_json::Map::new()
@@ -426,8 +429,11 @@ impl JSONEval {
                     };
 
                     let dotted_path = path_utils::pointer_to_dot_notation(&normalized_path);
-                    let last_segment =
-                        dotted_path.split('.').last().unwrap_or(&dotted_path).to_string();
+                    let last_segment = dotted_path
+                        .split('.')
+                        .last()
+                        .unwrap_or(&dotted_path)
+                        .to_string();
                     let entry = (normalized_path, dotted_path, last_segment);
                     ref_cache.insert(ref_str, entry.clone());
                     entry
@@ -441,12 +447,12 @@ impl JSONEval {
                 if let Value::Object(ref_map) = referenced_value {
                     map.remove("$ref");
 
-                    let mut result =
-                        if let Some(Value::Object(layout_obj)) = ref_map.get("$layout") {
-                            layout_obj.clone()
-                        } else {
-                            serde_json::Map::new()
-                        };
+                    let mut result = if let Some(Value::Object(layout_obj)) = ref_map.get("$layout")
+                    {
+                        layout_obj.clone()
+                    } else {
+                        serde_json::Map::new()
+                    };
 
                     for (key, value) in ref_map {
                         if key == "$layout"

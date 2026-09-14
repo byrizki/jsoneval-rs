@@ -145,9 +145,6 @@ mod tests {
     fn maps_unindexed_collection_root() {
         let scope = SubformScope::new("#/items", "/users/items", None);
         assert_eq!(scope.canonical_path("/items"), "/users/items");
-        assert_eq!(
-            scope.canonical_path("/items/0/code"),
-            "/users/items/0/code"
-        );
+        assert_eq!(scope.canonical_path("/items/0/code"), "/users/items/0/code");
     }
 }

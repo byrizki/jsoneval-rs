@@ -165,8 +165,7 @@ fn resolved_subform_schema_omits_params_and_stamps_inline_layout_items() {
     eval.evaluate("{}", None, None, None).unwrap();
 
     let resolved = eval.get_evaluated_schema_resolved_subform("#/items");
-    let mut compact_plus_overlay =
-        eval.get_evaluated_schema_without_params_subform("#/items");
+    let mut compact_plus_overlay = eval.get_evaluated_schema_without_params_subform("#/items");
     merge_layout_overlay(
         &mut compact_plus_overlay,
         &eval.get_resolved_layout_subform("#/items"),

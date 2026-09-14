@@ -125,8 +125,12 @@ impl JSONEval {
                     conditional_readonly_fields: Arc::new(Vec::new()),
                     static_arrays,
                     regex_cache: RwLock::new(HashMap::new()),
-                    layout_state: RwLock::new(crate::jsoneval::layout::LayoutResolutionState::default()),
-                    validation_cache: RwLock::new(crate::jsoneval::validation_cache::ValidationCache::default()),
+                    layout_state: RwLock::new(
+                        crate::jsoneval::layout::LayoutResolutionState::default(),
+                    ),
+                    validation_cache: RwLock::new(
+                        crate::jsoneval::validation_cache::ValidationCache::default(),
+                    ),
                 }
             });
             time_block!("  parse_schema", {
@@ -189,8 +193,12 @@ impl JSONEval {
                     conditional_readonly_fields: Arc::new(Vec::new()),
                     static_arrays,
                     regex_cache: RwLock::new(HashMap::new()),
-                    layout_state: RwLock::new(crate::jsoneval::layout::LayoutResolutionState::default()),
-                    validation_cache: RwLock::new(crate::jsoneval::validation_cache::ValidationCache::default()),
+                    layout_state: RwLock::new(
+                        crate::jsoneval::layout::LayoutResolutionState::default(),
+                    ),
+                    validation_cache: RwLock::new(
+                        crate::jsoneval::validation_cache::ValidationCache::default(),
+                    ),
                 }
             });
             time_block!("  parse_schema", {
@@ -277,7 +285,9 @@ impl JSONEval {
             static_arrays,
             regex_cache: RwLock::new(HashMap::new()),
             layout_state: RwLock::new(crate::jsoneval::layout::LayoutResolutionState::default()),
-            validation_cache: RwLock::new(crate::jsoneval::validation_cache::ValidationCache::default()),
+            validation_cache: RwLock::new(
+                crate::jsoneval::validation_cache::ValidationCache::default(),
+            ),
         };
         parse_schema::legacy::parse_schema(&mut instance)?;
         Ok(instance)
@@ -368,7 +378,9 @@ impl JSONEval {
             static_arrays: Arc::clone(&parsed.static_arrays),
             regex_cache: RwLock::new(HashMap::new()),
             layout_state: RwLock::new(crate::jsoneval::layout::LayoutResolutionState::default()),
-            validation_cache: RwLock::new(crate::jsoneval::validation_cache::ValidationCache::default()),
+            validation_cache: RwLock::new(
+                crate::jsoneval::validation_cache::ValidationCache::default(),
+            ),
         };
         Ok(instance)
     }

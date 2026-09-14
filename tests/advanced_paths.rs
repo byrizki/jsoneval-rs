@@ -36,8 +36,7 @@ fn evaluated_schema_path_resolves_static_array_cell() {
     let mut evaluator = evaluator_with_static_array();
 
     assert_eq!(
-        evaluator
-            .get_evaluated_schema_by_path("$params.references.ITEMS_TABLE.1.ITEM_VAL_PER_PAY"),
+        evaluator.get_evaluated_schema_by_path("$params.references.ITEMS_TABLE.1.ITEM_VAL_PER_PAY"),
         Some(json!(1))
     );
 }

@@ -96,7 +96,13 @@ mod tests {
 
         let data = json!({ "age": 10, "email": "" });
         let result = wasm_eval
-            .validate_to_value(&serde_json::to_string(&data).unwrap(), None, None, None, None)
+            .validate_to_value(
+                &serde_json::to_string(&data).unwrap(),
+                None,
+                None,
+                None,
+                None,
+            )
             .expect("Validation failed");
 
         assert_eq!(result["has_error"], true);

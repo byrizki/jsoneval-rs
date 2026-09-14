@@ -145,6 +145,7 @@ pub struct EvalCache {
     /// Stored after each successful `evaluate_internal_with_new_data` call so the next
     /// invocation can avoid an extra `snapshot_data_clone()` when computing the diff.
     pub main_form_snapshot: Option<std::sync::Arc<Value>>,
+    pub subform_roots: Vec<String>,
 }
 
 impl Default for EvalCache {
@@ -164,7 +165,14 @@ impl EvalCache {
             eval_generation: 0,
             last_evaluated_generation: u64::MAX, // force first evaluate_internal to run
             main_form_snapshot: None,
+            subform_roots: Vec::new(),
         }
+    }
+
+    pub fn is_subform_dep(&self, path: &str) -> bool {
+        self.subform_roots
+            .iter()
+            .any(|root| path == root || path.starts_with(&format!("{}/", root)))
     }
 
     pub fn clear(&mut self) {
@@ -348,11 +356,25 @@ impl EvalCache {
                 .unwrap_or(&self.data_versions);
 
             if let Some(entry) = self.entries.get(eval_key) {
+                let depends_on_subform_item =
+                    entry.dep_versions.keys().any(|p| self.is_subform_dep(p));
+                if depends_on_subform_item && entry.computed_for_item != Some(idx) {
+                    return None;
+                }
+
+                let has_changed_item_dep = self.subform_caches.get(&idx).is_some_and(|cache| {
+                    entry.dep_versions.keys().any(|p| {
+                        if p.starts_with("/$params") {
+                            false
+                        } else {
+                            cache.data_versions.get(p) > self.data_versions.get(p)
+                        }
+                    })
+                });
                 let index_safe = match entry.computed_for_item {
-                    // Main-form T2 entries require only $params dependencies.
-                    None => entry.dep_versions.keys().all(|p| p.starts_with("/$params")),
+                    None => !has_changed_item_dep,
                     Some(stored_idx) if stored_idx == idx => true,
-                    _ => entry.dep_versions.keys().all(|p| p.starts_with("/$params")),
+                    _ => !has_changed_item_dep,
                 };
                 if index_safe {
                     let result =
@@ -399,19 +421,28 @@ impl EvalCache {
             // If the table has an item dependency that was bumped for this active item,
             // the active item must not reuse the global T2 table.
             let has_changed_item_dep = self.subform_caches.get(&idx).is_some_and(|cache| {
-                deps.iter().any(|dep| {
-                    let p = crate::jsoneval::path_utils::schema_path_to_data_pointer(dep);
-                    if p.starts_with("/$params") {
-                        false
-                    } else {
-                        cache.data_versions.get(&p) > self.data_versions.get(&p)
-                    }
-                })
+                if let Some(entry) = self.entries.get(eval_key) {
+                    entry.dep_versions.keys().any(|p| {
+                        if p.starts_with("/$params") {
+                            false
+                        } else {
+                            cache.data_versions.get(p) > self.data_versions.get(p)
+                        }
+                    })
+                } else {
+                    deps.iter().any(|dep| {
+                        let p = crate::jsoneval::path_utils::schema_path_to_data_pointer(dep);
+                        if p.starts_with("/$params") {
+                            false
+                        } else {
+                            cache.data_versions.get(&p) > self.data_versions.get(&p)
+                        }
+                    })
+                }
             });
             if has_changed_item_dep {
                 return None;
             }
-
 
             let result = self.validate_entry(eval_key, deps, &self.entries, &self.data_versions);
             if result.is_some() {
@@ -428,41 +459,29 @@ impl EvalCache {
     fn validate_entry(
         &self,
         eval_key: &str,
-        deps: &IndexSet<String>,
+        _deps: &IndexSet<String>,
         entries: &HashMap<String, CacheEntry>,
         data_versions: &VersionTracker,
     ) -> Option<std::sync::Arc<Value>> {
         let entry = entries.get(eval_key)?;
-        for dep in deps {
-            let data_dep_path = crate::jsoneval::path_utils::schema_path_to_data_pointer(dep);
-
+        for (data_dep_path, &cached_ver) in &entry.dep_versions {
             let current_ver = if data_dep_path.starts_with("/$params") {
-                self.params_versions.get(&data_dep_path)
+                self.params_versions.get(data_dep_path)
             } else if let Some(idx) = self.active_item_index {
                 self.subform_caches
                     .get(&idx)
-                    .map(|c| c.data_versions.get(&data_dep_path))
+                    .map(|c| c.data_versions.get(data_dep_path))
                     .filter(|&v| v > 0)
-                    .unwrap_or_else(|| data_versions.get(&data_dep_path))
+                    .unwrap_or_else(|| data_versions.get(data_dep_path))
             } else {
-                data_versions.get(&data_dep_path)
+                data_versions.get(data_dep_path)
             };
 
-            if let Some(&cached_ver) = entry.dep_versions.get(data_dep_path.as_ref()) {
-                if current_ver != cached_ver {
-                    if crate::utils::is_debug_cache_enabled() {
-                        println!(
-                            "Cache MISS {}: dep {} changed ({} -> {})",
-                            eval_key, data_dep_path, cached_ver, current_ver
-                        );
-                    }
-                    return None;
-                }
-            } else {
+            if current_ver != cached_ver {
                 if crate::utils::is_debug_cache_enabled() {
                     println!(
-                        "Cache MISS {}: dep {} missing from cache entry",
-                        eval_key, data_dep_path
+                        "Cache MISS {}: dep {} changed ({} -> {})",
+                        eval_key, data_dep_path, cached_ver, current_ver
                     );
                 }
                 return None;

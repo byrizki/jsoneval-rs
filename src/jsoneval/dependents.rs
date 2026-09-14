@@ -33,8 +33,9 @@ impl JSONEval {
             }
         }
         let _lock = self.eval_lock.lock().unwrap();
-        let _static_guard =
-            self.engine.bind_static_arrays_scope(std::sync::Arc::clone(&self.static_arrays));
+        let _static_guard = self
+            .engine
+            .bind_static_arrays_scope(std::sync::Arc::clone(&self.static_arrays));
         let mut structural_change_data = None;
 
         // Update data if provided, diff versions
@@ -177,7 +178,7 @@ impl JSONEval {
                 self.evaluate_internal(None, token)?;
 
                 // Refresh subform computed values with updated T2 tables.
-                self.run_subform_pass(&[], &[], true, token, &mut result)?;
+                self.run_subform_pass(&extended_paths, changed_paths, true, token, &mut result)?;
 
                 // Patch the whole-array entry in result with the post-pass eval_data snapshot.
                 for (subform_path, _) in &self.subforms {
@@ -706,13 +707,17 @@ impl JSONEval {
         &mut self,
         changed_paths: &[String],
         parent_changed_paths: &[String],
-        _re_evaluate: bool,
+        re_evaluate: bool,
         token: Option<&CancellationToken>,
         result: &mut Vec<Value>,
     ) -> Result<bool, String> {
         let mut any_table_invalidated = false;
         // Collect subform paths once (avoids holding borrow on self.subforms during mutation)
         let subform_paths: Vec<String> = self.subforms.keys().cloned().collect();
+        self.eval_cache.subform_roots = subform_paths
+            .iter()
+            .map(|p| format!("/{}", subform_field_key(p)))
+            .collect();
 
         for subform_path in subform_paths {
             let field_key = subform_field_key(&subform_path);
@@ -763,7 +768,6 @@ impl JSONEval {
                 })
                 .collect();
 
-
             // Transitively expand parent_affected through self.dependencies
             // (e.g. parent_field -> lookup_table -> subform_field)
             let mut queue: std::collections::VecDeque<String> =
@@ -799,7 +803,8 @@ impl JSONEval {
                                 && !key.starts_with("#/$params/")
                                 && key.ends_with("/value")
                                 && deps.iter().any(|dep| {
-                                    let clean_dep = dep.trim_start_matches('#').trim_start_matches('/');
+                                    let clean_dep =
+                                        dep.trim_start_matches('#').trim_start_matches('/');
                                     parent_affected.contains(clean_dep)
                                         || parent_affected.iter().any(|p| {
                                             p.starts_with(clean_dep)
@@ -818,14 +823,16 @@ impl JSONEval {
                 .get(&subform_path)
                 .map(|subform| {
                     dependent_value_paths.iter().any(|source| {
-                        let source_clean = source.trim_end_matches("/value").trim_start_matches('#');
+                        let source_clean =
+                            source.trim_end_matches("/value").trim_start_matches('#');
                         let affected_tables: Vec<&String> = subform
                             .table_metadata
                             .keys()
                             .filter(|table| table.starts_with("#/$params"))
                             .filter(|table| {
                                 subform.dependencies.get(*table).is_some_and(|deps| {
-                                    deps.iter().any(|dep| dep.trim_start_matches('#') == source_clean)
+                                    deps.iter()
+                                        .any(|dep| dep.trim_start_matches('#') == source_clean)
                                 })
                             })
                             .collect();
@@ -854,7 +861,9 @@ impl JSONEval {
                     }
                 }
                 subform.static_arrays = std::sync::Arc::clone(&self.static_arrays);
-                subform.engine.set_static_arrays(std::sync::Arc::clone(&subform.static_arrays));
+                subform
+                    .engine
+                    .set_static_arrays(std::sync::Arc::clone(&subform.static_arrays));
             }
 
             for idx in 0..item_count {
@@ -982,7 +991,6 @@ impl JSONEval {
                         result.push(Value::Object(change));
                     }
 
-
                     Self::process_dependents_queue(
                         &subform.engine,
                         &subform.evaluations,
@@ -1066,7 +1074,11 @@ impl JSONEval {
                 // readonly values. Re-running every subform can evaluate a table with the transient
                 // parent state (for example a cleared `prem_pay_period`) and overwrite fresh global
                 // rows with an empty table. Only item-specific changed paths re-evaluate subforms.
-                let sub_re_evaluate = !item_changed_paths.is_empty();
+                let sub_re_evaluate = if changed_paths.is_empty() {
+                    re_evaluate
+                } else {
+                    !item_changed_paths.is_empty()
+                };
                 if !sub_re_evaluate && item_changed_paths.is_empty() {
                     continue;
                 }
@@ -1132,7 +1144,6 @@ impl JSONEval {
                     c.item_snapshot = new_item_val;
                 }
 
-
                 // Invalidate stale T2 $params table entries whose deps overlap any path newly
                 //
                 // These tables MUST be re-evaluated by the subform engine (not here) because
@@ -1174,15 +1185,13 @@ impl JSONEval {
                                     .map(|deps| {
                                         deps.iter().any(|dep| {
                                             let clean_dep = dep.trim_start_matches('#');
-                                            newly_bumped_schema_paths
-                                                .iter()
-                                                .any(|b| {
-                                                    let clean_b = b.trim_start_matches('#');
-                                                    clean_dep == clean_b
-                                                        || clean_dep.starts_with(clean_b)
-                                                        || b == dep
-                                                        || dep.starts_with(b.as_str())
-                                                })
+                                            newly_bumped_schema_paths.iter().any(|b| {
+                                                let clean_b = b.trim_start_matches('#');
+                                                clean_dep == clean_b
+                                                    || clean_dep.starts_with(clean_b)
+                                                    || b == dep
+                                                    || dep.starts_with(b.as_str())
+                                            })
                                         })
                                     })
                                     .unwrap_or(false)
@@ -1200,18 +1209,18 @@ impl JSONEval {
                 parent_cache.set_active_item(idx);
                 std::mem::swap(&mut subform.eval_cache, &mut parent_cache);
 
-                let subform_result = time_block!("    [subform_pass] subform item evaluate_dependents", {
-                    subform.evaluate_dependents(
-                        &item_changed_paths,
-                        None,
-                        None,
-                        sub_re_evaluate,
-                        token,
-                        None,
-                        false,
-                    )
-                });
-
+                let subform_result =
+                    time_block!("    [subform_pass] subform item evaluate_dependents", {
+                        subform.evaluate_dependents(
+                            &item_changed_paths,
+                            None,
+                            None,
+                            sub_re_evaluate,
+                            token,
+                            None,
+                            false,
+                        )
+                    });
                 // Restore parent cache
                 std::mem::swap(&mut subform.eval_cache, &mut parent_cache);
                 parent_cache.clear_active_item();
@@ -1293,6 +1302,7 @@ impl JSONEval {
                 }
             }
         }
+
         Ok(any_table_invalidated)
     }
 
@@ -1707,7 +1717,6 @@ impl JSONEval {
         while let Some((current_path, is_transitive, target_indices)) = queue.pop() {
             if let Some(t) = token {
                 if t.is_cancelled() {
-
                     if let Some(cp) = canceled_paths {
                         cp.push(current_path.clone());
                         for (path, _, _) in queue.iter() {
@@ -1782,7 +1791,8 @@ impl JSONEval {
                     let mut targets_by_source: std::collections::HashMap<String, Vec<usize>> =
                         std::collections::HashMap::new();
                     for (source_schema_path, dep_idx) in formula_sources {
-                        let source_ptr = path_utils::dot_notation_to_schema_pointer(source_schema_path);
+                        let source_ptr =
+                            path_utils::dot_notation_to_schema_pointer(source_schema_path);
                         targets_by_source
                             .entry(source_ptr)
                             .or_default()
@@ -1867,42 +1877,43 @@ impl JSONEval {
                     // Process value
                     if !clear_applied {
                         if let Some(value_val) = &dep_item.value {
-                        let computed_value = Self::evaluate_dependent_value_static(
-                            engine,
-                            evaluations,
-                            eval_data,
-                            value_val,
-                            &current_value,
-                            &current_ref_value,
-                        )?;
-                        let cleaned_val = clean_float_noise_scalar(computed_value);
+                            let computed_value = Self::evaluate_dependent_value_static(
+                                engine,
+                                evaluations,
+                                eval_data,
+                                value_val,
+                                &current_value,
+                                &current_ref_value,
+                            )?;
+                            let cleaned_val = clean_float_noise_scalar(computed_value);
 
-                        let is_clear =
-                            cleaned_val == Value::Null || cleaned_val.as_str() == Some("");
+                            let is_clear =
+                                cleaned_val == Value::Null || cleaned_val.as_str() == Some("");
 
-                        if cleaned_val != current_ref_value && !is_clear {
-                            if data_path == current_data_path {
-                                current_value = cleaned_val.clone();
+                            if cleaned_val != current_ref_value && !is_clear {
+                                if data_path == current_data_path {
+                                    current_value = cleaned_val.clone();
+                                }
+                                eval_data.set(&data_path, cleaned_val.clone());
+                                eval_cache.bump_data_version(&data_path);
+                                value_to_apply = Some(cleaned_val);
+                                add_transitive = true;
+                                add_deps = true;
                             }
-                            eval_data.set(&data_path, cleaned_val.clone());
-                            eval_cache.bump_data_version(&data_path);
-                            value_to_apply = Some(cleaned_val);
-                            add_transitive = true;
-                            add_deps = true;
                         }
                     }
-                }
 
                     // add only when has clear / value
                     if add_deps {
                         let field = evaluated_schema.pointer(&pointer_path).cloned();
 
                         // Get parent field - skip /properties/ to get actual parent object
-                        let parent_path = if let Some(last_slash) = pointer_path.rfind("/properties") {
-                            &pointer_path[..last_slash]
-                        } else {
-                            "/"
-                        };
+                        let parent_path =
+                            if let Some(last_slash) = pointer_path.rfind("/properties") {
+                                &pointer_path[..last_slash]
+                            } else {
+                                "/"
+                            };
                         let parent_field = extract_parent_field(evaluated_schema, parent_path);
 
                         let mut change_obj = serde_json::Map::new();
@@ -1940,7 +1951,7 @@ impl JSONEval {
 /// Examples:
 /// - `#/items`                                → `items`
 /// - `#/properties/form/properties/items`     → `items`
-fn subform_field_key(subform_path: &str) -> String {
+pub(crate) fn subform_field_key(subform_path: &str) -> String {
     // Strip leading `#/`
     let stripped = subform_path.trim_start_matches('#').trim_start_matches('/');
 

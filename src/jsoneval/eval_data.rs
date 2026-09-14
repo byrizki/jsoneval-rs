@@ -272,7 +272,7 @@ impl EvalData {
     }
 
     /// Set a value by JSON pointer, creating intermediate structures as needed
-    fn set_by_pointer(data: &mut Value, pointer: &str, new_value: Value) {
+    pub(crate) fn set_by_pointer(data: &mut Value, pointer: &str, new_value: Value) {
         if pointer.is_empty() {
             return;
         }

@@ -173,9 +173,9 @@ fn test_age_calculation_from_dob() {
     println!("Evaluation dependents result: {}", deps_result);
 
     let deps_array = deps_result.as_array().expect("deps should be array");
-    let age_dep = deps_array.iter().find(|item| {
-        item.get("$ref").and_then(|r| r.as_str()) == Some("form.user.age")
-    });
+    let age_dep = deps_array
+        .iter()
+        .find(|item| item.get("$ref").and_then(|r| r.as_str()) == Some("form.user.age"));
 
     assert!(age_dep.is_some(), "age should be updated");
     let age_val = age_dep.unwrap().get("value").unwrap();
@@ -248,9 +248,9 @@ fn test_age_calculation_datedif() {
         .expect("evaluate_dependents failed");
 
     let deps_array = deps_result.as_array().expect("deps should be array");
-    let age_dep = deps_array.iter().find(|item| {
-        item.get("$ref").and_then(|r| r.as_str()) == Some("form.user.age")
-    });
+    let age_dep = deps_array
+        .iter()
+        .find(|item| item.get("$ref").and_then(|r| r.as_str()) == Some("form.user.age"));
 
     assert!(age_dep.is_some(), "age should be updated");
     let age_val = age_dep.unwrap().get("value").unwrap();
@@ -355,9 +355,9 @@ fn test_age_calculation_opt_b() {
         .expect("evaluate_dependents failed");
 
     let deps_array = deps_result.as_array().expect("deps should be array");
-    let age_dep = deps_array.iter().find(|item| {
-        item.get("$ref").and_then(|r| r.as_str()) == Some("form.user.age")
-    });
+    let age_dep = deps_array
+        .iter()
+        .find(|item| item.get("$ref").and_then(|r| r.as_str()) == Some("form.user.age"));
 
     assert!(age_dep.is_some(), "age should be updated");
     let age_val = age_dep.unwrap().get("value").unwrap();
@@ -467,9 +467,9 @@ fn test_age_calculation_timezone_case() {
         .expect("evaluate_dependents failed");
 
     let deps_array = deps_result.as_array().expect("deps should be array");
-    let age_dep = deps_array.iter().find(|item| {
-        item.get("$ref").and_then(|r| r.as_str()) == Some("form.user.age")
-    });
+    let age_dep = deps_array
+        .iter()
+        .find(|item| item.get("$ref").and_then(|r| r.as_str()) == Some("form.user.age"));
 
     assert!(age_dep.is_some(), "age should be updated");
     let age_val = age_dep.unwrap().get("value").unwrap();

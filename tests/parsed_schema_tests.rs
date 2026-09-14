@@ -185,20 +185,27 @@ fn test_concurrent_table_calculation_stress() {
           }
         }
       }
-    }).to_string();
+    })
+    .to_string();
 
     let parsed = Arc::new(ParsedSchema::parse(&schema_json).expect("Failed to parse schema"));
 
-    let handles: Vec<_> = (1..=50).map(|i| {
-        let parsed_clone = Arc::clone(&parsed);
-        std::thread::spawn(move || {
-            let data = serde_json::json!({ "multiplier": i }).to_string();
-            let mut eval = JSONEval::with_parsed_schema(parsed_clone, None, Some(&data)).expect("init");
-            eval.evaluate(&data, None, None, None).expect("evaluate");
-            let res = eval.get_evaluated_schema();
-            assert_eq!(res.pointer("/properties/result"), Some(&serde_json::json!(4 * i)));
+    let handles: Vec<_> = (1..=50)
+        .map(|i| {
+            let parsed_clone = Arc::clone(&parsed);
+            std::thread::spawn(move || {
+                let data = serde_json::json!({ "multiplier": i }).to_string();
+                let mut eval =
+                    JSONEval::with_parsed_schema(parsed_clone, None, Some(&data)).expect("init");
+                eval.evaluate(&data, None, None, None).expect("evaluate");
+                let res = eval.get_evaluated_schema();
+                assert_eq!(
+                    res.pointer("/properties/result"),
+                    Some(&serde_json::json!(4 * i))
+                );
+            })
         })
-    }).collect();
+        .collect();
 
     for h in handles {
         h.join().unwrap();

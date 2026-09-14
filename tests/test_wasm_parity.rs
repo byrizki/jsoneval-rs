@@ -118,16 +118,24 @@ fn test_wasm_methods_parity() {
     let v_data = json!({
         "title": "",
         "contacts": [{ "phone": "" }]
-    }).to_string();
+    })
+    .to_string();
 
-    let res_without = wasm_val_eval.validate_to_value(&v_data, None, None, None, Some(false)).unwrap();
+    let res_without = wasm_val_eval
+        .validate_to_value(&v_data, None, None, None, Some(false))
+        .unwrap();
     assert_eq!(res_without["has_error"], true);
     assert!(res_without["error"]["title"].is_object());
     assert!(res_without["error"]["contacts.0.phone"].is_null());
 
-    let res_with = wasm_val_eval.validate_to_value(&v_data, None, None, None, Some(true)).unwrap();
+    let res_with = wasm_val_eval
+        .validate_to_value(&v_data, None, None, None, Some(true))
+        .unwrap();
     assert_eq!(res_with["has_error"], true);
     assert!(res_with["error"]["title"].is_object());
     assert!(res_with["error"]["contacts.0.phone"].is_object());
-    assert_eq!(res_with["error"]["contacts.0.phone"]["code"], "contacts.0.phone.required");
+    assert_eq!(
+        res_with["error"]["contacts.0.phone"]["code"],
+        "contacts.0.phone.required"
+    );
 }

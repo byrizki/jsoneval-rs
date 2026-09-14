@@ -60,9 +60,7 @@ fn test_evaluate_dependents_recursive_chain() {
     // Verify occupation_class changed to "2"
     let class_change = changes
         .iter()
-        .find(|c| {
-            c.get("$ref").and_then(|r| r.as_str()) == Some("form.user.occupation_class")
-        })
+        .find(|c| c.get("$ref").and_then(|r| r.as_str()) == Some("form.user.occupation_class"))
         .expect("occupation_class should change");
 
     assert_eq!(
@@ -73,9 +71,7 @@ fn test_evaluate_dependents_recursive_chain() {
     // Verify risk_category changed to "Medium" (recursive side effect)
     let risk_change = changes
         .iter()
-        .find(|c| {
-            c.get("$ref").and_then(|r| r.as_str()) == Some("form.user.risk_category")
-        })
+        .find(|c| c.get("$ref").and_then(|r| r.as_str()) == Some("form.user.risk_category"))
         .expect("risk_category should change recursively");
 
     assert_eq!(
@@ -146,9 +142,9 @@ fn test_evaluate_dependents_keep_hidden_value() {
     // We might accept a change event saying it's hidden, but crucially we must NOT see a "clear": true or a null value update
     // Note: implementation details might vary. The key requirement is DATA PRESERVATION.
 
-    let comments_change = changes.iter().find(|c| {
-        c.get("$ref").and_then(|r| r.as_str()) == Some("form.header.extra_comments")
-    });
+    let comments_change = changes
+        .iter()
+        .find(|c| c.get("$ref").and_then(|r| r.as_str()) == Some("form.header.extra_comments"));
 
     if let Some(change) = comments_change {
         // If there IS a change event, make sure it's not clearing the value
@@ -254,8 +250,7 @@ fn test_recursive_clearing() {
     let b_change = changes
         .iter()
         .find(|c| {
-            c.get("$ref").and_then(|r| r.as_str())
-                == Some("form.header.recursive_test.field_b")
+            c.get("$ref").and_then(|r| r.as_str()) == Some("form.header.recursive_test.field_b")
         })
         .expect("Should report field_b change");
 
@@ -271,7 +266,3 @@ fn test_recursive_clearing() {
         assert_eq!(c.get("$hidden"), Some(&Value::Bool(true)));
     }
 }
-
-
-
-

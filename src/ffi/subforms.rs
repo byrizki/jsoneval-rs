@@ -114,7 +114,14 @@ pub unsafe extern "C" fn json_eval_validate_subform(
         None
     };
 
-    match eval.validate_subform(path_str, data_str, context_str, None, token.as_ref(), Some(validate_readonly)) {
+    match eval.validate_subform(
+        path_str,
+        data_str,
+        context_str,
+        None,
+        token.as_ref(),
+        Some(validate_readonly),
+    ) {
         Ok(validation_result) => {
             let mut errors_map = serde_json::Map::new();
             for (path, err) in &validation_result.errors {

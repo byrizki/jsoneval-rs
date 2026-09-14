@@ -64,13 +64,8 @@ fn test_get_evaluated_schema_layout_sync() {
 
     // EVALUATE: hide_flag = false
     // Expected: condition.hidden should be false (layout should re-sync from updated evaluation)
-    eval.evaluate(
-        r#"{"form": {"hide_flag": false}}"#,
-        None,
-        None,
-        None,
-    )
-    .unwrap();
+    eval.evaluate(r#"{"form": {"hide_flag": false}}"#, None, None, None)
+        .unwrap();
     let result_false = eval.get_evaluated_schema_resolved();
 
     let layout_elem_false = result_false

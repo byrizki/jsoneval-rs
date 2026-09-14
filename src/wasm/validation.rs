@@ -201,13 +201,7 @@ impl JSONEvalWasm {
         validate_readonly: Option<bool>,
         include_subforms: Option<bool>,
     ) -> Result<JsValue, JsValue> {
-        match self.validate_to_value(
-            data,
-            context,
-            paths,
-            validate_readonly,
-            include_subforms,
-        ) {
+        match self.validate_to_value(data, context, paths, validate_readonly, include_subforms) {
             Ok(validation_result) => super::to_value(&validation_result).map_err(|e| {
                 let error_msg = format!("Failed to serialize validation result: {}", e);
                 console_log(&format!("[WASM ERROR] {}", error_msg));
