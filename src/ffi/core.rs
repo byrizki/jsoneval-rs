@@ -272,6 +272,11 @@ pub unsafe extern "C" fn json_eval_free_string(ptr: *mut c_char) {
     }
 }
 
+#[cfg(target_os = "linux")]
+extern "C" {
+    fn malloc_trim(pad: usize) -> std::os::raw::c_int;
+}
+
 /// Free a JSONEval instance
 ///
 /// # Safety
@@ -282,6 +287,10 @@ pub unsafe extern "C" fn json_eval_free_string(ptr: *mut c_char) {
 pub unsafe extern "C" fn json_eval_free(handle: *mut JSONEvalHandle) {
     if !handle.is_null() {
         drop(Box::from_raw(handle));
+        #[cfg(target_os = "linux")]
+        {
+            malloc_trim(0);
+        }
     }
 }
 

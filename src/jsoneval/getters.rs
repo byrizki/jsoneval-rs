@@ -817,11 +817,21 @@ impl JSONEval {
 
     /// Get evaluated schema without $params
     pub fn get_evaluated_schema_without_params(&mut self) -> Value {
-        let mut schema = self.get_evaluated_schema();
-        if let Value::Object(ref mut map) = schema {
-            map.remove("$params");
-        }
-        schema
+        time_block!("get_evaluated_schema_without_params()", {
+            let mut schema = if let Value::Object(map) = &self.evaluated_schema {
+                let mut filtered = serde_json::Map::with_capacity(map.len().saturating_sub(1));
+                for (k, v) in map {
+                    if k != "$params" {
+                        filtered.insert(k.clone(), v.clone());
+                    }
+                }
+                Value::Object(filtered)
+            } else {
+                self.evaluated_schema.clone()
+            };
+            self.resolve_static_markers_in_value(&mut schema);
+            schema
+        })
     }
 
     /// Get evaluated schema as MessagePack bytes (compact, without $layout resolution)

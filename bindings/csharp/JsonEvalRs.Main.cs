@@ -1163,12 +1163,14 @@ namespace JsonEvalRs
                 if (dataLen == 0)
                     throw new JsonEvalException("Empty JSON returned from native function");
 
-                // Zero-copy: read directly from Rust-owned memory
-                byte[] buffer = new byte[dataLen];
-                Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
-                
-                string json = Encoding.UTF8.GetString(buffer);
-                return JObject.Parse(json);
+                // Stream directly from Rust-owned unmanaged memory to eliminate LOH byte[] and string allocations
+                unsafe
+                {
+                    using var stream = new System.IO.UnmanagedMemoryStream((byte*)result.DataPtr.ToPointer(), dataLen);
+                    using var streamReader = new System.IO.StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, bufferSize: 4096, leaveOpen: true);
+                    using var jsonReader = new JsonTextReader(streamReader);
+                    return JObject.Load(jsonReader);
+                }
             }
             finally
             {
@@ -1201,12 +1203,14 @@ namespace JsonEvalRs
                 if (dataLen == 0)
                     throw new JsonEvalException("Empty JSON returned from native function");
 
-                // Zero-copy: read directly from Rust-owned memory
-                byte[] buffer = new byte[dataLen];
-                Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
-                
-                string json = Encoding.UTF8.GetString(buffer);
-                return JArray.Parse(json);
+                // Stream directly from Rust-owned unmanaged memory to eliminate LOH allocations
+                unsafe
+                {
+                    using var stream = new System.IO.UnmanagedMemoryStream((byte*)result.DataPtr.ToPointer(), dataLen);
+                    using var streamReader = new System.IO.StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, bufferSize: 4096, leaveOpen: true);
+                    using var jsonReader = new JsonTextReader(streamReader);
+                    return JArray.Load(jsonReader);
+                }
             }
             finally
             {
@@ -1239,9 +1243,10 @@ namespace JsonEvalRs
                 if (dataLen == 0)
                     return string.Empty;
 
-                byte[] buffer = new byte[dataLen];
-                Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
-                return Encoding.UTF8.GetString(buffer);
+                unsafe
+                {
+                    return Encoding.UTF8.GetString((byte*)result.DataPtr.ToPointer(), dataLen);
+                }
             }
             finally
             {
@@ -1274,13 +1279,15 @@ namespace JsonEvalRs
                 if (dataLen == 0)
                     throw new JsonEvalException("Empty JSON returned from native function");
 
-                // Zero-copy: read directly from Rust-owned memory
-                byte[] buffer = new byte[dataLen];
-                Marshal.Copy(result.DataPtr, buffer, 0, dataLen);
-                
-                string json = Encoding.UTF8.GetString(buffer);
-                var obj = JObject.Parse(json);
-                return obj.ToObject<T>() ?? throw new JsonEvalException("Failed to deserialize result");
+                // Stream directly from Rust-owned unmanaged memory into target type
+                unsafe
+                {
+                    using var stream = new System.IO.UnmanagedMemoryStream((byte*)result.DataPtr.ToPointer(), dataLen);
+                    using var streamReader = new System.IO.StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, bufferSize: 4096, leaveOpen: true);
+                    using var jsonReader = new JsonTextReader(streamReader);
+                    var serializer = JsonSerializer.CreateDefault();
+                    return serializer.Deserialize<T>(jsonReader) ?? throw new JsonEvalException("Failed to deserialize result");
+                }
             }
             finally
             {
