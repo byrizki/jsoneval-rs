@@ -351,6 +351,62 @@ impl JSONEvalWasm {
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
+    /// Get plain $params from subform (compact)
+    ///
+    /// @param subformPath - Path to the subform
+    /// @returns Plain $params as JSON string or null if not found
+    #[wasm_bindgen(js_name = getPlainParamsSubform)]
+    pub fn get_plain_params_subform(&self, subform_path: &str) -> Option<String> {
+        self.inner
+            .get_plain_params_subform(subform_path)
+            .map(|v| serde_json::to_string(&v).unwrap_or_else(|_| "null".to_string()))
+    }
+
+    /// Get plain $params from subform as JavaScript object
+    ///
+    /// @param subformPath - Path to the subform
+    /// @returns Plain $params as JavaScript object or null if not found
+    #[wasm_bindgen(js_name = getPlainParamsSubformJS)]
+    pub fn get_plain_params_subform_js(&self, subform_path: &str) -> Result<JsValue, JsValue> {
+        match self.inner.get_plain_params_subform(subform_path) {
+            Some(v) => super::to_value(&v).map_err(|e| JsValue::from_str(&e.to_string())),
+            None => Ok(JsValue::NULL),
+        }
+    }
+
+    /// Get evaluated $params from subform (compact)
+    ///
+    /// @param subformPath - Path to the subform
+    /// @param with_static_array - Whether to include static array data (default: false)
+    /// @returns Evaluated $params as JSON string or null if not found
+    #[wasm_bindgen(js_name = getEvaluatedParamsSubform)]
+    pub fn get_evaluated_params_subform(
+        &mut self,
+        subform_path: &str,
+        with_static_array: Option<bool>,
+    ) -> Option<String> {
+        self.inner
+            .get_evaluated_params_subform(subform_path, with_static_array.unwrap_or(false))
+            .map(|v| serde_json::to_string(&v).unwrap_or_else(|_| "null".to_string()))
+    }
+
+    /// Get evaluated $params from subform as JavaScript object
+    ///
+    /// @param subformPath - Path to the subform
+    /// @param with_static_array - Whether to include static array data (default: false)
+    /// @returns Evaluated $params as JavaScript object or null if not found
+    #[wasm_bindgen(js_name = getEvaluatedParamsSubformJS)]
+    pub fn get_evaluated_params_subform_js(
+        &mut self,
+        subform_path: &str,
+        with_static_array: Option<bool>,
+    ) -> Result<JsValue, JsValue> {
+        match self.inner.get_evaluated_params_subform(subform_path, with_static_array.unwrap_or(false)) {
+            Some(v) => super::to_value(&v).map_err(|e| JsValue::from_str(&e.to_string())),
+            None => Ok(JsValue::NULL),
+        }
+    }
+
     /// Get evaluated schema by specific path from subform (compact)
     ///
     /// @param subformPath - Path to the subform

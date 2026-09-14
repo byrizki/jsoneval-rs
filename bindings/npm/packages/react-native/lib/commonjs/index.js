@@ -457,6 +457,27 @@ class JSONEval {
   }
 
   /**
+   * Get plain $params from schema (compact, without static array data)
+   * @returns Promise resolving to plain $params object or null if not found
+   * @throws {Error} If operation fails
+   */
+  async getPlainParams() {
+    this.throwIfDisposed();
+    return await this._callNativeJsonOrNull('getPlainParams');
+  }
+
+  /**
+   * Get evaluated $params from schema (compact)
+   * @param withStaticArray - Whether to include static array data (default: false)
+   * @returns Promise resolving to evaluated $params object or null if not found
+   * @throws {Error} If operation fails
+   */
+  async getEvaluatedParams(withStaticArray = false) {
+    this.throwIfDisposed();
+    return await this._callNativeJsonOrNull('getEvaluatedParams', withStaticArray);
+  }
+
+  /**
    * Get a value from the evaluated schema using dotted path notation (compact)
    * @param path - Dotted path to the value (e.g., "properties.field.value")
    * @returns Promise resolving to the value at the path, or null if not found
@@ -834,6 +855,28 @@ class JSONEval {
   async getEvaluatedSchemaWithoutParamsSubform(options) {
     this.throwIfDisposed();
     return await this._callNativeJson('getEvaluatedSchemaWithoutParamsSubform', options.subformPath);
+  }
+
+  /**
+   * Get plain $params from subform (compact, without static array data)
+   * @param options - Options including subform path
+   * @returns Promise resolving to plain $params object or null if not found
+   * @throws {Error} If operation fails
+   */
+  async getPlainParamsSubform(options) {
+    this.throwIfDisposed();
+    return await this._callNativeJsonOrNull('getPlainParamsSubform', options.subformPath);
+  }
+
+  /**
+   * Get evaluated $params from subform (compact)
+   * @param options - Options including subform path and optional withStaticArray flag
+   * @returns Promise resolving to evaluated $params object or null if not found
+   * @throws {Error} If operation fails
+   */
+  async getEvaluatedParamsSubform(options) {
+    this.throwIfDisposed();
+    return await this._callNativeJsonOrNull('getEvaluatedParamsSubform', options.subformPath, options.withStaticArray ?? false);
   }
 
   /**

@@ -69,6 +69,8 @@ export interface JsonEvalJSIGlobal {
   getSchemaValueArray(handle: string): string;
   getSchemaValueObject(handle: string): string;
   getEvaluatedSchemaWithoutParams(handle: string): string;
+  getPlainParams(handle: string): string;
+  getEvaluatedParams(handle: string, withStaticArray?: boolean): string;
   getEvaluatedSchemaByPath(
     handle: string,
     path: string
@@ -169,6 +171,12 @@ export interface JsonEvalJSIGlobal {
   getEvaluatedSchemaWithoutParamsSubform(
     handle: string,
     subformPath: string
+  ): string;
+  getPlainParamsSubform(handle: string, subformPath: string): string;
+  getEvaluatedParamsSubform(
+    handle: string,
+    subformPath: string,
+    withStaticArray?: boolean
   ): string;
   getEvaluatedSchemaByPathSubform(
     handle: string,

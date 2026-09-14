@@ -1,6 +1,6 @@
-import { type JSONEvalOptions, type EvaluateOptions, type EvaluateDependentsOptions, type LayoutOverlayEntry, type EvaluateSubformOptions, type ValidateSubformOptions, type EvaluateDependentsSubformOptions, type ResolveLayoutSubformOptions, type GetEvaluatedSchemaSubformOptions, type GetSchemaValueSubformOptions, type GetEvaluatedSchemaByPathSubformOptions, type GetEvaluatedSchemaByPathsSubformOptions, type GetSchemaByPathSubformOptions, type GetSchemaByPathsSubformOptions, type ValidationResult, type DependentChange, type SchemaValueItem, type ValidateOptions, type ValidatePathsOptions, ReturnFormat } from '@json-eval-rs/common';
+import { type JSONEvalOptions, type EvaluateOptions, type EvaluateDependentsOptions, type LayoutOverlayEntry, type EvaluateSubformOptions, type ValidateSubformOptions, type EvaluateDependentsSubformOptions, type ResolveLayoutSubformOptions, type GetEvaluatedSchemaSubformOptions, type GetEvaluatedParamsSubformOptions, type GetSchemaValueSubformOptions, type GetEvaluatedSchemaByPathSubformOptions, type GetEvaluatedSchemaByPathsSubformOptions, type GetSchemaByPathSubformOptions, type GetSchemaByPathsSubformOptions, type ValidationResult, type DependentChange, type SchemaValueItem, type ValidateOptions, type ValidatePathsOptions, ReturnFormat } from '@json-eval-rs/common';
 export { ReturnFormat } from '@json-eval-rs/common';
-export type { LayoutOverlayEntry, SchemaValueItem, ValidationResult, DependentChange, ValidationError, JSONEvalOptions, EvaluateOptions, ValidateOptions, ValidatePathsOptions, EvaluateDependentsOptions, EvaluateSubformOptions, ValidateSubformOptions, EvaluateDependentsSubformOptions, ResolveLayoutSubformOptions, GetEvaluatedSchemaSubformOptions, GetSchemaValueSubformOptions, GetEvaluatedSchemaByPathSubformOptions, GetEvaluatedSchemaByPathsSubformOptions, GetSchemaByPathSubformOptions, GetSchemaByPathsSubformOptions, } from '@json-eval-rs/common';
+export type { LayoutOverlayEntry, SchemaValueItem, ValidationResult, DependentChange, ValidationError, JSONEvalOptions, EvaluateOptions, ValidateOptions, ValidatePathsOptions, EvaluateDependentsOptions, EvaluateSubformOptions, ValidateSubformOptions, EvaluateDependentsSubformOptions, ResolveLayoutSubformOptions, GetEvaluatedSchemaSubformOptions, GetEvaluatedParamsSubformOptions, GetSchemaValueSubformOptions, GetEvaluatedSchemaByPathSubformOptions, GetEvaluatedSchemaByPathsSubformOptions, GetSchemaByPathSubformOptions, GetSchemaByPathsSubformOptions, } from '@json-eval-rs/common';
 /**
  * High-performance JSON Logic evaluator with schema validation for React Native
  *
@@ -197,6 +197,19 @@ export declare class JSONEval {
      * @throws {Error} If operation fails
      */
     getEvaluatedSchemaWithoutParams(): Promise<any>;
+    /**
+     * Get plain $params from schema (compact, without static array data)
+     * @returns Promise resolving to plain $params object or null if not found
+     * @throws {Error} If operation fails
+     */
+    getPlainParams(): Promise<any | null>;
+    /**
+     * Get evaluated $params from schema (compact)
+     * @param withStaticArray - Whether to include static array data (default: false)
+     * @returns Promise resolving to evaluated $params object or null if not found
+     * @throws {Error} If operation fails
+     */
+    getEvaluatedParams(withStaticArray?: boolean): Promise<any | null>;
     /**
      * Get a value from the evaluated schema using dotted path notation (compact)
      * @param path - Dotted path to the value (e.g., "properties.field.value")
@@ -417,6 +430,20 @@ export declare class JSONEval {
      * @throws {Error} If operation fails
      */
     getEvaluatedSchemaWithoutParamsSubform(options: GetEvaluatedSchemaSubformOptions): Promise<any>;
+    /**
+     * Get plain $params from subform (compact, without static array data)
+     * @param options - Options including subform path
+     * @returns Promise resolving to plain $params object or null if not found
+     * @throws {Error} If operation fails
+     */
+    getPlainParamsSubform(options: GetEvaluatedSchemaSubformOptions): Promise<any | null>;
+    /**
+     * Get evaluated $params from subform (compact)
+     * @param options - Options including subform path and optional withStaticArray flag
+     * @returns Promise resolving to evaluated $params object or null if not found
+     * @throws {Error} If operation fails
+     */
+    getEvaluatedParamsSubform(options: GetEvaluatedParamsSubformOptions): Promise<any | null>;
     /**
      * Get evaluated schema by specific path from subform (compact)
      * @param options - Options including subform path and schema path

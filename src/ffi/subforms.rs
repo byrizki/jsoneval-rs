@@ -397,6 +397,62 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_without_params_subform(
     FFIResult::success(result_bytes)
 }
 
+/// Get plain $params from subform
+///
+/// # Safety
+///
+/// - handle must be a valid pointer from json_eval_new
+/// - subform_path must be a valid null-terminated UTF-8 string
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_get_plain_params_subform(
+    handle: *mut JSONEvalHandle,
+    subform_path: *const c_char,
+) -> FFIResult {
+    if handle.is_null() || subform_path.is_null() {
+        return FFIResult::error("Invalid pointer".to_string());
+    }
+
+    let eval = &(*handle).inner;
+
+    let path_str = match CStr::from_ptr(subform_path).to_str() {
+        Ok(s) => s,
+        Err(_) => return FFIResult::error("Invalid UTF-8 in subform_path".to_string()),
+    };
+
+    let result = eval.get_plain_params_subform(path_str);
+    let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
+    FFIResult::success(result_bytes)
+}
+
+/// Get evaluated $params from subform
+///
+/// # Safety
+///
+/// - handle must be a valid pointer from json_eval_new
+/// - subform_path must be a valid null-terminated UTF-8 string
+/// - with_static_array controls whether static arrays are resolved (true) or stripped (false)
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_get_evaluated_params_subform(
+    handle: *mut JSONEvalHandle,
+    subform_path: *const c_char,
+    with_static_array: bool,
+) -> FFIResult {
+    if handle.is_null() || subform_path.is_null() {
+        return FFIResult::error("Invalid pointer".to_string());
+    }
+
+    let eval = &mut (*handle).inner;
+
+    let path_str = match CStr::from_ptr(subform_path).to_str() {
+        Ok(s) => s,
+        Err(_) => return FFIResult::error("Invalid UTF-8 in subform_path".to_string()),
+    };
+
+    let result = eval.get_evaluated_params_subform(path_str, with_static_array);
+    let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
+    FFIResult::success(result_bytes)
+}
+
 /// Get evaluated schema by specific path from subform (compact)
 ///
 /// # Safety

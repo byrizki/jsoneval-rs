@@ -294,6 +294,57 @@ namespace JsonEvalRs
         }
 
         /// <summary>
+        /// Gets the plain $params from a subform (without static array data).
+        /// </summary>
+        /// <param name="subformPath">Path to the subform</param>
+        /// <returns>Plain $params as JObject, or null if not present</returns>
+        public JObject? GetPlainParamsSubform(string subformPath)
+        {
+            ThrowIfDisposed();
+            if (string.IsNullOrEmpty(subformPath))
+                throw new ArgumentNullException(nameof(subformPath));
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+            var result = Native.json_eval_get_plain_params_subform(_handle, subformPath);
+#else
+            var result = Native.json_eval_get_plain_params_subform(_handle, Native.ToUTF8Bytes(subformPath)!);
+#endif
+            return ProcessResultNullableJObject(result);
+        }
+
+        /// <summary>
+        /// Alias for <see cref="GetPlainParamsSubform(string)"/>.
+        /// </summary>
+        public JObject? getPlainParamsSubform(string subformPath) =>
+            GetPlainParamsSubform(subformPath);
+
+        /// <summary>
+        /// Gets the evaluated $params from a subform.
+        /// </summary>
+        /// <param name="subformPath">Path to the subform</param>
+        /// <param name="withStaticArray">Whether to include static array data (default: false)</param>
+        /// <returns>Evaluated $params as JObject, or null if not present</returns>
+        public JObject? GetEvaluatedParamsSubform(string subformPath, bool withStaticArray = false)
+        {
+            ThrowIfDisposed();
+            if (string.IsNullOrEmpty(subformPath))
+                throw new ArgumentNullException(nameof(subformPath));
+
+#if NETCOREAPP || NET5_0_OR_GREATER
+            var result = Native.json_eval_get_evaluated_params_subform(_handle, subformPath, withStaticArray);
+#else
+            var result = Native.json_eval_get_evaluated_params_subform(_handle, Native.ToUTF8Bytes(subformPath)!, withStaticArray);
+#endif
+            return ProcessResultNullableJObject(result);
+        }
+
+        /// <summary>
+        /// Alias for <see cref="GetEvaluatedParamsSubform(string, bool)"/>.
+        /// </summary>
+        public JObject? getEvaluatedParamsSubform(string subformPath, bool withStaticArray = false) =>
+            GetEvaluatedParamsSubform(subformPath, withStaticArray);
+
+        /// <summary>
         /// Get evaluated schema by specific path from subform (compact)
         /// </summary>
         /// <param name="subformPath">Path to the subform</param>

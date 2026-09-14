@@ -383,6 +383,41 @@ RCT_EXPORT_METHOD(getEvaluatedSchemaWithoutParams:(NSString *)handle
     );
 }
 
+RCT_EXPORT_METHOD(getPlainParams:(NSString *)handle
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    
+    JsonEvalBridge::getPlainParamsAsync(handleStr,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"GET_PLAIN_PARAMS_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_METHOD(getEvaluatedParams:(NSString *)handle
+                  withStaticArray:(BOOL)withStaticArray
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    
+    JsonEvalBridge::getEvaluatedParamsAsync(handleStr, withStaticArray,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"GET_EVALUATED_PARAMS_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
 RCT_EXPORT_METHOD(getEvaluatedSchemaByPath:(NSString *)handle
                   path:(NSString *)path
                   resolver:(RCTPromiseResolveBlock)resolve
@@ -797,6 +832,45 @@ RCT_EXPORT_METHOD(getEvaluatedSchemaWithoutParamsSubform:(NSString *)handle
                 resolve([NSString stringWithUTF8String:result.c_str()]);
             } else {
                 reject(@"GET_EVALUATED_SCHEMA_WITHOUT_PARAMS_SUBFORM_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_METHOD(getPlainParamsSubform:(NSString *)handle
+                  subformPath:(NSString *)subformPath
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    std::string pathStr = [self stdStringFromNSString:subformPath];
+    
+    JsonEvalBridge::getPlainParamsSubformAsync(handleStr, pathStr,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"GET_PLAIN_PARAMS_SUBFORM_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
+            }
+        }
+    );
+}
+
+RCT_EXPORT_METHOD(getEvaluatedParamsSubform:(NSString *)handle
+                  subformPath:(NSString *)subformPath
+                  withStaticArray:(BOOL)withStaticArray
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    std::string handleStr = [self stdStringFromNSString:handle];
+    std::string pathStr = [self stdStringFromNSString:subformPath];
+    
+    JsonEvalBridge::getEvaluatedParamsSubformAsync(handleStr, pathStr, withStaticArray,
+        [resolve, reject](const std::string& result, const std::string& error) {
+            if (error.empty()) {
+                resolve([NSString stringWithUTF8String:result.c_str()]);
+            } else {
+                reject(@"GET_EVALUATED_PARAMS_SUBFORM_ERROR", [NSString stringWithUTF8String:error.c_str()], nil);
             }
         }
     );

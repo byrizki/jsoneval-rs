@@ -828,6 +828,27 @@ impl JSONEval {
         }
     }
 
+    /// Get plain $params from subform.
+    pub fn get_plain_params_subform(
+        &self,
+        subform_path: &str,
+    ) -> Option<Value> {
+        let (base_path, _) = self.resolve_subform_path_alias(subform_path);
+        let subform = self.subforms.get(base_path.as_ref() as &str)?;
+        subform.get_plain_params()
+    }
+
+    /// Get evaluated $params from subform.
+    pub fn get_evaluated_params_subform(
+        &mut self,
+        subform_path: &str,
+        with_static_array: bool,
+    ) -> Option<Value> {
+        let (base_path, _) = self.resolve_subform_path_alias(subform_path);
+        let subform = self.subforms.get_mut(base_path.as_ref() as &str)?;
+        subform.get_evaluated_params(with_static_array)
+    }
+
     /// Get evaluated schema by specific path from subform.
     pub fn get_evaluated_schema_by_path_subform(
         &mut self,

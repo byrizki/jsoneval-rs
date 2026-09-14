@@ -102,6 +102,50 @@ impl JSONEvalWasm {
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
+    /// Get plain $params from schema (compact)
+    ///
+    /// @returns Plain $params as JSON string or null if not found
+    #[wasm_bindgen(js_name = getPlainParams)]
+    pub fn get_plain_params(&self) -> Option<String> {
+        self.inner
+            .get_plain_params()
+            .map(|v| serde_json::to_string(&v).unwrap_or_else(|_| "null".to_string()))
+    }
+
+    /// Get plain $params from schema as JavaScript object
+    ///
+    /// @returns Plain $params as JavaScript object or null if not found
+    #[wasm_bindgen(js_name = getPlainParamsJS)]
+    pub fn get_plain_params_js(&self) -> Result<JsValue, JsValue> {
+        match self.inner.get_plain_params() {
+            Some(v) => super::to_value(&v).map_err(|e| JsValue::from_str(&e.to_string())),
+            None => Ok(JsValue::NULL),
+        }
+    }
+
+    /// Get evaluated $params from evaluated schema (compact)
+    ///
+    /// @param with_static_array - Whether to include static array data (default: false)
+    /// @returns Evaluated $params as JSON string or null if not found
+    #[wasm_bindgen(js_name = getEvaluatedParams)]
+    pub fn get_evaluated_params(&mut self, with_static_array: Option<bool>) -> Option<String> {
+        self.inner
+            .get_evaluated_params(with_static_array.unwrap_or(false))
+            .map(|v| serde_json::to_string(&v).unwrap_or_else(|_| "null".to_string()))
+    }
+
+    /// Get evaluated $params from evaluated schema as JavaScript object
+    ///
+    /// @param with_static_array - Whether to include static array data (default: false)
+    /// @returns Evaluated $params as JavaScript object or null if not found
+    #[wasm_bindgen(js_name = getEvaluatedParamsJS)]
+    pub fn get_evaluated_params_js(&mut self, with_static_array: Option<bool>) -> Result<JsValue, JsValue> {
+        match self.inner.get_evaluated_params(with_static_array.unwrap_or(false)) {
+            Some(v) => super::to_value(&v).map_err(|e| JsValue::from_str(&e.to_string())),
+            None => Ok(JsValue::NULL),
+        }
+    }
+
     /// Get a value from the evaluated schema using dotted path notation
     ///
     /// @param path - Dotted path to the value (e.g., "properties.field.value")

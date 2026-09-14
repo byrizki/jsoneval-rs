@@ -63,6 +63,22 @@ jest.mock('react-native', () => ({
       getEvaluatedSchemaResolvedSubform: jest.fn(() => {
         throw new Error('wrapper must not call native resolved subform getter');
       }),
+      getPlainParams: jest.fn(() => JSON.stringify({ meta: 'v1' })),
+      getEvaluatedParams: jest.fn((_handle, withStaticArray) =>
+        JSON.stringify(
+          withStaticArray
+            ? { meta: 'v1', static_data: [1, 2, 3] }
+            : { meta: 'v1' }
+        )
+      ),
+      getPlainParamsSubform: jest.fn(() => JSON.stringify({ sub_meta: 'sub_v1' })),
+      getEvaluatedParamsSubform: jest.fn((_handle, _subformPath, withStaticArray) =>
+        JSON.stringify(
+          withStaticArray
+            ? { sub_meta: 'sub_v1', sub_static: [1, 2] }
+            : { sub_meta: 'sub_v1' }
+        )
+      ),
     },
   },
   Platform: { select: jest.fn(() => '') },
@@ -100,5 +116,35 @@ describe('resolved schema composition', () => {
     expect(resolved.subform.$layout.elements[1].$fullpath).toBe(
       'subform.$layout.elements.1',
     );
+  });
+
+  it('retrieves plain and evaluated params with static array options', async () => {
+    const plain = await evaluator.getPlainParams();
+    expect(plain).toEqual({ meta: 'v1' });
+
+    const evalWithout = await evaluator.getEvaluatedParams(false);
+    expect(evalWithout).toEqual({ meta: 'v1' });
+
+    const evalWith = await evaluator.getEvaluatedParams(true);
+    expect(evalWith).toEqual({ meta: 'v1', static_data: [1, 2, 3] });
+  });
+
+  it('retrieves subform plain and evaluated params', async () => {
+    const plainSub = await evaluator.getPlainParamsSubform({
+      subformPath: '#/subform',
+    });
+    expect(plainSub).toEqual({ sub_meta: 'sub_v1' });
+
+    const evalSubWithout = await evaluator.getEvaluatedParamsSubform({
+      subformPath: '#/subform',
+      withStaticArray: false,
+    });
+    expect(evalSubWithout).toEqual({ sub_meta: 'sub_v1' });
+
+    const evalSubWith = await evaluator.getEvaluatedParamsSubform({
+      subformPath: '#/subform',
+      withStaticArray: true,
+    });
+    expect(evalSubWith).toEqual({ sub_meta: 'sub_v1', sub_static: [1, 2] });
   });
 });

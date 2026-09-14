@@ -271,6 +271,19 @@ namespace JsonEvalRs
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_get_plain_params_subform(
+            IntPtr handle,
+            byte[] subformPath
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_get_evaluated_params_subform(
+            IntPtr handle,
+            byte[] subformPath,
+            [MarshalAs(UnmanagedType.I1)] bool withStaticArray
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_get_evaluated_schema_by_path_subform(
             IntPtr handle,
             byte[] subformPath,

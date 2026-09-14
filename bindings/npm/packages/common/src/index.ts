@@ -29,6 +29,7 @@ export {
   EvaluateDependentsSubformOptions,
   ResolveLayoutSubformOptions,
   GetEvaluatedSchemaSubformOptions,
+  GetEvaluatedParamsSubformOptions,
   GetSchemaValueSubformOptions,
   GetEvaluatedSchemaByPathSubformOptions,
   GetEvaluatedSchemaByPathsSubformOptions,

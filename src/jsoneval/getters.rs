@@ -834,6 +834,74 @@ impl JSONEval {
         })
     }
 
+    fn process_params_static_arrays(&self, params_val: &Value, with_static_array: bool) -> Value {
+        let mut params = params_val.clone();
+        if with_static_array {
+            for (static_key, array_arc) in self.static_arrays.iter() {
+                let rel_path = if let Some(path) = static_key.strip_prefix("/$params") {
+                    path
+                } else if let Some(path) = static_key.strip_prefix("/$table/$params") {
+                    path
+                } else {
+                    continue;
+                };
+
+                if let Some(target) = params.pointer_mut(rel_path) {
+                    *target = (**array_arc).clone();
+                }
+            }
+        } else {
+            Self::strip_static_array_markers(&mut params);
+        }
+        params
+    }
+
+    fn strip_static_array_markers(val: &mut Value) {
+        match val {
+            Value::Object(map) => {
+                map.retain(|_, v| {
+                    if let Value::Object(child_map) = v {
+                        !child_map.contains_key("$static_array")
+                    } else {
+                        true
+                    }
+                });
+                for v in map.values_mut() {
+                    Self::strip_static_array_markers(v);
+                }
+            }
+            Value::Array(arr) => {
+                arr.retain(|v| {
+                    if let Value::Object(child_map) = v {
+                        !child_map.contains_key("$static_array")
+                    } else {
+                        true
+                    }
+                });
+                for v in arr.iter_mut() {
+                    Self::strip_static_array_markers(v);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Get plain `$params` from the original schema (without static array data).
+    pub fn get_plain_params(&self) -> Option<Value> {
+        let raw_params = self.schema.get("$params")?;
+        Some(self.process_params_static_arrays(raw_params, false))
+    }
+
+    /// Get evaluated `$params` from `evaluated_schema`.
+    ///
+    /// # Arguments
+    /// * `with_static_array` - If true, static arrays extracted to `static_arrays` are resolved
+    ///   back into `$params`. If false, static array keys are omitted/stripped.
+    pub fn get_evaluated_params(&mut self, with_static_array: bool) -> Option<Value> {
+        let raw_params = self.evaluated_schema.get("$params")?;
+        Some(self.process_params_static_arrays(raw_params, with_static_array))
+    }
+
     /// Get evaluated schema as MessagePack bytes (compact, without $layout resolution)
     pub fn get_evaluated_schema_msgpack(&mut self) -> Result<Vec<u8>, String> {
         let schema = self.get_evaluated_schema();

@@ -536,6 +536,39 @@ namespace JsonEvalRs
         }
 
         /// <summary>
+        /// Gets the plain $params from the original schema (without static array data).
+        /// </summary>
+        /// <returns>Plain $params as JObject, or null if not present</returns>
+        public JObject? GetPlainParams()
+        {
+            ThrowIfDisposed();
+            var result = Native.json_eval_get_plain_params(_handle);
+            return ProcessResultNullableJObject(result);
+        }
+
+        /// <summary>
+        /// Alias for <see cref="GetPlainParams()"/>.
+        /// </summary>
+        public JObject? getPlainParams() => GetPlainParams();
+
+        /// <summary>
+        /// Gets the evaluated $params from the evaluated schema.
+        /// </summary>
+        /// <param name="withStaticArray">Whether to include static array data (default: false)</param>
+        /// <returns>Evaluated $params as JObject, or null if not present</returns>
+        public JObject? GetEvaluatedParams(bool withStaticArray = false)
+        {
+            ThrowIfDisposed();
+            var result = Native.json_eval_get_evaluated_params(_handle, withStaticArray);
+            return ProcessResultNullableJObject(result);
+        }
+
+        /// <summary>
+        /// Alias for <see cref="GetEvaluatedParams(bool)"/>.
+        /// </summary>
+        public JObject? getEvaluatedParams(bool withStaticArray = false) => GetEvaluatedParams(withStaticArray);
+
+        /// <summary>
         /// Gets a value from the evaluated schema using dotted path notation (compact)
         /// </summary>
         /// <param name="path">Dotted path to the value (e.g., "properties.field.value")</param>
@@ -1170,6 +1203,47 @@ namespace JsonEvalRs
                     using var streamReader = new System.IO.StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, bufferSize: 4096, leaveOpen: true);
                     using var jsonReader = new JsonTextReader(streamReader);
                     return JObject.Load(jsonReader);
+                }
+            }
+            finally
+            {
+                Native.json_eval_free_result(result);
+            }
+        }
+
+        private JObject? ProcessResultNullableJObject(Native.FFIResult result)
+        {
+            try
+            {
+                if (!result.Success)
+                {
+#if NETCOREAPP || NET5_0_OR_GREATER
+                    string error = result.Error != IntPtr.Zero
+                        ? Marshal.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                        : "Unknown error";
+#else
+                    string error = result.Error != IntPtr.Zero
+                        ? Native.PtrToStringUTF8(result.Error) ?? "Unknown error"
+                        : "Unknown error";
+#endif
+                    throw new JsonEvalException(error);
+                }
+
+                if (result.DataPtr == IntPtr.Zero)
+                    return null;
+
+                int dataLen = (int)result.DataLen.ToUInt32();
+                if (dataLen == 0)
+                    return null;
+
+                // Stream directly from Rust-owned unmanaged memory to eliminate LOH byte[] and string allocations
+                unsafe
+                {
+                    using var stream = new System.IO.UnmanagedMemoryStream((byte*)result.DataPtr.ToPointer(), dataLen);
+                    using var streamReader = new System.IO.StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, bufferSize: 4096, leaveOpen: true);
+                    using var jsonReader = new JsonTextReader(streamReader);
+                    var token = JToken.Load(jsonReader);
+                    return token.Type == JTokenType.Null ? null : token as JObject;
                 }
             }
             finally

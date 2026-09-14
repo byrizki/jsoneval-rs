@@ -554,6 +554,36 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedSchemaWithoutParamsAsync(
 }
 
 JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeGetPlainParamsAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+
+    runAsyncWithPromise(env, promise, "GET_PLAIN_PARAMS_ERROR", [handleStr](auto callback) {
+        JsonEvalBridge::getPlainParamsAsync(handleStr, callback);
+    });
+}
+
+JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedParamsAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jboolean withStaticArray,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    bool withStaticArrayBool = (bool)withStaticArray;
+
+    runAsyncWithPromise(env, promise, "GET_EVALUATED_PARAMS_ERROR", [handleStr, withStaticArrayBool](auto callback) {
+        JsonEvalBridge::getEvaluatedParamsAsync(handleStr, withStaticArrayBool, callback);
+    });
+}
+
+JNIEXPORT void JNICALL
 Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedSchemaByPathAsync(
     JNIEnv* env,
     jobject /* this */,
@@ -885,6 +915,40 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedSchemaWithoutParamsSubfor
 
     runAsyncWithPromise(env, promise, "GET_SCHEMA_WITHOUT_PARAMS_SUBFORM_ERROR", [handleStr, subformPathStr](auto callback) {
         JsonEvalBridge::getEvaluatedSchemaWithoutParamsSubformAsync(handleStr, subformPathStr, false, callback);
+    });
+}
+
+JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeGetPlainParamsSubformAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jstring subformPath,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    std::string subformPathStr = jstringToString(env, subformPath);
+
+    runAsyncWithPromise(env, promise, "GET_PLAIN_PARAMS_SUBFORM_ERROR", [handleStr, subformPathStr](auto callback) {
+        JsonEvalBridge::getPlainParamsSubformAsync(handleStr, subformPathStr, callback);
+    });
+}
+
+JNIEXPORT void JNICALL
+Java_com_jsonevalrs_JsonEvalRsModule_nativeGetEvaluatedParamsSubformAsync(
+    JNIEnv* env,
+    jobject /* this */,
+    jstring handle,
+    jstring subformPath,
+    jboolean withStaticArray,
+    jobject promise
+) {
+    std::string handleStr = jstringToString(env, handle);
+    std::string subformPathStr = jstringToString(env, subformPath);
+    bool withStaticArrayBool = (bool)withStaticArray;
+
+    runAsyncWithPromise(env, promise, "GET_EVALUATED_PARAMS_SUBFORM_ERROR", [handleStr, subformPathStr, withStaticArrayBool](auto callback) {
+        JsonEvalBridge::getEvaluatedParamsSubformAsync(handleStr, subformPathStr, withStaticArrayBool, callback);
     });
 }
 

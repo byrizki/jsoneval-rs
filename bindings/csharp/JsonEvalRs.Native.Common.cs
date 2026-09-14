@@ -68,6 +68,17 @@ namespace JsonEvalRs
         );
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_get_plain_params(
+            IntPtr handle
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_get_evaluated_params(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.I1)] bool withStaticArray
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_get_evaluated_schema_msgpack(
             IntPtr handle
         );

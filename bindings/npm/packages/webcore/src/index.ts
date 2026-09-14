@@ -6,6 +6,7 @@ import {
 	type EvaluateOptions,
 	type EvaluateSubformOptions,
 	type GetEvaluatedSchemaSubformOptions,
+	type GetEvaluatedParamsSubformOptions,
 	type GetEvaluatedSchemaByPathSubformOptions,
 	type GetEvaluatedSchemaByPathsSubformOptions,
 	type GetFieldOptionsOptions,
@@ -40,6 +41,7 @@ export {
 	GetEvaluatedSchemaByPathSubformOptions,
 	GetEvaluatedSchemaByPathsSubformOptions,
 	GetEvaluatedSchemaSubformOptions,
+	GetEvaluatedParamsSubformOptions,
 	GetFieldOptionsOptions,
 	GetSchemaByPathOptions,
 	GetSchemaByPathSubformOptions,
@@ -451,6 +453,23 @@ export class JSONEvalCore {
 	async getEvaluatedSchemaWithoutParams(): Promise<any> {
 		await this.init();
 		return this._instance.getEvaluatedSchemaWithoutParamsJS();
+	}
+
+	/**
+	 * Get plain schema $params (without static array data)
+	 */
+	async getPlainParams(): Promise<any | null> {
+		await this.init();
+		return this._instance.getPlainParamsJS();
+	}
+
+	/**
+	 * Get evaluated schema $params
+	 * @param withStaticArray - whether to include static array data (default: false)
+	 */
+	async getEvaluatedParams(withStaticArray: boolean = false): Promise<any | null> {
+		await this.init();
+		return this._instance.getEvaluatedParamsJS(withStaticArray);
 	}
 
 	/**
@@ -894,6 +913,28 @@ export class JSONEvalCore {
 	}: GetEvaluatedSchemaSubformOptions): Promise<any> {
 		await this.init();
 		return this._instance.getEvaluatedSchemaWithoutParamsSubformJS(subformPath);
+	}
+
+	/**
+	 * Get plain schema $params from subform (without static array data)
+	 */
+	async getPlainParamsSubform({
+		subformPath,
+	}: GetEvaluatedSchemaSubformOptions): Promise<any | null> {
+		await this.init();
+		return this._instance.getPlainParamsSubformJS(subformPath);
+	}
+
+	/**
+	 * Get evaluated schema $params from subform
+	 * @param options - Options including subform path and optional withStaticArray flag
+	 */
+	async getEvaluatedParamsSubform({
+		subformPath,
+		withStaticArray = false,
+	}: GetEvaluatedParamsSubformOptions): Promise<any | null> {
+		await this.init();
+		return this._instance.getEvaluatedParamsSubformJS(subformPath, withStaticArray);
 	}
 
 	/**

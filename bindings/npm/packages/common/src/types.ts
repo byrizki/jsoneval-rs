@@ -314,6 +314,16 @@ export interface GetEvaluatedSchemaSubformOptions {
 }
 
 /**
+ * Options for getting evaluated params from a subform
+ */
+export interface GetEvaluatedParamsSubformOptions {
+  /** Path to the subform */
+  subformPath: string;
+  /** Whether to include static array data (default: false) */
+  withStaticArray?: boolean;
+}
+
+/**
  * Options for getting schema value from a subform
  */
 export interface GetSchemaValueSubformOptions {

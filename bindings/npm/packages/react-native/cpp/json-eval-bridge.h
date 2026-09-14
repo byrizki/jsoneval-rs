@@ -220,6 +220,28 @@ public:
     );
 
     /**
+     * Get plain $params from schema (async)
+     * @param handle Instance handle
+     * @param callback Result callback
+     */
+    static void getPlainParamsAsync(
+        const std::string& handle,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Get evaluated $params from schema (async)
+     * @param handle Instance handle
+     * @param withStaticArray Whether to include static array data
+     * @param callback Result callback
+     */
+    static void getEvaluatedParamsAsync(
+        const std::string& handle,
+        bool withStaticArray,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
      * Get a value from evaluated schema using dotted path notation (async)
      * @param handle Instance handle
      * @param path Dotted path to the value (e.g., "properties.field.value")
@@ -608,6 +630,32 @@ public:
         const std::string& handleId,
         const std::string& subformPath,
         bool resolveLayout,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Get plain $params from subform (async)
+     * @param handleId Instance handle
+     * @param subformPath Path to the subform
+     * @param callback Result callback
+     */
+    static void getPlainParamsSubformAsync(
+        const std::string& handleId,
+        const std::string& subformPath,
+        std::function<void(const std::string&, const std::string&)> callback
+    );
+
+    /**
+     * Get evaluated $params from subform (async)
+     * @param handleId Instance handle
+     * @param subformPath Path to the subform
+     * @param withStaticArray Whether to include static array data
+     * @param callback Result callback
+     */
+    static void getEvaluatedParamsSubformAsync(
+        const std::string& handleId,
+        const std::string& subformPath,
+        bool withStaticArray,
         std::function<void(const std::string&, const std::string&)> callback
     );
 

@@ -148,6 +148,23 @@ class JsonEvalRsModule(
     }
 
     @ReactMethod
+    fun getPlainParams(
+        handle: String,
+        promise: Promise,
+    ) {
+        nativeGetPlainParamsAsync(handle, promise)
+    }
+
+    @ReactMethod
+    fun getEvaluatedParams(
+        handle: String,
+        withStaticArray: Boolean,
+        promise: Promise,
+    ) {
+        nativeGetEvaluatedParamsAsync(handle, withStaticArray, promise)
+    }
+
+    @ReactMethod
     fun getEvaluatedSchemaByPath(
         handle: String,
         path: String,
@@ -459,6 +476,25 @@ class JsonEvalRsModule(
     }
 
     @ReactMethod
+    fun getPlainParamsSubform(
+        handle: String,
+        subformPath: String,
+        promise: Promise,
+    ) {
+        nativeGetPlainParamsSubformAsync(handle, subformPath, promise)
+    }
+
+    @ReactMethod
+    fun getEvaluatedParamsSubform(
+        handle: String,
+        subformPath: String,
+        withStaticArray: Boolean,
+        promise: Promise,
+    ) {
+        nativeGetEvaluatedParamsSubformAsync(handle, subformPath, withStaticArray, promise)
+    }
+
+    @ReactMethod
     fun getEvaluatedSchemaByPathSubform(
         handle: String,
         subformPath: String,
@@ -663,6 +699,17 @@ class JsonEvalRsModule(
 
     private external fun nativeGetEvaluatedSchemaWithoutParamsAsync(
         handle: String,
+        promise: Promise,
+    )
+
+    private external fun nativeGetPlainParamsAsync(
+        handle: String,
+        promise: Promise,
+    )
+
+    private external fun nativeGetEvaluatedParamsAsync(
+        handle: String,
+        withStaticArray: Boolean,
         promise: Promise,
     )
 
@@ -882,6 +929,19 @@ class JsonEvalRsModule(
     private external fun nativeGetEvaluatedSchemaWithoutParamsSubformAsync(
         handle: String,
         subformPath: String,
+        promise: Promise,
+    )
+
+    private external fun nativeGetPlainParamsSubformAsync(
+        handle: String,
+        subformPath: String,
+        promise: Promise,
+    )
+
+    private external fun nativeGetEvaluatedParamsSubformAsync(
+        handle: String,
+        subformPath: String,
+        withStaticArray: Boolean,
         promise: Promise,
     )
 

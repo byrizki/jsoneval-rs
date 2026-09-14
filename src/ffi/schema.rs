@@ -163,6 +163,50 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_without_params(
     FFIResult::success(result_bytes)
 }
 
+/// Get plain $params from schema (compact)
+///
+/// # Safety
+///
+/// - handle must be a valid pointer from json_eval_new
+/// - Caller must call json_eval_free_result when done
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_get_plain_params(
+    handle: *mut JSONEvalHandle,
+) -> FFIResult {
+    if handle.is_null() {
+        return FFIResult::error("Invalid handle pointer".to_string());
+    }
+
+    let eval = &(*handle).inner;
+    let result = eval.get_plain_params();
+    let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
+
+    FFIResult::success(result_bytes)
+}
+
+/// Get evaluated $params from evaluated schema (compact)
+///
+/// # Safety
+///
+/// - handle must be a valid pointer from json_eval_new
+/// - with_static_array controls whether static arrays are resolved (true) or stripped (false)
+/// - Caller must call json_eval_free_result when done
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_get_evaluated_params(
+    handle: *mut JSONEvalHandle,
+    with_static_array: bool,
+) -> FFIResult {
+    if handle.is_null() {
+        return FFIResult::error("Invalid handle pointer".to_string());
+    }
+
+    let eval = &mut (*handle).inner;
+    let result = eval.get_evaluated_params(with_static_array);
+    let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
+
+    FFIResult::success(result_bytes)
+}
+
 /// Get a value from the evaluated schema using dotted path notation (compact, without $layout resolution)
 ///
 /// # Safety
