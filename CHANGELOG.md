@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.123] - 2026-09-14
+
+- feat: [RN] [Web] [C#] Implement getEvaluatedParams & getPlainParams method
+- fix: improve memory usage
+
+
 ## [0.0.122] - 2026-09-13
 
 - chore: update terms
