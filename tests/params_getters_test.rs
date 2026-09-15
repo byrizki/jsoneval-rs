@@ -131,7 +131,16 @@ fn test_subform_params() {
     let schema = json!({
         "$params": {
             "sub_meta": "sub_v1",
-            "list": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+            "list": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+            "sub_table": {
+                "$table": [
+                    {
+                        "col": {
+                            "$evaluation": 42
+                        }
+                    }
+                ]
+            }
         },
         "benefits": {
             "type": "array",
@@ -155,12 +164,22 @@ fn test_subform_params() {
         Some("sub_v1")
     );
     assert!(plain_sub.pointer("/list").is_none());
+    assert!(plain_sub.pointer("/sub_table/$table").is_some());
 
-    // Subform evaluated params
+    eval.evaluate_subform("#/benefits", "{}", None, None, None)
+        .expect("Subform evaluation must succeed");
+
+    // Subform evaluated params without static array
     let eval_sub_without = eval
         .get_evaluated_params_subform("#/benefits", false)
         .expect("Should get subform evaluated params without static arrays");
     assert!(eval_sub_without.pointer("/list").is_none());
+    let sub_table_rows = eval_sub_without
+        .pointer("/sub_table")
+        .and_then(|v| v.as_array())
+        .expect("sub_table must be present as an array in evaluated params");
+    assert_eq!(sub_table_rows.len(), 1);
+    assert_eq!(sub_table_rows[0]["col"], json!(42));
 
     let eval_sub_with = eval
         .get_evaluated_params_subform("#/benefits", true)
@@ -172,4 +191,111 @@ fn test_subform_params() {
             .map(|a| a.len()),
         Some(11)
     );
+    assert_eq!(
+        eval_sub_with
+            .pointer("/sub_table")
+            .and_then(|v| v.as_array())
+            .map(|a| a.len()),
+        Some(1)
+    );
 }
+
+#[test]
+fn test_get_evaluated_params_with_table_array() {
+    let schema = json!({
+        "$params": {
+            "version": "1.0",
+            "STATIC_ARRAY": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+            "RATES_TABLE": {
+                "$table": [
+                    {
+                        "$repeat": [
+                            0,
+                            2,
+                            {
+                                "INDEX": { "$evaluation": { "$ref": "$iteration" } },
+                                "AMOUNT": {
+                                    "$evaluation": {
+                                        "*": [
+                                            { "$ref": "$INDEX" },
+                                            100
+                                        ]
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        "properties": {
+            "dummy": { "type": "string" }
+        }
+    })
+    .to_string();
+
+    let mut eval = JSONEval::new(&schema, None, None).expect("Should parse schema");
+    eval.evaluate("{}", None, None, None)
+        .expect("Should evaluate schema");
+
+    // 1. Plain params: STATIC_ARRAY stripped, RATES_TABLE remains unevaluated table definition
+    let plain = eval.get_plain_params().expect("Should return plain params");
+    assert_eq!(
+        plain.pointer("/version").and_then(|v| v.as_str()),
+        Some("1.0")
+    );
+    assert!(
+        plain.pointer("/STATIC_ARRAY").is_none(),
+        "Static array should be stripped in plain params"
+    );
+    assert!(
+        plain.pointer("/RATES_TABLE/$table").is_some(),
+        "RATES_TABLE in plain params should retain raw $table definition"
+    );
+
+    // 2. Evaluated params without static array:
+    // STATIC_ARRAY stripped, but RATES_TABLE MUST be resolved as evaluated array!
+    let eval_without = eval
+        .get_evaluated_params(false)
+        .expect("Should return evaluated params");
+    assert_eq!(
+        eval_without.pointer("/version").and_then(|v| v.as_str()),
+        Some("1.0")
+    );
+    assert!(
+        eval_without.pointer("/STATIC_ARRAY").is_none(),
+        "Static array must be stripped when with_static_array is false"
+    );
+    let table_rows = eval_without
+        .pointer("/RATES_TABLE")
+        .and_then(|v| v.as_array())
+        .expect("RATES_TABLE must be returned as an evaluated array");
+    assert_eq!(table_rows.len(), 3);
+    assert_eq!(table_rows[0]["INDEX"], json!(0));
+    assert_eq!(table_rows[0]["AMOUNT"], json!(0));
+    assert_eq!(table_rows[1]["INDEX"], json!(1));
+    assert_eq!(table_rows[1]["AMOUNT"], json!(100));
+    assert_eq!(table_rows[2]["INDEX"], json!(2));
+    assert_eq!(table_rows[2]["AMOUNT"], json!(200));
+
+    // 3. Evaluated params with static array:
+    // Both STATIC_ARRAY and RATES_TABLE are present as arrays!
+    let eval_with = eval
+        .get_evaluated_params(true)
+        .expect("Should return evaluated params");
+    assert_eq!(
+        eval_with
+            .pointer("/STATIC_ARRAY")
+            .and_then(|v| v.as_array())
+            .map(|a| a.len()),
+        Some(11)
+    );
+    assert_eq!(
+        eval_with
+            .pointer("/RATES_TABLE")
+            .and_then(|v| v.as_array())
+            .map(|a| a.len()),
+        Some(3)
+    );
+}
+

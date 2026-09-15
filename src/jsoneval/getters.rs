@@ -949,20 +949,31 @@ impl JSONEval {
         })
     }
 
-    fn process_params_static_arrays(&self, params_val: &Value, with_static_array: bool) -> Value {
+    fn process_params_static_arrays(
+        &self,
+        params_val: &Value,
+        with_static_array: bool,
+        resolve_tables: bool,
+    ) -> Value {
         let mut params = params_val.clone();
+
+        // Evaluated $table arrays in $params are dynamic results and must always be resolved in evaluated params
+        if resolve_tables {
+            for (static_key, array_arc) in self.static_arrays.iter() {
+                if let Some(rel_path) = static_key.strip_prefix("/$table/$params") {
+                    if let Some(target) = params.pointer_mut(rel_path) {
+                        *target = (**array_arc).clone();
+                    }
+                }
+            }
+        }
+
         if with_static_array {
             for (static_key, array_arc) in self.static_arrays.iter() {
-                let rel_path = if let Some(path) = static_key.strip_prefix("/$params") {
-                    path
-                } else if let Some(path) = static_key.strip_prefix("/$table/$params") {
-                    path
-                } else {
-                    continue;
-                };
-
-                if let Some(target) = params.pointer_mut(rel_path) {
-                    *target = (**array_arc).clone();
+                if let Some(rel_path) = static_key.strip_prefix("/$params") {
+                    if let Some(target) = params.pointer_mut(rel_path) {
+                        *target = (**array_arc).clone();
+                    }
                 }
             }
         } else {
@@ -976,7 +987,11 @@ impl JSONEval {
             Value::Object(map) => {
                 map.retain(|_, v| {
                     if let Value::Object(child_map) = v {
-                        !child_map.contains_key("$static_array")
+                        if let Some(Value::String(marker_path)) = child_map.get("$static_array") {
+                            !marker_path.starts_with("/$params")
+                        } else {
+                            !child_map.contains_key("$static_array")
+                        }
                     } else {
                         true
                     }
@@ -988,7 +1003,11 @@ impl JSONEval {
             Value::Array(arr) => {
                 arr.retain(|v| {
                     if let Value::Object(child_map) = v {
-                        !child_map.contains_key("$static_array")
+                        if let Some(Value::String(marker_path)) = child_map.get("$static_array") {
+                            !marker_path.starts_with("/$params")
+                        } else {
+                            !child_map.contains_key("$static_array")
+                        }
                     } else {
                         true
                     }
@@ -1004,7 +1023,7 @@ impl JSONEval {
     /// Get plain `$params` from the original schema (without static array data).
     pub fn get_plain_params(&self) -> Option<Value> {
         let raw_params = self.schema.get("$params")?;
-        Some(self.process_params_static_arrays(raw_params, false))
+        Some(self.process_params_static_arrays(raw_params, false, false))
     }
 
     /// Get evaluated `$params` from `evaluated_schema`.
@@ -1014,7 +1033,7 @@ impl JSONEval {
     ///   back into `$params`. If false, static array keys are omitted/stripped.
     pub fn get_evaluated_params(&mut self, with_static_array: bool) -> Option<Value> {
         let raw_params = self.evaluated_schema.get("$params")?;
-        Some(self.process_params_static_arrays(raw_params, with_static_array))
+        Some(self.process_params_static_arrays(raw_params, with_static_array, true))
     }
 
     /// Get evaluated schema as MessagePack bytes (compact, without $layout resolution)
