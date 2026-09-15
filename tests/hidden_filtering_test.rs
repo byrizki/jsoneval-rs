@@ -81,7 +81,7 @@ fn test_hidden_field_filtering() {
         .expect("Evaluation failed");
 
     // Test get_schema_value (Data View)
-    let result_value = eval.get_schema_value();
+    let result_value = eval.get_schema_value(None);
 
     // 1. Check visible fields exist and have values
     assert_eq!(
@@ -188,7 +188,7 @@ fn get_schema_value_prefers_calculation_only_for_disabled_fields() {
     let mut eval = JSONEval::new(&schema_str, None, Some(&data_str)).unwrap();
     eval.evaluate(&data_str, None, None, None).unwrap();
 
-    let values = eval.get_schema_value();
+    let values = eval.get_schema_value(None);
     assert_eq!(
         values.pointer("/disabled_calculated"),
         Some(&json!(2)),
@@ -236,7 +236,7 @@ fn get_schema_value_uses_cached_layout_field_mapping() {
     eval.evaluate(&data_str, None, None, None).unwrap();
 
     // Must not repeatedly traverse full schema while extracting every evaluated value.
-    let values = eval.get_schema_value();
+    let values = eval.get_schema_value(None);
     assert_eq!(values.pointer("/field_0"), Some(&json!(0)));
     assert_eq!(values.pointer("/field_1"), Some(&json!(2)));
 }

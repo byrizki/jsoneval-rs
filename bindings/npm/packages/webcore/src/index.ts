@@ -425,10 +425,11 @@ export class JSONEvalCore {
 
 	/**
 	 * Get schema values (evaluations ending with .value)
+	 * @param includeSubforms - Optional flag to also include subforms
 	 */
-	async getSchemaValue(): Promise<any> {
+	async getSchemaValue(includeSubforms?: boolean): Promise<any> {
 		await this.init();
-		return this._instance.getSchemaValue();
+		return this._instance.getSchemaValue(includeSubforms);
 	}
 
 	/**

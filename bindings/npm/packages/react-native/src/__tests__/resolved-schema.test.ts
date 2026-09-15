@@ -79,6 +79,11 @@ jest.mock('react-native', () => ({
             : { sub_meta: 'sub_v1' }
         )
       ),
+      getSchemaValue: jest.fn((_handle, includeSubforms) =>
+        JSON.stringify({
+          data: { total: includeSubforms ? 50 : null },
+        })
+      ),
     },
   },
   Platform: { select: jest.fn(() => '') },
@@ -146,5 +151,13 @@ describe('resolved schema composition', () => {
       withStaticArray: true,
     });
     expect(evalSubWith).toEqual({ sub_meta: 'sub_v1', sub_static: [1, 2] });
+  });
+
+  it('forwards includeSubforms flag in getSchemaValue', async () => {
+    const valDefault = await evaluator.getSchemaValue();
+    expect(valDefault).toEqual({ data: { total: null } });
+
+    const valWithSubforms = await evaluator.getSchemaValue(true);
+    expect(valWithSubforms).toEqual({ data: { total: 50 } });
   });
 });

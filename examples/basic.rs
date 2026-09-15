@@ -173,7 +173,7 @@ fn main() {
         // Legacy behavior: get_evaluated_schema takes skip_layout: bool
         // We pass false to ensure layout IS resolved
         let evaluated_schema = eval.get_evaluated_schema_resolved();
-        let schema_value = eval.get_schema_value();
+        let schema_value = eval.get_schema_value(None);
         let eval_time = eval_start.elapsed();
 
         println!("  ⚡ Eval: {:?}", eval_time);

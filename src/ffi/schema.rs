@@ -87,12 +87,26 @@ pub unsafe extern "C" fn json_eval_get_evaluated_schema_resolved_msgpack(
 /// - Caller must call json_eval_free_result when done
 #[no_mangle]
 pub unsafe extern "C" fn json_eval_get_schema_value(handle: *mut JSONEvalHandle) -> FFIResult {
+    json_eval_get_schema_value_with_subforms(handle, false)
+}
+
+/// Get all schema values with optional subforms inclusion
+///
+/// # Safety
+///
+/// - handle must be a valid pointer from json_eval_new
+/// - Caller must call json_eval_free_result when done
+#[no_mangle]
+pub unsafe extern "C" fn json_eval_get_schema_value_with_subforms(
+    handle: *mut JSONEvalHandle,
+    include_subforms: bool,
+) -> FFIResult {
     if handle.is_null() {
         return FFIResult::error("Invalid handle pointer".to_string());
     }
 
     let eval = &mut (*handle).inner;
-    let result = eval.get_schema_value();
+    let result = eval.get_schema_value(Some(include_subforms));
     let result_bytes = serde_json::to_vec(&result).unwrap_or_default();
 
     FFIResult::success(result_bytes)

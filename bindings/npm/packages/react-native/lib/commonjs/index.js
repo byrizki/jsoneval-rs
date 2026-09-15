@@ -416,12 +416,13 @@ class JSONEval {
 
   /**
    * Get all schema values (evaluations ending with .value)
+   * @param includeSubforms - Optional flag to include subform items in the returned schema values (default: false)
    * @returns Promise resolving to map of path -> value
    * @throws {Error} If operation fails
    */
-  async getSchemaValue() {
+  async getSchemaValue(includeSubforms = false) {
     this.throwIfDisposed();
-    return await this._callNativeJson('getSchemaValue');
+    return await this._callNativeJson('getSchemaValue', includeSubforms);
   }
 
   /**

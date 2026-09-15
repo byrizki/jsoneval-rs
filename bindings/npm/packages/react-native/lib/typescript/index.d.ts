@@ -1,6 +1,6 @@
 import { type JSONEvalOptions, type EvaluateOptions, type EvaluateDependentsOptions, type LayoutOverlayEntry, type EvaluateSubformOptions, type ValidateSubformOptions, type EvaluateDependentsSubformOptions, type ResolveLayoutSubformOptions, type GetEvaluatedSchemaSubformOptions, type GetEvaluatedParamsSubformOptions, type GetSchemaValueSubformOptions, type GetEvaluatedSchemaByPathSubformOptions, type GetEvaluatedSchemaByPathsSubformOptions, type GetSchemaByPathSubformOptions, type GetSchemaByPathsSubformOptions, type ValidationResult, type DependentChange, type SchemaValueItem, type ValidateOptions, type ValidatePathsOptions, ReturnFormat } from '@json-eval-rs/common';
 export { ReturnFormat } from '@json-eval-rs/common';
-export type { LayoutOverlayEntry, SchemaValueItem, ValidationResult, DependentChange, ValidationError, JSONEvalOptions, EvaluateOptions, ValidateOptions, ValidatePathsOptions, EvaluateDependentsOptions, EvaluateSubformOptions, ValidateSubformOptions, EvaluateDependentsSubformOptions, ResolveLayoutSubformOptions, GetEvaluatedSchemaSubformOptions, GetEvaluatedParamsSubformOptions, GetSchemaValueSubformOptions, GetEvaluatedSchemaByPathSubformOptions, GetEvaluatedSchemaByPathsSubformOptions, GetSchemaByPathSubformOptions, GetSchemaByPathsSubformOptions, } from '@json-eval-rs/common';
+export type { LayoutOverlayEntry, SchemaValueItem, ValidationResult, DependentChange, ValidationError, JSONEvalOptions, EvaluateOptions, ValidateOptions, ValidatePathsOptions, EvaluateDependentsOptions, EvaluateSubformOptions, ValidateSubformOptions, EvaluateDependentsSubformOptions, ResolveLayoutSubformOptions, GetEvaluatedSchemaSubformOptions, GetEvaluatedParamsSubformOptions, GetSchemaValueOptions, GetSchemaValueSubformOptions, GetEvaluatedSchemaByPathSubformOptions, GetEvaluatedSchemaByPathsSubformOptions, GetSchemaByPathSubformOptions, GetSchemaByPathsSubformOptions, } from '@json-eval-rs/common';
 /**
  * High-performance JSON Logic evaluator with schema validation for React Native
  *
@@ -173,10 +173,11 @@ export declare class JSONEval {
     getEvaluatedSchemaResolved(): Promise<any>;
     /**
      * Get all schema values (evaluations ending with .value)
+     * @param includeSubforms - Optional flag to include subform items in the returned schema values (default: false)
      * @returns Promise resolving to map of path -> value
      * @throws {Error} If operation fails
      */
-    getSchemaValue(): Promise<Record<string, any>>;
+    getSchemaValue(includeSubforms?: boolean): Promise<Record<string, any>>;
     /**
      * Get all schema values as array of path-value pairs
      * Returns [{path: "", value: ""}, ...]

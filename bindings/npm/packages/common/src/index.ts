@@ -30,6 +30,7 @@ export {
   ResolveLayoutSubformOptions,
   GetEvaluatedSchemaSubformOptions,
   GetEvaluatedParamsSubformOptions,
+  GetSchemaValueOptions,
   GetSchemaValueSubformOptions,
   GetEvaluatedSchemaByPathSubformOptions,
   GetEvaluatedSchemaByPathsSubformOptions,

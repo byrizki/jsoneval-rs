@@ -84,6 +84,7 @@ extern "C" {
     FFIResult json_eval_evaluate_dependents(JSONEvalHandle* handle, const char* changed_path, const char* data, const char* context, int re_evaluate, int include_subforms);
     FFIResult json_eval_get_evaluated_schema(JSONEvalHandle* handle);
     FFIResult json_eval_get_schema_value(JSONEvalHandle* handle);
+    FFIResult json_eval_get_schema_value_with_subforms(JSONEvalHandle* handle, bool include_subforms);
     FFIResult json_eval_get_schema_value_array(JSONEvalHandle* handle);
     FFIResult json_eval_get_schema_value_object(JSONEvalHandle* handle);
     FFIResult json_eval_get_evaluated_schema_without_params(JSONEvalHandle* handle);
@@ -539,10 +540,11 @@ void JsonEvalBridge::getEvaluatedSchemaResolvedMsgpackAsync(
 
 void JsonEvalBridge::getSchemaValueAsync(
     const std::string& handleId,
+    bool includeSubforms,
     std::function<void(const std::string&, const std::string&)> callback
 ) {
-    runWithHandle(handleId, [](JSONEvalHandle* nativeHandle) -> std::string {
-        FFIResult result = json_eval_get_schema_value(nativeHandle);
+    runWithHandle(handleId, [includeSubforms](JSONEvalHandle* nativeHandle) -> std::string {
+        FFIResult result = json_eval_get_schema_value_with_subforms(nativeHandle, includeSubforms);
         if (!result.success) {
             std::string error = result.error ? result.error : "Unknown error";
             json_eval_free_result(result);
@@ -557,6 +559,13 @@ void JsonEvalBridge::getSchemaValueAsync(
         json_eval_free_result(result);
         return resultStr;
     }, callback);
+}
+
+void JsonEvalBridge::getSchemaValueAsync(
+    const std::string& handleId,
+    std::function<void(const std::string&, const std::string&)> callback
+) {
+    getSchemaValueAsync(handleId, false, callback);
 }
 
 void JsonEvalBridge::getSchemaValueArrayAsync(

@@ -57,6 +57,12 @@ namespace JsonEvalRs
         internal static extern FFIResult json_eval_get_schema_value(IntPtr handle);
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern FFIResult json_eval_get_schema_value_with_subforms(
+            IntPtr handle,
+            [MarshalAs(UnmanagedType.I1)] bool includeSubforms
+        );
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         internal static extern FFIResult json_eval_get_schema_value_array(IntPtr handle);
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]

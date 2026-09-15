@@ -178,12 +178,21 @@ public:
     /**
      * Get schema value (async)
      * @param handle Instance handle
+     * @param includeSubforms Whether to include subforms in evaluated values
      * @param callback Result callback
      */
     static void getSchemaValueAsync(
         const std::string& handle,
+        bool includeSubforms,
         std::function<void(const std::string&, const std::string&)> callback
     );
+
+    static void getSchemaValueAsync(
+        const std::string& handle,
+        std::function<void(const std::string&, const std::string&)> callback
+    ) {
+        getSchemaValueAsync(handle, false, callback);
+    }
 
     /**
      * Get all schema values as array of path-value pairs (async)

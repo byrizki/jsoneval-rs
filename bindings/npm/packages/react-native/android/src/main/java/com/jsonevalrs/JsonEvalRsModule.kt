@@ -118,9 +118,10 @@ class JsonEvalRsModule(
     @ReactMethod
     fun getSchemaValue(
         handle: String,
+        includeSubforms: Boolean,
         promise: Promise,
     ) {
-        nativeGetSchemaValueAsync(handle, promise)
+        nativeGetSchemaValueAsync(handle, includeSubforms, promise)
     }
 
     @ReactMethod
@@ -684,6 +685,7 @@ class JsonEvalRsModule(
 
     private external fun nativeGetSchemaValueAsync(
         handle: String,
+        includeSubforms: Boolean,
         promise: Promise,
     )
 

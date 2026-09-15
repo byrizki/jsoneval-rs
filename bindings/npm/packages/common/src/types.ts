@@ -324,6 +324,14 @@ export interface GetEvaluatedParamsSubformOptions {
 }
 
 /**
+ * Options for getting schema values
+ */
+export interface GetSchemaValueOptions {
+  /** Optional flag to include subforms in the returned schema values */
+  includeSubforms?: boolean;
+}
+
+/**
  * Options for getting schema value from a subform
  */
 export interface GetSchemaValueSubformOptions {

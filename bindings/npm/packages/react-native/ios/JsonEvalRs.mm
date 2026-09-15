@@ -316,12 +316,13 @@ RCT_EXPORT_METHOD(getEvaluatedSchemaResolvedMsgpack:(NSString *)handle
 }
 
 RCT_EXPORT_METHOD(getSchemaValue:(NSString *)handle
+                  includeSubforms:(BOOL)includeSubforms
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 {
     std::string handleStr = [self stdStringFromNSString:handle];
     
-    JsonEvalBridge::getSchemaValueAsync(handleStr,
+    JsonEvalBridge::getSchemaValueAsync(handleStr, includeSubforms,
         [resolve, reject](const std::string& result, const std::string& error) {
             if (error.empty()) {
                 resolve([NSString stringWithUTF8String:result.c_str()]);

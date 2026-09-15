@@ -1,5 +1,5 @@
 use json_eval_rs::JSONEval;
-use serde_json::json;
+use serde_json::{json, Value};
 
 #[test]
 fn test_subform_detection_and_creation() {
@@ -729,4 +729,133 @@ fn test_evaluate_dependents_subform_array_iteration() {
 
     assert!(found_0, "Should have found evaluation for items[0]");
     assert!(found_1, "Should have found evaluation for items[1]");
+}
+
+#[test]
+fn test_get_schema_value_include_subforms() {
+    let schema = json!({
+        "form": {
+            "type": "object",
+            "properties": {
+                "base_rate": {
+                    "type": "number",
+                    "value": 10
+                },
+                "items": {
+                    "type": "array",
+                    "itemsRootKey": "items",
+                    "items": {
+                        "properties": {
+                            "code": { "type": "string" },
+                            "rate": { "type": "number" },
+                            "hidden_field": {
+                                "type": "string",
+                                "condition": {
+                                    "hidden": {
+                                        "$evaluation": {
+                                            "==": [{ "var": "items.code" }, "SECRET"]
+                                        }
+                                    }
+                                }
+                            },
+                            "total": {
+                                "type": "number",
+                                "condition": {
+                                    "disabled": true
+                                },
+                                "value": {
+                                    "$evaluation": {
+                                        "*": [
+                                            { "var": "items.rate" },
+                                            { "var": "form.base_rate" }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    let data = json!({
+        "form": {
+            "base_rate": 10,
+            "items": [
+                { "code": "SECRET", "rate": 5, "hidden_field": "confidential", "total": null },
+                { "code": "PUBLIC", "rate": 8, "hidden_field": "visible_info", "total": null }
+            ]
+        }
+    });
+
+    let schema_str = schema.to_string();
+    let data_str = data.to_string();
+    let mut eval = JSONEval::new(&schema_str, None, Some(&data_str)).unwrap();
+    eval.evaluate(&data_str, None, None, None).unwrap();
+
+    let parent_before = eval.data.clone();
+
+    // 1. With include_subforms = false / None:
+    // Subform items are left as-is (total is null, hidden_field is present)
+    let schema_val_default = eval.get_schema_value(None);
+    let items_default = schema_val_default
+        .pointer("/form/items")
+        .and_then(Value::as_array)
+        .unwrap();
+
+    assert_eq!(
+        items_default[0].get("total"),
+        Some(&Value::Null),
+        "Without include_subforms, total should remain null"
+    );
+    assert_eq!(
+        items_default[0].get("hidden_field"),
+        Some(&json!("confidential")),
+        "Without include_subforms, subform hidden field should not be pruned"
+    );
+
+    // 2. With include_subforms = Some(true):
+    // Subform items are evaluated:
+    // - Item 0: code is SECRET -> hidden_field must be pruned, total must be 5 * 10 = 50.0
+    // - Item 1: code is PUBLIC -> hidden_field remains, total must be 8 * 10 = 80.0
+    let schema_val_with_subforms = eval.get_schema_value(Some(true));
+    let items_with_subforms = schema_val_with_subforms
+        .pointer("/form/items")
+        .and_then(Value::as_array)
+        .unwrap();
+
+    // Verify Item 0
+    assert_eq!(items_with_subforms[0].get("code"), Some(&json!("SECRET")));
+    assert_eq!(items_with_subforms[0].get("rate"), Some(&json!(5)));
+    assert_eq!(
+        items_with_subforms[0].get("total").and_then(Value::as_f64),
+        Some(50.0),
+        "Computed disabled field (initially null) must be evaluated to 50.0"
+    );
+    assert_eq!(
+        items_with_subforms[0].get("hidden_field"),
+        None,
+        "Hidden field on SECRET item must be pruned"
+    );
+
+    // Verify Item 1
+    assert_eq!(items_with_subforms[1].get("code"), Some(&json!("PUBLIC")));
+    assert_eq!(items_with_subforms[1].get("rate"), Some(&json!(8)));
+    assert_eq!(
+        items_with_subforms[1].get("total").and_then(Value::as_f64),
+        Some(80.0),
+        "Computed disabled field (initially null) must be evaluated to 80.0"
+    );
+    assert_eq!(
+        items_with_subforms[1].get("hidden_field"),
+        Some(&json!("visible_info")),
+        "Non-hidden field on PUBLIC item must be retained"
+    );
+
+    // Verify calling get_schema_value did not mutate parent internal data
+    assert_eq!(
+        eval.data, parent_before,
+        "get_schema_value(Some(true)) must not mutate parent form data"
+    );
 }

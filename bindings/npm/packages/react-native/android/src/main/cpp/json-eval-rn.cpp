@@ -454,12 +454,14 @@ Java_com_jsonevalrs_JsonEvalRsModule_nativeGetSchemaValueAsync(
     JNIEnv* env,
     jobject /* this */,
     jstring handle,
+    jboolean includeSubforms,
     jobject promise
 ) {
     std::string handleStr = jstringToString(env, handle);
+    bool incSubforms = (bool)includeSubforms;
     
-    runAsyncWithPromise(env, promise, "GET_VALUE_ERROR", [handleStr](auto callback) {
-        JsonEvalBridge::getSchemaValueAsync(handleStr, callback);
+    runAsyncWithPromise(env, promise, "GET_VALUE_ERROR", [handleStr, incSubforms](auto callback) {
+        JsonEvalBridge::getSchemaValueAsync(handleStr, incSubforms, callback);
     });
 }
 

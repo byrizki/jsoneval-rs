@@ -65,7 +65,7 @@ export interface JsonEvalJSIGlobal {
   getEvaluatedSchema(handle: string): string;
   getEvaluatedSchemaMsgpack(handle: string): ArrayBuffer;
   getEvaluatedSchemaResolvedMsgpack(handle: string): ArrayBuffer;
-  getSchemaValue(handle: string): string;
+  getSchemaValue(handle: string, includeSubforms?: boolean): string;
   getSchemaValueArray(handle: string): string;
   getSchemaValueObject(handle: string): string;
   getEvaluatedSchemaWithoutParams(handle: string): string;

@@ -829,12 +829,56 @@ impl JSONEval {
     /// eval data for cross-item formulas. This endpoint exposes only fields declared
     /// by its isolated subform schema, never that implementation wrapper.
     pub fn get_schema_value_subform(&mut self, subform_path: &str) -> Value {
-        let (base_path, _) = self.resolve_subform_path_alias(subform_path);
+        let (base_path, idx_opt) = self.resolve_subform_path_alias(subform_path);
+        if let Some(idx) = idx_opt {
+            let data_value = self.eval_data.snapshot_data_clone();
+            let context_value = self
+                .eval_data
+                .data()
+                .get("$context")
+                .cloned()
+                .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
+
+            let res = self.with_item_cache_swap(
+                &base_path,
+                idx,
+                data_value,
+                context_value,
+                false,
+                |sf| {
+                    sf.evaluate_internal_pre_diffed(None, None)?;
+                    if sf.apply_visible_static_defaults_with_dependents(None)? {
+                        sf.evaluate_internal_pre_diffed(None, None)?;
+                    }
+                    Ok(sf.get_schema_value(Some(true)))
+                },
+            );
+
+            if let Ok(values) = res {
+                let schema_root_keys: Vec<String> = self
+                    .subforms
+                    .get(base_path.as_ref() as &str)
+                    .and_then(|sf| sf.schema.as_object())
+                    .into_iter()
+                    .flat_map(|schema| schema.keys())
+                    .filter(|key| !key.starts_with('$'))
+                    .map(|k| k.to_string())
+                    .collect();
+
+                return Value::Object(
+                    schema_root_keys
+                        .into_iter()
+                        .filter_map(|key| values.get(&key).cloned().map(|value| (key, value)))
+                        .collect(),
+                );
+            }
+        }
+
         let Some(subform) = self.subforms.get_mut(base_path.as_ref() as &str) else {
             return Value::Null;
         };
 
-        let values = subform.get_schema_value();
+        let values = subform.get_schema_value(None);
         let Some(values) = values.as_object() else {
             return values;
         };

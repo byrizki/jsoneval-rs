@@ -494,11 +494,14 @@ namespace JsonEvalRs
         /// <summary>
         /// Gets all schema values (evaluations ending with .value)
         /// </summary>
+        /// <param name="includeSubforms">Whether to include subforms in the returned values</param>
         /// <returns>Dictionary of path -> value</returns>
-        public JObject GetSchemaValue()
+        public JObject GetSchemaValue(bool includeSubforms = false)
         {
             ThrowIfDisposed();
-            var result = Native.json_eval_get_schema_value(_handle);
+            var result = includeSubforms
+                ? Native.json_eval_get_schema_value_with_subforms(_handle, true)
+                : Native.json_eval_get_schema_value(_handle);
             return ProcessResult(result);
         }
 

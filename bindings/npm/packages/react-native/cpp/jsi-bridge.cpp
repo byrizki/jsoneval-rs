@@ -15,6 +15,7 @@ extern "C" {
     FFIResult json_eval_get_evaluated_schema_msgpack(JSONEvalHandle* handle);
     FFIResult json_eval_get_evaluated_schema_resolved_msgpack(JSONEvalHandle* handle);
     FFIResult json_eval_get_schema_value(JSONEvalHandle* handle);
+    FFIResult json_eval_get_schema_value_with_subforms(JSONEvalHandle* handle, bool include_subforms);
     FFIResult json_eval_get_schema_value_array(JSONEvalHandle* handle);
     FFIResult json_eval_get_schema_value_object(JSONEvalHandle* handle);
     FFIResult json_eval_validate(JSONEvalHandle* handle, const char* data, const char* context, bool validate_readonly, bool include_subforms);
@@ -617,8 +618,9 @@ jsi::Value JsonEvalJSI::get(jsi::Runtime& runtime, const jsi::PropNameID& name) 
             [](jsi::Runtime& rt, const jsi::Value* args, size_t count) -> jsi::Value {
                 checkArgCount(rt, count, 1);
                 auto handleId = stringFromValue(rt, args[0]);
+                bool includeSubforms = (count > 1 && args[1].isBool()) ? args[1].getBool() : false;
                 auto [handle, lock] = lockHandleById(handleId);
-                FFIResult result = json_eval_get_schema_value(handle);
+                FFIResult result = json_eval_get_schema_value_with_subforms(handle, includeSubforms);
                 return ffiResultToJsiValue(rt, result);
             }
         );

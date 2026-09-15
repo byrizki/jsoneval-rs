@@ -285,15 +285,28 @@ impl JSONEval {
                 }
 
                 // Construct schema path for this key
-                // For root fields: /properties/key
+                // For root fields: /properties/key (or /key if schema root directly holds keys as in subforms)
                 // For nested fields: current_path/properties/key
                 let schema_path = if current_path.is_empty() {
-                    format!("/properties/{}", key)
+                    if self
+                        .evaluated_schema
+                        .pointer(&format!("/properties/{}", key))
+                        .is_some()
+                    {
+                        format!("/properties/{}", key)
+                    } else if self
+                        .evaluated_schema
+                        .pointer(&format!("/{}", key))
+                        .is_some()
+                    {
+                        format!("/{}", key)
+                    } else {
+                        format!("/properties/{}", key)
+                    }
                 } else {
                     format!("{}/properties/{}", current_path, key)
                 };
 
-                // Check if hidden
                 if self.is_effective_hidden(&schema_path) {
                     keys_to_remove.push(key.clone());
                 } else {
@@ -603,7 +616,7 @@ impl JSONEval {
     /// Builds a consumer view from current data and evaluated values without mutating
     /// evaluator state. Indexed subforms carry active-item wrappers at their root;
     /// persisting this view would append that wrapper into later form evaluations.
-    pub fn get_schema_value(&mut self) -> Value {
+    pub fn get_schema_value(&mut self, include_subforms: Option<bool>) -> Value {
         self.ensure_layout_resolved();
         // Start with current authoritative data from eval_data
         let mut current_data = self.eval_data.data().clone();
@@ -703,6 +716,108 @@ impl JSONEval {
                     } else {
                         // Skip this path if current is not an object and can't be made into one
                         break;
+                    }
+                }
+            }
+        }
+
+        if include_subforms.unwrap_or(false) {
+            let subform_keys: Vec<String> = self.subforms.keys().cloned().collect();
+
+            // Sync parent params and static arrays to subforms once before the item loop
+            for subform_path in &subform_keys {
+                if let Some(subform) = self.subforms.get_mut(subform_path) {
+                    if let Some(params) = self.evaluated_schema.pointer("/$params") {
+                        if let Some(sub_params) = subform.evaluated_schema.pointer_mut("/$params") {
+                            *sub_params = params.clone();
+                        }
+                    }
+                    subform.static_arrays = std::sync::Arc::clone(&self.static_arrays);
+                    subform
+                        .engine
+                        .set_static_arrays(std::sync::Arc::clone(&subform.static_arrays));
+                }
+            }
+
+            for subform_path in subform_keys {
+                let data_ptr = path_utils::schema_path_to_data_pointer(&subform_path);
+
+                let schema_pointer = if subform_path.starts_with("#/") {
+                    &subform_path[1..]
+                } else if subform_path.starts_with('#') {
+                    &subform_path[1..]
+                } else {
+                    &subform_path
+                };
+
+                let original_field_key = subform_path
+                    .split('/')
+                    .filter(|seg| !seg.is_empty() && *seg != "properties")
+                    .last()
+                    .unwrap_or(&subform_path)
+                    .to_string();
+
+                let root_key = path_utils::get_value_by_pointer(&self.schema, schema_pointer)
+                    .and_then(|node| node.get("itemsRootKey"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(&original_field_key)
+                    .to_string();
+
+                let item_count = current_data
+                    .pointer(&data_ptr)
+                    .and_then(Value::as_array)
+                    .map(|a| a.len())
+                    .unwrap_or(0);
+
+                if item_count > 0 {
+                    let full_data = self.eval_data.snapshot_data_clone();
+                    let context_value = self
+                        .eval_data
+                        .data()
+                        .get("$context")
+                        .cloned()
+                        .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
+
+                    let existing_items = current_data
+                        .pointer(&data_ptr)
+                        .and_then(Value::as_array)
+                        .cloned()
+                        .unwrap_or_default();
+
+                    let mut new_items = Vec::with_capacity(item_count);
+
+                    for (idx, raw_item) in existing_items.into_iter().enumerate() {
+                        let evaluated_item_res = self.with_item_cache_swap(
+                            &subform_path,
+                            idx,
+                            full_data.clone(),
+                            context_value.clone(),
+                            false,
+                            |sf| {
+                                sf.evaluate_internal_pre_diffed(None, None)?;
+                                if sf.apply_visible_static_defaults_with_dependents(None)? {
+                                    sf.evaluate_internal_pre_diffed(None, None)?;
+                                }
+                                Ok(sf.get_schema_value(Some(true)))
+                            },
+                        );
+
+                        match evaluated_item_res {
+                            Ok(mut val) => {
+                                let item_val = val
+                                    .as_object_mut()
+                                    .and_then(|obj| obj.remove(&root_key))
+                                    .unwrap_or(raw_item);
+                                new_items.push(item_val);
+                            }
+                            Err(_) => {
+                                new_items.push(raw_item);
+                            }
+                        }
+                    }
+
+                    if let Some(target) = current_data.pointer_mut(&data_ptr) {
+                        *target = Value::Array(new_items);
                     }
                 }
             }

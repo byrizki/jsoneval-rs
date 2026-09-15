@@ -59,8 +59,8 @@ impl JSONEvalWasm {
     ///
     /// @returns Modified data as JavaScript object
     #[wasm_bindgen(js_name = getSchemaValue)]
-    pub fn get_schema_value(&mut self) -> Result<JsValue, JsValue> {
-        let result = self.inner.get_schema_value();
+    pub fn get_schema_value(&mut self, include_subforms: Option<bool>) -> Result<JsValue, JsValue> {
+        let result = self.inner.get_schema_value(include_subforms);
         super::to_value(&result).map_err(|e| JsValue::from_str(&e.to_string()))
     }
 

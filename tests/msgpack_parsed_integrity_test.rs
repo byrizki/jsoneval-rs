@@ -128,7 +128,7 @@ fn reload_parsed_schema_preserves_layout_metadata_for_schema_value_results() {
 
     let mut direct = JSONEval::new(&schema_json, None, Some(&data)).unwrap();
     direct.evaluate(&data, None, None, None).unwrap();
-    let direct_values = direct.get_schema_value();
+    let direct_values = direct.get_schema_value(None);
 
     let parsed = Arc::new(ParsedSchema::parse(&schema_json).unwrap());
     let mut reloaded = JSONEval::new(&"{}", None, None).unwrap();
@@ -136,7 +136,7 @@ fn reload_parsed_schema_preserves_layout_metadata_for_schema_value_results() {
         .reload_schema_parsed(parsed, None, Some(&data))
         .unwrap();
     reloaded.evaluate(&data, None, None, None).unwrap();
-    let reloaded_values = reloaded.get_schema_value();
+    let reloaded_values = reloaded.get_schema_value(None);
 
     assert_eq!(direct_values.pointer("/computed"), Some(&json!(999)));
     assert_eq!(reloaded_values, direct_values);
