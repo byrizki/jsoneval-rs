@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.124] - 2026-09-15
+
+- feat: implement include subform on get schema value
+- fix: improve performance on evaluate, dependents, validate
+- feat: improve validate method to return validation restriction to data key
+- fix postcss security issue
+
+
 ## [0.0.123] - 2026-09-14
 
 - feat: [RN] [Web] [C#] Implement getEvaluatedParams & getPlainParams method
