@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.125] - 2026-09-15
+
+- fix: dynamic table not resolved on get evaluated params
+
+
 ## [0.0.124] - 2026-09-15
 
 - feat: implement include subform on get schema value
