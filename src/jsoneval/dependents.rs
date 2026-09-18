@@ -1853,8 +1853,10 @@ impl JSONEval {
                             &current_value,
                             &current_ref_value,
                         )?;
-                        let clear_bool = match should_clear {
-                            Value::Bool(b) => b,
+                        let clear_bool = match &should_clear {
+                            Value::Bool(b) => *b,
+                            Value::Number(n) => n.as_i64() == Some(1),
+                            Value::String(s) => s.eq_ignore_ascii_case("true") || s == "1",
                             _ => false,
                         };
 
