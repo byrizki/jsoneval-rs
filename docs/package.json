@@ -5,7 +5,7 @@
     "build": "nuxt build --extends docus --preset github_pages"
   },
   "dependencies": {
-    "better-sqlite3": "^12.6.2",
+    "better-sqlite3": "^12.11.1",
     "docus": "5.12.3",
     "nuxt": "^4.5.1"
   },
