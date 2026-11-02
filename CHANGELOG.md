@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.126] - 2026-11-02
+
+- fix: evaluation cache
+
+
 ## [0.0.125] - 2026-09-15
 
 - fix: dynamic table not resolved on get evaluated params
