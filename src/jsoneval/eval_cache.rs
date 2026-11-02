@@ -243,6 +243,10 @@ impl EvalCache {
 
     /// Recursively diffs `old` against `new` and bumps version for every changed data path scalar.
     pub fn store_snapshot_and_diff_versions(&mut self, old: &Value, new: &Value) {
+        if old == new {
+            return;
+        }
+        self.eval_generation += 1;
         if let Some(idx) = self.active_item_index {
             self.ensure_active_item_cache(idx);
             let sub_cache = self.subform_caches.get_mut(&idx).unwrap();

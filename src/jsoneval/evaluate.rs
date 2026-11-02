@@ -149,12 +149,6 @@ impl JSONEval {
             // Invalidate subform caches after structural changes.
             self.invalidate_subform_caches_on_structural_change(&old_data, &new_data);
 
-            // Skip external traversal when cached dependencies are fresh.
-            if paths.is_none() && !self.eval_cache.needs_full_evaluation() {
-                self.evaluate_others(paths, token);
-                return Ok(());
-            }
-
             // Apply visible defaults before final formula pass.
             self.evaluate_internal(paths, token)?;
             if self.apply_visible_static_defaults() {

@@ -225,3 +225,65 @@ fn test_selective_eval_params_product_name() {
         .unwrap();
     assert_eq!(*updated_product_value, json!("Updated Product v2.0"));
 }
+
+#[test]
+fn test_re_evaluate_params_with_new_data() {
+    let schema = json!({
+        "type": "object",
+        "$params": {
+            "others": {
+                "TOTAL_PREM": {
+                    "$evaluation": {
+                        "$ref": "#/illustration/properties/loading/properties/prem"
+                    }
+                }
+            }
+        },
+        "properties": {
+            "illustration": {
+                "type": "object",
+                "properties": {
+                    "loading": {
+                        "type": "object",
+                        "properties": {
+                            "prem": {
+                                "type": "number"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    let data1 = json!({
+        "illustration": {
+            "loading": {
+                "prem": 5000
+            }
+        }
+    });
+
+    let data2 = json!({
+        "illustration": {
+            "loading": {
+                "prem": 3000
+            }
+        }
+    });
+
+    let schema_str = serde_json::to_string(&schema).unwrap();
+    let data1_str = serde_json::to_string(&data1).unwrap();
+    let data2_str = serde_json::to_string(&data2).unwrap();
+
+    let mut eval = JSONEval::new(&schema_str, None, Some(&data1_str)).unwrap();
+    eval.evaluate(&data1_str, None, None, None).unwrap();
+
+    let res1 = eval.get_evaluated_schema();
+    assert_eq!(res1.pointer("/$params/others/TOTAL_PREM"), Some(&json!(5000)));
+
+    eval.evaluate(&data2_str, None, None, None).unwrap();
+    let res2 = eval.get_evaluated_schema();
+    assert_eq!(res2.pointer("/$params/others/TOTAL_PREM"), Some(&json!(3000)));
+}
+
