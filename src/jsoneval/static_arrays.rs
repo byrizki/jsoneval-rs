@@ -39,6 +39,45 @@ pub(crate) fn register_typed_tables_from_static_arrays(
     }
 }
 
+/// Registers small reference tables (<= 10 items) that remain inline in `$params`
+/// without converting them into `$static_array` markers, preserving plain params contracts.
+pub(crate) fn register_small_reference_tables(
+    engine: &crate::rlogic::RLogic,
+    val: &Value,
+    prefix: &str,
+) {
+    if let Value::Object(map) = val {
+        for (key, child) in map {
+            let path = format!("{}/{}", prefix, key);
+            match child {
+                Value::Array(arr) => {
+                    if let Some(typed) =
+                        crate::rlogic::tensor::TypedReferenceTable::try_from_json_array(&path, arr)
+                    {
+                        let typed_arc = Arc::new(typed);
+                        engine.register_typed_table(path.clone(), Arc::clone(&typed_arc));
+                        if let Some(short_name) = path.rsplit('/').next() {
+                            engine.register_typed_table(short_name.to_string(), Arc::clone(&typed_arc));
+                            engine.register_typed_table(
+                                format!("#/$params/references/{}", short_name),
+                                Arc::clone(&typed_arc),
+                            );
+                            engine.register_typed_table(
+                                format!("/$params/references/{}", short_name),
+                                Arc::clone(&typed_arc),
+                            );
+                        }
+                    }
+                }
+                Value::Object(_) => {
+                    register_small_reference_tables(engine, child, &path);
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
 fn extract_recursive(
     map: &mut serde_json::Map<String, Value>,
     prefix: &str,

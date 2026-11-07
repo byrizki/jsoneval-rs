@@ -49,12 +49,39 @@ pub enum TableOp {
     Jump(usize),
     JumpIfZero(usize),
     JumpIfNotZero(usize),
+    /// Lookup in external TypedReferenceTable by key column (IndexAt + ValueAt pattern):
+    /// Pops target_val from stack, performs lookup, pushes result
+    LookupTypedTable {
+        table_id: u16,
+        key_col_id: u16,
+        val_col_id: u16,
+    },
+    /// Lookup in external TypedReferenceTable by row index (ValueAt(table, row_idx, val_col)):
+    /// Pops row_idx from stack, reads cell, pushes result
+    LookupTypedTableRow {
+        table_id: u16,
+        val_col_id: u16,
+    },
+    /// Lookup in external TypedReferenceTable by key with fallback default_val if missing / out of bounds
+    LookupTypedTableOr {
+        table_id: u16,
+        key_col_id: u16,
+        val_col_id: u16,
+        default_val: f64,
+    },
+    /// Lookup in external TypedReferenceTable by row index with fallback default_val if missing / out of bounds
+    LookupTypedTableRowOr {
+        table_id: u16,
+        val_col_id: u16,
+        default_val: f64,
+    },
 }
 
 /// Compiled linear bytecode for high-speed inner table cell evaluation
 #[derive(Debug, Clone)]
 pub struct TableBytecode {
     pub ops: Vec<TableOp>,
+    pub string_pool: Vec<String>,
 }
 
 impl TableBytecode {
@@ -74,6 +101,7 @@ impl TableBytecode {
         iteration_raw: i64,
         static_rows: *const Vec<Value>,
         col_names: &[String],
+        evaluator: Option<&crate::rlogic::Evaluator>,
     ) -> Option<f64> {
         let mut stack: [f64; 64] = [0.0; 64];
         let mut sp: usize = 0;
@@ -442,6 +470,89 @@ impl TableBytecode {
                         pc += 1;
                     }
                 }
+                TableOp::LookupTypedTable {
+                    table_id,
+                    key_col_id,
+                    val_col_id,
+                } => {
+                    if sp < 1 {
+                        return None;
+                    }
+                    let target_val = stack[sp - 1];
+                    let eval = evaluator?;
+                    let table_name = &self.string_pool[table_id as usize];
+                    let key_col = &self.string_pool[key_col_id as usize];
+                    let val_col = &self.string_pool[val_col_id as usize];
+                    let val = eval.with_typed_table(table_name, |tbl| {
+                        tbl.lookup_value(key_col, target_val, val_col)
+                    })??;
+                    stack[sp - 1] = val;
+                    pc += 1;
+                }
+                TableOp::LookupTypedTableRow {
+                    table_id,
+                    val_col_id,
+                } => {
+                    if sp < 1 {
+                        return None;
+                    }
+                    let row_f = stack[sp - 1];
+                    if row_f < 0.0 {
+                        return None;
+                    }
+                    let row_idx = row_f as usize;
+                    let eval = evaluator?;
+                    let table_name = &self.string_pool[table_id as usize];
+                    let val_col = &self.string_pool[val_col_id as usize];
+                    let val = eval.with_typed_table(table_name, |tbl| {
+                        tbl.get_by_name(row_idx, val_col)
+                    })??;
+                    stack[sp - 1] = val;
+                    pc += 1;
+                }
+                TableOp::LookupTypedTableOr {
+                    table_id,
+                    key_col_id,
+                    val_col_id,
+                    default_val,
+                } => {
+                    if sp < 1 {
+                        return None;
+                    }
+                    let target_val = stack[sp - 1];
+                    let eval = evaluator?;
+                    let table_name = &self.string_pool[table_id as usize];
+                    let key_col = &self.string_pool[key_col_id as usize];
+                    let val_col = &self.string_pool[val_col_id as usize];
+                    let val = eval.with_typed_table(table_name, |tbl| {
+                        tbl.lookup_value(key_col, target_val, val_col)
+                    }).flatten().unwrap_or(default_val);
+                    stack[sp - 1] = val;
+                    pc += 1;
+                }
+                TableOp::LookupTypedTableRowOr {
+                    table_id,
+                    val_col_id,
+                    default_val,
+                } => {
+                    if sp < 1 {
+                        return None;
+                    }
+                    let row_f = stack[sp - 1];
+                    let eval = evaluator?;
+                    let table_name = &self.string_pool[table_id as usize];
+                    let val_col = &self.string_pool[val_col_id as usize];
+                    let val = if row_f >= 0.0 {
+                        let row_idx = row_f as usize;
+                        eval.with_typed_table(table_name, |tbl| {
+                            tbl.get_by_name(row_idx, val_col)
+                        }).flatten().unwrap_or(default_val)
+                    } else {
+                        default_val
+                    };
+                    stack[sp - 1] = val;
+                    pc += 1;
+                }
             }
         }
 
@@ -498,6 +609,7 @@ impl TableBytecode {
         iteration_raw: i64,
         static_rows: *const Vec<Value>,
         col_names: &[String],
+        evaluator: Option<&crate::rlogic::Evaluator>,
     ) -> Option<f64> {
         let mut stack: [f64; 64] = [0.0; 64];
         let mut sp: usize = 0;
@@ -848,6 +960,89 @@ impl TableBytecode {
                         pc += 1;
                     }
                 }
+                TableOp::LookupTypedTable {
+                    table_id,
+                    key_col_id,
+                    val_col_id,
+                } => {
+                    if sp < 1 {
+                        return None;
+                    }
+                    let target_val = stack[sp - 1];
+                    let eval = evaluator?;
+                    let table_name = &self.string_pool[table_id as usize];
+                    let key_col = &self.string_pool[key_col_id as usize];
+                    let val_col = &self.string_pool[val_col_id as usize];
+                    let val = eval.with_typed_table(table_name, |tbl| {
+                        tbl.lookup_value(key_col, target_val, val_col)
+                    })??;
+                    stack[sp - 1] = val;
+                    pc += 1;
+                }
+                TableOp::LookupTypedTableRow {
+                    table_id,
+                    val_col_id,
+                } => {
+                    if sp < 1 {
+                        return None;
+                    }
+                    let row_f = stack[sp - 1];
+                    if row_f < 0.0 {
+                        return None;
+                    }
+                    let row_idx = row_f as usize;
+                    let eval = evaluator?;
+                    let table_name = &self.string_pool[table_id as usize];
+                    let val_col = &self.string_pool[val_col_id as usize];
+                    let val = eval.with_typed_table(table_name, |tbl| {
+                        tbl.get_by_name(row_idx, val_col)
+                    })??;
+                    stack[sp - 1] = val;
+                    pc += 1;
+                }
+                TableOp::LookupTypedTableOr {
+                    table_id,
+                    key_col_id,
+                    val_col_id,
+                    default_val,
+                } => {
+                    if sp < 1 {
+                        return None;
+                    }
+                    let target_val = stack[sp - 1];
+                    let eval = evaluator?;
+                    let table_name = &self.string_pool[table_id as usize];
+                    let key_col = &self.string_pool[key_col_id as usize];
+                    let val_col = &self.string_pool[val_col_id as usize];
+                    let val = eval.with_typed_table(table_name, |tbl| {
+                        tbl.lookup_value(key_col, target_val, val_col)
+                    }).flatten().unwrap_or(default_val);
+                    stack[sp - 1] = val;
+                    pc += 1;
+                }
+                TableOp::LookupTypedTableRowOr {
+                    table_id,
+                    val_col_id,
+                    default_val,
+                } => {
+                    if sp < 1 {
+                        return None;
+                    }
+                    let row_f = stack[sp - 1];
+                    let eval = evaluator?;
+                    let table_name = &self.string_pool[table_id as usize];
+                    let val_col = &self.string_pool[val_col_id as usize];
+                    let val = if row_f >= 0.0 {
+                        let row_idx = row_f as usize;
+                        eval.with_typed_table(table_name, |tbl| {
+                            tbl.get_by_name(row_idx, val_col)
+                        }).flatten().unwrap_or(default_val)
+                    } else {
+                        default_val
+                    };
+                    stack[sp - 1] = val;
+                    pc += 1;
+                }
             }
         }
 
@@ -865,438 +1060,613 @@ pub fn try_lower_to_bytecode(
     table_path: &str,
     table_no_hash: &str,
     col_map: &rapidhash::RapidHashMap<String, usize>,
+    evaluator: Option<&crate::rlogic::Evaluator>,
 ) -> Option<TableBytecode> {
-    let mut ops = Vec::new();
-    if lower_node(logic, &mut ops, table_path, table_no_hash, col_map) {
-        Some(TableBytecode { ops })
+    // If top-level expression is literally a string or empty, do not lower to numeric bytecode!
+    match logic {
+        CompiledLogic::String(_) | CompiledLogic::Empty => return None,
+        _ => {}
+    }
+
+    let mut ctx = LowerCtx {
+        table_path,
+        table_no_hash,
+        col_map,
+        evaluator,
+        ops: Vec::new(),
+        strings: Vec::new(),
+    };
+    if ctx.lower(logic) {
+        Some(TableBytecode {
+            ops: ctx.ops,
+            string_pool: ctx.strings,
+        })
     } else {
         None
     }
 }
 
-fn lower_node(
-    logic: &CompiledLogic,
-    ops: &mut Vec<TableOp>,
-    table_path: &str,
-    table_no_hash: &str,
-    col_map: &rapidhash::RapidHashMap<String, usize>,
-) -> bool {
-    match logic {
-        CompiledLogic::Number(n) => {
-            ops.push(TableOp::PushConst(*n));
-            true
+struct LowerCtx<'a> {
+    table_path: &'a str,
+    table_no_hash: &'a str,
+    col_map: &'a rapidhash::RapidHashMap<String, usize>,
+    evaluator: Option<&'a crate::rlogic::Evaluator>,
+    ops: Vec<TableOp>,
+    strings: Vec<String>,
+}
+
+impl<'a> LowerCtx<'a> {
+    fn intern_str(&mut self, s: &str) -> u16 {
+        if let Some(pos) = self.strings.iter().position(|x| x == s) {
+            pos as u16
+        } else {
+            let idx = self.strings.len() as u16;
+            self.strings.push(s.to_string());
+            idx
         }
-        CompiledLogic::Bool(b) => {
-            ops.push(TableOp::PushConst(if *b { 1.0 } else { 0.0 }));
-            true
-        }
-        CompiledLogic::Null => {
-            ops.push(TableOp::PushConst(0.0));
-            true
-        }
-        CompiledLogic::String(s) => {
-            if let Ok(n) = s.parse::<f64>() {
-                ops.push(TableOp::PushConst(n));
+    }
+
+    fn lower(&mut self, logic: &CompiledLogic) -> bool {
+        match logic {
+            CompiledLogic::Number(n) => {
+                self.ops.push(TableOp::PushConst(*n));
                 true
-            } else {
+            }
+            CompiledLogic::Bool(b) => {
+                self.ops.push(TableOp::PushConst(if *b { 1.0 } else { 0.0 }));
+                true
+            }
+            CompiledLogic::Null => {
+                self.ops.push(TableOp::PushConst(0.0));
+                true
+            }
+            CompiledLogic::String(s) => {
+                if let Ok(n) = s.parse::<f64>() {
+                    self.ops.push(TableOp::PushConst(n));
+                    true
+                } else {
+                    false
+                }
+            }
+            CompiledLogic::Var(name, _) | CompiledLogic::Ref(name, _)
+                if name == "$iteration" || name == "/$iteration" =>
+            {
+                self.ops.push(TableOp::PushIteration);
+                true
+            }
+            CompiledLogic::Var(name, _) | CompiledLogic::Ref(name, _) => {
+                let stripped = if name.starts_with("/$") {
+                    &name[2..]
+                } else if name.starts_with('$') {
+                    &name[1..]
+                } else {
+                    name.as_str()
+                };
+                if !stripped.contains('/') {
+                    if let Some(&col_idx) = self.col_map.get(stripped) {
+                        self.ops.push(TableOp::PushCol(col_idx));
+                        return true;
+                    }
+                }
                 false
             }
-        }
-        CompiledLogic::Var(name, _) | CompiledLogic::Ref(name, _)
-            if name == "$iteration" || name == "/$iteration" =>
-        {
-            ops.push(TableOp::PushIteration);
-            true
-        }
-        CompiledLogic::Var(name, _) | CompiledLogic::Ref(name, _) => {
-            let stripped = if name.starts_with("/$") {
-                &name[2..]
-            } else if name.starts_with('$') {
-                &name[1..]
-            } else {
-                name.as_str()
-            };
-            if !stripped.contains('/') {
-                if let Some(&col_idx) = col_map.get(stripped) {
-                    ops.push(TableOp::PushCol(col_idx));
-                    return true;
-                }
-            }
-            false
-        }
-        CompiledLogic::ValueAt(table, row_idx_expr, col_name_expr) => {
-            let table_name = table_no_hash.rsplit('/').next().unwrap_or(table_no_hash);
-            let is_self_table = match table.as_ref() {
-                CompiledLogic::Var(name, _) | CompiledLogic::Ref(name, _) => {
-                    name == table_path
-                        || name == table_no_hash
-                        || name.strip_prefix('#').unwrap_or(name) == table_no_hash
-                        || (!table_name.is_empty()
-                            && (name == table_name
-                                || name.ends_with(&format!("/{}", table_name))
-                                || name.ends_with(&format!(".{}", table_name))))
-                }
-                _ => false,
-            };
-            if !is_self_table {
-                return false;
-            }
+            CompiledLogic::ValueAt(table, row_idx_expr, col_name_expr) => {
+                let table_name = self.table_no_hash.rsplit('/').next().unwrap_or(self.table_no_hash);
+                let is_self_table = match table.as_ref() {
+                    CompiledLogic::Var(name, _) | CompiledLogic::Ref(name, _) => {
+                        name == self.table_path
+                            || name == self.table_no_hash
+                            || name.strip_prefix('#').unwrap_or(name) == self.table_no_hash
+                            || (!table_name.is_empty()
+                                && (name == table_name
+                                    || name.ends_with(&format!("/{}", table_name))
+                                    || name.ends_with(&format!(".{}", table_name))))
+                    }
+                    _ => false,
+                };
+                if is_self_table {
+                    let col_name = match col_name_expr.as_ref() {
+                        Some(c) => match c.as_ref() {
+                            CompiledLogic::String(s) => s.as_str(),
+                            _ => return false,
+                        },
+                        None => return false,
+                    };
+                    let col_idx = match self.col_map.get(col_name) {
+                        Some(&idx) => idx,
+                        None => return false,
+                    };
 
-            let col_name = match col_name_expr.as_ref() {
-                Some(c) => match c.as_ref() {
-                    CompiledLogic::String(s) => s.as_str(),
-                    _ => return false,
-                },
-                None => return false,
-            };
-            let col_idx = match col_map.get(col_name) {
-                Some(&idx) => idx,
-                None => return false,
-            };
-
-            match row_idx_expr.as_ref() {
-                CompiledLogic::Var(var, _) | CompiledLogic::Ref(var, _)
-                    if var == "$iteration" || var == "/$iteration" =>
-                {
-                    ops.push(TableOp::PushValueAt {
-                        col_idx,
-                        iter_delta: 0,
-                    });
-                    true
-                }
-                CompiledLogic::Subtract(items) if items.len() == 2 => {
-                    match (&items[0], &items[1]) {
-                        (
-                            CompiledLogic::Var(var, _) | CompiledLogic::Ref(var, _),
-                            CompiledLogic::Number(n),
-                        ) if var == "$iteration" || var == "/$iteration" => {
-                            ops.push(TableOp::PushValueAt {
+                    match row_idx_expr.as_ref() {
+                        CompiledLogic::Var(var, _) | CompiledLogic::Ref(var, _)
+                            if var == "$iteration" || var == "/$iteration" =>
+                        {
+                            self.ops.push(TableOp::PushValueAt {
                                 col_idx,
-                                iter_delta: -(*n as i32),
+                                iter_delta: 0,
+                            });
+                            true
+                        }
+                        CompiledLogic::Subtract(items) if items.len() == 2 => {
+                            match (&items[0], &items[1]) {
+                                (
+                                    CompiledLogic::Var(var, _) | CompiledLogic::Ref(var, _),
+                                    CompiledLogic::Number(n),
+                                ) if var == "$iteration" || var == "/$iteration" => {
+                                    self.ops.push(TableOp::PushValueAt {
+                                        col_idx,
+                                        iter_delta: -(*n as i32),
+                                    });
+                                    true
+                                }
+                                _ => false,
+                            }
+                        }
+                        CompiledLogic::Add(items) if items.len() == 2 => match (&items[0], &items[1]) {
+                            (
+                                CompiledLogic::Var(var, _) | CompiledLogic::Ref(var, _),
+                                CompiledLogic::Number(n),
+                            )
+                            | (
+                                CompiledLogic::Number(n),
+                                CompiledLogic::Var(var, _) | CompiledLogic::Ref(var, _),
+                            ) if var == "$iteration" || var == "/$iteration" => {
+                                self.ops.push(TableOp::PushValueAt {
+                                    col_idx,
+                                    iter_delta: *n as i32,
+                                });
+                                true
+                            }
+                            _ => false,
+                        },
+                        CompiledLogic::Number(n) if *n >= 0.0 => {
+                            self.ops.push(TableOp::PushValueAtConstRow {
+                                col_idx,
+                                const_row: *n as usize,
                             });
                             true
                         }
                         _ => false,
                     }
-                }
-                CompiledLogic::Add(items) if items.len() == 2 => match (&items[0], &items[1]) {
-                    (
-                        CompiledLogic::Var(var, _) | CompiledLogic::Ref(var, _),
-                        CompiledLogic::Number(n),
-                    )
-                    | (
-                        CompiledLogic::Number(n),
-                        CompiledLogic::Var(var, _) | CompiledLogic::Ref(var, _),
-                    ) if var == "$iteration" || var == "/$iteration" => {
-                        ops.push(TableOp::PushValueAt {
-                            col_idx,
-                            iter_delta: *n as i32,
+                } else {
+                    let ext_table_name = match table.as_ref() {
+                        CompiledLogic::Var(name, _) | CompiledLogic::Ref(name, _) => name.as_str(),
+                        CompiledLogic::String(s) => s.as_str(),
+                        _ => return false,
+                    };
+                    let val_col = match col_name_expr.as_ref() {
+                        Some(c) => match c.as_ref() {
+                            CompiledLogic::String(s) => s.as_str(),
+                            _ => return false,
+                        },
+                        None => return false,
+                    };
+
+                    if let CompiledLogic::IndexAt(lookup_expr, _, field_expr, range_expr) = row_idx_expr.as_ref() {
+                        let is_range = match range_expr.as_ref() {
+                            Some(r) => match r.as_ref() {
+                                CompiledLogic::Bool(b) => *b,
+                                CompiledLogic::Number(n) => *n != 0.0,
+                                _ => return false,
+                            },
+                            None => false,
+                        };
+                        if is_range {
+                            return false;
+                        }
+                        let key_col = match field_expr.as_ref() {
+                            CompiledLogic::String(s) => s.as_str(),
+                            _ => return false,
+                        };
+
+                        if let Some(eval) = self.evaluator {
+                            let valid = eval.with_typed_table(ext_table_name, |tbl| {
+                                tbl.key_columns.contains_key(key_col) && tbl.col_indices.contains_key(val_col)
+                            }).unwrap_or(false);
+                            if !valid {
+                                return false;
+                            }
+                        }
+
+                        if !self.lower(lookup_expr) {
+                            return false;
+                        }
+                        let table_id = self.intern_str(ext_table_name);
+                        let key_col_id = self.intern_str(key_col);
+                        let val_col_id = self.intern_str(val_col);
+                        self.ops.push(TableOp::LookupTypedTable {
+                            table_id,
+                            key_col_id,
+                            val_col_id,
+                        });
+                        true
+                    } else {
+                        if let Some(eval) = self.evaluator {
+                            let valid = eval.with_typed_table(ext_table_name, |tbl| {
+                                tbl.col_indices.contains_key(val_col)
+                            }).unwrap_or(false);
+                            if !valid {
+                                return false;
+                            }
+                        }
+
+                        if !self.lower(row_idx_expr) {
+                            return false;
+                        }
+                        let table_id = self.intern_str(ext_table_name);
+                        let val_col_id = self.intern_str(val_col);
+                        self.ops.push(TableOp::LookupTypedTableRow {
+                            table_id,
+                            val_col_id,
                         });
                         true
                     }
-                    _ => false,
-                },
-                CompiledLogic::Number(n) if *n >= 0.0 => {
-                    ops.push(TableOp::PushValueAtConstRow {
-                        col_idx,
-                        const_row: *n as usize,
-                    });
-                    true
                 }
-                _ => false,
             }
-        }
-        CompiledLogic::Add(items) => {
-            if items.is_empty() {
-                return false;
-            }
-            if !lower_node(&items[0], ops, table_path, table_no_hash, col_map) {
-                return false;
-            }
-            for item in &items[1..] {
-                if !lower_node(item, ops, table_path, table_no_hash, col_map) {
+            CompiledLogic::Add(items) => {
+                if items.is_empty() {
                     return false;
                 }
-                ops.push(TableOp::Add);
-            }
-            true
-        }
-        CompiledLogic::Subtract(items) => {
-            if items.is_empty() {
-                return false;
-            }
-            if !lower_node(&items[0], ops, table_path, table_no_hash, col_map) {
-                return false;
-            }
-            if items.len() == 1 {
-                ops.push(TableOp::Negate);
-                return true;
-            }
-            for item in &items[1..] {
-                if !lower_node(item, ops, table_path, table_no_hash, col_map) {
+                if !self.lower(&items[0]) {
                     return false;
                 }
-                ops.push(TableOp::Subtract);
+                for item in &items[1..] {
+                    if !self.lower(item) {
+                        return false;
+                    }
+                    self.ops.push(TableOp::Add);
+                }
+                true
             }
-            true
-        }
-        CompiledLogic::Multiply(items) => {
-            if items.is_empty() {
-                return false;
-            }
-            if !lower_node(&items[0], ops, table_path, table_no_hash, col_map) {
-                return false;
-            }
-            for item in &items[1..] {
-                if !lower_node(item, ops, table_path, table_no_hash, col_map) {
+            CompiledLogic::Subtract(items) => {
+                if items.is_empty() {
                     return false;
                 }
-                ops.push(TableOp::Multiply);
-            }
-            true
-        }
-        CompiledLogic::Divide(items) => {
-            if items.is_empty() {
-                return false;
-            }
-            if !lower_node(&items[0], ops, table_path, table_no_hash, col_map) {
-                return false;
-            }
-            for item in &items[1..] {
-                if !lower_node(item, ops, table_path, table_no_hash, col_map) {
+                if !self.lower(&items[0]) {
                     return false;
                 }
-                ops.push(TableOp::Divide);
+                if items.len() == 1 {
+                    self.ops.push(TableOp::Negate);
+                    return true;
+                }
+                for item in &items[1..] {
+                    if !self.lower(item) {
+                        return false;
+                    }
+                    self.ops.push(TableOp::Subtract);
+                }
+                true
             }
-            true
-        }
-        CompiledLogic::Modulo(a, b) => {
-            if !lower_node(a, ops, table_path, table_no_hash, col_map) {
-                return false;
-            }
-            if !lower_node(b, ops, table_path, table_no_hash, col_map) {
-                return false;
-            }
-            ops.push(TableOp::Modulo);
-            true
-        }
-        CompiledLogic::Power(a, b) => {
-            if !lower_node(a, ops, table_path, table_no_hash, col_map) {
-                return false;
-            }
-            if !lower_node(b, ops, table_path, table_no_hash, col_map) {
-                return false;
-            }
-            ops.push(TableOp::Power);
-            true
-        }
-        CompiledLogic::Abs(a) => {
-            if !lower_node(a, ops, table_path, table_no_hash, col_map) {
-                return false;
-            }
-            ops.push(TableOp::Abs);
-            true
-        }
-        CompiledLogic::Round(a, decimals_expr) => {
-            let decimals = match decimals_expr.as_ref() {
-                Some(d) => match d.as_ref() {
-                    CompiledLogic::Number(n) => *n as i32,
-                    _ => return false,
-                },
-                None => 0,
-            };
-            if !lower_node(a, ops, table_path, table_no_hash, col_map) {
-                return false;
-            }
-            ops.push(TableOp::Round(decimals));
-            true
-        }
-        CompiledLogic::RoundUp(a, decimals_expr) => {
-            let decimals = match decimals_expr.as_ref() {
-                Some(d) => match d.as_ref() {
-                    CompiledLogic::Number(n) => *n as i32,
-                    _ => return false,
-                },
-                None => 0,
-            };
-            if !lower_node(a, ops, table_path, table_no_hash, col_map) {
-                return false;
-            }
-            ops.push(TableOp::RoundUp(decimals));
-            true
-        }
-        CompiledLogic::RoundDown(a, decimals_expr) => {
-            let decimals = match decimals_expr.as_ref() {
-                Some(d) => match d.as_ref() {
-                    CompiledLogic::Number(n) => *n as i32,
-                    _ => return false,
-                },
-                None => 0,
-            };
-            if !lower_node(a, ops, table_path, table_no_hash, col_map) {
-                return false;
-            }
-            ops.push(TableOp::RoundDown(decimals));
-            true
-        }
-        CompiledLogic::Min(items) => {
-            if items.is_empty() || items.len() > 32 {
-                return false;
-            }
-            for item in items {
-                if !lower_node(item, ops, table_path, table_no_hash, col_map) {
+            CompiledLogic::Multiply(items) => {
+                if items.is_empty() {
                     return false;
                 }
-            }
-            ops.push(TableOp::Min(items.len() as u8));
-            true
-        }
-        CompiledLogic::Max(items) => {
-            if items.is_empty() || items.len() > 32 {
-                return false;
-            }
-            for item in items {
-                if !lower_node(item, ops, table_path, table_no_hash, col_map) {
+                if !self.lower(&items[0]) {
                     return false;
                 }
+                for item in &items[1..] {
+                    if !self.lower(item) {
+                        return false;
+                    }
+                    self.ops.push(TableOp::Multiply);
+                }
+                true
             }
-            ops.push(TableOp::Max(items.len() as u8));
-            true
-        }
-        CompiledLogic::Equal(a, b) | CompiledLogic::StrictEqual(a, b) => {
-            if !lower_node(a, ops, table_path, table_no_hash, col_map)
-                || !lower_node(b, ops, table_path, table_no_hash, col_map)
-            {
-                return false;
-            }
-            ops.push(TableOp::Eq);
-            true
-        }
-        CompiledLogic::NotEqual(a, b) | CompiledLogic::StrictNotEqual(a, b) => {
-            if !lower_node(a, ops, table_path, table_no_hash, col_map)
-                || !lower_node(b, ops, table_path, table_no_hash, col_map)
-            {
-                return false;
-            }
-            ops.push(TableOp::Ne);
-            true
-        }
-        CompiledLogic::LessThan(a, b) => {
-            if !lower_node(a, ops, table_path, table_no_hash, col_map)
-                || !lower_node(b, ops, table_path, table_no_hash, col_map)
-            {
-                return false;
-            }
-            ops.push(TableOp::Lt);
-            true
-        }
-        CompiledLogic::LessThanOrEqual(a, b) => {
-            if !lower_node(a, ops, table_path, table_no_hash, col_map)
-                || !lower_node(b, ops, table_path, table_no_hash, col_map)
-            {
-                return false;
-            }
-            ops.push(TableOp::Lte);
-            true
-        }
-        CompiledLogic::GreaterThan(a, b) => {
-            if !lower_node(a, ops, table_path, table_no_hash, col_map)
-                || !lower_node(b, ops, table_path, table_no_hash, col_map)
-            {
-                return false;
-            }
-            ops.push(TableOp::Gt);
-            true
-        }
-        CompiledLogic::GreaterThanOrEqual(a, b) => {
-            if !lower_node(a, ops, table_path, table_no_hash, col_map)
-                || !lower_node(b, ops, table_path, table_no_hash, col_map)
-            {
-                return false;
-            }
-            ops.push(TableOp::Gte);
-            true
-        }
-        CompiledLogic::Not(inner) => {
-            if !lower_node(inner, ops, table_path, table_no_hash, col_map) {
-                return false;
-            }
-            ops.push(TableOp::Not);
-            true
-        }
-        CompiledLogic::If(cond, then, else_expr) => {
-            if !lower_node(cond, ops, table_path, table_no_hash, col_map) {
-                return false;
-            }
-            let jz_idx = ops.len();
-            ops.push(TableOp::JumpIfZero(0));
-            if !lower_node(then, ops, table_path, table_no_hash, col_map) {
-                return false;
-            }
-            let jmp_idx = ops.len();
-            ops.push(TableOp::Jump(0));
-            ops[jz_idx] = TableOp::JumpIfZero(ops.len());
-            if !lower_node(else_expr, ops, table_path, table_no_hash, col_map) {
-                return false;
-            }
-            ops[jmp_idx] = TableOp::Jump(ops.len());
-            true
-        }
-        CompiledLogic::And(items) => {
-            if items.is_empty() {
-                ops.push(TableOp::PushConst(1.0));
-                return true;
-            }
-            if items.len() == 1 {
-                return lower_node(&items[0], ops, table_path, table_no_hash, col_map);
-            }
-            let mut jz_indices = Vec::new();
-            for item in items {
-                if !lower_node(item, ops, table_path, table_no_hash, col_map) {
+            CompiledLogic::Divide(items) => {
+                if items.is_empty() {
                     return false;
                 }
-                jz_indices.push(ops.len());
-                ops.push(TableOp::JumpIfZero(0));
-            }
-            ops.push(TableOp::PushConst(1.0));
-            let jmp_end = ops.len();
-            ops.push(TableOp::Jump(0));
-            let false_target = ops.len();
-            for jz in jz_indices {
-                ops[jz] = TableOp::JumpIfZero(false_target);
-            }
-            ops.push(TableOp::PushConst(0.0));
-            ops[jmp_end] = TableOp::Jump(ops.len());
-            true
-        }
-        CompiledLogic::Or(items) => {
-            if items.is_empty() {
-                ops.push(TableOp::PushConst(0.0));
-                return true;
-            }
-            if items.len() == 1 {
-                return lower_node(&items[0], ops, table_path, table_no_hash, col_map);
-            }
-            let mut jnz_indices = Vec::new();
-            for item in items {
-                if !lower_node(item, ops, table_path, table_no_hash, col_map) {
+                if !self.lower(&items[0]) {
                     return false;
                 }
-                jnz_indices.push(ops.len());
-                ops.push(TableOp::JumpIfNotZero(0));
+                for item in &items[1..] {
+                    if !self.lower(item) {
+                        return false;
+                    }
+                    self.ops.push(TableOp::Divide);
+                }
+                true
             }
-            ops.push(TableOp::PushConst(0.0));
-            let jmp_end = ops.len();
-            ops.push(TableOp::Jump(0));
-            let true_target = ops.len();
-            for jnz in jnz_indices {
-                ops[jnz] = TableOp::JumpIfNotZero(true_target);
+            CompiledLogic::Modulo(a, b) => {
+                if !self.lower(a) || !self.lower(b) {
+                    return false;
+                }
+                self.ops.push(TableOp::Modulo);
+                true
             }
-            ops.push(TableOp::PushConst(1.0));
-            ops[jmp_end] = TableOp::Jump(ops.len());
-            true
+            CompiledLogic::Power(a, b) => {
+                if !self.lower(a) || !self.lower(b) {
+                    return false;
+                }
+                self.ops.push(TableOp::Power);
+                true
+            }
+            CompiledLogic::Abs(a) => {
+                if !self.lower(a) {
+                    return false;
+                }
+                self.ops.push(TableOp::Abs);
+                true
+            }
+            CompiledLogic::Round(a, decimals_expr) => {
+                let decimals = match decimals_expr.as_ref() {
+                    Some(d) => match d.as_ref() {
+                        CompiledLogic::Number(n) => *n as i32,
+                        _ => return false,
+                    },
+                    None => 0,
+                };
+                if !self.lower(a) {
+                    return false;
+                }
+                self.ops.push(TableOp::Round(decimals));
+                true
+            }
+            CompiledLogic::RoundUp(a, decimals_expr) => {
+                let decimals = match decimals_expr.as_ref() {
+                    Some(d) => match d.as_ref() {
+                        CompiledLogic::Number(n) => *n as i32,
+                        _ => return false,
+                    },
+                    None => 0,
+                };
+                if !self.lower(a) {
+                    return false;
+                }
+                self.ops.push(TableOp::RoundUp(decimals));
+                true
+            }
+            CompiledLogic::RoundDown(a, decimals_expr) => {
+                let decimals = match decimals_expr.as_ref() {
+                    Some(d) => match d.as_ref() {
+                        CompiledLogic::Number(n) => *n as i32,
+                        _ => return false,
+                    },
+                    None => 0,
+                };
+                if !self.lower(a) {
+                    return false;
+                }
+                self.ops.push(TableOp::RoundDown(decimals));
+                true
+            }
+            CompiledLogic::Min(items) => {
+                if items.is_empty() || items.len() > 32 {
+                    return false;
+                }
+                for item in items {
+                    if !self.lower(item) {
+                        return false;
+                    }
+                }
+                self.ops.push(TableOp::Min(items.len() as u8));
+                true
+            }
+            CompiledLogic::Max(items) => {
+                if items.is_empty() || items.len() > 32 {
+                    return false;
+                }
+                for item in items {
+                    if !self.lower(item) {
+                        return false;
+                    }
+                }
+                self.ops.push(TableOp::Max(items.len() as u8));
+                true
+            }
+            CompiledLogic::Equal(a, b) | CompiledLogic::StrictEqual(a, b) => {
+                if !self.lower(a) || !self.lower(b) {
+                    return false;
+                }
+                self.ops.push(TableOp::Eq);
+                true
+            }
+            CompiledLogic::NotEqual(a, b) | CompiledLogic::StrictNotEqual(a, b) => {
+                if !self.lower(a) || !self.lower(b) {
+                    return false;
+                }
+                self.ops.push(TableOp::Ne);
+                true
+            }
+            CompiledLogic::LessThan(a, b) => {
+                if !self.lower(a) || !self.lower(b) {
+                    return false;
+                }
+                self.ops.push(TableOp::Lt);
+                true
+            }
+            CompiledLogic::LessThanOrEqual(a, b) => {
+                if !self.lower(a) || !self.lower(b) {
+                    return false;
+                }
+                self.ops.push(TableOp::Lte);
+                true
+            }
+            CompiledLogic::GreaterThan(a, b) => {
+                if !self.lower(a) || !self.lower(b) {
+                    return false;
+                }
+                self.ops.push(TableOp::Gt);
+                true
+            }
+            CompiledLogic::GreaterThanOrEqual(a, b) => {
+                if !self.lower(a) || !self.lower(b) {
+                    return false;
+                }
+                self.ops.push(TableOp::Gte);
+                true
+            }
+            CompiledLogic::Not(inner) => {
+                if !self.lower(inner) {
+                    return false;
+                }
+                self.ops.push(TableOp::Not);
+                true
+            }
+            CompiledLogic::IfNull(cond_expr, alt_expr) => {
+                let default_val = match alt_expr.as_ref() {
+                    CompiledLogic::Number(n) => *n,
+                    CompiledLogic::String(s) => s.parse::<f64>().unwrap_or(0.0),
+                    _ => 0.0,
+                };
+                if let CompiledLogic::ValueAt(table, row_idx_expr, col_name_expr) = cond_expr.as_ref() {
+                    let ext_table_name = match table.as_ref() {
+                        CompiledLogic::Var(name, _) | CompiledLogic::Ref(name, _) => name.as_str(),
+                        CompiledLogic::String(s) => s.as_str(),
+                        _ => return self.lower(cond_expr),
+                    };
+                    let val_col = match col_name_expr.as_ref() {
+                        Some(c) => match c.as_ref() {
+                            CompiledLogic::String(s) => s.as_str(),
+                            _ => return self.lower(cond_expr),
+                        },
+                        None => return self.lower(cond_expr),
+                    };
+
+                    if let CompiledLogic::IndexAt(lookup_expr, _, field_expr, range_expr) = row_idx_expr.as_ref() {
+                        let is_range = match range_expr.as_ref() {
+                            Some(r) => match r.as_ref() {
+                                CompiledLogic::Bool(b) => *b,
+                                CompiledLogic::Number(n) => *n != 0.0,
+                                _ => return false,
+                            },
+                            None => false,
+                        };
+                        if is_range {
+                            return false;
+                        }
+                        let key_col = match field_expr.as_ref() {
+                            CompiledLogic::String(s) => s.as_str(),
+                            _ => return false,
+                        };
+
+                        if let Some(eval) = self.evaluator {
+                            let valid = eval.with_typed_table(ext_table_name, |tbl| {
+                                tbl.key_columns.contains_key(key_col) && tbl.col_indices.contains_key(val_col)
+                            }).unwrap_or(false);
+                            if !valid {
+                                return false;
+                            }
+                        }
+
+                        if !self.lower(lookup_expr) {
+                            return false;
+                        }
+                        let table_id = self.intern_str(ext_table_name);
+                        let key_col_id = self.intern_str(key_col);
+                        let val_col_id = self.intern_str(val_col);
+                        self.ops.push(TableOp::LookupTypedTableOr {
+                            table_id,
+                            key_col_id,
+                            val_col_id,
+                            default_val,
+                        });
+                        true
+                    } else {
+                        if let Some(eval) = self.evaluator {
+                            let valid = eval.with_typed_table(ext_table_name, |tbl| {
+                                tbl.col_indices.contains_key(val_col)
+                            }).unwrap_or(false);
+                            if !valid {
+                                return false;
+                            }
+                        }
+
+                        if !self.lower(row_idx_expr) {
+                            return false;
+                        }
+                        let table_id = self.intern_str(ext_table_name);
+                        let val_col_id = self.intern_str(val_col);
+                        self.ops.push(TableOp::LookupTypedTableRowOr {
+                            table_id,
+                            val_col_id,
+                            default_val,
+                        });
+                        true
+                    }
+                } else {
+                    self.lower(cond_expr)
+                }
+            }
+            CompiledLogic::If(cond, then, else_expr) => {
+                if matches!(then.as_ref(), CompiledLogic::String(_) | CompiledLogic::Empty)
+                    || matches!(else_expr.as_ref(), CompiledLogic::String(_) | CompiledLogic::Empty)
+                {
+                    return false;
+                }
+                if !self.lower(cond) {
+                    return false;
+                }
+                let jz_idx = self.ops.len();
+                self.ops.push(TableOp::JumpIfZero(0));
+                if !self.lower(then) {
+                    return false;
+                }
+                let jmp_idx = self.ops.len();
+                self.ops.push(TableOp::Jump(0));
+                self.ops[jz_idx] = TableOp::JumpIfZero(self.ops.len());
+                if !self.lower(else_expr) {
+                    return false;
+                }
+                self.ops[jmp_idx] = TableOp::Jump(self.ops.len());
+                true
+            }
+            CompiledLogic::And(items) => {
+                if items.is_empty() {
+                    self.ops.push(TableOp::PushConst(1.0));
+                    return true;
+                }
+                if items.len() == 1 {
+                    return self.lower(&items[0]);
+                }
+                let mut jz_indices = Vec::new();
+                for item in items {
+                    if !self.lower(item) {
+                        return false;
+                    }
+                    jz_indices.push(self.ops.len());
+                    self.ops.push(TableOp::JumpIfZero(0));
+                }
+                self.ops.push(TableOp::PushConst(1.0));
+                let jmp_end = self.ops.len();
+                self.ops.push(TableOp::Jump(0));
+                let false_target = self.ops.len();
+                for jz in jz_indices {
+                    self.ops[jz] = TableOp::JumpIfZero(false_target);
+                }
+                self.ops.push(TableOp::PushConst(0.0));
+                self.ops[jmp_end] = TableOp::Jump(self.ops.len());
+                true
+            }
+            CompiledLogic::Or(items) => {
+                if items.is_empty() {
+                    self.ops.push(TableOp::PushConst(0.0));
+                    return true;
+                }
+                if items.len() == 1 {
+                    return self.lower(&items[0]);
+                }
+                let mut jnz_indices = Vec::new();
+                for item in items {
+                    if !self.lower(item) {
+                        return false;
+                    }
+                    jnz_indices.push(self.ops.len());
+                    self.ops.push(TableOp::JumpIfNotZero(0));
+                }
+                self.ops.push(TableOp::PushConst(0.0));
+                let jmp_end = self.ops.len();
+                self.ops.push(TableOp::Jump(0));
+                let true_target = self.ops.len();
+                for jnz in jnz_indices {
+                    self.ops[jnz] = TableOp::JumpIfNotZero(true_target);
+                }
+                self.ops.push(TableOp::PushConst(1.0));
+                self.ops[jmp_end] = TableOp::Jump(self.ops.len());
+                true
+            }
+            _ => false,
         }
-        _ => false,
     }
 }
 
@@ -1314,6 +1684,7 @@ mod tests {
                 TableOp::PushConst(3.0),
                 TableOp::Multiply,
             ],
+            string_pool: vec![],
         };
         let dummy_cells = vec![];
         let dummy_rows = vec![];
@@ -1328,6 +1699,7 @@ mod tests {
                 1,
                 &dummy_rows as *const Vec<Value>,
                 &col_names,
+                None,
             )
         };
         assert_eq!(res, Some(45.0)); // (10 + 5) * 3 = 45
@@ -1346,6 +1718,7 @@ mod tests {
                 TableOp::Jump(7),
                 TableOp::PushConst(200.0),
             ],
+            string_pool: vec![],
         };
         let dummy_cells = vec![];
         let dummy_rows = vec![];
@@ -1360,6 +1733,7 @@ mod tests {
                 1,
                 &dummy_rows as *const Vec<Value>,
                 &col_names,
+                None,
             )
         };
         assert_eq!(res, Some(100.0));
@@ -1386,6 +1760,7 @@ mod tests {
                 },
                 TableOp::Add,
             ],
+            string_pool: vec![],
         };
         let res = unsafe {
             bc.execute(
@@ -1397,6 +1772,7 @@ mod tests {
                 1, // iteration = 1
                 &static_rows as *const Vec<Value>,
                 &col_names,
+                None,
             )
         };
         assert_eq!(res, Some(50.0));

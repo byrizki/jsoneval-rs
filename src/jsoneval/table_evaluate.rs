@@ -389,6 +389,7 @@ fn evaluate_table_inner(
                                         &table_pointer_path,
                                         table_no_hash,
                                         &col_map,
+                                        Some(lib.engine.evaluator()),
                                     )
                                 })
                             })
@@ -412,6 +413,7 @@ fn evaluate_table_inner(
 
                 lib.engine.set_table_scope_flat_cells(
                     flat_cells.as_mut_ptr(),
+                    tensor.data.as_mut_ptr(),
                     col_count,
                     total_rows,
                     existing_row_count,
@@ -551,11 +553,26 @@ fn evaluate_table_inner(
                                             iteration,
                                             static_rows_ptr,
                                             &col_names,
+                                            Some(lib.engine.evaluator()),
                                         )
                                     };
                                     if let Some(n) = num {
                                         tensor.set(r, col_idx, n);
                                         flat_cells[r * col_count + col_idx] = lib.engine.f64_to_value(n);
+                                    } else {
+                                        lib.engine.set_table_scope_cursor(Some(existing_row_count + r), Some(iteration));
+                                        let val = match col_logics[col_idx] {
+                                            Some(compiled) => lib.engine
+                                                .run_precompiled_with_context(
+                                                    compiled,
+                                                    scope_data.data(),
+                                                    &ctx_value,
+                                                )
+                                                .unwrap_or(Value::Null),
+                                            None => Value::Null,
+                                        };
+                                        tensor.set(r, col_idx, value_to_tensor_f64(&val));
+                                        flat_cells[r * col_count + col_idx] = val;
                                     }
                                 }
                             }
@@ -605,6 +622,7 @@ fn evaluate_table_inner(
                                                 iteration,
                                                 static_rows_ptr,
                                                 &col_names,
+                                                Some(lib.engine.evaluator()),
                                             )
                                         };
                                         if let Some(n) = num {
@@ -838,6 +856,7 @@ fn evaluate_table_inner(
                                                     iteration,
                                                     static_rows_ptr,
                                                     &col_names,
+                                                    Some(lib.engine.evaluator()),
                                                 )
                                             }
                                         } else {

@@ -39,6 +39,8 @@ pub(crate) struct TableScope {
     pub rows: *const Vec<Value>,
     /// Pointer to flat cells storage (total_rows * col_count) during Repeat
     pub flat_cells: *mut Value,
+    /// Pointer to tensor storage (total_rows * col_count) during Repeat
+    pub tensor_ptr: *mut f64,
     pub col_count: usize,
     pub total_rows: usize,
     pub existing_row_count: usize,
@@ -50,6 +52,8 @@ pub(crate) struct TableScope {
     pub current_row: Option<usize>,
     /// Precomputed row base pointer in flat_cells for O(1) cell access
     pub current_row_base: *mut Value,
+    /// Precomputed row base pointer in tensor for O(1) primitive cell access
+    pub current_tensor_row_base: *mut f64,
     /// Raw iteration integer value
     pub iteration_raw: Option<i64>,
     /// Optional pre-computed iteration value for O(1) $iteration resolution
@@ -257,6 +261,7 @@ impl Evaluator {
                 path_no_hash,
                 rows: rows as *const Vec<Value>,
                 flat_cells: std::ptr::null_mut(),
+                tensor_ptr: std::ptr::null_mut(),
                 col_count: 0,
                 total_rows: 0,
                 existing_row_count: 0,
@@ -264,6 +269,7 @@ impl Evaluator {
                 col_cache: [EMPTY_CACHE_SLOT; 256],
                 current_row: None,
                 current_row_base: std::ptr::null_mut(),
+                current_tensor_row_base: std::ptr::null_mut(),
                 iteration_raw: None,
                 iteration_val: None,
                 threshold_val: None,
@@ -278,6 +284,7 @@ impl Evaluator {
     pub(crate) fn set_table_scope_flat_cells(
         &self,
         cells: *mut Value,
+        tensor_ptr: *mut f64,
         col_count: usize,
         total_rows: usize,
         existing_row_count: usize,
@@ -286,12 +293,14 @@ impl Evaluator {
         unsafe {
             if let Some(ts) = (*self.table_scope_mut()).as_mut() {
                 ts.flat_cells = cells;
+                ts.tensor_ptr = tensor_ptr;
                 ts.col_count = col_count;
                 ts.total_rows = total_rows;
                 ts.existing_row_count = existing_row_count;
                 ts.col_map = col_map;
                 ts.col_cache = [EMPTY_CACHE_SLOT; 256];
                 ts.current_row_base = std::ptr::null_mut();
+                ts.current_tensor_row_base = std::ptr::null_mut();
             }
         }
     }
@@ -312,18 +321,27 @@ impl Evaluator {
                 ts.current_row = row_idx;
                 if let Some(r) = row_idx {
                     if ts.col_count > 0
-                        && !ts.flat_cells.is_null()
                         && r >= ts.existing_row_count
                         && r < ts.existing_row_count + ts.total_rows
                     {
-                        ts.current_row_base = ts
-                            .flat_cells
-                            .add((r - ts.existing_row_count) * ts.col_count);
+                        let offset = (r - ts.existing_row_count) * ts.col_count;
+                        if !ts.flat_cells.is_null() {
+                            ts.current_row_base = ts.flat_cells.add(offset);
+                        } else {
+                            ts.current_row_base = std::ptr::null_mut();
+                        }
+                        if !ts.tensor_ptr.is_null() {
+                            ts.current_tensor_row_base = ts.tensor_ptr.add(offset);
+                        } else {
+                            ts.current_tensor_row_base = std::ptr::null_mut();
+                        }
                     } else {
                         ts.current_row_base = std::ptr::null_mut();
+                        ts.current_tensor_row_base = std::ptr::null_mut();
                     }
                 } else {
                     ts.current_row_base = std::ptr::null_mut();
+                    ts.current_tensor_row_base = std::ptr::null_mut();
                 }
             }
         }
@@ -338,18 +356,27 @@ impl Evaluator {
                 ts.iteration_val = iteration.map(Value::from);
                 if let Some(r) = row_idx {
                     if ts.col_count > 0
-                        && !ts.flat_cells.is_null()
                         && r >= ts.existing_row_count
                         && r < ts.existing_row_count + ts.total_rows
                     {
-                        ts.current_row_base = ts
-                            .flat_cells
-                            .add((r - ts.existing_row_count) * ts.col_count);
+                        let offset = (r - ts.existing_row_count) * ts.col_count;
+                        if !ts.flat_cells.is_null() {
+                            ts.current_row_base = ts.flat_cells.add(offset);
+                        } else {
+                            ts.current_row_base = std::ptr::null_mut();
+                        }
+                        if !ts.tensor_ptr.is_null() {
+                            ts.current_tensor_row_base = ts.tensor_ptr.add(offset);
+                        } else {
+                            ts.current_tensor_row_base = std::ptr::null_mut();
+                        }
                     } else {
                         ts.current_row_base = std::ptr::null_mut();
+                        ts.current_tensor_row_base = std::ptr::null_mut();
                     }
                 } else {
                     ts.current_row_base = std::ptr::null_mut();
+                    ts.current_tensor_row_base = std::ptr::null_mut();
                 }
             }
         }

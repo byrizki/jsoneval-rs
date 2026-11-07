@@ -235,6 +235,7 @@ impl RLogic {
     pub fn set_table_scope_flat_cells(
         &self,
         cells: *mut Value,
+        tensor_ptr: *mut f64,
         col_count: usize,
         total_rows: usize,
         existing_row_count: usize,
@@ -242,6 +243,7 @@ impl RLogic {
     ) {
         self.evaluator.set_table_scope_flat_cells(
             cells,
+            tensor_ptr,
             col_count,
             total_rows,
             existing_row_count,

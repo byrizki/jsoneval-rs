@@ -1834,10 +1834,15 @@ impl CompiledLogic {
                     if let Ok(val) =
                         evaluator.evaluate_with_internal_context(self, user_data, internal_context)
                     {
-                        if let serde_json::Value::Number(n) = val {
-                            if let Some(f) = n.as_f64() {
-                                return CompiledLogic::Number(f);
+                        match val {
+                            serde_json::Value::Number(n) => {
+                                if let Some(f) = n.as_f64() {
+                                    return CompiledLogic::Number(f);
+                                }
                             }
+                            serde_json::Value::Bool(b) => return CompiledLogic::Bool(b),
+                            serde_json::Value::String(s) => return CompiledLogic::String(s),
+                            _ => {}
                         }
                     }
                     return self.clone();
@@ -1853,7 +1858,8 @@ impl CompiledLogic {
                                 }
                             }
                             serde_json::Value::Bool(b) => return CompiledLogic::Bool(b),
-                            _ => {} // Do not fold Null, Strings, Arrays, or Objects
+                            serde_json::Value::String(s) => return CompiledLogic::String(s),
+                            _ => {} // Do not fold Null, Arrays, or Objects
                         }
                     }
                 }
@@ -2338,6 +2344,86 @@ impl CompiledLogic {
                         )
                     })
                     .collect(),
+            ),
+            CompiledLogic::Power(a, b) => CompiledLogic::Power(
+                Box::new(a.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+                Box::new(b.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+            ),
+            CompiledLogic::Modulo(a, b) => CompiledLogic::Modulo(
+                Box::new(a.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+                Box::new(b.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+            ),
+            CompiledLogic::Abs(a) => CompiledLogic::Abs(
+                Box::new(a.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+            ),
+            CompiledLogic::IfNull(a, b) => CompiledLogic::IfNull(
+                Box::new(a.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+                Box::new(b.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+            ),
+            CompiledLogic::For(start, end, body) => CompiledLogic::For(
+                Box::new(start.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+                Box::new(end.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+                Box::new(body.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
             ),
             _ => self.clone(),
         }

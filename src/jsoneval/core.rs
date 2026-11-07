@@ -92,6 +92,13 @@ impl JSONEval {
                 &engine,
                 &static_arrays,
             );
+            if let Some(params) = schema_val.get("$params") {
+                crate::jsoneval::static_arrays::register_small_reference_tables(
+                    &engine,
+                    params,
+                    "/$params",
+                );
+            }
 
             let mut instance = time_block!("  create instance struct", {
                 Self {
@@ -164,6 +171,13 @@ impl JSONEval {
                 &engine,
                 &static_arrays,
             );
+            if let Some(params) = schema_val.get("$params") {
+                crate::jsoneval::static_arrays::register_small_reference_tables(
+                    &engine,
+                    params,
+                    "/$params",
+                );
+            }
 
             let mut instance = time_block!("  create instance struct", {
                 Self {
@@ -264,6 +278,13 @@ impl JSONEval {
             &engine,
             &static_arrays,
         );
+        if let Some(params) = schema_val.get("$params") {
+            crate::jsoneval::static_arrays::register_small_reference_tables(
+                &engine,
+                params,
+                "/$params",
+            );
+        }
 
         let mut instance = Self {
             schema: Arc::new(schema_val),

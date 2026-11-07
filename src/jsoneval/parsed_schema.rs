@@ -151,6 +151,13 @@ impl ParsedSchema {
             &engine,
             &static_arrays,
         );
+        if let Some(params) = schema_val.get("$params") {
+            crate::jsoneval::static_arrays::register_small_reference_tables(
+                &engine,
+                params,
+                "/$params",
+            );
+        }
 
         let mut parsed = Self {
             schema: Arc::new(schema_val),

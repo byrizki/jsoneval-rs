@@ -43,7 +43,7 @@ impl Evaluator {
                                 }
                             }
                         }
-                        if !ts.current_row_base.is_null() {
+                        if !ts.current_tensor_row_base.is_null() || !ts.current_row_base.is_null() {
                             let col_ref = if name.starts_with("/$") && !name[2..].contains('/') {
                                 Some(&name[2..])
                             } else if name.starts_with('$')
@@ -56,6 +56,10 @@ impl Evaluator {
                             };
                             if let Some(field) = col_ref {
                                 if let Some(col_idx) = ts.get_col_idx(field) {
+                                    if !ts.current_tensor_row_base.is_null() {
+                                        let f = *ts.current_tensor_row_base.add(col_idx);
+                                        return Ok(Some(f));
+                                    }
                                     let cell = &*ts.current_row_base.add(col_idx);
                                     if let Value::Number(n) = cell {
                                         if let Some(f) = n.as_f64() {
@@ -111,7 +115,7 @@ impl Evaluator {
                                 }
                             }
                         }
-                        if !ts.current_row_base.is_null() {
+                        if !ts.current_tensor_row_base.is_null() || !ts.current_row_base.is_null() {
                             let col_ref = if path.starts_with("/$") && !path[2..].contains('/') {
                                 Some(&path[2..])
                             } else if path.starts_with('$')
@@ -124,6 +128,10 @@ impl Evaluator {
                             };
                             if let Some(field) = col_ref {
                                 if let Some(col_idx) = ts.get_col_idx(field) {
+                                    if !ts.current_tensor_row_base.is_null() {
+                                        let f = *ts.current_tensor_row_base.add(col_idx);
+                                        return Ok(Some(f));
+                                    }
                                     let cell = &*ts.current_row_base.add(col_idx);
                                     if let Value::Number(n) = cell {
                                         if let Some(f) = n.as_f64() {
@@ -152,6 +160,20 @@ impl Evaluator {
                             self.eval_f64(def, user_data, internal_context, depth + 1)
                         } else {
                             Ok(None)
+                        }
+                    }
+                }
+            }
+            CompiledLogic::IfNull(cond_expr, alt_expr) => {
+                let cond_f = self.eval_f64(cond_expr, user_data, internal_context, depth + 1)?;
+                match cond_f {
+                    Some(n) => Ok(Some(n)),
+                    None => {
+                        let val = self.evaluate_with_context(cond_expr, user_data, internal_context, depth + 1)?;
+                        if helpers::is_null_like(&val) {
+                            self.eval_f64(alt_expr, user_data, internal_context, depth + 1)
+                        } else {
+                            Ok(Some(helpers::to_f64(&val)))
                         }
                     }
                 }
@@ -603,6 +625,10 @@ impl Evaluator {
                                     if let Some(col_expr) = col_name_expr {
                                         if let CompiledLogic::String(s) = col_expr.as_ref() {
                                             if let Some(col_idx) = ts.get_col_idx(s.as_str()) {
+                                                if !ts.tensor_ptr.is_null() {
+                                                    let f = unsafe { *ts.tensor_ptr.add(row_offset * ts.col_count + col_idx) };
+                                                    return Ok(Some(f));
+                                                }
                                                 let cell = unsafe {
                                                     &*ts.flat_cells
                                                         .add(row_offset * ts.col_count + col_idx)
@@ -628,6 +654,52 @@ impl Evaluator {
                     }
                 }
                 if let Some(name) = var_name {
+                    // Fast path 1: IndexAt combined lookup in TypedReferenceTable
+                    if let CompiledLogic::IndexAt(lookup_expr, _, field_expr, range_expr) = row_idx_expr.as_ref() {
+                        let is_range = if let Some(r_expr) = range_expr {
+                            self.eval_truthy(r_expr, user_data, internal_context, depth + 1).unwrap_or(false)
+                        } else {
+                            false
+                        };
+                        if !is_range {
+                            let field_name_cow = match field_expr.as_ref() {
+                                CompiledLogic::String(s) => Some(std::borrow::Cow::Borrowed(s.as_str())),
+                                _ => match self.resolve_column_name(field_expr, user_data, internal_context, depth) {
+                                    Ok(Value::String(s)) => Some(std::borrow::Cow::Owned(s)),
+                                    _ => None,
+                                },
+                            };
+                            let col_name_cow = match col_name_expr.as_ref() {
+                                Some(c) => match c.as_ref() {
+                                    CompiledLogic::String(s) => Some(std::borrow::Cow::Borrowed(s.as_str())),
+                                    _ => match self.resolve_column_name(c, user_data, internal_context, depth) {
+                                        Ok(Value::String(s)) => Some(std::borrow::Cow::Owned(s)),
+                                        _ => None,
+                                    },
+                                },
+                                None => None,
+                            };
+                            if let (Some(field_name), Some(col_name)) = (field_name_cow, col_name_cow) {
+                                let lookup_num_opt = match self.eval_f64(lookup_expr, user_data, internal_context, depth + 1)? {
+                                    Some(n) => Some(n),
+                                    None => self.evaluate_with_context(lookup_expr, user_data, internal_context, depth + 1)
+                                        .ok()
+                                        .map(|v| helpers::to_number(&v)),
+                                };
+                                if let Some(lookup_num) = lookup_num_opt {
+                                    if let Some(val) = self.with_typed_table(name, |tbl| tbl.lookup_value(&field_name, lookup_num, &col_name)) {
+                                        if let Some(v) = val {
+                                            return Ok(Some(v));
+                                        } else {
+                                            return Ok(None);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Fast path 2: Direct row index lookup in TypedReferenceTable
                     let col_name_str = match col_name_expr.as_ref() {
                         Some(col_logic) => match col_logic.as_ref() {
                             CompiledLogic::String(s) => Some(s.as_str()),
