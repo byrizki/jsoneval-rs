@@ -55,6 +55,8 @@ fn main() {
     let mut label = "current".to_string();
 
     let mut i = 1;
+    let mut product_filter: Option<String> = None;
+    let mut show_timing = false;
     while i < args.len() {
         if args[i] == "-i" || args[i] == "--iterations" {
             if i + 1 < args.len() {
@@ -71,8 +73,19 @@ fn main() {
                 label = args[i + 1].clone();
                 i += 1;
             }
+        } else if args[i] == "--product" {
+            if i + 1 < args.len() {
+                product_filter = Some(args[i + 1].to_lowercase());
+                i += 1;
+            }
+        } else if args[i] == "--timing" {
+            show_timing = true;
         }
         i += 1;
+    }
+
+    if show_timing {
+        json_eval_rs::utils::enable_timing();
     }
 
     println!("\n================================================================================");
@@ -82,6 +95,11 @@ fn main() {
     let mut product_metrics = Vec::new();
 
     for &product in PRODUCTS {
+        if let Some(ref filter) = product_filter {
+            if product != filter.as_str() {
+                continue;
+            }
+        }
         let schema_path = format!("products/dev/schemas/{}.json", product);
         let data_path = format!("products/datas/{}.json", product);
 
@@ -133,6 +151,10 @@ fn main() {
             continue;
         }
         let cold_eval_dur = cold_eval_start.elapsed();
+
+        if show_timing {
+            json_eval_rs::utils::print_timing_summary();
+        }
 
         println!(
             "  ✓ Cold Compile : {:>9.3?} | Cold Full Evaluate: {:>9.3?}",

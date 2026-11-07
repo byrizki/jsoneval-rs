@@ -34,6 +34,15 @@ impl Evaluator {
                                 return Ok(Some(raw as f64));
                             }
                         }
+                        if name == "/$loopIteration" || name == "$loopIteration" {
+                            if let Value::Object(obj) = internal_context {
+                                if let Some(val) = obj.get("$loopIteration") {
+                                    if let Value::Number(n) = val {
+                                        return Ok(n.as_f64());
+                                    }
+                                }
+                            }
+                        }
                         if !ts.current_row_base.is_null() {
                             let col_ref = if name.starts_with("/$") && !name[2..].contains('/') {
                                 Some(&name[2..])
@@ -68,8 +77,6 @@ impl Evaluator {
                 match v {
                     Some(val) if !val.is_null() => match val {
                         Value::Number(n) => Ok(n.as_f64()),
-                        Value::String(s) => Ok(s.parse::<f64>().ok()),
-                        Value::Bool(b) => Ok(Some(if *b { 1.0 } else { 0.0 })),
                         _ => Ok(None),
                     },
                     _ => {
@@ -93,6 +100,15 @@ impl Evaluator {
                         if path == "/$iteration" || path == "$iteration" {
                             if let Some(raw) = ts.iteration_raw {
                                 return Ok(Some(raw as f64));
+                            }
+                        }
+                        if path == "/$loopIteration" || path == "$loopIteration" {
+                            if let Value::Object(obj) = internal_context {
+                                if let Some(val) = obj.get("$loopIteration") {
+                                    if let Value::Number(n) = val {
+                                        return Ok(n.as_f64());
+                                    }
+                                }
                             }
                         }
                         if !ts.current_row_base.is_null() {
@@ -129,8 +145,6 @@ impl Evaluator {
                 match v {
                     Some(val) if !val.is_null() => match val {
                         Value::Number(n) => Ok(n.as_f64()),
-                        Value::String(s) => Ok(s.parse::<f64>().ok()),
-                        Value::Bool(b) => Ok(Some(if *b { 1.0 } else { 0.0 })),
                         _ => Ok(None),
                     },
                     _ => {
@@ -604,11 +618,44 @@ impl Evaluator {
                                     }
                                 } else {
                                     // row_idx >= ts.existing_row_count + ts.total_rows: out of bounds
-                                    return Ok(Some(0.0));
+                                    return Ok(None);
                                 }
                             } else {
                                 // row_idx < 0: out of bounds
-                                return Ok(Some(0.0));
+                                return Ok(None);
+                            }
+                        }
+                    }
+                }
+                if let Some(name) = var_name {
+                    let col_name_str = match col_name_expr.as_ref() {
+                        Some(col_logic) => match col_logic.as_ref() {
+                            CompiledLogic::String(s) => Some(s.as_str()),
+                            _ => None,
+                        },
+                        None => None,
+                    };
+                    if let Some(col_name) = col_name_str {
+                        let row_opt = match row_idx_expr.as_ref() {
+                            CompiledLogic::Number(n) if *n >= 0.0 => Some(*n as usize),
+                            CompiledLogic::Var(var, _) | CompiledLogic::Ref(var, _)
+                                if var == "$iteration" || var == "/$iteration" =>
+                            {
+                                let scope = unsafe { self.table_scope_ref() };
+                                scope.as_ref().and_then(|ts| ts.iteration_raw).and_then(|iter| if iter >= 0 { Some(iter as usize) } else { None })
+                            }
+                            _ => match self.eval_f64(row_idx_expr, user_data, internal_context, depth + 1)? {
+                                Some(n) if n >= 0.0 => Some(n as usize),
+                                _ => None,
+                            },
+                        };
+                        if let Some(row_idx) = row_opt {
+                            if let Some(val) = self.with_typed_table(name, |tbl| tbl.get_by_name(row_idx, col_name)) {
+                                if let Some(v) = val {
+                                    return Ok(Some(v));
+                                } else {
+                                    return Ok(None);
+                                }
                             }
                         }
                     }
@@ -625,6 +672,15 @@ impl Evaluator {
                     if let Some(f) = n.as_f64() {
                         return Ok(Some(f));
                     }
+                }
+                if v.is_null() {
+                    return Ok(None);
+                }
+                if let Value::String(ref s) = v {
+                    if let Ok(f) = s.parse::<f64>() {
+                        return Ok(Some(f));
+                    }
+                    return Ok(None);
                 }
                 Ok(Some(helpers::to_f64(&v)))
             }

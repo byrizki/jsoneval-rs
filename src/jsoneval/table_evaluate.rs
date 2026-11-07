@@ -40,19 +40,15 @@ pub fn evaluate_table(
 }
 
 #[inline(always)]
-fn is_pure_arithmetic(logic: &crate::rlogic::CompiledLogic) -> bool {
-    matches!(
+fn is_formula_expr(logic: &crate::rlogic::CompiledLogic) -> bool {
+    !matches!(
         logic,
-        crate::rlogic::CompiledLogic::Add(_)
-            | crate::rlogic::CompiledLogic::Subtract(_)
-            | crate::rlogic::CompiledLogic::Multiply(_)
-            | crate::rlogic::CompiledLogic::Divide(_)
-            | crate::rlogic::CompiledLogic::Modulo(_, _)
-            | crate::rlogic::CompiledLogic::Power(_, _)
-            | crate::rlogic::CompiledLogic::Round(_, _)
-            | crate::rlogic::CompiledLogic::RoundUp(_, _)
-            | crate::rlogic::CompiledLogic::RoundDown(_, _)
-            | crate::rlogic::CompiledLogic::Abs(_)
+        crate::rlogic::CompiledLogic::Var(_, _)
+            | crate::rlogic::CompiledLogic::Ref(_, _)
+            | crate::rlogic::CompiledLogic::String(_)
+            | crate::rlogic::CompiledLogic::Bool(_)
+            | crate::rlogic::CompiledLogic::Null
+            | crate::rlogic::CompiledLogic::Empty
     )
 }
 
@@ -365,38 +361,43 @@ fn evaluate_table_inner(
 
                 // Pre-resolve compiled logic references with Loop Invariant Code Motion (LICM)
                 let table_no_hash = table_pointer_path.trim_start_matches('#');
-                let folded_col_logics: Vec<Option<crate::rlogic::CompiledLogic>> = columns
-                    .iter()
-                    .map(|col| {
-                        col.logic.as_ref().and_then(|id| {
-                            lib.engine.get_compiled(id).map(|ast| {
-                                ast.fold_table_invariants(
-                                    lib.engine.evaluator(),
-                                    scope_data.data(),
-                                    &ctx_value,
-                                    &table_pointer_path,
-                                    table_no_hash,
-                                )
+                let (folded_col_logics, col_bytecodes) = time_block!(
+                    &format!("[table::{}] fold & bytecode", eval_key),
+                    {
+                        let folded: Vec<Option<crate::rlogic::CompiledLogic>> = columns
+                            .iter()
+                            .map(|col| {
+                                col.logic.as_ref().and_then(|id| {
+                                    lib.engine.get_compiled(id).map(|ast| {
+                                        ast.fold_table_invariants(
+                                            lib.engine.evaluator(),
+                                            scope_data.data(),
+                                            &ctx_value,
+                                            &table_pointer_path,
+                                            table_no_hash,
+                                        )
+                                    })
+                                })
                             })
-                        })
-                    })
-                    .collect();
+                            .collect();
+                        let bcs: Vec<Option<crate::rlogic::TableBytecode>> = folded
+                            .iter()
+                            .map(|opt| {
+                                opt.as_ref().and_then(|ast| {
+                                    crate::rlogic::try_lower_to_bytecode(
+                                        ast,
+                                        &table_pointer_path,
+                                        table_no_hash,
+                                        &col_map,
+                                    )
+                                })
+                            })
+                            .collect();
+                        (folded, bcs)
+                    }
+                );
                 let col_logics: Vec<Option<&crate::rlogic::CompiledLogic>> =
                     folded_col_logics.iter().map(|opt| opt.as_ref()).collect();
-
-                let col_bytecodes: Vec<Option<crate::rlogic::TableBytecode>> = folded_col_logics
-                    .iter()
-                    .map(|opt| {
-                        opt.as_ref().and_then(|ast| {
-                            crate::rlogic::try_lower_to_bytecode(
-                                ast,
-                                &table_pointer_path,
-                                table_no_hash,
-                                &col_map,
-                            )
-                        })
-                    })
-                    .collect();
 
                 // Pre-allocate flat cells buffer with null cells (1 single contiguous allocation)
                 let mut flat_cells = vec![Value::Null; total_rows * col_count];
@@ -437,52 +438,52 @@ fn evaluate_table_inner(
 
                 // Pre-evaluate invariant columns ONCE and broadcast across all rows
                 if !invariant_cols.is_empty() {
-                    lib.engine
-                        .set_table_scope_cursor(Some(existing_row_count), Some(start_idx));
-                    for &col_idx in &invariant_cols {
-                        let column = &columns[col_idx];
-                        let value = match col_logics[col_idx] {
-                            Some(compiled) => {
-                                if is_pure_arithmetic(compiled) {
-                                    if let Ok(Some(num)) = lib.engine.run_precompiled_f64_with_context(
-                                        compiled,
-                                        scope_data.data(),
-                                        &ctx_value,
-                                    ) {
-                                        lib.engine.f64_to_value(num)
-                                    } else {
-                                        lib.engine
-                                            .run_precompiled_with_context(
+                    time_block!(
+                        &format!("[table::{}] invariant cols={}", eval_key, invariant_cols.len()),
+                        {
+                            lib.engine
+                                .set_table_scope_cursor(Some(existing_row_count), Some(start_idx));
+                            for &col_idx in &invariant_cols {
+                                let column = &columns[col_idx];
+                                let value = match col_logics[col_idx] {
+                                    Some(compiled) => {
+                                        let num_opt = if is_formula_expr(compiled) {
+                                            lib.engine.run_precompiled_f64_with_context(
                                                 compiled,
                                                 scope_data.data(),
                                                 &ctx_value,
-                                            )
-                                            .unwrap_or(Value::Null)
+                                            ).ok().flatten()
+                                        } else {
+                                            None
+                                        };
+                                        if let Some(num) = num_opt {
+                                            lib.engine.f64_to_value(num)
+                                        } else {
+                                            lib.engine
+                                                .run_precompiled_with_context(
+                                                    compiled,
+                                                    scope_data.data(),
+                                                    &ctx_value,
+                                                )
+                                                .unwrap_or(Value::Null)
+                                        }
                                     }
-                                } else {
-                                    lib.engine
-                                        .run_precompiled_with_context(
-                                            compiled,
-                                            scope_data.data(),
-                                            &ctx_value,
-                                        )
-                                        .unwrap_or(Value::Null)
+                                    None => column
+                                        .literal
+                                        .as_ref()
+                                        .map(|arc_val| Value::clone(arc_val))
+                                        .unwrap_or(Value::Null),
+                                };
+
+                                let num = value_to_tensor_f64(&value);
+                                for r in 0..total_rows {
+                                    tensor.set(r, col_idx, num);
+                                    flat_cells[r * col_count + col_idx] = value.clone();
                                 }
                             }
-                            None => column
-                                .literal
-                                .as_ref()
-                                .map(|arc_val| Value::clone(arc_val))
-                                .unwrap_or(Value::Null),
-                        };
-
-                        let num = value_to_tensor_f64(&value);
-                        for r in 0..total_rows {
-                            tensor.set(r, col_idx, num);
-                            flat_cells[r * col_count + col_idx] = value.clone();
+                            lib.engine.set_table_scope_cursor(None, None);
                         }
-                    }
-                    lib.engine.set_table_scope_cursor(None, None);
+                    );
                 }
 
                 // Partition variant columns into:
@@ -519,42 +520,47 @@ fn evaluate_table_inner(
 
                 // Evaluate columnar columns across all rows at once
                 if !columnar_cols.is_empty() {
-                    let tensor_data_ptr = tensor.data.as_ptr();
-                    let static_rows_ptr = &local_rows as *const Vec<Value>;
+                    time_block!(
+                        &format!("[table::{}] columnar cols={}", eval_key, columnar_cols.len()),
+                        {
+                            let tensor_data_ptr = tensor.data.as_ptr();
+                            let static_rows_ptr = &local_rows as *const Vec<Value>;
 
-                    for &col_idx in &columnar_cols {
-                        let bc = col_bytecodes[col_idx].as_ref().unwrap();
+                            for &col_idx in &columnar_cols {
+                                let bc = col_bytecodes[col_idx].as_ref().unwrap();
 
-                        // Ultra-fast path: single PushIteration opcode (e.g. POL_YEAR = $iteration)
-                        if bc.ops.len() == 1 && bc.ops[0] == crate::rlogic::TableOp::PushIteration {
-                            for r in 0..total_rows {
-                                let iter_val = start_idx + r as i64;
-                                tensor.set(r, col_idx, iter_val as f64);
-                                flat_cells[r * col_count + col_idx] = Value::from(iter_val);
+                                // Ultra-fast path: single PushIteration opcode (e.g. POL_YEAR = $iteration)
+                                if bc.ops.len() == 1 && bc.ops[0] == crate::rlogic::TableOp::PushIteration {
+                                    for r in 0..total_rows {
+                                        let iter_val = start_idx + r as i64;
+                                        tensor.set(r, col_idx, iter_val as f64);
+                                        flat_cells[r * col_count + col_idx] = Value::from(iter_val);
+                                    }
+                                    continue;
+                                }
+
+                                for r in 0..total_rows {
+                                    let iteration = start_idx + r as i64;
+                                    let num = unsafe {
+                                        bc.execute_tensor(
+                                            tensor_data_ptr,
+                                            col_count,
+                                            r,
+                                            existing_row_count,
+                                            total_rows,
+                                            iteration,
+                                            static_rows_ptr,
+                                            &col_names,
+                                        )
+                                    };
+                                    if let Some(n) = num {
+                                        tensor.set(r, col_idx, n);
+                                        flat_cells[r * col_count + col_idx] = lib.engine.f64_to_value(n);
+                                    }
+                                }
                             }
-                            continue;
                         }
-
-                        for r in 0..total_rows {
-                            let iteration = start_idx + r as i64;
-                            let num = unsafe {
-                                bc.execute_tensor(
-                                    tensor_data_ptr,
-                                    col_count,
-                                    r,
-                                    existing_row_count,
-                                    total_rows,
-                                    iteration,
-                                    static_rows_ptr,
-                                    &col_names,
-                                )
-                            };
-                            if let Some(n) = num {
-                                tensor.set(r, col_idx, n);
-                                flat_cells[r * col_count + col_idx] = lib.engine.f64_to_value(n);
-                            }
-                        }
-                    }
+                    );
                 }
 
                 // PHASE 4: FORWARD PASS — only runs if there are recurrent or AST fallback columns
@@ -610,24 +616,17 @@ fn evaluate_table_inner(
 
                                     let value = match col_logics[col_idx] {
                                         Some(compiled) => {
-                                            if is_pure_arithmetic(compiled) {
-                                                if let Ok(Some(num)) =
-                                                    lib.engine.run_precompiled_f64_with_context(
-                                                        compiled,
-                                                        scope_data.data(),
-                                                        &ctx_value,
-                                                    )
-                                                {
-                                                    lib.engine.f64_to_value(num)
-                                                } else {
-                                                    lib.engine
-                                                        .run_precompiled_with_context(
-                                                            compiled,
-                                                            scope_data.data(),
-                                                            &ctx_value,
-                                                        )
-                                                        .unwrap_or(Value::Null)
-                                                }
+                                            let num_opt = if is_formula_expr(compiled) {
+                                                lib.engine.run_precompiled_f64_with_context(
+                                                    compiled,
+                                                    scope_data.data(),
+                                                    &ctx_value,
+                                                ).ok().flatten()
+                                            } else {
+                                                None
+                                            };
+                                            if let Some(num) = num_opt {
+                                                lib.engine.f64_to_value(num)
                                             } else {
                                                 lib.engine
                                                     .run_precompiled_with_context(
@@ -850,24 +849,17 @@ fn evaluate_table_inner(
                                         } else {
                                             match col_logics[col_idx] {
                                                 Some(compiled) => {
-                                                    if is_pure_arithmetic(compiled) {
-                                                        if let Ok(Some(num)) =
-                                                            lib.engine.run_precompiled_f64_with_context(
-                                                                compiled,
-                                                                scope_data.data(),
-                                                                &ctx_value,
-                                                            )
-                                                        {
-                                                            lib.engine.f64_to_value(num)
-                                                        } else {
-                                                            lib.engine
-                                                                .run_precompiled_with_context(
-                                                                    compiled,
-                                                                    scope_data.data(),
-                                                                    &ctx_value,
-                                                                )
-                                                                .unwrap_or(Value::Null)
-                                                        }
+                                                    let num_opt = if is_formula_expr(compiled) {
+                                                        lib.engine.run_precompiled_f64_with_context(
+                                                            compiled,
+                                                            scope_data.data(),
+                                                            &ctx_value,
+                                                        ).ok().flatten()
+                                                    } else {
+                                                        None
+                                                    };
+                                                    if let Some(num) = num_opt {
+                                                        lib.engine.f64_to_value(num)
                                                     } else {
                                                         lib.engine
                                                             .run_precompiled_with_context(
@@ -924,25 +916,30 @@ fn evaluate_table_inner(
                 }
 
                 // Assemble evaluated rows into local_rows in a single final pass
-                local_rows.reserve(total_rows);
-                if total_rows > 0 {
-                    let mut prototype_map = Map::with_capacity(col_count);
-                    for name in &col_names {
-                        prototype_map.insert(name.clone(), Value::Null);
-                    }
+                time_block!(
+                    &format!("[table::{}] row assembly rows={}", eval_key, total_rows),
+                    {
+                        local_rows.reserve(total_rows);
+                        if total_rows > 0 {
+                            let mut prototype_map = Map::with_capacity(col_count);
+                            for name in &col_names {
+                                prototype_map.insert(name.clone(), Value::Null);
+                            }
 
-                    for r in 0..total_rows {
-                        let mut row_map = prototype_map.clone();
-                        let row_offset = r * col_count;
-                        for (slot, cell) in row_map
-                            .values_mut()
-                            .zip(&mut flat_cells[row_offset..row_offset + col_count])
-                        {
-                            *slot = std::mem::replace(cell, Value::Null);
+                            for r in 0..total_rows {
+                                let mut row_map = prototype_map.clone();
+                                let row_offset = r * col_count;
+                                for (slot, cell) in row_map
+                                    .values_mut()
+                                    .zip(&mut flat_cells[row_offset..row_offset + col_count])
+                                {
+                                    *slot = std::mem::replace(cell, Value::Null);
+                                }
+                                local_rows.push(Value::Object(row_map));
+                            }
                         }
-                        local_rows.push(Value::Object(row_map));
                     }
-                }
+                );
 
                 // _scope_guard dropped here → TableScope cleared on evaluator
             }

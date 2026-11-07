@@ -1828,9 +1828,20 @@ impl CompiledLogic {
                 | CompiledLogic::Bool(_)
                 | CompiledLogic::Number(_)
                 | CompiledLogic::String(_)
-                | CompiledLogic::Empty
-                | CompiledLogic::Var(_, _)
-                | CompiledLogic::Ref(_, _) => return self.clone(),
+                | CompiledLogic::Empty => return self.clone(),
+                CompiledLogic::Var(_, _)
+                | CompiledLogic::Ref(_, _) => {
+                    if let Ok(val) =
+                        evaluator.evaluate_with_internal_context(self, user_data, internal_context)
+                    {
+                        if let serde_json::Value::Number(n) = val {
+                            if let Some(f) = n.as_f64() {
+                                return CompiledLogic::Number(f);
+                            }
+                        }
+                    }
+                    return self.clone();
+                }
                 _ => {
                     if let Ok(val) =
                         evaluator.evaluate_with_internal_context(self, user_data, internal_context)
@@ -1842,8 +1853,7 @@ impl CompiledLogic {
                                 }
                             }
                             serde_json::Value::Bool(b) => return CompiledLogic::Bool(b),
-                            serde_json::Value::String(s) => return CompiledLogic::String(s),
-                            _ => {} // Do not fold Null, Arrays, or Objects
+                            _ => {} // Do not fold Null, Strings, Arrays, or Objects
                         }
                     }
                 }
@@ -2027,6 +2037,171 @@ impl CompiledLogic {
                     .collect(),
             ),
             CompiledLogic::Max(items) => CompiledLogic::Max(
+                items
+                    .iter()
+                    .map(|item| {
+                        item.fold_table_invariants(
+                            evaluator,
+                            user_data,
+                            internal_context,
+                            table_path,
+                            table_no_hash,
+                        )
+                    })
+                    .collect(),
+            ),
+            CompiledLogic::Equal(a, b) => CompiledLogic::Equal(
+                Box::new(a.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+                Box::new(b.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+            ),
+            CompiledLogic::StrictEqual(a, b) => CompiledLogic::StrictEqual(
+                Box::new(a.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+                Box::new(b.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+            ),
+            CompiledLogic::NotEqual(a, b) => CompiledLogic::NotEqual(
+                Box::new(a.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+                Box::new(b.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+            ),
+            CompiledLogic::StrictNotEqual(a, b) => CompiledLogic::StrictNotEqual(
+                Box::new(a.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+                Box::new(b.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+            ),
+            CompiledLogic::LessThan(a, b) => CompiledLogic::LessThan(
+                Box::new(a.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+                Box::new(b.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+            ),
+            CompiledLogic::LessThanOrEqual(a, b) => CompiledLogic::LessThanOrEqual(
+                Box::new(a.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+                Box::new(b.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+            ),
+            CompiledLogic::GreaterThan(a, b) => CompiledLogic::GreaterThan(
+                Box::new(a.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+                Box::new(b.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+            ),
+            CompiledLogic::GreaterThanOrEqual(a, b) => CompiledLogic::GreaterThanOrEqual(
+                Box::new(a.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+                Box::new(b.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+            ),
+            CompiledLogic::Not(inner) => CompiledLogic::Not(
+                Box::new(inner.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+            ),
+            CompiledLogic::And(items) => CompiledLogic::And(
+                items
+                    .iter()
+                    .map(|item| {
+                        item.fold_table_invariants(
+                            evaluator,
+                            user_data,
+                            internal_context,
+                            table_path,
+                            table_no_hash,
+                        )
+                    })
+                    .collect(),
+            ),
+            CompiledLogic::Or(items) => CompiledLogic::Or(
                 items
                     .iter()
                     .map(|item| {

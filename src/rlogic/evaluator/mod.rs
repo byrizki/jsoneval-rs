@@ -59,6 +59,9 @@ pub(crate) struct TableScope {
     /// Memoization cache for combined array lookups on immutable borrowed reference tables
     pub lookup_cache:
         std::cell::RefCell<rapidhash::RapidHashMap<types::CombinedLookupKey, Option<usize>>>,
+    /// Thread-local cache of typed reference tables during active table scope to eliminate RwLock contention
+    pub typed_table_cache:
+        std::cell::RefCell<rapidhash::RapidHashMap<String, std::sync::Arc<crate::rlogic::tensor::TypedReferenceTable>>>,
 }
 
 impl TableScope {
@@ -166,13 +169,46 @@ impl Evaluator {
         &self,
         name: &str,
     ) -> Option<std::sync::Arc<crate::rlogic::tensor::TypedReferenceTable>> {
-        let clean_name = name.rsplit('/').next().unwrap_or(name);
-        if let Ok(map) = self.typed_tables.read() {
-            if let Some(t) = map.get(name) {
+        let scope = unsafe { self.table_scope_ref() };
+        if let Some(ts) = scope.as_ref() {
+            if let Some(t) = ts.typed_table_cache.borrow().get(name) {
                 return Some(std::sync::Arc::clone(t));
             }
-            if let Some(t) = map.get(clean_name) {
-                return Some(std::sync::Arc::clone(t));
+        }
+        let clean_name = name.rsplit('/').next().unwrap_or(name);
+        if let Ok(map) = self.typed_tables.read() {
+            let found = map.get(name).or_else(|| map.get(clean_name)).cloned();
+            if let Some(ref t) = found {
+                if let Some(ts) = scope.as_ref() {
+                    ts.typed_table_cache.borrow_mut().insert(name.to_string(), std::sync::Arc::clone(t));
+                }
+            }
+            return found;
+        }
+        None
+    }
+
+    /// Borrow and execute closure on a typed reference table without Arc cloning
+    #[inline]
+    pub fn with_typed_table<R>(
+        &self,
+        name: &str,
+        f: impl FnOnce(&crate::rlogic::tensor::TypedReferenceTable) -> R,
+    ) -> Option<R> {
+        let scope = unsafe { self.table_scope_ref() };
+        if let Some(ts) = scope.as_ref() {
+            if let Some(t) = ts.typed_table_cache.borrow().get(name) {
+                return Some(f(t));
+            }
+        }
+        let clean_name = name.rsplit('/').next().unwrap_or(name);
+        if let Ok(map) = self.typed_tables.read() {
+            let found = map.get(name).or_else(|| map.get(clean_name));
+            if let Some(t) = found {
+                if let Some(ts) = scope.as_ref() {
+                    ts.typed_table_cache.borrow_mut().insert(name.to_string(), std::sync::Arc::clone(t));
+                }
+                return Some(f(t));
             }
         }
         None
@@ -232,6 +268,7 @@ impl Evaluator {
                 iteration_val: None,
                 threshold_val: None,
                 lookup_cache: std::cell::RefCell::new(rapidhash::RapidHashMap::default()),
+                typed_table_cache: std::cell::RefCell::new(rapidhash::RapidHashMap::default()),
             });
         }
         TableScopeGuard { evaluator: self }
