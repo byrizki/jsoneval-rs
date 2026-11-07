@@ -356,6 +356,28 @@ impl Evaluator {
             }
         }
 
+        // Fast lookup if table is a pre-indexed TypedReferenceTable
+        if let Some(name) = var_name {
+            if let Some(typed_table) = self.get_typed_table(name) {
+                let col_name_opt = if let Some(col_expr) = col_name_expr {
+                    match col_expr.as_ref() {
+                        CompiledLogic::String(s) => Some(std::borrow::Cow::Borrowed(s.as_str())),
+                        _ => match self.resolve_column_name(col_expr, user_data, internal_context, depth)? {
+                            Value::String(s) => Some(std::borrow::Cow::Owned(s)),
+                            _ => None,
+                        },
+                    }
+                } else {
+                    None
+                };
+                if let Some(col_name) = col_name_opt {
+                    if let Some(val) = typed_table.get_by_name(row_idx, col_name.as_ref()) {
+                        return Ok(self.f64_to_json(val));
+                    }
+                }
+            }
+        }
+
         // OPTIMIZATION 3: Resolve table and check bounds together (reduce overhead)
         let table_ref = self.get_table_array(table_expr, user_data, internal_context, depth)?;
         let arr = match table_ref.as_array() {

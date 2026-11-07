@@ -452,6 +452,36 @@ impl TableBytecode {
         }
     }
 
+    /// Returns true if this bytecode accesses any cells at row index != current iteration
+    #[inline]
+    pub fn is_recurrent(&self) -> bool {
+        self.ops.iter().any(|op| match op {
+            TableOp::PushValueAt { iter_delta, .. } => *iter_delta != 0,
+            _ => false,
+        })
+    }
+
+    /// Checks if all column references in this bytecode are marked true in `computed`
+    #[inline]
+    pub fn are_dependencies_satisfied(&self, computed: &[bool]) -> bool {
+        for op in &self.ops {
+            match op {
+                TableOp::PushCol(c) => {
+                    if *c >= computed.len() || !computed[*c] {
+                        return false;
+                    }
+                }
+                TableOp::PushValueAt { col_idx, iter_delta } => {
+                    if *iter_delta != 0 || *col_idx >= computed.len() || !computed[*col_idx] {
+                        return false;
+                    }
+                }
+                _ => {}
+            }
+        }
+        true
+    }
+
     /// Execute bytecode expression directly against a contiguous raw f64 tensor buffer
     ///
     /// # Safety

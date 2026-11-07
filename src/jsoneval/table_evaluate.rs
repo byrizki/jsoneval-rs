@@ -419,67 +419,215 @@ fn evaluate_table_inner(
 
                 lib.engine.set_table_scope_threshold(end_idx);
 
-                // PHASE 4: FORWARD PASS — top to bottom
-                time_block!(
-                    &format!("[table::{}] forward-pass rows={}", eval_key, total_rows),
-                    {
-                        for iteration in start_idx..=end_idx {
-                            if let Some(t) = token {
-                                if t.is_cancelled() {
-                                    return Err("Cancelled".to_string());
-                                }
-                            }
-                            let row_offset = (iteration - start_idx) as usize;
-                            let row_idx = existing_row_count + row_offset;
+                // Partition normal_cols into loop-invariant columns and per-row variant columns
+                let mut invariant_cols = Vec::new();
+                let mut variant_cols = Vec::new();
 
-                            // Update $iteration in ctx_value in-place
-                            if let Value::Object(ref mut map) = ctx_value {
-                                if let Some(slot) = map.get_mut(&key_iteration) {
-                                    *slot = Value::from(iteration);
-                                }
-                            }
+                for &col_idx in normal_cols.iter() {
+                    let is_invariant = match col_logics[col_idx] {
+                        Some(ast) => !ast.has_table_variant_refs(&table_pointer_path, table_no_hash),
+                        None => true, // Literal column without logic is invariant
+                    };
+                    if is_invariant {
+                        invariant_cols.push(col_idx);
+                    } else {
+                        variant_cols.push(col_idx);
+                    }
+                }
 
-                            // Point get_var lookup directly to the actively evaluating cell
-                            lib.engine
-                                .set_table_scope_cursor(Some(row_idx), Some(iteration));
-
-                            let row_base = row_offset * col_count;
-                            let tensor_data_ptr = tensor.data.as_ptr();
-                            let static_rows_ptr = &local_rows as *const Vec<Value>;
-
-                            for &col_idx in normal_cols.iter() {
-                                let column = &columns[col_idx];
-                                if let Some(ref bc) = col_bytecodes[col_idx] {
-                                    let num = unsafe {
-                                        bc.execute_tensor(
-                                            tensor_data_ptr,
-                                            col_count,
-                                            row_offset,
-                                            existing_row_count,
-                                            total_rows,
-                                            iteration,
-                                            static_rows_ptr,
-                                            &col_names,
+                // Pre-evaluate invariant columns ONCE and broadcast across all rows
+                if !invariant_cols.is_empty() {
+                    lib.engine
+                        .set_table_scope_cursor(Some(existing_row_count), Some(start_idx));
+                    for &col_idx in &invariant_cols {
+                        let column = &columns[col_idx];
+                        let value = match col_logics[col_idx] {
+                            Some(compiled) => {
+                                if is_pure_arithmetic(compiled) {
+                                    if let Ok(Some(num)) = lib.engine.run_precompiled_f64_with_context(
+                                        compiled,
+                                        scope_data.data(),
+                                        &ctx_value,
+                                    ) {
+                                        lib.engine.f64_to_value(num)
+                                    } else {
+                                        lib.engine
+                                            .run_precompiled_with_context(
+                                                compiled,
+                                                scope_data.data(),
+                                                &ctx_value,
+                                            )
+                                            .unwrap_or(Value::Null)
+                                    }
+                                } else {
+                                    lib.engine
+                                        .run_precompiled_with_context(
+                                            compiled,
+                                            scope_data.data(),
+                                            &ctx_value,
                                         )
-                                    };
-                                    if let Some(n) = num {
-                                        tensor.set(row_offset, col_idx, n);
-                                        flat_cells[row_base + col_idx] = lib.engine.f64_to_value(n);
-                                        continue;
+                                        .unwrap_or(Value::Null)
+                                }
+                            }
+                            None => column
+                                .literal
+                                .as_ref()
+                                .map(|arc_val| Value::clone(arc_val))
+                                .unwrap_or(Value::Null),
+                        };
+
+                        let num = value_to_tensor_f64(&value);
+                        for r in 0..total_rows {
+                            tensor.set(r, col_idx, num);
+                            flat_cells[r * col_count + col_idx] = value.clone();
+                        }
+                    }
+                    lib.engine.set_table_scope_cursor(None, None);
+                }
+
+                // Partition variant columns into:
+                // 1) columnar_cols: non-recurrent columns that can evaluate across all rows at once
+                // 2) row_loop_cols: truly recurrent columns (t-1 dependencies) or AST fallbacks
+                let mut computed_cols = vec![false; col_count];
+                for &c in &invariant_cols {
+                    computed_cols[c] = true;
+                }
+
+                let mut remaining_variant_cols = variant_cols;
+                let mut columnar_cols = Vec::new();
+
+                loop {
+                    let mut progressed = false;
+                    let mut next_remaining = Vec::new();
+                    for col_idx in remaining_variant_cols {
+                        if let Some(ref bc) = col_bytecodes[col_idx] {
+                            if !bc.is_recurrent() && bc.are_dependencies_satisfied(&computed_cols) {
+                                columnar_cols.push(col_idx);
+                                computed_cols[col_idx] = true;
+                                progressed = true;
+                                continue;
+                            }
+                        }
+                        next_remaining.push(col_idx);
+                    }
+                    remaining_variant_cols = next_remaining;
+                    if !progressed || remaining_variant_cols.is_empty() {
+                        break;
+                    }
+                }
+                let row_loop_cols = remaining_variant_cols;
+
+                // Evaluate columnar columns across all rows at once
+                if !columnar_cols.is_empty() {
+                    let tensor_data_ptr = tensor.data.as_ptr();
+                    let static_rows_ptr = &local_rows as *const Vec<Value>;
+
+                    for &col_idx in &columnar_cols {
+                        let bc = col_bytecodes[col_idx].as_ref().unwrap();
+
+                        // Ultra-fast path: single PushIteration opcode (e.g. POL_YEAR = $iteration)
+                        if bc.ops.len() == 1 && bc.ops[0] == crate::rlogic::TableOp::PushIteration {
+                            for r in 0..total_rows {
+                                let iter_val = start_idx + r as i64;
+                                tensor.set(r, col_idx, iter_val as f64);
+                                flat_cells[r * col_count + col_idx] = Value::from(iter_val);
+                            }
+                            continue;
+                        }
+
+                        for r in 0..total_rows {
+                            let iteration = start_idx + r as i64;
+                            let num = unsafe {
+                                bc.execute_tensor(
+                                    tensor_data_ptr,
+                                    col_count,
+                                    r,
+                                    existing_row_count,
+                                    total_rows,
+                                    iteration,
+                                    static_rows_ptr,
+                                    &col_names,
+                                )
+                            };
+                            if let Some(n) = num {
+                                tensor.set(r, col_idx, n);
+                                flat_cells[r * col_count + col_idx] = lib.engine.f64_to_value(n);
+                            }
+                        }
+                    }
+                }
+
+                // PHASE 4: FORWARD PASS — only runs if there are recurrent or AST fallback columns
+                if !row_loop_cols.is_empty() {
+                    time_block!(
+                        &format!("[table::{}] forward-pass rows={}", eval_key, total_rows),
+                        {
+                            for iteration in start_idx..=end_idx {
+                                if let Some(t) = token {
+                                    if t.is_cancelled() {
+                                        return Err("Cancelled".to_string());
+                                    }
+                                }
+                                let row_offset = (iteration - start_idx) as usize;
+                                let row_idx = existing_row_count + row_offset;
+
+                                // Update $iteration in ctx_value in-place
+                                if let Value::Object(ref mut map) = ctx_value {
+                                    if let Some(slot) = map.get_mut(&key_iteration) {
+                                        *slot = Value::from(iteration);
                                     }
                                 }
 
-                                let value = match col_logics[col_idx] {
-                                    Some(compiled) => {
-                                        if is_pure_arithmetic(compiled) {
-                                            if let Ok(Some(num)) =
-                                                lib.engine.run_precompiled_f64_with_context(
-                                                    compiled,
-                                                    scope_data.data(),
-                                                    &ctx_value,
-                                                )
-                                            {
-                                                lib.engine.f64_to_value(num)
+                                // Point get_var lookup directly to the actively evaluating cell
+                                lib.engine
+                                    .set_table_scope_cursor(Some(row_idx), Some(iteration));
+
+                                let row_base = row_offset * col_count;
+                                let tensor_data_ptr = tensor.data.as_ptr();
+                                let static_rows_ptr = &local_rows as *const Vec<Value>;
+
+                                for &col_idx in &row_loop_cols {
+                                    let column = &columns[col_idx];
+                                    if let Some(ref bc) = col_bytecodes[col_idx] {
+                                        let num = unsafe {
+                                            bc.execute_tensor(
+                                                tensor_data_ptr,
+                                                col_count,
+                                                row_offset,
+                                                existing_row_count,
+                                                total_rows,
+                                                iteration,
+                                                static_rows_ptr,
+                                                &col_names,
+                                            )
+                                        };
+                                        if let Some(n) = num {
+                                            tensor.set(row_offset, col_idx, n);
+                                            flat_cells[row_base + col_idx] = lib.engine.f64_to_value(n);
+                                            continue;
+                                        }
+                                    }
+
+                                    let value = match col_logics[col_idx] {
+                                        Some(compiled) => {
+                                            if is_pure_arithmetic(compiled) {
+                                                if let Ok(Some(num)) =
+                                                    lib.engine.run_precompiled_f64_with_context(
+                                                        compiled,
+                                                        scope_data.data(),
+                                                        &ctx_value,
+                                                    )
+                                                {
+                                                    lib.engine.f64_to_value(num)
+                                                } else {
+                                                    lib.engine
+                                                        .run_precompiled_with_context(
+                                                            compiled,
+                                                            scope_data.data(),
+                                                            &ctx_value,
+                                                        )
+                                                        .unwrap_or(Value::Null)
+                                                }
                                             } else {
                                                 lib.engine
                                                     .run_precompiled_with_context(
@@ -489,33 +637,26 @@ fn evaluate_table_inner(
                                                     )
                                                     .unwrap_or(Value::Null)
                                             }
-                                        } else {
-                                            lib.engine
-                                                .run_precompiled_with_context(
-                                                    compiled,
-                                                    scope_data.data(),
-                                                    &ctx_value,
-                                                )
-                                                .unwrap_or(Value::Null)
                                         }
-                                    }
-                                    None => column
-                                        .literal
-                                        .as_ref()
-                                        .map(|arc_val| Value::clone(arc_val))
-                                        .unwrap_or(Value::Null),
-                                };
+                                        None => column
+                                            .literal
+                                            .as_ref()
+                                            .map(|arc_val| Value::clone(arc_val))
+                                            .unwrap_or(Value::Null),
+                                    };
 
-                                tensor.set(row_offset, col_idx, value_to_tensor_f64(&value));
+                                    let num = value_to_tensor_f64(&value);
+                                    tensor.set(row_offset, col_idx, num);
 
-                                // Write directly into flat_cells — no string hash, no IndexMap search
-                                flat_cells[row_base + col_idx] = value;
+                                    // Write directly into flat_cells — no string hash, no IndexMap search
+                                    flat_cells[row_base + col_idx] = value;
+                                }
+                                // Reset cursor after row
+                                lib.engine.set_table_scope_cursor(None, None);
                             }
-                            // Reset cursor after row
-                            lib.engine.set_table_scope_cursor(None, None);
                         }
-                    }
-                );
+                    );
+                }
 
                 // PHASE 5: BACKWARD PASS for forward-ref columns
                 if !forward_cols.is_empty() {

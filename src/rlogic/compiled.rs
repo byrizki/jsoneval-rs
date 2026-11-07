@@ -1641,11 +1641,18 @@ impl CompiledLogic {
             CompiledLogic::Today | CompiledLogic::Now => true,
 
             CompiledLogic::Var(name, default) => {
-                if name.starts_with('$')
+                let is_variant = if name.starts_with("/$params/") || name.starts_with("$params/") {
+                    false
+                } else if name.starts_with('$')
                     || name.starts_with("/$")
                     || name == table_path
                     || name == table_no_hash
                 {
+                    true
+                } else {
+                    false
+                };
+                if is_variant {
                     return true;
                 }
                 default.as_ref().map_or(false, |d| {
@@ -1654,11 +1661,18 @@ impl CompiledLogic {
             }
 
             CompiledLogic::Ref(path, default) => {
-                if path.contains('$')
+                let is_variant = if path.starts_with("#/$params/") || path.starts_with("/$params/") {
+                    false
+                } else if path.contains('$')
                     || path == table_path
                     || path == table_no_hash
                     || path.strip_prefix('#').unwrap_or(path) == table_no_hash
                 {
+                    true
+                } else {
+                    false
+                };
+                if is_variant {
                     return true;
                 }
                 default.as_ref().map_or(false, |d| {
@@ -1763,6 +1777,37 @@ impl CompiledLogic {
                     })
             }
 
+            CompiledLogic::FindIndex(table, conditions) => {
+                table.has_table_variant_refs(table_path, table_no_hash)
+                    || conditions
+                        .iter()
+                        .any(|c| c.has_table_variant_refs(table_path, table_no_hash))
+            }
+
+            CompiledLogic::IndexAt(lookup_val, table, field, range) => {
+                lookup_val.has_table_variant_refs(table_path, table_no_hash)
+                    || table.has_table_variant_refs(table_path, table_no_hash)
+                    || field.has_table_variant_refs(table_path, table_no_hash)
+                    || range.as_ref().map_or(false, |r| {
+                        r.has_table_variant_refs(table_path, table_no_hash)
+                    })
+            }
+
+            CompiledLogic::Match(table, conditions)
+            | CompiledLogic::MatchRange(table, conditions)
+            | CompiledLogic::Choose(table, conditions) => {
+                table.has_table_variant_refs(table_path, table_no_hash)
+                    || conditions
+                        .iter()
+                        .any(|c| c.has_table_variant_refs(table_path, table_no_hash))
+            }
+
+            CompiledLogic::Sum(a, f, t) => {
+                a.has_table_variant_refs(table_path, table_no_hash)
+                    || f.as_ref().map_or(false, |x| x.has_table_variant_refs(table_path, table_no_hash))
+                    || t.as_ref().map_or(false, |x| x.has_table_variant_refs(table_path, table_no_hash))
+            }
+
             _ => true,
         }
     }
@@ -1776,7 +1821,7 @@ impl CompiledLogic {
         table_path: &str,
         table_no_hash: &str,
     ) -> CompiledLogic {
-        // 1. If this entire sub-expression is loop-invariant and NOT a raw variable leaf, pre-evaluate it
+        // 1. If this entire sub-expression is loop-invariant, pre-evaluate it
         if !self.has_table_variant_refs(table_path, table_no_hash) {
             match self {
                 CompiledLogic::Null
@@ -2013,6 +2058,111 @@ impl CompiledLogic {
                         table_no_hash,
                     ))
                 }),
+            ),
+            CompiledLogic::Concat(items) => CompiledLogic::Concat(
+                items
+                    .iter()
+                    .map(|item| {
+                        item.fold_table_invariants(
+                            evaluator,
+                            user_data,
+                            internal_context,
+                            table_path,
+                            table_no_hash,
+                        )
+                    })
+                    .collect(),
+            ),
+            CompiledLogic::Multiplies(items) => CompiledLogic::Multiplies(
+                items
+                    .iter()
+                    .map(|item| {
+                        item.fold_table_invariants(
+                            evaluator,
+                            user_data,
+                            internal_context,
+                            table_path,
+                            table_no_hash,
+                        )
+                    })
+                    .collect(),
+            ),
+            CompiledLogic::Divides(items) => CompiledLogic::Divides(
+                items
+                    .iter()
+                    .map(|item| {
+                        item.fold_table_invariants(
+                            evaluator,
+                            user_data,
+                            internal_context,
+                            table_path,
+                            table_no_hash,
+                        )
+                    })
+                    .collect(),
+            ),
+            CompiledLogic::FindIndex(table, conditions) => CompiledLogic::FindIndex(
+                Box::new(table.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+                conditions.clone(),
+            ),
+            CompiledLogic::IndexAt(lookup_val, table, field, range) => CompiledLogic::IndexAt(
+                Box::new(lookup_val.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+                Box::new(table.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+                Box::new(field.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+                range.as_ref().map(|r| {
+                    Box::new(r.fold_table_invariants(
+                        evaluator,
+                        user_data,
+                        internal_context,
+                        table_path,
+                        table_no_hash,
+                    ))
+                }),
+            ),
+            CompiledLogic::Match(table, conditions) => CompiledLogic::Match(
+                Box::new(table.fold_table_invariants(
+                    evaluator,
+                    user_data,
+                    internal_context,
+                    table_path,
+                    table_no_hash,
+                )),
+                conditions
+                    .iter()
+                    .map(|c| {
+                        c.fold_table_invariants(
+                            evaluator,
+                            user_data,
+                            internal_context,
+                            table_path,
+                            table_no_hash,
+                        )
+                    })
+                    .collect(),
             ),
             _ => self.clone(),
         }
