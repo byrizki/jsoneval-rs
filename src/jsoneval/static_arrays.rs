@@ -10,6 +10,35 @@ pub(crate) fn extract_from_params(
     static_arrays
 }
 
+/// Automatically extracts numeric reference matrices into dense typed tables
+/// and registers them on the RLogic engine for O(1) accelerated lookups.
+pub(crate) fn register_typed_tables_from_static_arrays(
+    engine: &crate::rlogic::RLogic,
+    static_arrays: &IndexMap<String, Arc<Value>>,
+) {
+    for (path, arc_val) in static_arrays.iter() {
+        if let Value::Array(arr) = &**arc_val {
+            if let Some(typed) =
+                crate::rlogic::tensor::TypedReferenceTable::try_from_json_array(path, arr)
+            {
+                let typed_arc = Arc::new(typed);
+                engine.register_typed_table(path.clone(), Arc::clone(&typed_arc));
+                if let Some(short_name) = path.rsplit('/').next() {
+                    engine.register_typed_table(short_name.to_string(), Arc::clone(&typed_arc));
+                    engine.register_typed_table(
+                        format!("#/$params/references/{}", short_name),
+                        Arc::clone(&typed_arc),
+                    );
+                    engine.register_typed_table(
+                        format!("/$params/references/{}", short_name),
+                        Arc::clone(&typed_arc),
+                    );
+                }
+            }
+        }
+    }
+}
+
 fn extract_recursive(
     map: &mut serde_json::Map<String, Value>,
     prefix: &str,

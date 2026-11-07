@@ -13,6 +13,7 @@ pub mod compiled;
 pub mod compiled_logic_store;
 pub mod config;
 pub mod evaluator;
+pub mod tensor;
 
 use serde_json::Value;
 
@@ -186,6 +187,20 @@ impl RLogic {
     /// Clear all stored indices
     pub fn clear_indices(&self) {
         self.evaluator.clear_indices();
+    }
+
+    /// Register a typed reference table for accelerated numerical lookup
+    pub fn register_typed_table(
+        &self,
+        name: String,
+        table: std::sync::Arc<crate::rlogic::tensor::TypedReferenceTable>,
+    ) {
+        self.evaluator.register_typed_table(name, table);
+    }
+
+    /// Clear all stored typed reference tables
+    pub fn clear_typed_tables(&self) {
+        self.evaluator.clear_typed_tables();
     }
     /// Register active table scope so self-table Var/Ref/ValueAt references
     /// are resolved from `rows` rather than user_data.

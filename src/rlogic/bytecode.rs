@@ -451,6 +451,382 @@ impl TableBytecode {
             None
         }
     }
+
+    /// Execute bytecode expression directly against a contiguous raw f64 tensor buffer
+    ///
+    /// # Safety
+    /// `tensor_data` must point to at least `total_rows * col_count` contiguous f64 elements.
+    /// `static_rows` must point to a valid `Vec<Value>` of previous rows.
+    #[inline(always)]
+    pub unsafe fn execute_tensor(
+        &self,
+        tensor_data: *const f64,
+        col_count: usize,
+        row_offset: usize,
+        existing_row_count: usize,
+        total_rows: usize,
+        iteration_raw: i64,
+        static_rows: *const Vec<Value>,
+        col_names: &[String],
+    ) -> Option<f64> {
+        let mut stack: [f64; 64] = [0.0; 64];
+        let mut sp: usize = 0;
+        let mut pc: usize = 0;
+        let mut steps: usize = 0;
+        let num_ops = self.ops.len();
+
+        while pc < num_ops {
+            steps += 1;
+            if steps > 512 {
+                return None;
+            }
+
+            match self.ops[pc] {
+                TableOp::PushConst(val) => {
+                    if sp >= 64 {
+                        return None;
+                    }
+                    stack[sp] = val;
+                    sp += 1;
+                    pc += 1;
+                }
+                TableOp::PushIteration => {
+                    if sp >= 64 {
+                        return None;
+                    }
+                    stack[sp] = iteration_raw as f64;
+                    sp += 1;
+                    pc += 1;
+                }
+                TableOp::PushCol(col_idx) => {
+                    if sp >= 64 {
+                        return None;
+                    }
+                    let val = *tensor_data.add(row_offset * col_count + col_idx);
+                    stack[sp] = val;
+                    sp += 1;
+                    pc += 1;
+                }
+                TableOp::PushValueAt {
+                    col_idx,
+                    iter_delta,
+                } => {
+                    if sp >= 64 {
+                        return None;
+                    }
+                    let target_iter = iteration_raw + iter_delta as i64;
+                    let val = if target_iter >= 0 {
+                        let target_row = target_iter as usize;
+                        if target_row < existing_row_count {
+                            let rows = &*static_rows;
+                            if let Some(row) = rows.get(target_row) {
+                                if let Value::Object(map) = row {
+                                    let col_name = &col_names[col_idx];
+                                    if let Some(cell) = map.get(col_name) {
+                                        match cell {
+                                            Value::Number(n) => n.as_f64().unwrap_or(0.0),
+                                            _ => super::evaluator::helpers::to_f64(cell),
+                                        }
+                                    } else {
+                                        0.0
+                                    }
+                                } else {
+                                    0.0
+                                }
+                            } else {
+                                0.0
+                            }
+                        } else if target_row < existing_row_count + total_rows {
+                            let cell_offset = target_row - existing_row_count;
+                            *tensor_data.add(cell_offset * col_count + col_idx)
+                        } else {
+                            0.0
+                        }
+                    } else {
+                        0.0
+                    };
+                    stack[sp] = val;
+                    sp += 1;
+                    pc += 1;
+                }
+                TableOp::PushValueAtConstRow { col_idx, const_row } => {
+                    if sp >= 64 {
+                        return None;
+                    }
+                    let val = if const_row < existing_row_count {
+                        let rows = &*static_rows;
+                        if let Some(row) = rows.get(const_row) {
+                            if let Value::Object(map) = row {
+                                let col_name = &col_names[col_idx];
+                                if let Some(cell) = map.get(col_name) {
+                                    match cell {
+                                        Value::Number(n) => n.as_f64().unwrap_or(0.0),
+                                        _ => super::evaluator::helpers::to_f64(cell),
+                                    }
+                                } else {
+                                    0.0
+                                }
+                            } else {
+                                0.0
+                            }
+                        } else {
+                            0.0
+                        }
+                    } else if const_row < existing_row_count + total_rows {
+                        let cell_offset = const_row - existing_row_count;
+                        *tensor_data.add(cell_offset * col_count + col_idx)
+                    } else {
+                        0.0
+                    };
+                    stack[sp] = val;
+                    sp += 1;
+                    pc += 1;
+                }
+                TableOp::Add => {
+                    if sp < 2 {
+                        return None;
+                    }
+                    sp -= 1;
+                    stack[sp - 1] += stack[sp];
+                    pc += 1;
+                }
+                TableOp::Subtract => {
+                    if sp < 2 {
+                        return None;
+                    }
+                    sp -= 1;
+                    stack[sp - 1] -= stack[sp];
+                    pc += 1;
+                }
+                TableOp::Multiply => {
+                    if sp < 2 {
+                        return None;
+                    }
+                    sp -= 1;
+                    stack[sp - 1] *= stack[sp];
+                    pc += 1;
+                }
+                TableOp::Divide => {
+                    if sp < 2 {
+                        return None;
+                    }
+                    sp -= 1;
+                    let divisor = stack[sp];
+                    if divisor == 0.0 {
+                        return None;
+                    }
+                    stack[sp - 1] /= divisor;
+                    pc += 1;
+                }
+                TableOp::Modulo => {
+                    if sp < 2 {
+                        return None;
+                    }
+                    sp -= 1;
+                    let divisor = stack[sp];
+                    if divisor == 0.0 {
+                        return None;
+                    }
+                    stack[sp - 1] %= divisor;
+                    pc += 1;
+                }
+                TableOp::Negate => {
+                    if sp < 1 {
+                        return None;
+                    }
+                    stack[sp - 1] = -stack[sp - 1];
+                    pc += 1;
+                }
+                TableOp::Power => {
+                    if sp < 2 {
+                        return None;
+                    }
+                    sp -= 1;
+                    stack[sp - 1] = stack[sp - 1].powf(stack[sp]);
+                    pc += 1;
+                }
+                TableOp::Abs => {
+                    if sp < 1 {
+                        return None;
+                    }
+                    stack[sp - 1] = stack[sp - 1].abs();
+                    pc += 1;
+                }
+                TableOp::Round(decimals) => {
+                    if sp < 1 {
+                        return None;
+                    }
+                    let val = stack[sp - 1];
+                    let factor = 10f64.powi(decimals);
+                    let rounded = if val >= 0.0 {
+                        (val * factor + 0.5).floor() / factor
+                    } else {
+                        (val * factor - 0.5).ceil() / factor
+                    };
+                    stack[sp - 1] = rounded;
+                    pc += 1;
+                }
+                TableOp::RoundUp(decimals) => {
+                    if sp < 1 {
+                        return None;
+                    }
+                    let val = stack[sp - 1];
+                    let factor = 10f64.powi(decimals);
+                    let rounded = if val >= 0.0 {
+                        (val * factor).ceil() / factor
+                    } else {
+                        (val * factor).floor() / factor
+                    };
+                    stack[sp - 1] = rounded;
+                    pc += 1;
+                }
+                TableOp::RoundDown(decimals) => {
+                    if sp < 1 {
+                        return None;
+                    }
+                    let val = stack[sp - 1];
+                    let factor = 10f64.powi(decimals);
+                    let rounded = if val >= 0.0 {
+                        (val * factor).floor() / factor
+                    } else {
+                        (val * factor).ceil() / factor
+                    };
+                    stack[sp - 1] = rounded;
+                    pc += 1;
+                }
+                TableOp::Min(count) => {
+                    let n = count as usize;
+                    if sp < n || n == 0 {
+                        return None;
+                    }
+                    let start = sp - n;
+                    let mut min_val = stack[start];
+                    for i in (start + 1)..sp {
+                        if stack[i] < min_val {
+                            min_val = stack[i];
+                        }
+                    }
+                    sp = start + 1;
+                    stack[sp - 1] = min_val;
+                    pc += 1;
+                }
+                TableOp::Max(count) => {
+                    let n = count as usize;
+                    if sp < n || n == 0 {
+                        return None;
+                    }
+                    let start = sp - n;
+                    let mut max_val = stack[start];
+                    for i in (start + 1)..sp {
+                        if stack[i] > max_val {
+                            max_val = stack[i];
+                        }
+                    }
+                    sp = start + 1;
+                    stack[sp - 1] = max_val;
+                    pc += 1;
+                }
+                TableOp::Eq => {
+                    if sp < 2 {
+                        return None;
+                    }
+                    sp -= 1;
+                    let b = stack[sp];
+                    let a = stack[sp - 1];
+                    stack[sp - 1] = if (a == b) || (a - b).abs() < 1e-9 {
+                        1.0
+                    } else {
+                        0.0
+                    };
+                    pc += 1;
+                }
+                TableOp::Ne => {
+                    if sp < 2 {
+                        return None;
+                    }
+                    sp -= 1;
+                    let b = stack[sp];
+                    let a = stack[sp - 1];
+                    stack[sp - 1] = if (a != b) && (a - b).abs() >= 1e-9 {
+                        1.0
+                    } else {
+                        0.0
+                    };
+                    pc += 1;
+                }
+                TableOp::Lt => {
+                    if sp < 2 {
+                        return None;
+                    }
+                    sp -= 1;
+                    stack[sp - 1] = if stack[sp - 1] < stack[sp] { 1.0 } else { 0.0 };
+                    pc += 1;
+                }
+                TableOp::Lte => {
+                    if sp < 2 {
+                        return None;
+                    }
+                    sp -= 1;
+                    stack[sp - 1] = if stack[sp - 1] <= stack[sp] { 1.0 } else { 0.0 };
+                    pc += 1;
+                }
+                TableOp::Gt => {
+                    if sp < 2 {
+                        return None;
+                    }
+                    sp -= 1;
+                    stack[sp - 1] = if stack[sp - 1] > stack[sp] { 1.0 } else { 0.0 };
+                    pc += 1;
+                }
+                TableOp::Gte => {
+                    if sp < 2 {
+                        return None;
+                    }
+                    sp -= 1;
+                    stack[sp - 1] = if stack[sp - 1] >= stack[sp] { 1.0 } else { 0.0 };
+                    pc += 1;
+                }
+                TableOp::Not => {
+                    if sp < 1 {
+                        return None;
+                    }
+                    stack[sp - 1] = if stack[sp - 1] == 0.0 { 1.0 } else { 0.0 };
+                    pc += 1;
+                }
+                TableOp::Jump(target) => {
+                    pc = target;
+                }
+                TableOp::JumpIfZero(target) => {
+                    if sp < 1 {
+                        return None;
+                    }
+                    sp -= 1;
+                    if stack[sp] == 0.0 {
+                        pc = target;
+                    } else {
+                        pc += 1;
+                    }
+                }
+                TableOp::JumpIfNotZero(target) => {
+                    if sp < 1 {
+                        return None;
+                    }
+                    sp -= 1;
+                    if stack[sp] != 0.0 {
+                        pc = target;
+                    } else {
+                        pc += 1;
+                    }
+                }
+            }
+        }
+
+        if sp == 1 {
+            Some(stack[0])
+        } else {
+            None
+        }
+    }
 }
 
 /// Attempt to lower a CompiledLogic expression to linear TableBytecode

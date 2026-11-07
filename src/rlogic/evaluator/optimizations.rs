@@ -239,10 +239,6 @@ impl Evaluator {
         internal_context: &Value,
         depth: usize,
     ) -> Result<Value, String> {
-        // Pre-evaluate all parameters
-        let table_ref = self.resolve_table_ref(table_expr, user_data, internal_context, depth)?;
-        let lookup_val =
-            self.evaluate_with_context(lookup_expr, user_data, internal_context, depth + 1)?;
         let field_val = self.resolve_column_name(field_expr, user_data, internal_context, depth)?;
         let col_val = if let Some(col_expr) = col_name_expr {
             Some(self.resolve_column_name(col_expr, user_data, internal_context, depth)?)
@@ -257,6 +253,34 @@ impl Evaluator {
         } else {
             false
         };
+
+        // Typed Reference Table O(1) fast-path
+        if !is_range {
+            let table_name_opt = match table_expr {
+                CompiledLogic::Var(name, _) | CompiledLogic::Ref(name, _) => Some(name.as_str()),
+                _ => None,
+            };
+
+            if let Some(table_name) = table_name_opt {
+                if let Some(typed_table) = self.get_typed_table(table_name) {
+                    let lookup_val =
+                        self.evaluate_with_context(lookup_expr, user_data, internal_context, depth + 1)?;
+                    let lookup_num = to_number(&lookup_val);
+                    if let (Value::String(field), Some(Value::String(col_name))) =
+                        (&field_val, &col_val)
+                    {
+                        if let Some(val) = typed_table.lookup_value(field, lookup_num, col_name) {
+                            return Ok(self.f64_to_value(val));
+                        }
+                    }
+                }
+            }
+        }
+
+        // Pre-evaluate remaining parameters
+        let table_ref = self.resolve_table_ref(table_expr, user_data, internal_context, depth)?;
+        let lookup_val =
+            self.evaluate_with_context(lookup_expr, user_data, internal_context, depth + 1)?;
 
         let is_borrowed = matches!(table_ref, super::types::TableRef::Borrowed(_));
 

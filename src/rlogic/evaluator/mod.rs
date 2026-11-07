@@ -130,6 +130,8 @@ pub struct Evaluator {
     config: RLogicConfig,
     /// Upfront indices for large tables (name -> index)
     indices: RwLock<HashMap<String, TableIndex>>,
+    /// Pre-extracted dense typed reference tables for accelerated O(1) numeric lookups
+    typed_tables: RwLock<HashMap<String, std::sync::Arc<crate::rlogic::tensor::TypedReferenceTable>>>,
 }
 
 impl Evaluator {
@@ -137,7 +139,43 @@ impl Evaluator {
         Self {
             config: RLogicConfig::default(),
             indices: RwLock::new(HashMap::new()),
+            typed_tables: RwLock::new(HashMap::new()),
         }
+    }
+
+    /// Register a typed reference table for accelerated numerical lookup
+    pub fn register_typed_table(
+        &self,
+        name: String,
+        table: std::sync::Arc<crate::rlogic::tensor::TypedReferenceTable>,
+    ) {
+        if let Ok(mut map) = self.typed_tables.write() {
+            map.insert(name, table);
+        }
+    }
+
+    /// Clear all registered typed tables
+    pub fn clear_typed_tables(&self) {
+        if let Ok(mut map) = self.typed_tables.write() {
+            map.clear();
+        }
+    }
+
+    /// Get a typed reference table by full path or short name
+    pub fn get_typed_table(
+        &self,
+        name: &str,
+    ) -> Option<std::sync::Arc<crate::rlogic::tensor::TypedReferenceTable>> {
+        let clean_name = name.rsplit('/').next().unwrap_or(name);
+        if let Ok(map) = self.typed_tables.read() {
+            if let Some(t) = map.get(name) {
+                return Some(std::sync::Arc::clone(t));
+            }
+            if let Some(t) = map.get(clean_name) {
+                return Some(std::sync::Arc::clone(t));
+            }
+        }
+        None
     }
 
     #[inline(always)]

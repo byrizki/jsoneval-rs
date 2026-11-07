@@ -241,6 +241,16 @@ fn evaluate_table_inner(
         }
     };
 
+    let value_to_tensor_f64 = |value: &Value| -> f64 {
+        match value {
+            Value::Number(n) => n.as_f64().unwrap_or(0.0),
+            Value::String(s) => s.parse::<f64>().unwrap_or(0.0),
+            Value::Bool(true) => 1.0,
+            Value::Bool(false) => 0.0,
+            _ => 0.0,
+        }
+    };
+
     // Accumulate all row plans into a single local_rows Vec
     let mut local_rows: Vec<Value> = Vec::new();
 
@@ -390,6 +400,7 @@ fn evaluate_table_inner(
 
                 // Pre-allocate flat cells buffer with null cells (1 single contiguous allocation)
                 let mut flat_cells = vec![Value::Null; total_rows * col_count];
+                let mut tensor = crate::rlogic::tensor::Tensor2D::new(total_rows, col_count);
 
                 // Register this table's scope on the evaluator so self-table
                 // Var/Ref/ValueAt lookups resolve from flat_cells / local_rows.
@@ -433,15 +444,15 @@ fn evaluate_table_inner(
                                 .set_table_scope_cursor(Some(row_idx), Some(iteration));
 
                             let row_base = row_offset * col_count;
-                            let flat_cells_ptr = flat_cells.as_ptr();
+                            let tensor_data_ptr = tensor.data.as_ptr();
                             let static_rows_ptr = &local_rows as *const Vec<Value>;
 
                             for &col_idx in normal_cols.iter() {
                                 let column = &columns[col_idx];
                                 if let Some(ref bc) = col_bytecodes[col_idx] {
                                     let num = unsafe {
-                                        bc.execute(
-                                            flat_cells_ptr,
+                                        bc.execute_tensor(
+                                            tensor_data_ptr,
                                             col_count,
                                             row_offset,
                                             existing_row_count,
@@ -452,6 +463,7 @@ fn evaluate_table_inner(
                                         )
                                     };
                                     if let Some(n) = num {
+                                        tensor.set(row_offset, col_idx, n);
                                         flat_cells[row_base + col_idx] = lib.engine.f64_to_value(n);
                                         continue;
                                     }
@@ -493,6 +505,8 @@ fn evaluate_table_inner(
                                         .map(|arc_val| Value::clone(arc_val))
                                         .unwrap_or(Value::Null),
                                 };
+
+                                tensor.set(row_offset, col_idx, value_to_tensor_f64(&value));
 
                                 // Write directly into flat_cells — no string hash, no IndexMap search
                                 flat_cells[row_base + col_idx] = value;
@@ -624,6 +638,7 @@ fn evaluate_table_inner(
 
                             let row_base = row_offset * col_count;
                             let fwd_row_base = row_offset * forward_cols.len();
+                            let static_rows_ptr = &local_rows as *const Vec<Value>;
                             macro_rules! eval_col {
                                 ($fwd_idx:expr, $col_idx:expr) => {{
                                     let fwd_idx = $fwd_idx;
@@ -672,17 +687,46 @@ fn evaluate_table_inner(
                                     };
 
                                     if should_evaluate {
-                                        let value = match col_logics[col_idx] {
-                                            Some(compiled) => {
-                                                if is_pure_arithmetic(compiled) {
-                                                    if let Ok(Some(num)) =
-                                                        lib.engine.run_precompiled_f64_with_context(
-                                                            compiled,
-                                                            scope_data.data(),
-                                                            &ctx_value,
-                                                        )
-                                                    {
-                                                        lib.engine.f64_to_value(num)
+                                        let num_from_bc = if let Some(ref bc) = col_bytecodes[col_idx] {
+                                            unsafe {
+                                                bc.execute_tensor(
+                                                    tensor.data.as_ptr(),
+                                                    col_count,
+                                                    row_offset,
+                                                    existing_row_count,
+                                                    total_rows,
+                                                    iteration,
+                                                    static_rows_ptr,
+                                                    &col_names,
+                                                )
+                                            }
+                                        } else {
+                                            None
+                                        };
+
+                                        let value = if let Some(num) = num_from_bc {
+                                            lib.engine.f64_to_value(num)
+                                        } else {
+                                            match col_logics[col_idx] {
+                                                Some(compiled) => {
+                                                    if is_pure_arithmetic(compiled) {
+                                                        if let Ok(Some(num)) =
+                                                            lib.engine.run_precompiled_f64_with_context(
+                                                                compiled,
+                                                                scope_data.data(),
+                                                                &ctx_value,
+                                                            )
+                                                        {
+                                                            lib.engine.f64_to_value(num)
+                                                        } else {
+                                                            lib.engine
+                                                                .run_precompiled_with_context(
+                                                                    compiled,
+                                                                    scope_data.data(),
+                                                                    &ctx_value,
+                                                                )
+                                                                .unwrap_or(Value::Null)
+                                                        }
                                                     } else {
                                                         lib.engine
                                                             .run_precompiled_with_context(
@@ -692,22 +736,16 @@ fn evaluate_table_inner(
                                                             )
                                                             .unwrap_or(Value::Null)
                                                     }
-                                                } else {
-                                                    lib.engine
-                                                        .run_precompiled_with_context(
-                                                            compiled,
-                                                            scope_data.data(),
-                                                            &ctx_value,
-                                                        )
-                                                        .unwrap_or(Value::Null)
                                                 }
+                                                None => column
+                                                    .literal
+                                                    .as_ref()
+                                                    .map(|arc_val| Value::clone(arc_val))
+                                                    .unwrap_or(Value::Null),
                                             }
-                                            None => column
-                                                .literal
-                                                .as_ref()
-                                                .map(|arc_val| Value::clone(arc_val))
-                                                .unwrap_or(Value::Null),
                                         };
+
+                                        tensor.set(row_offset, col_idx, value_to_tensor_f64(&value));
 
                                         // Write directly to flat_cells
                                         let cell_idx = row_base + col_idx;

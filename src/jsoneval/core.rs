@@ -88,6 +88,10 @@ impl JSONEval {
             let engine_config = RLogicConfig::default();
             let engine = RLogic::with_config(engine_config);
             engine.set_static_arrays(Arc::clone(&static_arrays));
+            crate::jsoneval::static_arrays::register_typed_tables_from_static_arrays(
+                &engine,
+                &static_arrays,
+            );
 
             let mut instance = time_block!("  create instance struct", {
                 Self {
@@ -156,6 +160,10 @@ impl JSONEval {
             let engine_config = RLogicConfig::default();
             let engine = RLogic::with_config(engine_config);
             engine.set_static_arrays(Arc::clone(&static_arrays));
+            crate::jsoneval::static_arrays::register_typed_tables_from_static_arrays(
+                &engine,
+                &static_arrays,
+            );
 
             let mut instance = time_block!("  create instance struct", {
                 Self {
@@ -252,6 +260,10 @@ impl JSONEval {
         let engine_config = RLogicConfig::default();
         let engine = RLogic::with_config(engine_config);
         engine.set_static_arrays(Arc::clone(&static_arrays));
+        crate::jsoneval::static_arrays::register_typed_tables_from_static_arrays(
+            &engine,
+            &static_arrays,
+        );
 
         let mut instance = Self {
             schema: Arc::new(schema_val),

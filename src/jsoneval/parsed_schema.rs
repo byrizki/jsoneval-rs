@@ -147,6 +147,10 @@ impl ParsedSchema {
 
         let engine = RLogic::with_config(engine_config);
         engine.set_static_arrays(Arc::clone(&static_arrays));
+        crate::jsoneval::static_arrays::register_typed_tables_from_static_arrays(
+            &engine,
+            &static_arrays,
+        );
 
         let mut parsed = Self {
             schema: Arc::new(schema_val),
