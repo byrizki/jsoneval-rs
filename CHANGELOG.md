@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.0] - 2026-11-08
+
+- perf(table): push all dev products under 50ms with bytecode lowering, typed table registration, and string folding
+- perf(table): fold invariant comparison and logical ops, cache typed tables, and run direct row arithmetic
+- feat(benchmark): add dev products comprehensive benchmark runner
+- feat(tensor): eliminate table row loop via columnar topological scheduling and typed reference lookups
+- feat(tensor): implement tensor-based table calculation and typed reference lookups
+
+
 ## [0.0.126] - 2026-11-02
 
 - fix: evaluation cache
