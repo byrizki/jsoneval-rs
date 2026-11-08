@@ -13,7 +13,7 @@
   "dependencies": {
     "@json-eval-rs/react-native": "*",
     "react": "18.3.1",
-    "react-native": "0.75.5"
+    "react-native": "0.87.1"
   },
   "devDependencies": {
     "@babel/core": "^7.29.6",
